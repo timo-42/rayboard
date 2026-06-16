@@ -63,34 +63,8 @@ func runRuntime(ctx context.Context, mode runtime.Mode, args []string, stdout, s
 	return 0
 }
 
-func runDemo(_ context.Context, args []string, _ io.Writer, stderr io.Writer) int {
-	if len(args) == 0 || args[0] != "seed" {
-		fmt.Fprintln(stderr, "usage: rayboard demo seed --backend-url http://host:port --admin-user admin --admin-password <password> --fresh-reset")
-		return 2
-	}
-
-	flags := flag.NewFlagSet("demo seed", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-
-	var backendURL string
-	var adminUser string
-	var adminPassword string
-	var freshReset bool
-	flags.StringVar(&backendURL, "backend-url", config.DefaultBackendURL, "backend API base URL")
-	flags.StringVar(&adminUser, "admin-user", "admin", "admin username")
-	flags.StringVar(&adminPassword, "admin-password", "", "admin password")
-	flags.BoolVar(&freshReset, "fresh-reset", false, "destructively reset and reseed demo data")
-
-	if err := flags.Parse(args[1:]); err != nil {
-		return 2
-	}
-	if backendURL == "" || adminUser == "" || adminPassword == "" || !freshReset {
-		fmt.Fprintln(stderr, "demo seed requires --backend-url, --admin-user, --admin-password, and --fresh-reset")
-		return 2
-	}
-
-	fmt.Fprintln(stderr, "demo seed is not implemented yet")
-	return 1
+func runDemo(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	return runDemoSeed(ctx, args, stdout, stderr)
 }
 
 func printUsage(w io.Writer) {
