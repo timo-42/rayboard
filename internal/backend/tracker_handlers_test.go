@@ -379,10 +379,12 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
-		"name":       "Sprint 1",
-		"goal":       "Exercise sprint API",
-		"start_date": "2026-06-16",
-		"end_date":   "2026-06-30",
+		"spec": map[string]any{
+			"name":       "Sprint 1",
+			"goal":       "Exercise sprint API",
+			"start_date": "2026-06-16",
+			"end_date":   "2026-06-30",
+		},
 	}))
 	addSessionCSRF(createSprintReq, session, csrf)
 	createSprint := httptest.NewRecorder()
@@ -390,16 +392,16 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createSprint.Code != http.StatusCreated {
 		t.Fatalf("expected create sprint status 201, got %d: %s", createSprint.Code, createSprint.Body.String())
 	}
-	var sprint tracker.Sprint
+	var sprint sprintResourceBody
 	if err := json.Unmarshal(createSprint.Body.Bytes(), &sprint); err != nil {
 		t.Fatalf("decode sprint: %v", err)
 	}
-	if sprint.ID == "" || sprint.State != tracker.SprintStatePlanned {
+	if sprint.Metadata.ID == "" || sprint.Status.State != tracker.SprintStatePlanned {
 		t.Fatalf("unexpected sprint: %#v", sprint)
 	}
 
 	assignSprintReq := httptest.NewRequest(http.MethodPut, "/api/tickets/"+ticket.ID+"/sprint", mustJSON(t, map[string]any{
-		"sprint_id": sprint.ID,
+		"sprint_id": sprint.Metadata.ID,
 	}))
 	addSessionCSRF(assignSprintReq, session, csrf)
 	assignSprint := httptest.NewRecorder()
@@ -411,11 +413,11 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if err := json.Unmarshal(assignSprint.Body.Bytes(), &sprintTicket); err != nil {
 		t.Fatalf("decode sprint ticket: %v", err)
 	}
-	if sprintTicket.SprintID != sprint.ID {
-		t.Fatalf("expected ticket sprint %s, got %#v", sprint.ID, sprintTicket)
+	if sprintTicket.SprintID != sprint.Metadata.ID {
+		t.Fatalf("expected ticket sprint %s, got %#v", sprint.Metadata.ID, sprintTicket)
 	}
 
-	startSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.ID+"/start", nil)
+	startSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.Metadata.ID+"/start", nil)
 	addSessionCSRF(startSprintReq, session, csrf)
 	startSprint := httptest.NewRecorder()
 	handler.ServeHTTP(startSprint, startSprintReq)
@@ -423,7 +425,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected start sprint status 200, got %d: %s", startSprint.Code, startSprint.Body.String())
 	}
 
-	completeSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.ID+"/complete", nil)
+	completeSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.Metadata.ID+"/complete", nil)
 	addSessionCSRF(completeSprintReq, session, csrf)
 	completeSprint := httptest.NewRecorder()
 	handler.ServeHTTP(completeSprint, completeSprintReq)
@@ -489,4 +491,13 @@ func newTrackerTestHandler(db *sql.DB) http.Handler {
 		WithAuthorizer(authorizer),
 		WithTrackerService(trackerService),
 	)
+}
+
+type sprintResourceBody struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Status struct {
+		State string `json:"state"`
+	} `json:"status"`
 }

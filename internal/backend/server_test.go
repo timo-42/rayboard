@@ -71,8 +71,11 @@ func TestOpenAPIJSON(t *testing.T) {
 	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"username"}, []string{"password"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"title"}, []string{"labels"})
-	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"}, []string{"spec", "engine", "type"}, []string{"spec", "engine", "script"}, []string{"spec", "engine", "prompt"}, []string{"spec", "engine", "provider_id"})
+	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
+	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/cron-jobs", http.MethodPost), []string{"spec", "engine"})
 	assertResponseBodyFields(t, spec, "/api/cron-jobs/{job_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "next_run_at"})
+	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/sprints", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "goal"}, []string{"spec", "start_date"}, []string{"spec", "end_date"})
+	assertResponseBodyFields(t, spec, "/api/sprints/{sprint_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {
@@ -188,6 +191,59 @@ func responseBodySchema(t *testing.T, spec map[string]any, path string, method s
 func assertSchemaField(t *testing.T, spec map[string]any, schema map[string]any, fieldPath []string) {
 	t.Helper()
 
+	_ = schemaAtPath(t, spec, schema, fieldPath)
+}
+
+func assertDiscriminatedEngineSchema(t *testing.T, spec map[string]any, root map[string]any, fieldPath []string) {
+	t.Helper()
+
+	engine := resolveSchema(t, spec, schemaAtPath(t, spec, root, fieldPath))
+	discriminator := mapField(t, engine, "discriminator")
+	if discriminator["propertyName"] != "type" {
+		t.Fatalf("expected engine discriminator propertyName type, got %#v", discriminator)
+	}
+	oneOf, ok := engine["oneOf"].([]any)
+	if !ok || len(oneOf) != 2 {
+		t.Fatalf("expected engine oneOf variants, got %#v", engine["oneOf"])
+	}
+	assertOneOfVariant(t, oneOf, "lua", []string{"type", "script"}, []string{"script"})
+	assertOneOfVariant(t, oneOf, "ai", []string{"type", "prompt", "provider_id"}, []string{"prompt", "provider_id"})
+}
+
+func assertOneOfVariant(t *testing.T, variants []any, engineType string, required []string, properties []string) {
+	t.Helper()
+
+	for _, variant := range variants {
+		schema, ok := variant.(map[string]any)
+		if !ok {
+			continue
+		}
+		props, ok := schema["properties"].(map[string]any)
+		if !ok {
+			continue
+		}
+		typeSchema, ok := props["type"].(map[string]any)
+		if !ok || !jsonArrayContains(typeSchema["enum"], engineType) {
+			continue
+		}
+		for _, field := range required {
+			if !jsonArrayContains(schema["required"], field) {
+				t.Fatalf("expected %s engine required field %q in %#v", engineType, field, schema["required"])
+			}
+		}
+		for _, field := range properties {
+			if _, ok := props[field]; !ok {
+				t.Fatalf("expected %s engine property %q in %#v", engineType, field, props)
+			}
+		}
+		return
+	}
+	t.Fatalf("expected engine oneOf variant %q in %#v", engineType, variants)
+}
+
+func schemaAtPath(t *testing.T, spec map[string]any, schema map[string]any, fieldPath []string) map[string]any {
+	t.Helper()
+
 	current := schema
 	for _, field := range fieldPath {
 		current = resolveSchema(t, spec, current)
@@ -198,6 +254,7 @@ func assertSchemaField(t *testing.T, spec map[string]any, schema map[string]any,
 		}
 		current = next
 	}
+	return current
 }
 
 func resolveSchema(t *testing.T, spec map[string]any, schema map[string]any) map[string]any {
@@ -229,4 +286,17 @@ func mapField(t *testing.T, value map[string]any, field string) map[string]any {
 		t.Fatalf("expected object field %q in %#v", field, value)
 	}
 	return next
+}
+
+func jsonArrayContains(value any, expected string) bool {
+	items, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range items {
+		if item == expected {
+			return true
+		}
+	}
+	return false
 }

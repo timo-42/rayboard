@@ -2,6 +2,7 @@ package projects
 
 import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
+	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -92,7 +93,7 @@ type ListSprintsInput struct {
 type CreateSprintInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateSprintInput
+	Body      shared.ResourceInput[sprintapi.SprintSpec]
 }
 
 type ListProjectsOutput = shared.ListOutput[tracker.Project]
@@ -112,5 +113,5 @@ type CreateVersionOutput = shared.CreatedOutput[tracker.Version]
 type ListCustomFieldsOutput = shared.ListOutput[tracker.CustomFieldDefinition]
 type CreateCustomFieldOutput = shared.CreatedOutput[tracker.CustomFieldDefinition]
 type ListRoadmapOutput = shared.ListOutput[tracker.RoadmapItem]
-type ListSprintsOutput = shared.ListOutput[tracker.Sprint]
-type CreateSprintOutput = shared.CreatedOutput[tracker.Sprint]
+type ListSprintsOutput = shared.ListOutput[sprintapi.SprintResource]
+type CreateSprintOutput = shared.CreatedOutput[sprintapi.SprintResource]

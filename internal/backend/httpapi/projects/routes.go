@@ -6,6 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
+	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -281,7 +282,7 @@ func (provider Provider) listSprints(ctx context.Context, input *ListSprintsInpu
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListSprintsOutput{Body: shared.ItemList[tracker.Sprint]{Items: items}}, nil
+	return &ListSprintsOutput{Body: shared.ItemList[sprintapi.SprintResource]{Items: sprintapi.Resources(items)}}, nil
 }
 
 func (provider Provider) createSprint(ctx context.Context, input *CreateSprintInput) (*CreateSprintOutput, error) {
@@ -289,11 +290,9 @@ func (provider Provider) createSprint(ctx context.Context, input *CreateSprintIn
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	sprint, err := provider.Tracker.CreateSprint(ctx, principal, body)
+	sprint, err := provider.Tracker.CreateSprint(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateSprintOutput{Body: sprint}, nil
+	return &CreateSprintOutput{Body: sprintapi.Resource(sprint)}, nil
 }

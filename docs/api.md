@@ -135,16 +135,16 @@ The first sprint API slice is backend/API-only. It supports sprint CRUD within a
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/sprints` | Optional `state`. |
-| `POST` | `/api/projects/{project_id}/sprints` | `{"name":"Sprint 1","goal":"Ship auth fixes","start_date":"2026-06-16","end_date":"2026-06-30"}` |
+| `POST` | `/api/projects/{project_id}/sprints` | `{"spec":{"name":"Sprint 1","goal":"Ship auth fixes","start_date":"2026-06-16","end_date":"2026-06-30"}}` |
 | `GET` | `/api/sprints/{sprint_id}` | none |
-| `PATCH` | `/api/sprints/{sprint_id}` | Any subset of `name`, `goal`, `start_date`, `end_date`. |
+| `PATCH` | `/api/sprints/{sprint_id}` | `{"spec":{...}}` with any subset of `name`, `goal`, `start_date`, `end_date`. |
 | `DELETE` | `/api/sprints/{sprint_id}` | none |
 | `POST` | `/api/sprints/{sprint_id}/start` | Starts a planned sprint. |
 | `POST` | `/api/sprints/{sprint_id}/complete` | Completes an active sprint. |
 | `PUT` | `/api/tickets/{ticket_id}/sprint` | `{"sprint_id":"sprint_..."}` |
 | `DELETE` | `/api/tickets/{ticket_id}/sprint` | Removes the ticket from its sprint. |
 
-Sprint states are `planned`, `active`, and `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
+Sprint responses use `metadata`, `spec`, and `status`. Sprint states are returned in `status.state` and can be `planned`, `active`, or `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
 
 Burndown, velocity, burnup, sprint report APIs, and other agile analytics are **Planned**.
 
@@ -346,6 +346,8 @@ Cron job engine configuration is nested and reusable across future hooks/webhook
   }
 }
 ```
+
+The OpenAPI schema represents `spec.engine` as a discriminated `oneOf` object. `{"type":"lua"}` requires `script`; `{"type":"ai"}` requires `prompt` and `provider_id`.
 
 The planned AI form uses the same `engine` object with an OpenRouter provider reference:
 

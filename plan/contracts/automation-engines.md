@@ -13,7 +13,7 @@ Automation-capable surfaces support:
 }
 ```
 
-`engine.type` is the discriminator. Lua uses `engine.script`. AI uses `engine.prompt` plus `engine.provider_id`, where the provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, limits, and defaults.
+`engine.type` is the discriminator. Lua uses `engine.script`. AI uses `engine.prompt` plus `engine.provider_id`, where the provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, limits, and defaults. OpenAPI schemas must represent this as `oneOf` with a discriminator on `type`, so `lua` requires `script` and `ai` requires `prompt` plus `provider_id`.
 
 Lua uses GopherLua. AI uses OpenRouter only in v1.
 

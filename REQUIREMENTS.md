@@ -235,6 +235,7 @@ internal/backend/httpapi/
   - automation definitions use `engine.type` as the discriminator with `lua` and `ai` values.
   - Lua engine definitions use `engine.script`.
   - AI engine definitions use `engine.prompt` and `engine.provider_id`.
+  - generated OpenAPI schemas for automation engines use `oneOf` with an OpenAPI discriminator on `engine.type`, requiring Lua-specific or AI-specific fields as appropriate.
   - `engine.provider_id` references an admin-managed OpenRouter provider configuration containing model, API key/secret material, limits, and defaults.
   - reuse this engine object for cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, and notification hooks.
   - OpenRouter is the only supported AI provider in the first version.

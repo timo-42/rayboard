@@ -3,6 +3,7 @@ package cronapi
 import (
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
@@ -49,23 +50,49 @@ type JobMetadata struct {
 }
 
 type JobSpec struct {
-	OwnerUserID string              `json:"owner_user_id,omitempty"`
-	ProjectID   string              `json:"project_id,omitempty"`
-	Name        string              `json:"name,omitempty"`
-	Schedule    string              `json:"schedule,omitempty"`
-	Timezone    string              `json:"timezone,omitempty"`
-	Enabled     bool                `json:"enabled,omitempty"`
-	Engine      cronjobs.EngineSpec `json:"engine"`
+	OwnerUserID string     `json:"owner_user_id,omitempty"`
+	ProjectID   string     `json:"project_id,omitempty"`
+	Name        string     `json:"name,omitempty"`
+	Schedule    string     `json:"schedule,omitempty"`
+	Timezone    string     `json:"timezone,omitempty"`
+	Enabled     bool       `json:"enabled,omitempty"`
+	Engine      EngineSpec `json:"engine"`
 }
 
 type UpdateJobSpec struct {
-	OwnerUserID *string              `json:"owner_user_id,omitempty"`
-	ProjectID   *string              `json:"project_id,omitempty"`
-	Name        *string              `json:"name,omitempty"`
-	Schedule    *string              `json:"schedule,omitempty"`
-	Timezone    *string              `json:"timezone,omitempty"`
-	Enabled     *bool                `json:"enabled,omitempty"`
-	Engine      *cronjobs.EngineSpec `json:"engine,omitempty"`
+	OwnerUserID *string     `json:"owner_user_id,omitempty"`
+	ProjectID   *string     `json:"project_id,omitempty"`
+	Name        *string     `json:"name,omitempty"`
+	Schedule    *string     `json:"schedule,omitempty"`
+	Timezone    *string     `json:"timezone,omitempty"`
+	Enabled     *bool       `json:"enabled,omitempty"`
+	Engine      *EngineSpec `json:"engine,omitempty"`
+}
+
+type EngineSpec struct {
+	Type       string `json:"type"`
+	Script     string `json:"script,omitempty"`
+	Prompt     string `json:"prompt,omitempty"`
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+func (EngineSpec) Schema(_ huma.Registry) *huma.Schema {
+	return &huma.Schema{
+		OneOf: []*huma.Schema{
+			engineVariantSchema("lua", []string{"type", "script"}, map[string]*huma.Schema{
+				"type":   {Type: huma.TypeString, Enum: []any{"lua"}},
+				"script": {Type: huma.TypeString, Description: "Lua script source."},
+			}),
+			engineVariantSchema("ai", []string{"type", "prompt", "provider_id"}, map[string]*huma.Schema{
+				"type":        {Type: huma.TypeString, Enum: []any{"ai"}},
+				"prompt":      {Type: huma.TypeString, Description: "AI prompt sent to the selected OpenRouter provider."},
+				"provider_id": {Type: huma.TypeString, Description: "Admin-managed OpenRouter provider configuration ID."},
+			}),
+		},
+		Discriminator: &huma.Discriminator{
+			PropertyName: "type",
+		},
+	}
 }
 
 type JobStatus struct {
@@ -90,7 +117,7 @@ func (spec JobSpec) createInput() cronjobs.CreateInput {
 		Schedule:    spec.Schedule,
 		Timezone:    spec.Timezone,
 		Enabled:     spec.Enabled,
-		Engine:      spec.Engine,
+		Engine:      spec.Engine.toService(),
 	}
 }
 
@@ -102,7 +129,7 @@ func (spec UpdateJobSpec) updateInput() cronjobs.UpdateInput {
 		Schedule:    spec.Schedule,
 		Timezone:    spec.Timezone,
 		Enabled:     spec.Enabled,
-		Engine:      spec.Engine,
+		Engine:      optionalEngineSpec(spec.Engine),
 	}
 }
 
@@ -120,7 +147,7 @@ func jobResource(job cronjobs.Job) JobResource {
 			Schedule:    job.Schedule,
 			Timezone:    job.Timezone,
 			Enabled:     job.Enabled,
-			Engine:      job.Engine,
+			Engine:      engineSpecFromService(job.Engine),
 		},
 		Status: JobStatus{
 			LastRunStatus: job.LastRunStatus,
@@ -128,6 +155,42 @@ func jobResource(job cronjobs.Job) JobResource {
 			NextRunAt:     job.NextRunAt,
 			LastError:     job.LastError,
 		},
+	}
+}
+
+func engineVariantSchema(title string, required []string, properties map[string]*huma.Schema) *huma.Schema {
+	return &huma.Schema{
+		Type:                 huma.TypeObject,
+		Title:                title,
+		Required:             required,
+		Properties:           properties,
+		AdditionalProperties: false,
+	}
+}
+
+func (spec EngineSpec) toService() cronjobs.EngineSpec {
+	return cronjobs.EngineSpec{
+		Type:       spec.Type,
+		Script:     spec.Script,
+		Prompt:     spec.Prompt,
+		ProviderID: spec.ProviderID,
+	}
+}
+
+func optionalEngineSpec(spec *EngineSpec) *cronjobs.EngineSpec {
+	if spec == nil {
+		return nil
+	}
+	serviceSpec := spec.toService()
+	return &serviceSpec
+}
+
+func engineSpecFromService(spec cronjobs.EngineSpec) EngineSpec {
+	return EngineSpec{
+		Type:       spec.Type,
+		Script:     spec.Script,
+		Prompt:     spec.Prompt,
+		ProviderID: spec.ProviderID,
 	}
 }
 

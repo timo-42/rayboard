@@ -83,6 +83,56 @@ func TestCronEndpointsUseResourceEnvelope(t *testing.T) {
 	}
 }
 
+func TestCronEndpointEngineDiscriminatorValidation(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authorizer),
+		WithCronService(cronjobs.NewService(db.SQL, authorizer, automation.NewRunStore(db.SQL))),
+	)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	for name, body := range map[string]map[string]any{
+		"lua script required": {
+			"spec": map[string]any{
+				"name":     "Lua missing script",
+				"schedule": "* * * * *",
+				"engine": map[string]any{
+					"type": "lua",
+				},
+			},
+		},
+		"ai provider required": {
+			"spec": map[string]any{
+				"name":     "AI missing provider",
+				"schedule": "* * * * *",
+				"engine": map[string]any{
+					"type":   "ai",
+					"prompt": "Return JSON",
+				},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/cron-jobs", mustJSON(t, body))
+			addSessionCSRF(req, session, csrf)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("expected discriminator validation status 422, got %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 type cronResourceBody struct {
 	Metadata struct {
 		ID        string    `json:"id"`

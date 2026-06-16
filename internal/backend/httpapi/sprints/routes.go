@@ -25,7 +25,7 @@ func (provider Provider) getSprint(ctx context.Context, input *SprintIDInput) (*
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &SprintOutput{Body: sprint}, nil
+	return &SprintOutput{Body: Resource(sprint)}, nil
 }
 
 func (provider Provider) updateSprint(ctx context.Context, input *UpdateSprintInput) (*SprintOutput, error) {
@@ -33,11 +33,11 @@ func (provider Provider) updateSprint(ctx context.Context, input *UpdateSprintIn
 	if err != nil {
 		return nil, err
 	}
-	sprint, err := provider.Tracker.UpdateSprint(ctx, principal, input.SprintID, input.Body)
+	sprint, err := provider.Tracker.UpdateSprint(ctx, principal, input.SprintID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &SprintOutput{Body: sprint}, nil
+	return &SprintOutput{Body: Resource(sprint)}, nil
 }
 
 func (provider Provider) deleteSprint(ctx context.Context, input *SprintIDInput) (*shared.EmptyOutput, error) {
@@ -60,7 +60,7 @@ func (provider Provider) startSprint(ctx context.Context, input *SprintIDInput) 
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &SprintOutput{Body: sprint}, nil
+	return &SprintOutput{Body: Resource(sprint)}, nil
 }
 
 func (provider Provider) completeSprint(ctx context.Context, input *CompleteSprintInput) (*SprintOutput, error) {
@@ -72,5 +72,5 @@ func (provider Provider) completeSprint(ctx context.Context, input *CompleteSpri
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &SprintOutput{Body: sprint}, nil
+	return &SprintOutput{Body: Resource(sprint)}, nil
 }
