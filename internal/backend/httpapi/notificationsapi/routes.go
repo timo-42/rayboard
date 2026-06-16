@@ -29,7 +29,7 @@ func (provider Provider) listNotifications(ctx context.Context, input *ListNotif
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListNotificationsOutput{Body: shared.ItemList[notifications.Notification]{Items: items}}, nil
+	return &ListNotificationsOutput{Body: shared.ItemList[NotificationResource]{Items: notificationResources(items)}}, nil
 }
 
 func (provider Provider) markAllRead(ctx context.Context, input *MarkAllReadInput) (*shared.EmptyOutput, error) {
@@ -52,7 +52,7 @@ func (provider Provider) markRead(ctx context.Context, input *NotificationIDInpu
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &NotificationOutput{Body: notification}, nil
+	return &NotificationOutput{Body: notificationResource(notification)}, nil
 }
 
 func (provider Provider) markUnread(ctx context.Context, input *NotificationIDInput) (*NotificationOutput, error) {
@@ -64,7 +64,7 @@ func (provider Provider) markUnread(ctx context.Context, input *NotificationIDIn
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &NotificationOutput{Body: notification}, nil
+	return &NotificationOutput{Body: notificationResource(notification)}, nil
 }
 
 func operation(method string, path string, tag string, summary string, status int) huma.Operation {

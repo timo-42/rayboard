@@ -2,6 +2,7 @@ package authapi
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
@@ -45,10 +46,10 @@ type MeOutputBody struct {
 
 type CreateTokenInput struct {
 	shared.AuthInput
-	Body CreateTokenInputBody
+	Body shared.ResourceInput[CreateTokenSpec]
 }
 
-type CreateTokenInputBody struct {
+type CreateTokenSpec struct {
 	Name string `json:"name,omitempty"`
 }
 
@@ -59,10 +60,10 @@ type RevokeTokenInput struct {
 
 type CreateUserInput struct {
 	shared.AuthInput
-	Body CreateUserInputBody
+	Body shared.ResourceInput[CreateUserSpec]
 }
 
-type CreateUserInputBody struct {
+type CreateUserSpec struct {
 	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 	Password    string `json:"password,omitempty"`
@@ -77,19 +78,19 @@ type UserIDInput struct {
 type UpdateUserInput struct {
 	shared.AuthInput
 	UserID string `path:"user_id"`
-	Body   UpdateUserInputBody
+	Body   shared.ResourceInput[UpdateUserSpec]
 }
 
-type UpdateUserInputBody struct {
+type UpdateUserSpec struct {
 	Disabled *bool `json:"disabled,omitempty"`
 }
 
 type CreateGroupInput struct {
 	shared.AuthInput
-	Body CreateGroupInputBody
+	Body shared.ResourceInput[GroupSpec]
 }
 
-type CreateGroupInputBody struct {
+type GroupSpec struct {
 	Name        string `json:"name,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 }
@@ -107,10 +108,10 @@ type GroupMemberInput struct {
 
 type CreateRoleBindingInput struct {
 	shared.AuthInput
-	Body CreateRoleBindingInputBody
+	Body shared.ResourceInput[RoleBindingSpec]
 }
 
-type CreateRoleBindingInputBody struct {
+type RoleBindingSpec struct {
 	RoleName    authz.RoleName          `json:"role_name,omitempty"`
 	SubjectType authz.BindingTargetKind `json:"subject_type,omitempty"`
 	SubjectID   string                  `json:"subject_id,omitempty"`
@@ -123,16 +124,208 @@ type RoleBindingIDInput struct {
 	BindingID string `path:"binding_id"`
 }
 
-type ListTokensOutput = shared.ListOutput[auth.APIToken]
-type CreateTokenOutput = shared.CreatedOutput[auth.CreatedAPIToken]
-type ListUsersOutput = shared.ListOutput[auth.User]
-type CreateUserOutput = shared.CreatedOutput[auth.CreatedUser]
-type UserOutput struct {
-	Body auth.User
+type ResourceMetadata struct {
+	ID string `json:"id"`
 }
-type ListGroupsOutput = shared.ListOutput[auth.Group]
-type CreateGroupOutput = shared.CreatedOutput[auth.Group]
-type ListGroupMembersOutput = shared.ListOutput[auth.User]
-type ListRolesOutput = shared.ListOutput[auth.Role]
-type ListRoleBindingsOutput = shared.ListOutput[auth.RoleBinding]
-type CreateRoleBindingOutput = shared.CreatedOutput[auth.RoleBinding]
+
+type TokenSpec struct {
+	Name string `json:"name"`
+}
+
+type TokenStatus struct {
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+}
+
+type CreatedTokenStatus struct {
+	TokenStatus
+	Token string `json:"token"`
+}
+
+type TokenResource = shared.Resource[ResourceMetadata, TokenSpec, TokenStatus]
+type CreatedTokenResource = shared.Resource[ResourceMetadata, TokenSpec, CreatedTokenStatus]
+
+type UserSpec struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Disabled    bool   `json:"disabled"`
+}
+
+type UserStatus struct {
+	Disabled bool `json:"disabled"`
+}
+
+type CreatedUserStatus struct {
+	UserStatus
+	Password string `json:"password"`
+}
+
+type UserResource = shared.Resource[ResourceMetadata, UserSpec, UserStatus]
+type CreatedUserResource = shared.Resource[ResourceMetadata, UserSpec, CreatedUserStatus]
+
+type GroupStatus struct {
+}
+
+type GroupResource = shared.Resource[ResourceMetadata, GroupSpec, GroupStatus]
+
+type RoleSpec struct {
+	Name        authz.RoleName     `json:"name"`
+	Description string             `json:"description"`
+	Permissions []authz.Permission `json:"permissions"`
+}
+
+type RoleStatus struct {
+}
+
+type RoleResource = shared.Resource[ResourceMetadata, RoleSpec, RoleStatus]
+
+type RoleBindingStatus struct {
+	RoleID string `json:"role_id"`
+}
+
+type RoleBindingResource = shared.Resource[ResourceMetadata, RoleBindingSpec, RoleBindingStatus]
+
+type ListTokensOutput = shared.ListOutput[TokenResource]
+type CreateTokenOutput = shared.CreatedOutput[CreatedTokenResource]
+type ListUsersOutput = shared.ListOutput[UserResource]
+type CreateUserOutput = shared.CreatedOutput[CreatedUserResource]
+type UserOutput struct {
+	Body UserResource
+}
+type ListGroupsOutput = shared.ListOutput[GroupResource]
+type CreateGroupOutput = shared.CreatedOutput[GroupResource]
+type ListGroupMembersOutput = shared.ListOutput[UserResource]
+type ListRolesOutput = shared.ListOutput[RoleResource]
+type ListRoleBindingsOutput = shared.ListOutput[RoleBindingResource]
+type CreateRoleBindingOutput = shared.CreatedOutput[RoleBindingResource]
+
+func tokenResource(token auth.APIToken) TokenResource {
+	return TokenResource{
+		Metadata: ResourceMetadata{ID: token.ID},
+		Spec:     TokenSpec{Name: token.Name},
+		Status: TokenStatus{
+			CreatedAt:  token.CreatedAt,
+			LastUsedAt: token.LastUsedAt,
+			ExpiresAt:  token.ExpiresAt,
+			RevokedAt:  token.RevokedAt,
+		},
+	}
+}
+
+func createdTokenResource(token auth.CreatedAPIToken) CreatedTokenResource {
+	resource := tokenResource(token.APIToken)
+	return CreatedTokenResource{
+		Metadata: resource.Metadata,
+		Spec:     resource.Spec,
+		Status: CreatedTokenStatus{
+			TokenStatus: resource.Status,
+			Token:       token.Token,
+		},
+	}
+}
+
+func tokenResources(tokens []auth.APIToken) []TokenResource {
+	resources := make([]TokenResource, 0, len(tokens))
+	for _, token := range tokens {
+		resources = append(resources, tokenResource(token))
+	}
+	return resources
+}
+
+func userResource(user auth.User) UserResource {
+	return UserResource{
+		Metadata: ResourceMetadata{ID: user.ID},
+		Spec: UserSpec{
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+			Disabled:    user.Disabled,
+		},
+		Status: UserStatus{Disabled: user.Disabled},
+	}
+}
+
+func createdUserResource(user auth.CreatedUser) CreatedUserResource {
+	resource := userResource(user.User)
+	return CreatedUserResource{
+		Metadata: resource.Metadata,
+		Spec:     resource.Spec,
+		Status: CreatedUserStatus{
+			UserStatus: resource.Status,
+			Password:   user.Password,
+		},
+	}
+}
+
+func userResources(users []auth.User) []UserResource {
+	resources := make([]UserResource, 0, len(users))
+	for _, user := range users {
+		resources = append(resources, userResource(user))
+	}
+	return resources
+}
+
+func groupResource(group auth.Group) GroupResource {
+	return GroupResource{
+		Metadata: ResourceMetadata{ID: group.ID},
+		Spec: GroupSpec{
+			Name:        group.Name,
+			DisplayName: group.DisplayName,
+		},
+		Status: GroupStatus{},
+	}
+}
+
+func groupResources(groups []auth.Group) []GroupResource {
+	resources := make([]GroupResource, 0, len(groups))
+	for _, group := range groups {
+		resources = append(resources, groupResource(group))
+	}
+	return resources
+}
+
+func roleResource(role auth.Role) RoleResource {
+	return RoleResource{
+		Metadata: ResourceMetadata{ID: role.ID},
+		Spec: RoleSpec{
+			Name:        role.Name,
+			Description: role.Description,
+			Permissions: role.Permissions,
+		},
+		Status: RoleStatus{},
+	}
+}
+
+func roleResources(roles []auth.Role) []RoleResource {
+	resources := make([]RoleResource, 0, len(roles))
+	for _, role := range roles {
+		resources = append(resources, roleResource(role))
+	}
+	return resources
+}
+
+func roleBindingResource(binding auth.RoleBinding) RoleBindingResource {
+	spec := RoleBindingSpec{
+		RoleName:    binding.RoleName,
+		SubjectType: binding.SubjectType,
+		SubjectID:   binding.SubjectID,
+		Scope:       binding.ResourceType,
+	}
+	if binding.ResourceType == string(authz.ScopeKindProject) {
+		spec.ProjectID = binding.ResourceID
+	}
+	return RoleBindingResource{
+		Metadata: ResourceMetadata{ID: binding.ID},
+		Spec:     spec,
+		Status:   RoleBindingStatus{RoleID: binding.RoleID},
+	}
+}
+
+func roleBindingResources(bindings []auth.RoleBinding) []RoleBindingResource {
+	resources := make([]RoleBindingResource, 0, len(bindings))
+	for _, binding := range bindings {
+		resources = append(resources, roleBindingResource(binding))
+	}
+	return resources
+}

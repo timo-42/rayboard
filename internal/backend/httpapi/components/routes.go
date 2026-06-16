@@ -23,7 +23,7 @@ func (provider Provider) getComponent(ctx context.Context, input *ComponentIDInp
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ComponentOutput{Body: component}, nil
+	return &ComponentOutput{Body: ResourceFromTracker(component)}, nil
 }
 
 func (provider Provider) updateComponent(ctx context.Context, input *UpdateComponentInput) (*ComponentOutput, error) {
@@ -31,11 +31,11 @@ func (provider Provider) updateComponent(ctx context.Context, input *UpdateCompo
 	if err != nil {
 		return nil, err
 	}
-	component, err := provider.Tracker.UpdateComponent(ctx, principal, input.ComponentID, input.Body)
+	component, err := provider.Tracker.UpdateComponent(ctx, principal, input.ComponentID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ComponentOutput{Body: component}, nil
+	return &ComponentOutput{Body: ResourceFromTracker(component)}, nil
 }
 
 func (provider Provider) deleteComponent(ctx context.Context, input *ComponentIDInput) (*shared.EmptyOutput, error) {

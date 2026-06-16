@@ -6,7 +6,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
-	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
 func Register(api huma.API, provider Provider) {
@@ -51,7 +50,7 @@ func (provider Provider) listActivity(ctx context.Context, input *TicketIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ActivityOutput{Body: shared.ItemList[tracker.TicketActivity]{Items: items}}, nil
+	return &ActivityOutput{Body: shared.ItemList[ActivityResource]{Items: ActivityResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) assignSprint(ctx context.Context, input *AssignSprintInput) (*TicketOutput, error) {

@@ -5,9 +5,13 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+	boardapi "github.com/timo-42/rayboard/internal/backend/httpapi/boards"
+	componentapi "github.com/timo-42/rayboard/internal/backend/httpapi/components"
+	fieldapi "github.com/timo-42/rayboard/internal/backend/httpapi/customfields"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
+	versionapi "github.com/timo-42/rayboard/internal/backend/httpapi/versions"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -91,7 +95,7 @@ func (provider Provider) reorderBacklog(ctx context.Context, input *ReorderBackl
 	if err != nil {
 		return nil, err
 	}
-	items, err := provider.Tracker.ReorderBacklog(ctx, principal, input.ProjectID, input.Body)
+	items, err := provider.Tracker.ReorderBacklog(ctx, principal, input.ProjectID, input.Body.Spec.ToReorderInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
@@ -107,7 +111,7 @@ func (provider Provider) listStatuses(ctx context.Context, input *ProjectIDInput
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListStatusesOutput{Body: shared.ItemList[tracker.ProjectStatus]{Items: items}}, nil
+	return &ListStatusesOutput{Body: shared.ItemList[ProjectStatusResource]{Items: projectStatusResources(items)}}, nil
 }
 
 func (provider Provider) replaceStatuses(ctx context.Context, input *ReplaceStatusesInput) (*ListStatusesOutput, error) {
@@ -115,11 +119,11 @@ func (provider Provider) replaceStatuses(ctx context.Context, input *ReplaceStat
 	if err != nil {
 		return nil, err
 	}
-	items, err := provider.Tracker.ReplaceProjectStatuses(ctx, principal, input.ProjectID, input.Body)
+	items, err := provider.Tracker.ReplaceProjectStatuses(ctx, principal, input.ProjectID, input.Body.Spec.ToReplaceInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListStatusesOutput{Body: shared.ItemList[tracker.ProjectStatus]{Items: items}}, nil
+	return &ListStatusesOutput{Body: shared.ItemList[ProjectStatusResource]{Items: projectStatusResources(items)}}, nil
 }
 
 func (provider Provider) listBoards(ctx context.Context, input *ProjectIDInput) (*ListBoardsOutput, error) {
@@ -131,7 +135,7 @@ func (provider Provider) listBoards(ctx context.Context, input *ProjectIDInput) 
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListBoardsOutput{Body: shared.ItemList[tracker.Board]{Items: items}}, nil
+	return &ListBoardsOutput{Body: shared.ItemList[boardapi.BoardResource]{Items: boardapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) createBoard(ctx context.Context, input *CreateBoardInput) (*CreateBoardOutput, error) {
@@ -139,13 +143,11 @@ func (provider Provider) createBoard(ctx context.Context, input *CreateBoardInpu
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	board, err := provider.Tracker.CreateBoard(ctx, principal, body)
+	board, err := provider.Tracker.CreateBoard(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateBoardOutput{Body: board}, nil
+	return &CreateBoardOutput{Body: boardapi.ResourceFromTracker(board)}, nil
 }
 
 func (provider Provider) listComponents(ctx context.Context, input *ProjectIDInput) (*ListComponentsOutput, error) {
@@ -157,7 +159,7 @@ func (provider Provider) listComponents(ctx context.Context, input *ProjectIDInp
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListComponentsOutput{Body: shared.ItemList[tracker.Component]{Items: items}}, nil
+	return &ListComponentsOutput{Body: shared.ItemList[componentapi.ComponentResource]{Items: componentapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) createComponent(ctx context.Context, input *CreateComponentInput) (*CreateComponentOutput, error) {
@@ -165,13 +167,11 @@ func (provider Provider) createComponent(ctx context.Context, input *CreateCompo
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	component, err := provider.Tracker.CreateComponent(ctx, principal, body)
+	component, err := provider.Tracker.CreateComponent(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateComponentOutput{Body: component}, nil
+	return &CreateComponentOutput{Body: componentapi.ResourceFromTracker(component)}, nil
 }
 
 func (provider Provider) listVersions(ctx context.Context, input *ListVersionsInput) (*ListVersionsOutput, error) {
@@ -183,7 +183,7 @@ func (provider Provider) listVersions(ctx context.Context, input *ListVersionsIn
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListVersionsOutput{Body: shared.ItemList[tracker.Version]{Items: items}}, nil
+	return &ListVersionsOutput{Body: shared.ItemList[versionapi.VersionResource]{Items: versionapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) createVersion(ctx context.Context, input *CreateVersionInput) (*CreateVersionOutput, error) {
@@ -191,13 +191,11 @@ func (provider Provider) createVersion(ctx context.Context, input *CreateVersion
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	version, err := provider.Tracker.CreateVersion(ctx, principal, body)
+	version, err := provider.Tracker.CreateVersion(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateVersionOutput{Body: version}, nil
+	return &CreateVersionOutput{Body: versionapi.ResourceFromTracker(version)}, nil
 }
 
 func (provider Provider) listCustomFields(ctx context.Context, input *ProjectIDInput) (*ListCustomFieldsOutput, error) {
@@ -209,7 +207,7 @@ func (provider Provider) listCustomFields(ctx context.Context, input *ProjectIDI
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListCustomFieldsOutput{Body: shared.ItemList[tracker.CustomFieldDefinition]{Items: items}}, nil
+	return &ListCustomFieldsOutput{Body: shared.ItemList[fieldapi.FieldResource]{Items: fieldapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) createCustomField(ctx context.Context, input *CreateCustomFieldInput) (*CreateCustomFieldOutput, error) {
@@ -217,13 +215,11 @@ func (provider Provider) createCustomField(ctx context.Context, input *CreateCus
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	field, err := provider.Tracker.CreateCustomField(ctx, principal, body)
+	field, err := provider.Tracker.CreateCustomField(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateCustomFieldOutput{Body: field}, nil
+	return &CreateCustomFieldOutput{Body: fieldapi.ResourceFromTracker(field)}, nil
 }
 
 func (provider Provider) listTickets(ctx context.Context, input *ListTicketsInput) (*ListTicketsOutput, error) {

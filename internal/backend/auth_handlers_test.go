@@ -73,12 +73,12 @@ func TestAuthEndpointsAPITokensAndBearerAuth(t *testing.T) {
 	sessionCookie := responseCookie(t, login.Result(), auth.SessionCookieName)
 	csrfCookie := responseCookie(t, login.Result(), csrfCookieName)
 
-	missingCSRF := postJSON(t, handler, "/api/tokens", map[string]string{"name": "demo"}, []*http.Cookie{sessionCookie})
+	missingCSRF := postJSON(t, handler, "/api/tokens", map[string]any{"spec": map[string]string{"name": "demo"}}, []*http.Cookie{sessionCookie})
 	if missingCSRF.Code != http.StatusForbidden {
 		t.Fatalf("expected missing CSRF status 403, got %d: %s", missingCSRF.Code, missingCSRF.Body.String())
 	}
 
-	createReq := httptest.NewRequest(http.MethodPost, "/api/tokens", mustJSON(t, map[string]string{"name": "demo"}))
+	createReq := httptest.NewRequest(http.MethodPost, "/api/tokens", mustJSON(t, map[string]any{"spec": map[string]string{"name": "demo"}}))
 	createReq.AddCookie(sessionCookie)
 	createReq.AddCookie(csrfCookie)
 	createReq.Header.Set("Content-Type", "application/json")
@@ -89,24 +89,34 @@ func TestAuthEndpointsAPITokensAndBearerAuth(t *testing.T) {
 		t.Fatalf("expected create token status 201, got %d: %s", create.Code, create.Body.String())
 	}
 
-	var created auth.CreatedAPIToken
+	var created struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Name string `json:"name"`
+		} `json:"spec"`
+		Status struct {
+			Token string `json:"token"`
+		} `json:"status"`
+	}
 	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode created token: %v", err)
 	}
-	if created.ID == "" || created.Token == "" || created.Name != "demo" {
+	if created.Metadata.ID == "" || created.Status.Token == "" || created.Spec.Name != "demo" {
 		t.Fatalf("unexpected created token: %#v", created)
 	}
 
 	meReq := httptest.NewRequest(http.MethodGet, "/api/me", nil)
-	meReq.Header.Set("Authorization", "Bearer "+created.Token)
+	meReq.Header.Set("Authorization", "Bearer "+created.Status.Token)
 	me := httptest.NewRecorder()
 	handler.ServeHTTP(me, meReq)
 	if me.Code != http.StatusOK {
 		t.Fatalf("expected bearer me status 200, got %d: %s", me.Code, me.Body.String())
 	}
 
-	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+created.ID, nil)
-	revokeReq.Header.Set("Authorization", "Bearer "+created.Token)
+	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+created.Metadata.ID, nil)
+	revokeReq.Header.Set("Authorization", "Bearer "+created.Status.Token)
 	revoke := httptest.NewRecorder()
 	handler.ServeHTTP(revoke, revokeReq)
 	if revoke.Code != http.StatusNoContent {
@@ -136,8 +146,10 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 	adminCSRF := responseCookie(t, adminLogin.Result(), csrfCookieName)
 
 	createReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
-		"username":     "demo-user",
-		"display_name": "Demo User",
+		"spec": map[string]any{
+			"username":     "demo-user",
+			"display_name": "Demo User",
+		},
 	}))
 	addSessionCSRF(createReq, adminSession, adminCSRF)
 	create := httptest.NewRecorder()
@@ -146,11 +158,21 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 		t.Fatalf("expected create user status 201, got %d: %s", create.Code, create.Body.String())
 	}
 
-	var created auth.CreatedUser
+	var created struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Username string `json:"username"`
+		} `json:"spec"`
+		Status struct {
+			Password string `json:"password"`
+		} `json:"status"`
+	}
 	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode created user: %v", err)
 	}
-	if created.ID == "" || created.Password == "" || created.Username != "demo-user" {
+	if created.Metadata.ID == "" || created.Status.Password == "" || created.Spec.Username != "demo-user" {
 		t.Fatalf("unexpected created user: %#v", created)
 	}
 
@@ -163,8 +185,8 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 	}
 
 	userLogin := postJSON(t, handler, "/api/login", map[string]string{
-		"username": created.Username,
-		"password": created.Password,
+		"username": created.Spec.Username,
+		"password": created.Status.Password,
 	}, nil)
 	userSession := responseCookie(t, userLogin.Result(), auth.SessionCookieName)
 	deniedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
@@ -175,7 +197,7 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 		t.Fatalf("expected list users without permission status 403, got %d: %s", denied.Code, denied.Body.String())
 	}
 
-	disableReq := httptest.NewRequest(http.MethodPatch, "/api/users/"+created.ID, mustJSON(t, map[string]bool{"disabled": true}))
+	disableReq := httptest.NewRequest(http.MethodPatch, "/api/users/"+created.Metadata.ID, mustJSON(t, map[string]any{"spec": map[string]bool{"disabled": true}}))
 	addSessionCSRF(disableReq, adminSession, adminCSRF)
 	disable := httptest.NewRecorder()
 	handler.ServeHTTP(disable, disableReq)
@@ -184,14 +206,14 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 	}
 
 	disabledLogin := postJSON(t, handler, "/api/login", map[string]string{
-		"username": created.Username,
-		"password": created.Password,
+		"username": created.Spec.Username,
+		"password": created.Status.Password,
 	}, nil)
 	if disabledLogin.Code != http.StatusForbidden {
 		t.Fatalf("expected disabled login status 403, got %d: %s", disabledLogin.Code, disabledLogin.Body.String())
 	}
 
-	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/users/"+created.ID, nil)
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/users/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, adminSession, adminCSRF)
 	deleted := httptest.NewRecorder()
 	handler.ServeHTTP(deleted, deleteReq)
@@ -216,7 +238,9 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	adminCSRF := responseCookie(t, adminLogin.Result(), csrfCookieName)
 
 	createUserReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
-		"username": "delegate",
+		"spec": map[string]any{
+			"username": "delegate",
+		},
 	}))
 	addSessionCSRF(createUserReq, adminSession, adminCSRF)
 	createUser := httptest.NewRecorder()
@@ -224,14 +248,24 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	if createUser.Code != http.StatusCreated {
 		t.Fatalf("expected create user status 201, got %d: %s", createUser.Code, createUser.Body.String())
 	}
-	var createdUser auth.CreatedUser
+	var createdUser struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Username string `json:"username"`
+		} `json:"spec"`
+		Status struct {
+			Password string `json:"password"`
+		} `json:"status"`
+	}
 	if err := json.Unmarshal(createUser.Body.Bytes(), &createdUser); err != nil {
 		t.Fatalf("decode created user: %v", err)
 	}
 
 	userLogin := postJSON(t, handler, "/api/login", map[string]string{
-		"username": createdUser.Username,
-		"password": createdUser.Password,
+		"username": createdUser.Spec.Username,
+		"password": createdUser.Status.Password,
 	}, nil)
 	userSession := responseCookie(t, userLogin.Result(), auth.SessionCookieName)
 
@@ -244,8 +278,10 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	}
 
 	createGroupReq := httptest.NewRequest(http.MethodPost, "/api/groups", mustJSON(t, map[string]any{
-		"name":         "delegates",
-		"display_name": "Delegates",
+		"spec": map[string]any{
+			"name":         "delegates",
+			"display_name": "Delegates",
+		},
 	}))
 	addSessionCSRF(createGroupReq, adminSession, adminCSRF)
 	createGroup := httptest.NewRecorder()
@@ -253,12 +289,19 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	if createGroup.Code != http.StatusCreated {
 		t.Fatalf("expected create group status 201, got %d: %s", createGroup.Code, createGroup.Body.String())
 	}
-	var group auth.Group
+	var group struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Name string `json:"name"`
+		} `json:"spec"`
+	}
 	if err := json.Unmarshal(createGroup.Body.Bytes(), &group); err != nil {
 		t.Fatalf("decode group: %v", err)
 	}
 
-	addMemberReq := httptest.NewRequest(http.MethodPost, "/api/groups/"+group.ID+"/members/"+createdUser.ID, nil)
+	addMemberReq := httptest.NewRequest(http.MethodPost, "/api/groups/"+group.Metadata.ID+"/members/"+createdUser.Metadata.ID, nil)
 	addSessionCSRF(addMemberReq, adminSession, adminCSRF)
 	addMember := httptest.NewRecorder()
 	handler.ServeHTTP(addMember, addMemberReq)
@@ -267,10 +310,12 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	}
 
 	createBindingReq := httptest.NewRequest(http.MethodPost, "/api/role-bindings", mustJSON(t, map[string]any{
-		"role_name":    authz.RoleGlobalUserManager,
-		"subject_type": authz.BindingTargetGroup,
-		"subject_id":   group.ID,
-		"scope":        authz.ScopeKindGlobal,
+		"spec": map[string]any{
+			"role_name":    authz.RoleGlobalUserManager,
+			"subject_type": authz.BindingTargetGroup,
+			"subject_id":   group.Metadata.ID,
+			"scope":        authz.ScopeKindGlobal,
+		},
 	}))
 	addSessionCSRF(createBindingReq, adminSession, adminCSRF)
 	createBinding := httptest.NewRecorder()

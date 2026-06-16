@@ -46,11 +46,11 @@ func TestAttachmentEndpointsLifecycle(t *testing.T) {
 	if upload.Code != http.StatusCreated {
 		t.Fatalf("expected upload status 201, got %d: %s", upload.Code, upload.Body.String())
 	}
-	var meta attachments.Metadata
+	var meta attachmentResourceBody
 	if err := json.Unmarshal(upload.Body.Bytes(), &meta); err != nil {
 		t.Fatalf("decode metadata: %v", err)
 	}
-	if meta.ID == "" || meta.FileName != "notes.txt" || meta.SizeBytes != int64(len("hello attachment")) {
+	if meta.Metadata.ID == "" || meta.Metadata.TicketID != ticket.ID || meta.Spec.FileName != "notes.txt" || meta.Status.SizeBytes != int64(len("hello attachment")) {
 		t.Fatalf("unexpected metadata: %#v", meta)
 	}
 
@@ -62,7 +62,7 @@ func TestAttachmentEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("unexpected list response %d: %s", list.Code, list.Body.String())
 	}
 
-	downloadReq := httptest.NewRequest(http.MethodGet, "/api/attachments/"+meta.ID+"/download", nil)
+	downloadReq := httptest.NewRequest(http.MethodGet, "/api/attachments/"+meta.Metadata.ID+"/download", nil)
 	downloadReq.AddCookie(session)
 	download := httptest.NewRecorder()
 	handler.ServeHTTP(download, downloadReq)
@@ -70,7 +70,7 @@ func TestAttachmentEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("unexpected download response %d: %s", download.Code, download.Body.String())
 	}
 
-	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/attachments/"+meta.ID, nil)
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/attachments/"+meta.Metadata.ID, nil)
 	deleteReq.AddCookie(session)
 	deleteReq.AddCookie(csrf)
 	deleteReq.Header.Set("X-CSRF-Token", csrf.Value)
@@ -79,6 +79,21 @@ func TestAttachmentEndpointsLifecycle(t *testing.T) {
 	if deleted.Code != http.StatusNoContent {
 		t.Fatalf("expected delete status 204, got %d: %s", deleted.Code, deleted.Body.String())
 	}
+}
+
+type attachmentResourceBody struct {
+	Metadata struct {
+		ID       string `json:"id"`
+		TicketID string `json:"ticket_id"`
+	} `json:"metadata"`
+	Spec struct {
+		FileName    string `json:"file_name"`
+		ContentType string `json:"content_type"`
+	} `json:"spec"`
+	Status struct {
+		SizeBytes  int64  `json:"size_bytes"`
+		UploaderID string `json:"uploader_id"`
+	} `json:"status"`
 }
 
 func createAttachmentTestProject(t *testing.T, handler http.Handler, session *http.Cookie, csrf *http.Cookie) tracker.Project {

@@ -41,7 +41,7 @@ func (r routes) list(ctx context.Context, input *listAttachmentsInput) (*listAtt
 	if err != nil {
 		return nil, shared.AttachmentError(err)
 	}
-	return &listAttachmentsOutput{Body: shared.ItemList[attachmentservice.Metadata]{Items: items}}, nil
+	return &listAttachmentsOutput{Body: shared.ItemList[AttachmentResource]{Items: attachmentResources(items)}}, nil
 }
 
 func (r routes) registerUpload(api huma.API) {
@@ -76,7 +76,7 @@ func (r routes) upload(api huma.API, ctx huma.Context) {
 		writeError(api, ctx, shared.AttachmentError(err))
 		return
 	}
-	writeOutput(api, ctx, http.StatusCreated, meta)
+	writeOutput(api, ctx, http.StatusCreated, attachmentResource(meta))
 }
 
 func (r routes) download(ctx context.Context, input *downloadAttachmentInput) (*downloadAttachmentOutput, error) {

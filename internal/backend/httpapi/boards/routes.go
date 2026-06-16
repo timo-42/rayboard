@@ -24,7 +24,7 @@ func (provider Provider) getBoard(ctx context.Context, input *BoardIDInput) (*Bo
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &BoardOutput{Body: board}, nil
+	return &BoardOutput{Body: ResourceFromTracker(board)}, nil
 }
 
 func (provider Provider) updateBoard(ctx context.Context, input *UpdateBoardInput) (*BoardOutput, error) {
@@ -32,11 +32,11 @@ func (provider Provider) updateBoard(ctx context.Context, input *UpdateBoardInpu
 	if err != nil {
 		return nil, err
 	}
-	board, err := provider.Tracker.UpdateBoard(ctx, principal, input.BoardID, input.Body)
+	board, err := provider.Tracker.UpdateBoard(ctx, principal, input.BoardID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &BoardOutput{Body: board}, nil
+	return &BoardOutput{Body: ResourceFromTracker(board)}, nil
 }
 
 func (provider Provider) deleteBoard(ctx context.Context, input *BoardIDInput) (*shared.EmptyOutput, error) {

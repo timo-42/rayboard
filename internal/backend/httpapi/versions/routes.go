@@ -23,7 +23,7 @@ func (provider Provider) getVersion(ctx context.Context, input *VersionIDInput) 
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &VersionOutput{Body: version}, nil
+	return &VersionOutput{Body: ResourceFromTracker(version)}, nil
 }
 
 func (provider Provider) updateVersion(ctx context.Context, input *UpdateVersionInput) (*VersionOutput, error) {
@@ -31,11 +31,11 @@ func (provider Provider) updateVersion(ctx context.Context, input *UpdateVersion
 	if err != nil {
 		return nil, err
 	}
-	version, err := provider.Tracker.UpdateVersion(ctx, principal, input.VersionID, input.Body)
+	version, err := provider.Tracker.UpdateVersion(ctx, principal, input.VersionID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &VersionOutput{Body: version}, nil
+	return &VersionOutput{Body: ResourceFromTracker(version)}, nil
 }
 
 func (provider Provider) deleteVersion(ctx context.Context, input *VersionIDInput) (*shared.EmptyOutput, error) {

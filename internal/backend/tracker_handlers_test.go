@@ -52,21 +52,23 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list statuses status 200, got %d: %s", listStatuses.Code, listStatuses.Body.String())
 	}
 	var statusBody struct {
-		Items []tracker.ProjectStatus `json:"items"`
+		Items []projectStatusResourceBody `json:"items"`
 	}
 	if err := json.Unmarshal(listStatuses.Body.Bytes(), &statusBody); err != nil {
 		t.Fatalf("decode statuses: %v", err)
 	}
-	if len(statusBody.Items) != 3 || statusBody.Items[0].Slug != "todo" {
+	if len(statusBody.Items) != 3 || statusBody.Items[0].Spec.Slug != "todo" {
 		t.Fatalf("unexpected statuses: %#v", statusBody.Items)
 	}
 
 	replaceStatusesReq := httptest.NewRequest(http.MethodPut, "/api/projects/"+project.ID+"/statuses", mustJSON(t, map[string]any{
-		"statuses": []map[string]string{
-			{"slug": "todo", "name": "Todo"},
-			{"slug": "in_progress", "name": "In Progress"},
-			{"slug": "review", "name": "Review"},
-			{"slug": "done", "name": "Done"},
+		"spec": map[string]any{
+			"statuses": []map[string]string{
+				{"slug": "todo", "name": "Todo"},
+				{"slug": "in_progress", "name": "In Progress"},
+				{"slug": "review", "name": "Review"},
+				{"slug": "done", "name": "Done"},
+			},
 		},
 	}))
 	addSessionCSRF(replaceStatusesReq, session, csrf)
@@ -77,9 +79,11 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	createBoardReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/boards", mustJSON(t, map[string]any{
-		"name":         "Review Board",
-		"description":  "Review workflow",
-		"status_slugs": []string{"todo", "review", "done"},
+		"spec": map[string]any{
+			"name":         "Review Board",
+			"description":  "Review workflow",
+			"status_slugs": []string{"todo", "review", "done"},
+		},
 	}))
 	addSessionCSRF(createBoardReq, session, csrf)
 	createBoard := httptest.NewRecorder()
@@ -87,20 +91,23 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createBoard.Code != http.StatusCreated {
 		t.Fatalf("expected create board status 201, got %d: %s", createBoard.Code, createBoard.Body.String())
 	}
-	var board tracker.Board
-	if err := json.Unmarshal(createBoard.Body.Bytes(), &board); err != nil {
+	var boardBody boardResourceBody
+	if err := json.Unmarshal(createBoard.Body.Bytes(), &boardBody); err != nil {
 		t.Fatalf("decode board: %v", err)
 	}
+	board := boardBody.toTracker()
 	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "review" {
 		t.Fatalf("unexpected board: %#v", board)
 	}
 
 	createCustomFieldReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/custom-fields", mustJSON(t, map[string]any{
-		"key":        "severity",
-		"name":       "Severity",
-		"field_type": "single_select",
-		"required":   true,
-		"options":    []string{"Low", "High"},
+		"spec": map[string]any{
+			"key":        "severity",
+			"name":       "Severity",
+			"field_type": "single_select",
+			"required":   true,
+			"options":    []string{"Low", "High"},
+		},
 	}))
 	addSessionCSRF(createCustomFieldReq, session, csrf)
 	createCustomField := httptest.NewRecorder()
@@ -108,10 +115,11 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createCustomField.Code != http.StatusCreated {
 		t.Fatalf("expected create custom field status 201, got %d: %s", createCustomField.Code, createCustomField.Body.String())
 	}
-	var customField tracker.CustomFieldDefinition
-	if err := json.Unmarshal(createCustomField.Body.Bytes(), &customField); err != nil {
+	var customFieldBody customFieldResourceBody
+	if err := json.Unmarshal(createCustomField.Body.Bytes(), &customFieldBody); err != nil {
 		t.Fatalf("decode custom field: %v", err)
 	}
+	customField := customFieldBody.toTracker()
 	if customField.ID == "" || len(customField.Options) != 2 {
 		t.Fatalf("unexpected custom field: %#v", customField)
 	}
@@ -235,7 +243,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	reorderBacklogReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/backlog", mustJSON(t, map[string]any{
-		"ticket_ids": []string{second.ID, ticket.ID},
+		"spec": map[string]any{
+			"ticket_ids": []string{second.ID, ticket.ID},
+		},
 	}))
 	addSessionCSRF(reorderBacklogReq, session, csrf)
 	reorderBacklog := httptest.NewRecorder()
@@ -328,8 +338,10 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{
-		"name":        "API",
-		"description": "Backend API",
+		"spec": map[string]any{
+			"name":        "API",
+			"description": "Backend API",
+		},
 	}))
 	addSessionCSRF(createComponentReq, session, csrf)
 	createComponent := httptest.NewRecorder()
@@ -337,18 +349,21 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createComponent.Code != http.StatusCreated {
 		t.Fatalf("expected create component status 201, got %d: %s", createComponent.Code, createComponent.Body.String())
 	}
-	var component tracker.Component
-	if err := json.Unmarshal(createComponent.Body.Bytes(), &component); err != nil {
+	var componentBody componentResourceBody
+	if err := json.Unmarshal(createComponent.Body.Bytes(), &componentBody); err != nil {
 		t.Fatalf("decode component: %v", err)
 	}
+	component := componentBody.toTracker()
 	if component.ID == "" || component.Name != "API" {
 		t.Fatalf("unexpected component: %#v", component)
 	}
 
 	createVersionReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/versions", mustJSON(t, map[string]any{
-		"name":        "1.0",
-		"description": "First release",
-		"target_date": "2026-07-01",
+		"spec": map[string]any{
+			"name":        "1.0",
+			"description": "First release",
+			"target_date": "2026-07-01",
+		},
 	}))
 	addSessionCSRF(createVersionReq, session, csrf)
 	createVersion := httptest.NewRecorder()
@@ -356,10 +371,11 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createVersion.Code != http.StatusCreated {
 		t.Fatalf("expected create version status 201, got %d: %s", createVersion.Code, createVersion.Body.String())
 	}
-	var version tracker.Version
-	if err := json.Unmarshal(createVersion.Body.Bytes(), &version); err != nil {
+	var versionBody versionResourceBody
+	if err := json.Unmarshal(createVersion.Body.Bytes(), &versionBody); err != nil {
 		t.Fatalf("decode version: %v", err)
 	}
+	version := versionBody.toTracker()
 	if version.ID == "" || version.Status != tracker.VersionStatusPlanned {
 		t.Fatalf("unexpected version: %#v", version)
 	}
@@ -517,6 +533,128 @@ type projectResourceBody struct {
 		Description string `json:"description"`
 		LeadUserID  string `json:"lead_user_id"`
 	} `json:"spec"`
+}
+
+type projectStatusResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Slug     string `json:"slug"`
+		Name     string `json:"name"`
+		Position int    `json:"position"`
+	} `json:"spec"`
+	Status struct{} `json:"status"`
+}
+
+type boardResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+		CreatedBy string `json:"created_by"`
+	} `json:"metadata"`
+	Spec struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		StatusSlugs []string `json:"status_slugs"`
+	} `json:"spec"`
+	Status struct {
+		Columns []tracker.BoardColumn `json:"columns"`
+	} `json:"status"`
+}
+
+func (body boardResourceBody) toTracker() tracker.Board {
+	return tracker.Board{
+		ID:          body.Metadata.ID,
+		ProjectID:   body.Metadata.ProjectID,
+		Name:        body.Spec.Name,
+		Description: body.Spec.Description,
+		CreatedBy:   body.Metadata.CreatedBy,
+		Columns:     body.Status.Columns,
+	}
+}
+
+type componentResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Name              string `json:"name"`
+		Description       string `json:"description"`
+		OwnerUserID       string `json:"owner_user_id"`
+		DefaultAssigneeID string `json:"default_assignee_id"`
+	} `json:"spec"`
+	Status struct{} `json:"status"`
+}
+
+func (body componentResourceBody) toTracker() tracker.Component {
+	return tracker.Component{
+		ID:                body.Metadata.ID,
+		ProjectID:         body.Metadata.ProjectID,
+		Name:              body.Spec.Name,
+		Description:       body.Spec.Description,
+		OwnerUserID:       body.Spec.OwnerUserID,
+		DefaultAssigneeID: body.Spec.DefaultAssigneeID,
+	}
+}
+
+type versionResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		TargetDate  string `json:"target_date"`
+		ReleaseDate string `json:"release_date"`
+	} `json:"spec"`
+	Status struct {
+		State string `json:"state"`
+	} `json:"status"`
+}
+
+func (body versionResourceBody) toTracker() tracker.Version {
+	return tracker.Version{
+		ID:          body.Metadata.ID,
+		ProjectID:   body.Metadata.ProjectID,
+		Name:        body.Spec.Name,
+		Description: body.Spec.Description,
+		Status:      body.Status.State,
+		TargetDate:  body.Spec.TargetDate,
+		ReleaseDate: body.Spec.ReleaseDate,
+	}
+}
+
+type customFieldResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Key       string   `json:"key"`
+		Name      string   `json:"name"`
+		FieldType string   `json:"field_type"`
+		Required  bool     `json:"required"`
+		Options   []string `json:"options"`
+	} `json:"spec"`
+	Status struct {
+		Options []tracker.CustomFieldOption `json:"options"`
+	} `json:"status"`
+}
+
+func (body customFieldResourceBody) toTracker() tracker.CustomFieldDefinition {
+	return tracker.CustomFieldDefinition{
+		ID:        body.Metadata.ID,
+		ProjectID: body.Metadata.ProjectID,
+		Key:       body.Spec.Key,
+		Name:      body.Spec.Name,
+		FieldType: body.Spec.FieldType,
+		Required:  body.Spec.Required,
+		Options:   body.Status.Options,
+	}
 }
 
 type ticketResourceBody struct {

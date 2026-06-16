@@ -23,11 +23,11 @@ func (provider Provider) searchTickets(ctx context.Context, input *SearchTickets
 	if err != nil {
 		return nil, err
 	}
-	result, err := provider.Search.SearchTickets(ctx, principal, input.Body)
+	result, err := provider.Search.SearchTickets(ctx, principal, input.Body.Spec.serviceInput())
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &SearchTicketsOutput{Body: result}, nil
+	return &SearchTicketsOutput{Body: searchTicketsResultResource(result)}, nil
 }
 
 func (provider Provider) listSavedViews(ctx context.Context, input *ListSavedViewsInput) (*ListSavedViewsOutput, error) {
@@ -44,7 +44,7 @@ func (provider Provider) listSavedViews(ctx context.Context, input *ListSavedVie
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &ListSavedViewsOutput{Body: shared.ItemList[search.SavedView]{Items: views}}, nil
+	return &ListSavedViewsOutput{Body: shared.ItemList[SavedViewResource]{Items: savedViewResources(views)}}, nil
 }
 
 func (provider Provider) createSavedView(ctx context.Context, input *CreateSavedViewInput) (*CreateSavedViewOutput, error) {
@@ -52,11 +52,11 @@ func (provider Provider) createSavedView(ctx context.Context, input *CreateSaved
 	if err != nil {
 		return nil, err
 	}
-	view, err := provider.Search.CreateSavedView(ctx, principal, input.Body)
+	view, err := provider.Search.CreateSavedView(ctx, principal, input.Body.Spec.createInput())
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &CreateSavedViewOutput{Body: view}, nil
+	return &CreateSavedViewOutput{Body: savedViewResource(view)}, nil
 }
 
 func (provider Provider) getSavedView(ctx context.Context, input *SavedViewIDInput) (*SavedViewOutput, error) {
@@ -68,7 +68,7 @@ func (provider Provider) getSavedView(ctx context.Context, input *SavedViewIDInp
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &SavedViewOutput{Body: view}, nil
+	return &SavedViewOutput{Body: savedViewResource(view)}, nil
 }
 
 func (provider Provider) updateSavedView(ctx context.Context, input *UpdateSavedViewInput) (*SavedViewOutput, error) {
@@ -76,11 +76,11 @@ func (provider Provider) updateSavedView(ctx context.Context, input *UpdateSaved
 	if err != nil {
 		return nil, err
 	}
-	view, err := provider.Search.UpdateSavedView(ctx, principal, input.ViewID, input.Body)
+	view, err := provider.Search.UpdateSavedView(ctx, principal, input.ViewID, input.Body.Spec.updateInput())
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &SavedViewOutput{Body: view}, nil
+	return &SavedViewOutput{Body: savedViewResource(view)}, nil
 }
 
 func (provider Provider) deleteSavedView(ctx context.Context, input *SavedViewIDInput) (*shared.EmptyOutput, error) {

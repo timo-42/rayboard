@@ -2,6 +2,7 @@ package attachments
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	attachmentservice "github.com/timo-42/rayboard/internal/backend/attachments"
@@ -16,7 +17,7 @@ type listAttachmentsInput struct {
 }
 
 type listAttachmentsOutput struct {
-	Body shared.ItemList[attachmentservice.Metadata]
+	Body shared.ItemList[AttachmentResource]
 }
 
 type uploadAttachmentInput struct {
@@ -26,7 +27,7 @@ type uploadAttachmentInput struct {
 
 type uploadAttachmentOutput struct {
 	Status int `status:"201"`
-	Body   attachmentservice.Metadata
+	Body   AttachmentResource
 }
 
 type downloadAttachmentInput struct {
@@ -43,6 +44,50 @@ type downloadAttachmentOutput struct {
 type deleteAttachmentInput struct {
 	shared.AuthInput
 	AttachmentID string `path:"attachment_id" doc:"Attachment ID."`
+}
+
+type AttachmentMetadata struct {
+	ID        string    `json:"id"`
+	TicketID  string    `json:"ticket_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AttachmentSpec struct {
+	FileName    string `json:"file_name"`
+	ContentType string `json:"content_type"`
+}
+
+type AttachmentStatus struct {
+	SizeBytes  int64  `json:"size_bytes"`
+	UploaderID string `json:"uploader_id,omitempty"`
+}
+
+type AttachmentResource = shared.Resource[AttachmentMetadata, AttachmentSpec, AttachmentStatus]
+
+func attachmentResource(meta attachmentservice.Metadata) AttachmentResource {
+	return AttachmentResource{
+		Metadata: AttachmentMetadata{
+			ID:        meta.ID,
+			TicketID:  meta.TicketID,
+			CreatedAt: meta.CreatedAt,
+		},
+		Spec: AttachmentSpec{
+			FileName:    meta.FileName,
+			ContentType: meta.ContentType,
+		},
+		Status: AttachmentStatus{
+			SizeBytes:  meta.SizeBytes,
+			UploaderID: meta.UploaderID,
+		},
+	}
+}
+
+func attachmentResources(items []attachmentservice.Metadata) []AttachmentResource {
+	resources := make([]AttachmentResource, 0, len(items))
+	for _, item := range items {
+		resources = append(resources, attachmentResource(item))
+	}
+	return resources
 }
 
 func uploadAttachmentRequestBody() *huma.RequestBody {
@@ -116,7 +161,7 @@ func uploadAttachmentOperation(api huma.API) huma.Operation {
 		Description: http.StatusText(http.StatusCreated),
 		Content: map[string]*huma.MediaType{
 			"application/json": {
-				Schema: huma.SchemaFromType(api.OpenAPI().Components.Schemas, reflectType[attachmentservice.Metadata]()),
+				Schema: huma.SchemaFromType(api.OpenAPI().Components.Schemas, reflectType[AttachmentResource]()),
 			},
 		},
 	}

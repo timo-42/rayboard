@@ -3,9 +3,13 @@ package projects
 import (
 	"time"
 
+	boardapi "github.com/timo-42/rayboard/internal/backend/httpapi/boards"
+	componentapi "github.com/timo-42/rayboard/internal/backend/httpapi/components"
+	fieldapi "github.com/timo-42/rayboard/internal/backend/httpapi/customfields"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
+	versionapi "github.com/timo-42/rayboard/internal/backend/httpapi/versions"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -29,13 +33,13 @@ type ProjectIDInput struct {
 type ReorderBacklogInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.ReorderBacklogInput
+	Body      shared.ResourceInput[BacklogOrderSpec]
 }
 
 type ReplaceStatusesInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.ReplaceProjectStatusesInput
+	Body      shared.ResourceInput[ProjectStatusesSpec]
 }
 
 type ListTicketsInput struct {
@@ -60,19 +64,19 @@ type CreateTicketInput struct {
 type CreateBoardInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateBoardInput
+	Body      shared.ResourceInput[boardapi.BoardSpec]
 }
 
 type CreateComponentInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateComponentInput
+	Body      shared.ResourceInput[componentapi.ComponentSpec]
 }
 
 type CreateVersionInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateVersionInput
+	Body      shared.ResourceInput[versionapi.VersionSpec]
 }
 
 type ListVersionsInput struct {
@@ -84,7 +88,7 @@ type ListVersionsInput struct {
 type CreateCustomFieldInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateCustomFieldInput
+	Body      shared.ResourceInput[fieldapi.FieldSpec]
 }
 
 type ListSprintsInput struct {
@@ -120,6 +124,40 @@ type ProjectResourceStatus struct {
 
 type ProjectResource = shared.Resource[ProjectMetadata, ProjectSpec, ProjectResourceStatus]
 
+type BacklogOrderSpec struct {
+	TicketIDs []string `json:"ticket_ids,omitempty"`
+}
+
+func (spec BacklogOrderSpec) ToReorderInput() tracker.ReorderBacklogInput {
+	return tracker.ReorderBacklogInput{TicketIDs: spec.TicketIDs}
+}
+
+type ProjectStatusMetadata struct {
+	ID        string    `json:"id"`
+	ProjectID string    `json:"project_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ProjectStatusSpec struct {
+	Slug     string `json:"slug,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Position int    `json:"position,omitempty"`
+}
+
+type ProjectStatusResourceStatus struct {
+}
+
+type ProjectStatusResource = shared.Resource[ProjectStatusMetadata, ProjectStatusSpec, ProjectStatusResourceStatus]
+
+type ProjectStatusesSpec struct {
+	Statuses []tracker.ProjectStatusInput `json:"statuses,omitempty"`
+}
+
+func (spec ProjectStatusesSpec) ToReplaceInput() tracker.ReplaceProjectStatusesInput {
+	return tracker.ReplaceProjectStatusesInput{Statuses: spec.Statuses}
+}
+
 type ListProjectsOutput = shared.ListOutput[ProjectResource]
 type CreateProjectOutput = shared.CreatedOutput[ProjectResource]
 type ProjectOutput struct {
@@ -127,15 +165,15 @@ type ProjectOutput struct {
 }
 type ListTicketsOutput = shared.ListOutput[ticketapi.TicketResource]
 type CreateTicketOutput = shared.CreatedOutput[ticketapi.TicketResource]
-type ListStatusesOutput = shared.ListOutput[tracker.ProjectStatus]
-type ListBoardsOutput = shared.ListOutput[tracker.Board]
-type CreateBoardOutput = shared.CreatedOutput[tracker.Board]
-type ListComponentsOutput = shared.ListOutput[tracker.Component]
-type CreateComponentOutput = shared.CreatedOutput[tracker.Component]
-type ListVersionsOutput = shared.ListOutput[tracker.Version]
-type CreateVersionOutput = shared.CreatedOutput[tracker.Version]
-type ListCustomFieldsOutput = shared.ListOutput[tracker.CustomFieldDefinition]
-type CreateCustomFieldOutput = shared.CreatedOutput[tracker.CustomFieldDefinition]
+type ListStatusesOutput = shared.ListOutput[ProjectStatusResource]
+type ListBoardsOutput = shared.ListOutput[boardapi.BoardResource]
+type CreateBoardOutput = shared.CreatedOutput[boardapi.BoardResource]
+type ListComponentsOutput = shared.ListOutput[componentapi.ComponentResource]
+type CreateComponentOutput = shared.CreatedOutput[componentapi.ComponentResource]
+type ListVersionsOutput = shared.ListOutput[versionapi.VersionResource]
+type CreateVersionOutput = shared.CreatedOutput[versionapi.VersionResource]
+type ListCustomFieldsOutput = shared.ListOutput[fieldapi.FieldResource]
+type CreateCustomFieldOutput = shared.CreatedOutput[fieldapi.FieldResource]
 type RoadmapItemResource struct {
 	Epic     ticketapi.TicketResource `json:"epic"`
 	Progress tracker.RoadmapProgress  `json:"progress"`
@@ -179,6 +217,31 @@ func projectResources(projects []tracker.Project) []ProjectResource {
 	resources := make([]ProjectResource, 0, len(projects))
 	for _, project := range projects {
 		resources = append(resources, projectResource(project))
+	}
+	return resources
+}
+
+func projectStatusResource(status tracker.ProjectStatus) ProjectStatusResource {
+	return ProjectStatusResource{
+		Metadata: ProjectStatusMetadata{
+			ID:        status.ID,
+			ProjectID: status.ProjectID,
+			CreatedAt: status.CreatedAt,
+			UpdatedAt: status.UpdatedAt,
+		},
+		Spec: ProjectStatusSpec{
+			Slug:     status.Slug,
+			Name:     status.Name,
+			Position: status.Position,
+		},
+		Status: ProjectStatusResourceStatus{},
+	}
+}
+
+func projectStatusResources(statuses []tracker.ProjectStatus) []ProjectStatusResource {
+	resources := make([]ProjectStatusResource, 0, len(statuses))
+	for _, status := range statuses {
+		resources = append(resources, projectStatusResource(status))
 	}
 	return resources
 }

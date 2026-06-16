@@ -23,7 +23,7 @@ func (provider Provider) getField(ctx context.Context, input *FieldIDInput) (*Fi
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &FieldOutput{Body: field}, nil
+	return &FieldOutput{Body: ResourceFromTracker(field)}, nil
 }
 
 func (provider Provider) updateField(ctx context.Context, input *UpdateFieldInput) (*FieldOutput, error) {
@@ -31,11 +31,11 @@ func (provider Provider) updateField(ctx context.Context, input *UpdateFieldInpu
 	if err != nil {
 		return nil, err
 	}
-	field, err := provider.Tracker.UpdateCustomField(ctx, principal, input.FieldID, input.Body)
+	field, err := provider.Tracker.UpdateCustomField(ctx, principal, input.FieldID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &FieldOutput{Body: field}, nil
+	return &FieldOutput{Body: ResourceFromTracker(field)}, nil
 }
 
 func (provider Provider) deleteField(ctx context.Context, input *FieldIDInput) (*shared.EmptyOutput, error) {

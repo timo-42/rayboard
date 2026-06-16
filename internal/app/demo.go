@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/config"
@@ -73,9 +72,34 @@ type demoLoginRequest struct {
 }
 
 type demoGroup struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
+	} `json:"spec"`
+}
+
+func (group demoGroup) id() string {
+	return group.Metadata.ID
+}
+
+type demoCreatedUser struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"display_name"`
+	} `json:"spec"`
+	Status struct {
+		Password string `json:"password"`
+	} `json:"status"`
+}
+
+func (user demoCreatedUser) id() string {
+	return user.Metadata.ID
 }
 
 type demoRoleBinding struct {
@@ -161,7 +185,7 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err != nil {
 		return err
 	}
-	if err := s.bindProjectMembers(ctx, groups["engineers"].ID, project.ID); err != nil {
+	if err := s.bindProjectMembers(ctx, groups["engineers"].id(), project.ID); err != nil {
 		return err
 	}
 	if err := s.createTickets(ctx, project.ID); err != nil {
@@ -186,7 +210,7 @@ func (s *demoSeeder) login(ctx context.Context, username string, password string
 	return fmt.Errorf("login succeeded but CSRF cookie was not set")
 }
 
-func (s *demoSeeder) createUsers(ctx context.Context) (map[string]auth.CreatedUser, error) {
+func (s *demoSeeder) createUsers(ctx context.Context) (map[string]demoCreatedUser, error) {
 	inputs := map[string]map[string]any{
 		"lead": {
 			"username":     "demo_lead_" + strings.ToLower(s.suffix),
@@ -202,19 +226,19 @@ func (s *demoSeeder) createUsers(ctx context.Context) (map[string]auth.CreatedUs
 		},
 	}
 
-	users := make(map[string]auth.CreatedUser, len(inputs))
+	users := make(map[string]demoCreatedUser, len(inputs))
 	for key, input := range inputs {
-		var created auth.CreatedUser
-		if err := s.apiJSON(ctx, http.MethodPost, "/api/users", input, &created); err != nil {
+		var created demoCreatedUser
+		if err := s.apiJSON(ctx, http.MethodPost, "/api/users", map[string]any{"spec": input}, &created); err != nil {
 			return nil, fmt.Errorf("create demo user %s: %w", key, err)
 		}
 		users[key] = created
-		fmt.Fprintf(s.stdout, "demo user: role=%s username=%s password=%s\n", key, created.Username, created.Password)
+		fmt.Fprintf(s.stdout, "demo user: role=%s username=%s password=%s\n", key, created.Spec.Username, created.Status.Password)
 	}
 	return users, nil
 }
 
-func (s *demoSeeder) createGroups(ctx context.Context, users map[string]auth.CreatedUser) (map[string]demoGroup, error) {
+func (s *demoSeeder) createGroups(ctx context.Context, users map[string]demoCreatedUser) (map[string]demoGroup, error) {
 	inputs := map[string]map[string]any{
 		"engineers": {
 			"name":         "demo_engineers_" + strings.ToLower(s.suffix),
@@ -229,19 +253,19 @@ func (s *demoSeeder) createGroups(ctx context.Context, users map[string]auth.Cre
 	groups := make(map[string]demoGroup, len(inputs))
 	for key, input := range inputs {
 		var group demoGroup
-		if err := s.apiJSON(ctx, http.MethodPost, "/api/groups", input, &group); err != nil {
+		if err := s.apiJSON(ctx, http.MethodPost, "/api/groups", map[string]any{"spec": input}, &group); err != nil {
 			return nil, fmt.Errorf("create demo group %s: %w", key, err)
 		}
 		groups[key] = group
 	}
 
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].ID+"/members/"+users["lead"].ID, nil, nil); err != nil {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].id()+"/members/"+users["lead"].id(), nil, nil); err != nil {
 		return nil, fmt.Errorf("add lead to engineers: %w", err)
 	}
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].ID+"/members/"+users["engineer"].ID, nil, nil); err != nil {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].id()+"/members/"+users["engineer"].id(), nil, nil); err != nil {
 		return nil, fmt.Errorf("add engineer to engineers: %w", err)
 	}
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["stakeholders"].ID+"/members/"+users["reporter"].ID, nil, nil); err != nil {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["stakeholders"].id()+"/members/"+users["reporter"].id(), nil, nil); err != nil {
 		return nil, fmt.Errorf("add reporter to stakeholders: %w", err)
 	}
 	return groups, nil
@@ -267,12 +291,14 @@ func (s *demoSeeder) createProject(ctx context.Context) (tracker.Project, error)
 }
 
 func (s *demoSeeder) bindProjectMembers(ctx context.Context, groupID string, projectID string) error {
-	return s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", demoRoleBinding{
-		RoleName:    authz.RoleProjectMember,
-		SubjectType: authz.BindingTargetGroup,
-		SubjectID:   groupID,
-		Scope:       authz.ScopeKindProject,
-		ProjectID:   projectID,
+	return s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleProjectMember,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groupID,
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
 	}, nil)
 }
 

@@ -58,24 +58,24 @@ Project, ticket, user/admin, saved-view, and notification list endpoints current
 | `POST` | `/api/logout` | none |
 | `GET` | `/api/me` | none |
 | `GET` | `/api/tokens` | none |
-| `POST` | `/api/tokens` | `{"name":"local-script"}` |
+| `POST` | `/api/tokens` | `{"spec":{"name":"local-script"}}` |
 | `DELETE` | `/api/tokens/{token_id}` | none |
 | `GET` | `/api/users` | none |
-| `POST` | `/api/users` | `{"username":"alice","display_name":"Alice","password":"","disabled":false}` |
+| `POST` | `/api/users` | `{"spec":{"username":"alice","display_name":"Alice","password":"","disabled":false}}` |
 | `GET` | `/api/users/{user_id}` | none |
-| `PATCH` | `/api/users/{user_id}` | `{"disabled":true}` |
+| `PATCH` | `/api/users/{user_id}` | `{"spec":{"disabled":true}}` |
 | `DELETE` | `/api/users/{user_id}` | none |
 | `GET` | `/api/groups` | none |
-| `POST` | `/api/groups` | `{"name":"engineering","display_name":"Engineering"}` |
+| `POST` | `/api/groups` | `{"spec":{"name":"engineering","display_name":"Engineering"}}` |
 | `GET` | `/api/groups/{group_id}/members` | none |
 | `POST` | `/api/groups/{group_id}/members/{user_id}` | none |
 | `DELETE` | `/api/groups/{group_id}/members/{user_id}` | none |
 | `GET` | `/api/roles` | none |
 | `GET` | `/api/role-bindings` | none |
-| `POST` | `/api/role-bindings` | `{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}` |
+| `POST` | `/api/role-bindings` | `{"spec":{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}}` |
 | `DELETE` | `/api/role-bindings/{binding_id}` | none |
 
-Creating a user with an empty password generates a random password and returns it once in the response.
+Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
 
 ## Projects and Tickets
 
@@ -109,7 +109,7 @@ The first backlog API slice is backend/API-only. It lists project backlog ticket
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/backlog` | none |
-| `PATCH` | `/api/projects/{project_id}/backlog` | `{"ticket_ids":["ticket_2","ticket_1"]}` |
+| `PATCH` | `/api/projects/{project_id}/backlog` | `{"spec":{"ticket_ids":["ticket_2","ticket_1"]}}` |
 
 Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice.
 
@@ -120,15 +120,15 @@ The first board/workflow API slice is backend/API-only. It defines ordered proje
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/statuses` | none |
-| `PUT` | `/api/projects/{project_id}/statuses` | `{"statuses":[{"slug":"todo","name":"To Do"},{"slug":"in_progress","name":"In Progress"},{"slug":"done","name":"Done"}]}` |
+| `PUT` | `/api/projects/{project_id}/statuses` | `{"spec":{"statuses":[{"slug":"todo","name":"To Do"},{"slug":"in_progress","name":"In Progress"},{"slug":"done","name":"Done"}]}}` |
 | `GET` | `/api/projects/{project_id}/boards` | none |
-| `POST` | `/api/projects/{project_id}/boards` | `{"name":"Development","description":"Team delivery board","status_slugs":["todo","in_progress","done"]}` |
+| `POST` | `/api/projects/{project_id}/boards` | `{"spec":{"name":"Development","description":"Team delivery board","status_slugs":["todo","in_progress","done"]}}` |
 | `GET` | `/api/boards/{board_id}` | none |
-| `PATCH` | `/api/boards/{board_id}` | Any subset of `name`, `description`, `status_slugs`. |
+| `PATCH` | `/api/boards/{board_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `status_slugs`. |
 | `DELETE` | `/api/boards/{board_id}` | none |
 | `GET` | `/api/boards/{board_id}/tickets` | none |
 
-Statuses are ordered rows scoped to one project. Each status has a stable `slug` used by tickets and board columns, plus a display `name`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
+Status and board responses use `metadata`, `spec`, and `status`. Status slugs/names are returned in `spec`; board columns are returned in `status.columns`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
 
 Board ticket responses use the same persisted ticket shape as project ticket lists, grouped or ordered by board column according to the board definition. Moving tickets between columns continues to use ticket status updates.
 
@@ -161,17 +161,17 @@ The first components/versions API slice is backend/API-only. It supports project
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/components` | none |
-| `POST` | `/api/projects/{project_id}/components` | `{"name":"API","description":"Backend API surface","owner_user_id":"","default_assignee_id":""}` |
+| `POST` | `/api/projects/{project_id}/components` | `{"spec":{"name":"API","description":"Backend API surface","owner_user_id":"","default_assignee_id":""}}` |
 | `GET` | `/api/components/{component_id}` | none |
-| `PATCH` | `/api/components/{component_id}` | Any subset of `name`, `description`, `owner_user_id`, `default_assignee_id`. |
+| `PATCH` | `/api/components/{component_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `owner_user_id`, `default_assignee_id`. |
 | `DELETE` | `/api/components/{component_id}` | none |
 | `GET` | `/api/projects/{project_id}/versions` | Optional `status`. |
-| `POST` | `/api/projects/{project_id}/versions` | `{"name":"2026.7","description":"July release","status":"planned","target_date":"2026-07-31","release_date":""}` |
+| `POST` | `/api/projects/{project_id}/versions` | `{"spec":{"name":"2026.7","description":"July release","target_date":"2026-07-31","release_date":""}}` |
 | `GET` | `/api/versions/{version_id}` | none |
-| `PATCH` | `/api/versions/{version_id}` | Any subset of `name`, `description`, `status`, `target_date`, `release_date`. |
+| `PATCH` | `/api/versions/{version_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `status`, `target_date`, `release_date`. |
 | `DELETE` | `/api/versions/{version_id}` | none |
 
-Component names and version names are unique within a project. Component owner/default assignee IDs are optional user IDs. Version statuses are strings; the first slice accepts `planned`, `released`, and `archived`. Version `target_date` and `release_date` use `YYYY-MM-DD` date strings or empty strings.
+Component and version responses use `metadata`, `spec`, and `status`. Version lifecycle state is returned in `status.state`. Component names and version names are unique within a project. Component owner/default assignee IDs are optional user IDs. Version statuses are strings; the first slice accepts `planned`, `released`, and `archived`. Version `target_date` and `release_date` use `YYYY-MM-DD` date strings or empty strings.
 
 Deleting a component or version does not delete tickets. SQLite foreign-key behavior clears affected ticket assignments.
 
@@ -200,12 +200,12 @@ The first custom-field API slice is backend/API-only. It supports project-scoped
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/custom-fields` | none |
-| `POST` | `/api/projects/{project_id}/custom-fields` | `{"key":"severity","name":"Severity","field_type":"single_select","required":true,"options":["Low","High"]}` |
+| `POST` | `/api/projects/{project_id}/custom-fields` | `{"spec":{"key":"severity","name":"Severity","field_type":"single_select","required":true,"options":["Low","High"]}}` |
 | `GET` | `/api/custom-fields/{field_id}` | none |
-| `PATCH` | `/api/custom-fields/{field_id}` | Any subset of `key`, `name`, `field_type`, `required`, `options`. |
+| `PATCH` | `/api/custom-fields/{field_id}` | `{"spec":{...}}` with any subset of `key`, `name`, `field_type`, `required`, `options`. |
 | `DELETE` | `/api/custom-fields/{field_id}` | none |
 
-Supported field types are `text`, `number`, `boolean`, `date`, `single_select`, `multi_select`, and `user`. `single_select` and `multi_select` fields require configured options. Dates use `YYYY-MM-DD`. User fields store user IDs and validate that the user exists.
+Custom-field responses use `metadata`, `spec`, and `status`. User-provided option values are in `spec.options`; persisted option rows with IDs and positions are returned in `status.options`. Supported field types are `text`, `number`, `boolean`, `date`, `single_select`, `multi_select`, and `user`. `single_select` and `multi_select` fields require configured options. Dates use `YYYY-MM-DD`. User fields store user IDs and validate that the user exists.
 
 Ticket custom-field values use field keys:
 
@@ -227,14 +227,14 @@ Ticket custom-field values use field keys:
 | Method | Path | Body |
 | --- | --- | --- |
 | `GET` | `/api/tickets/{ticket_id}/comments` | none |
-| `POST` | `/api/tickets/{ticket_id}/comments` | `{"body":"Looks reproducible."}` |
+| `POST` | `/api/tickets/{ticket_id}/comments` | `{"spec":{"body":"Looks reproducible."}}` |
 | `DELETE` | `/api/comments/{comment_id}` | none |
 | `GET` | `/api/tickets/{ticket_id}/attachments` | none |
 | `POST` | `/api/tickets/{ticket_id}/attachments` | multipart form field `file`. |
 | `GET` | `/api/attachments/{attachment_id}/download` | binary download. |
 | `DELETE` | `/api/attachments/{attachment_id}` | none |
 
-Attachment bytes are stored in SQLite. The current maximum upload size is 10 MiB. Downloads set `Content-Type` from stored metadata and `Content-Disposition: attachment`.
+Comment responses and attachment metadata responses use `metadata`, `spec`, and `status`. Comment body is returned in `spec.body`; author is returned in `status.author_id`. Attachment filename and content type are returned in `spec`; upload size and uploader are returned in `status`. Attachment bytes are stored in SQLite. The current maximum upload size is 10 MiB. Downloads set `Content-Type` from stored metadata and `Content-Disposition: attachment`.
 
 ## Search and Saved Views
 
@@ -247,12 +247,14 @@ Content-Type: application/json
 
 ```json
 {
-  "project_id": "project_...",
-  "filter": "status == \"todo\" && assignee_id == currentUser()",
-  "text": "login error",
-  "sort": [{"field": "updated_at", "direction": "desc"}],
-  "limit": 50,
-  "cursor": ""
+  "spec": {
+    "project_id": "project_...",
+    "filter": "status == \"todo\" && assignee_id == currentUser()",
+    "text": "login error",
+    "sort": [{"field": "updated_at", "direction": "desc"}],
+    "limit": 50,
+    "cursor": ""
+  }
 }
 ```
 
@@ -260,7 +262,13 @@ Search returns:
 
 ```json
 {
-  "items": [],
+  "items": [
+    {
+      "metadata": {"id": "ticket_...", "project_id": "project_...", "created_at": "...", "updated_at": "..."},
+      "spec": {"title": "Fix login", "status": "todo"},
+      "status": {"key": "CORE-12", "reporter_id": "user_..."}
+    }
+  ],
   "next_cursor": ""
 }
 ```
@@ -278,12 +286,12 @@ Saved views:
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/saved-views` | Optional `project_id`, `pinned=true`, `limit`, `offset`. |
-| `POST` | `/api/saved-views` | `{"scope_type":"user","project_id":"","name":"My bugs","query":{"filter":"assignee_id == currentUser()","text":"bug"},"sort":[{"field":"updated_at","direction":"desc"}],"columns":["key","title","status"],"display_mode":"list","group_by":"","pinned":false}` |
+| `POST` | `/api/saved-views` | `{"spec":{"scope_type":"user","project_id":"","name":"My bugs","query":{"filter":"assignee_id == currentUser()","text":"bug"},"sort":[{"field":"updated_at","direction":"desc"}],"columns":["key","title","status"],"display_mode":"list","group_by":"","pinned":false}}` |
 | `GET` | `/api/saved-views/{view_id}` | none |
-| `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
+| `PATCH` | `/api/saved-views/{view_id}` | `{"spec":{...}}` with any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
-Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `labels`, `start_date`, and `due_date`. Only project-scoped views can be pinned.
+Saved-view responses use `metadata`, `spec`, and `status`. The view ID and timestamps are in `metadata`; scope, project, query, sort, columns, display mode, grouping, and pinned state are in `spec`. Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `labels`, `start_date`, and `due_date`. Only project-scoped views can be pinned.
 
 ## Notifications
 
@@ -296,21 +304,27 @@ The first notification API slice is in-app only. It lists notifications for the 
 | `POST` | `/api/notifications/{notification_id}/unread` | Marks one of the current user's notifications unread. |
 | `POST` | `/api/notifications/read-all` | Marks all current user's unread notifications read. |
 
-Notification responses use the persisted notification shape:
+Notification responses use `metadata`, `spec`, and `status`:
 
 ```json
 {
   "items": [
     {
-      "id": "notification_...",
-      "user_id": "user_...",
-      "type": "ticket_assigned",
-      "subject_type": "ticket",
-      "subject_id": "ticket_...",
-      "body": "You were assigned CORE-12",
-      "data": {},
-      "read_at": null,
-      "created_at": "2026-06-16T10:30:00Z"
+      "metadata": {
+        "id": "notification_...",
+        "user_id": "user_...",
+        "created_at": "2026-06-16T10:30:00Z"
+      },
+      "spec": {
+        "type": "ticket_assigned",
+        "subject_type": "ticket",
+        "subject_id": "ticket_...",
+        "body": "You were assigned CORE-12",
+        "data": {}
+      },
+      "status": {
+        "read_at": null
+      }
     }
   ]
 }

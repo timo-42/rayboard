@@ -103,7 +103,7 @@ func (provider Provider) listTokens(ctx context.Context, input *struct{ shared.A
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Could not list API tokens")
 	}
-	return &ListTokensOutput{Body: shared.ItemList[auth.APIToken]{Items: tokens}}, nil
+	return &ListTokensOutput{Body: shared.ItemList[TokenResource]{Items: tokenResources(tokens)}}, nil
 }
 
 func (provider Provider) createToken(ctx context.Context, input *CreateTokenInput) (*CreateTokenOutput, error) {
@@ -111,11 +111,11 @@ func (provider Provider) createToken(ctx context.Context, input *CreateTokenInpu
 	if err != nil {
 		return nil, err
 	}
-	token, err := provider.Auth.CreateAPIToken(ctx, principal.UserID, input.Body.Name)
+	token, err := provider.Auth.CreateAPIToken(ctx, principal.UserID, input.Body.Spec.Name)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Could not create API token")
 	}
-	return &CreateTokenOutput{Body: token}, nil
+	return &CreateTokenOutput{Body: createdTokenResource(token)}, nil
 }
 
 func (provider Provider) revokeToken(ctx context.Context, input *RevokeTokenInput) (*shared.EmptyOutput, error) {
@@ -141,7 +141,7 @@ func (provider Provider) listUsers(ctx context.Context, input *struct{ shared.Au
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListUsersOutput{Body: shared.ItemList[auth.User]{Items: users}}, nil
+	return &ListUsersOutput{Body: shared.ItemList[UserResource]{Items: userResources(users)}}, nil
 }
 
 func (provider Provider) createUser(ctx context.Context, input *CreateUserInput) (*CreateUserOutput, error) {
@@ -153,15 +153,15 @@ func (provider Provider) createUser(ctx context.Context, input *CreateUserInput)
 		return nil, err
 	}
 	user, err := provider.Auth.CreateUser(ctx, auth.CreateUserInput{
-		Username:    input.Body.Username,
-		DisplayName: input.Body.DisplayName,
-		Password:    input.Body.Password,
-		Disabled:    input.Body.Disabled,
+		Username:    input.Body.Spec.Username,
+		DisplayName: input.Body.Spec.DisplayName,
+		Password:    input.Body.Spec.Password,
+		Disabled:    input.Body.Spec.Disabled,
 	})
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &CreateUserOutput{Body: user}, nil
+	return &CreateUserOutput{Body: createdUserResource(user)}, nil
 }
 
 func (provider Provider) getUser(ctx context.Context, input *UserIDInput) (*UserOutput, error) {
@@ -176,7 +176,7 @@ func (provider Provider) getUser(ctx context.Context, input *UserIDInput) (*User
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &UserOutput{Body: user}, nil
+	return &UserOutput{Body: userResource(user)}, nil
 }
 
 func (provider Provider) updateUser(ctx context.Context, input *UpdateUserInput) (*UserOutput, error) {
@@ -187,14 +187,14 @@ func (provider Provider) updateUser(ctx context.Context, input *UpdateUserInput)
 	if err := provider.Authenticator.Require(principal, authz.PermissionUsersWrite, authz.GlobalScope()); err != nil {
 		return nil, err
 	}
-	if input.Body.Disabled == nil {
+	if input.Body.Spec.Disabled == nil {
 		return nil, huma.Error400BadRequest("Invalid user update")
 	}
-	user, err := provider.Auth.SetUserDisabled(ctx, input.UserID, *input.Body.Disabled)
+	user, err := provider.Auth.SetUserDisabled(ctx, input.UserID, *input.Body.Spec.Disabled)
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &UserOutput{Body: user}, nil
+	return &UserOutput{Body: userResource(user)}, nil
 }
 
 func (provider Provider) deleteUser(ctx context.Context, input *UserIDInput) (*shared.EmptyOutput, error) {
@@ -223,7 +223,7 @@ func (provider Provider) listGroups(ctx context.Context, input *struct{ shared.A
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListGroupsOutput{Body: shared.ItemList[auth.Group]{Items: groups}}, nil
+	return &ListGroupsOutput{Body: shared.ItemList[GroupResource]{Items: groupResources(groups)}}, nil
 }
 
 func (provider Provider) createGroup(ctx context.Context, input *CreateGroupInput) (*CreateGroupOutput, error) {
@@ -235,13 +235,13 @@ func (provider Provider) createGroup(ctx context.Context, input *CreateGroupInpu
 		return nil, err
 	}
 	group, err := provider.Auth.CreateGroup(ctx, auth.CreateGroupInput{
-		Name:        input.Body.Name,
-		DisplayName: input.Body.DisplayName,
+		Name:        input.Body.Spec.Name,
+		DisplayName: input.Body.Spec.DisplayName,
 	})
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &CreateGroupOutput{Body: group}, nil
+	return &CreateGroupOutput{Body: groupResource(group)}, nil
 }
 
 func (provider Provider) listGroupMembers(ctx context.Context, input *GroupIDInput) (*ListGroupMembersOutput, error) {
@@ -256,7 +256,7 @@ func (provider Provider) listGroupMembers(ctx context.Context, input *GroupIDInp
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListGroupMembersOutput{Body: shared.ItemList[auth.User]{Items: users}}, nil
+	return &ListGroupMembersOutput{Body: shared.ItemList[UserResource]{Items: userResources(users)}}, nil
 }
 
 func (provider Provider) addGroupMember(ctx context.Context, input *GroupMemberInput) (*shared.EmptyOutput, error) {
@@ -299,7 +299,7 @@ func (provider Provider) listRoles(ctx context.Context, input *struct{ shared.Au
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListRolesOutput{Body: shared.ItemList[auth.Role]{Items: roles}}, nil
+	return &ListRolesOutput{Body: shared.ItemList[RoleResource]{Items: roleResources(roles)}}, nil
 }
 
 func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ shared.AuthInput }) (*ListRoleBindingsOutput, error) {
@@ -314,7 +314,7 @@ func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ sh
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListRoleBindingsOutput{Body: shared.ItemList[auth.RoleBinding]{Items: bindings}}, nil
+	return &ListRoleBindingsOutput{Body: shared.ItemList[RoleBindingResource]{Items: roleBindingResources(bindings)}}, nil
 }
 
 func (provider Provider) createRoleBinding(ctx context.Context, input *CreateRoleBindingInput) (*CreateRoleBindingOutput, error) {
@@ -326,15 +326,15 @@ func (provider Provider) createRoleBinding(ctx context.Context, input *CreateRol
 		return nil, err
 	}
 	binding, err := provider.Auth.CreateRoleBinding(ctx, auth.CreateRoleBindingInput{
-		RoleName:    input.Body.RoleName,
-		SubjectType: input.Body.SubjectType,
-		SubjectID:   input.Body.SubjectID,
-		Scope:       requestScope(input.Body),
+		RoleName:    input.Body.Spec.RoleName,
+		SubjectType: input.Body.Spec.SubjectType,
+		SubjectID:   input.Body.Spec.SubjectID,
+		Scope:       requestScope(input.Body.Spec),
 	})
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &CreateRoleBindingOutput{Body: binding}, nil
+	return &CreateRoleBindingOutput{Body: roleBindingResource(binding)}, nil
 }
 
 func (provider Provider) deleteRoleBinding(ctx context.Context, input *RoleBindingIDInput) (*shared.EmptyOutput, error) {
@@ -351,7 +351,7 @@ func (provider Provider) deleteRoleBinding(ctx context.Context, input *RoleBindi
 	return &shared.EmptyOutput{}, nil
 }
 
-func requestScope(input CreateRoleBindingInputBody) authz.Scope {
+func requestScope(input RoleBindingSpec) authz.Scope {
 	switch input.Scope {
 	case "", string(authz.ScopeKindGlobal):
 		return authz.GlobalScope()

@@ -32,7 +32,7 @@ type TicketOutput struct {
 	Body TicketResource
 }
 
-type ActivityOutput = shared.ListOutput[tracker.TicketActivity]
+type ActivityOutput = shared.ListOutput[ActivityResource]
 
 type TicketMetadata struct {
 	ID        string    `json:"id"`
@@ -84,6 +84,23 @@ type TicketStatus struct {
 }
 
 type TicketResource = shared.Resource[TicketMetadata, TicketSpec, TicketStatus]
+
+type ActivityMetadata struct {
+	ID        string    `json:"id"`
+	TicketID  string    `json:"ticket_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ActivitySpec struct {
+	ActivityType string         `json:"activity_type"`
+	Data         map[string]any `json:"data,omitempty"`
+}
+
+type ActivityStatus struct {
+	ActorID string `json:"actor_id,omitempty"`
+}
+
+type ActivityResource = shared.Resource[ActivityMetadata, ActivitySpec, ActivityStatus]
 
 func (spec TicketSpec) ToCreateInput(projectID string) tracker.CreateTicketInput {
 	return tracker.CreateTicketInput{
@@ -163,6 +180,31 @@ func ResourcesFromTracker(tickets []tracker.Ticket) []TicketResource {
 	resources := make([]TicketResource, 0, len(tickets))
 	for _, ticket := range tickets {
 		resources = append(resources, ResourceFromTracker(ticket))
+	}
+	return resources
+}
+
+func ActivityResourceFromTracker(activity tracker.TicketActivity) ActivityResource {
+	return ActivityResource{
+		Metadata: ActivityMetadata{
+			ID:        activity.ID,
+			TicketID:  activity.TicketID,
+			CreatedAt: activity.CreatedAt,
+		},
+		Spec: ActivitySpec{
+			ActivityType: activity.ActivityType,
+			Data:         activity.Data,
+		},
+		Status: ActivityStatus{
+			ActorID: activity.ActorID,
+		},
+	}
+}
+
+func ActivityResourcesFromTracker(activities []tracker.TicketActivity) []ActivityResource {
+	resources := make([]ActivityResource, 0, len(activities))
+	for _, activity := range activities {
+		resources = append(resources, ActivityResourceFromTracker(activity))
 	}
 	return resources
 }

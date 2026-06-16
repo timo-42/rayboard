@@ -19,7 +19,7 @@ func Register(api huma.API, provider Provider) {
 	route := routes{provider: provider}
 
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}/comments", commentsTag, "List ticket comments"), route.list)
-	huma.Register(api, shared.Operation(http.MethodPost, "/api/tickets/{ticket_id}/comments", commentsTag, "Create ticket comment"), route.create)
+	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/tickets/{ticket_id}/comments", commentsTag, "Create ticket comment", http.StatusCreated), route.create)
 	huma.Register(api, shared.Operation(http.MethodDelete, "/api/comments/{comment_id}", commentsTag, "Delete comment"), route.delete)
 }
 
@@ -33,7 +33,7 @@ func (r routes) list(ctx context.Context, input *listCommentsInput) (*listCommen
 	if err != nil {
 		return nil, shared.CommentError(err)
 	}
-	return &listCommentsOutput{Body: shared.ItemList[commentservice.Comment]{Items: items}}, nil
+	return &listCommentsOutput{Body: shared.ItemList[CommentResource]{Items: commentResources(items)}}, nil
 }
 
 func (r routes) create(ctx context.Context, input *createCommentInput) (*createCommentOutput, error) {
@@ -42,18 +42,14 @@ func (r routes) create(ctx context.Context, input *createCommentInput) (*createC
 		return nil, err
 	}
 
-	var body string
-	if input.Body != nil {
-		body = input.Body.Body
-	}
 	comment, err := r.provider.Comments.Create(ctx, principal, commentservice.CreateInput{
 		TicketID: input.TicketID,
-		Body:     body,
+		Body:     input.Body.Spec.Body,
 	})
 	if err != nil {
 		return nil, shared.CommentError(err)
 	}
-	return &createCommentOutput{Status: http.StatusCreated, Body: comment}, nil
+	return &createCommentOutput{Body: commentResource(comment)}, nil
 }
 
 func (r routes) delete(ctx context.Context, input *deleteCommentInput) (*shared.EmptyOutput, error) {
