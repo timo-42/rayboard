@@ -42,7 +42,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 
 	group, ctx := newServerGroup(ctx)
 
-	backendServer := backend.NewServer(cfg.BackendAddr)
+	backendServer := backend.NewServer(cfg.BackendAddr, backend.WithAuthService(auth.NewService(db.SQL)))
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
 	group.start("backend", backendServer.ListenAndServe, backendServer.Shutdown)
@@ -62,7 +62,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	defer db.Close()
 
 	group, ctx := newServerGroup(ctx)
-	server := backend.NewServer(cfg.BackendAddr)
+	server := backend.NewServer(cfg.BackendAddr, backend.WithAuthService(auth.NewService(db.SQL)))
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
 	return group.wait(ctx, stderr)
