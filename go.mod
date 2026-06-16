@@ -2,8 +2,6 @@ module github.com/timo-42/rayboard
 
 go 1.24.0
 
-toolchain go1.24.4
-
 require modernc.org/sqlite v1.45.0
 
 require (
