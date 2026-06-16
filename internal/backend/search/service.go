@@ -145,6 +145,7 @@ func (s *Service) ListSavedViews(ctx context.Context, principal authz.Principal,
 		OwnerUserID:       principal.UserID,
 		ProjectID:         input.ProjectID,
 		VisibleProjectIDs: visibleProjectIDs,
+		PinnedOnly:        input.Pinned,
 		Limit:             limit,
 		Offset:            offset,
 	})
@@ -175,6 +176,15 @@ func (s *Service) UpdateSavedView(ctx context.Context, principal authz.Principal
 	}
 	if input.Columns != nil {
 		next.Columns = cloneStrings(*input.Columns)
+	}
+	if input.DisplayMode != nil {
+		next.DisplayMode = strings.TrimSpace(*input.DisplayMode)
+	}
+	if input.GroupBy != nil {
+		next.GroupBy = strings.TrimSpace(*input.GroupBy)
+	}
+	if input.Pinned != nil {
+		next.Pinned = *input.Pinned
 	}
 	next, err = normalizeAndValidateSavedViewConfig(principal, next)
 	if err != nil {
@@ -249,6 +259,9 @@ func (s *Service) buildSavedView(ctx context.Context, principal authz.Principal,
 		Query:       normalizeSavedViewQuery(input.Query),
 		Sort:        cloneSortSpecs(input.Sort),
 		Columns:     cloneStrings(input.Columns),
+		DisplayMode: strings.TrimSpace(input.DisplayMode),
+		GroupBy:     strings.TrimSpace(input.GroupBy),
+		Pinned:      input.Pinned,
 	}
 	if err := s.validateSavedViewScope(ctx, principal, view); err != nil {
 		return SavedView{}, err
@@ -315,6 +328,20 @@ func normalizeAndValidateSavedViewConfig(principal authz.Principal, view SavedVi
 	if err := validateSavedViewQuery(view.Query, principal); err != nil {
 		fields["query"] = err.Error()
 	}
+	view.DisplayMode = strings.ToLower(strings.TrimSpace(view.DisplayMode))
+	if view.DisplayMode == "" {
+		view.DisplayMode = SavedViewDisplayList
+	}
+	if !validSavedViewDisplayMode(view.DisplayMode) {
+		fields["display_mode"] = "Must be list, board, or backlog"
+	}
+	view.GroupBy = strings.ToLower(strings.TrimSpace(view.GroupBy))
+	if view.GroupBy != "" && !validSavedViewGroupBy(view.GroupBy) {
+		fields["group_by"] = "Unsupported grouping field"
+	}
+	if view.Pinned && view.ScopeType != SavedViewScopeProject {
+		fields["pinned"] = "Only project views can be pinned"
+	}
 	sort, err := normalizeSort(view.Sort)
 	if err != nil {
 		fields["sort"] = err.Error()
@@ -331,6 +358,24 @@ func normalizeAndValidateSavedViewConfig(principal authz.Principal, view SavedVi
 		return SavedView{}, validationFailed(fields)
 	}
 	return view, nil
+}
+
+func validSavedViewDisplayMode(displayMode string) bool {
+	switch displayMode {
+	case SavedViewDisplayList, SavedViewDisplayBoard, SavedViewDisplayBacklog:
+		return true
+	default:
+		return false
+	}
+}
+
+func validSavedViewGroupBy(groupBy string) bool {
+	switch groupBy {
+	case "status", "assignee_id", "sprint_id", "component_id", "version_id", "priority", "type":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSavedViewQuery(query SavedViewQuery, principal authz.Principal) error {

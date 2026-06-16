@@ -47,6 +47,7 @@ func (route searchRoute) listSavedViews(w http.ResponseWriter, r *http.Request, 
 	}
 	views, err := route.search.ListSavedViews(r.Context(), principal, search.ListSavedViewsInput{
 		ProjectID: r.URL.Query().Get("project_id"),
+		Pinned:    r.URL.Query().Get("pinned") == "true",
 		Limit:     limit,
 		Offset:    offset,
 	})

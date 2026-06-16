@@ -41,7 +41,8 @@ Read first:
    - personal views
    - project-shared views
    - pinned project views
-   - display mode/columns/sort/grouping
+   - display mode/columns/sort/grouping metadata
+   - first backend API slice stores `display_mode`, `group_by`, and `pinned`; UI behavior can follow later
 
 ## Integration Points
 

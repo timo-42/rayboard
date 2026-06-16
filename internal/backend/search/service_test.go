@@ -52,6 +52,9 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	if personal.OwnerUserID != "user-member" || personal.ScopeType != search.SavedViewScopeUser {
 		t.Fatalf("unexpected personal view: %#v", personal)
 	}
+	if personal.DisplayMode != search.SavedViewDisplayList || personal.Pinned {
+		t.Fatalf("unexpected personal view display metadata: %#v", personal)
+	}
 
 	if _, err := service.GetSavedView(ctx, outsider, personal.ID); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected outsider forbidden for personal view, got %v", err)
@@ -81,13 +84,19 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	}
 
 	projectView, err := service.CreateSavedView(ctx, admin, search.CreateSavedViewInput{
-		ScopeType: search.SavedViewScopeProject,
-		ProjectID: "project-core",
-		Name:      "Shared Backlog",
-		Query:     search.SavedViewQuery{Filter: `status != "done"`},
+		ScopeType:   search.SavedViewScopeProject,
+		ProjectID:   "project-core",
+		Name:        "Shared Backlog",
+		Query:       search.SavedViewQuery{Filter: `status != "done"`},
+		DisplayMode: search.SavedViewDisplayBoard,
+		GroupBy:     "status",
+		Pinned:      true,
 	})
 	if err != nil {
 		t.Fatalf("create project saved view: %v", err)
+	}
+	if projectView.DisplayMode != search.SavedViewDisplayBoard || projectView.GroupBy != "status" || !projectView.Pinned {
+		t.Fatalf("unexpected project view metadata: %#v", projectView)
 	}
 	globalView, err := service.CreateSavedView(ctx, admin, search.CreateSavedViewInput{
 		ScopeType: search.SavedViewScopeGlobal,
@@ -97,12 +106,24 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create global saved view: %v", err)
 	}
+	if _, err := service.CreateSavedView(ctx, admin, search.CreateSavedViewInput{
+		ScopeType: search.SavedViewScopeGlobal,
+		Name:      "Bad Pinned Global",
+		Pinned:    true,
+	}); !errors.Is(err, search.ErrValidation) {
+		t.Fatalf("expected pinned global validation, got %v", err)
+	}
 
 	memberViews, err := service.ListSavedViews(ctx, member, search.ListSavedViewsInput{ProjectID: "project-core"})
 	if err != nil {
 		t.Fatalf("list member views: %v", err)
 	}
 	assertViewIDs(t, memberViews, personal.ID, projectView.ID, globalView.ID)
+	pinnedViews, err := service.ListSavedViews(ctx, member, search.ListSavedViewsInput{ProjectID: "project-core", Pinned: true})
+	if err != nil {
+		t.Fatalf("list pinned views: %v", err)
+	}
+	assertViewIDs(t, pinnedViews, projectView.ID)
 
 	outsiderViews, err := service.ListSavedViews(ctx, outsider, search.ListSavedViewsInput{ProjectID: "project-ops"})
 	if err != nil {

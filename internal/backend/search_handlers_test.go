@@ -47,9 +47,12 @@ func TestSearchEndpointsAndSavedViews(t *testing.T) {
 	}
 
 	createViewReq := httptest.NewRequest(http.MethodPost, "/api/saved-views", mustJSON(t, map[string]any{
-		"scope_type": search.SavedViewScopeUser,
-		"project_id": project.ID,
-		"name":       "My Login Tickets",
+		"scope_type":   search.SavedViewScopeProject,
+		"project_id":   project.ID,
+		"name":         "My Login Tickets",
+		"display_mode": "board",
+		"group_by":     "status",
+		"pinned":       true,
 		"query": map[string]string{
 			"text":   "login",
 			"filter": `status != "done"`,
@@ -69,8 +72,11 @@ func TestSearchEndpointsAndSavedViews(t *testing.T) {
 	if view.ID == "" || view.Name != "My Login Tickets" {
 		t.Fatalf("unexpected saved view: %#v", view)
 	}
+	if view.DisplayMode != search.SavedViewDisplayBoard || view.GroupBy != "status" || !view.Pinned {
+		t.Fatalf("unexpected saved view metadata: %#v", view)
+	}
 
-	listReq := httptest.NewRequest(http.MethodGet, "/api/saved-views?project_id="+project.ID, nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/api/saved-views?project_id="+project.ID+"&pinned=true", nil)
 	listReq.AddCookie(session)
 	list := httptest.NewRecorder()
 	handler.ServeHTTP(list, listReq)

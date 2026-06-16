@@ -11,6 +11,10 @@ const (
 	SavedViewScopeProject = "project"
 	SavedViewScopeGlobal  = "global"
 
+	SavedViewDisplayList    = "list"
+	SavedViewDisplayBoard   = "board"
+	SavedViewDisplayBacklog = "backlog"
+
 	SortDirectionAsc  = "asc"
 	SortDirectionDesc = "desc"
 )
@@ -26,6 +30,9 @@ type SavedView struct {
 	Query       SavedViewQuery `json:"query"`
 	Sort        []SortSpec     `json:"sort"`
 	Columns     []string       `json:"columns"`
+	DisplayMode string         `json:"display_mode"`
+	GroupBy     string         `json:"group_by,omitempty"`
+	Pinned      bool           `json:"pinned"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
@@ -48,17 +55,24 @@ type CreateSavedViewInput struct {
 	Query       SavedViewQuery `json:"query"`
 	Sort        []SortSpec     `json:"sort"`
 	Columns     []string       `json:"columns"`
+	DisplayMode string         `json:"display_mode"`
+	GroupBy     string         `json:"group_by"`
+	Pinned      bool           `json:"pinned"`
 }
 
 type UpdateSavedViewInput struct {
-	Name    *string         `json:"name,omitempty"`
-	Query   *SavedViewQuery `json:"query,omitempty"`
-	Sort    *[]SortSpec     `json:"sort,omitempty"`
-	Columns *[]string       `json:"columns,omitempty"`
+	Name        *string         `json:"name,omitempty"`
+	Query       *SavedViewQuery `json:"query,omitempty"`
+	Sort        *[]SortSpec     `json:"sort,omitempty"`
+	Columns     *[]string       `json:"columns,omitempty"`
+	DisplayMode *string         `json:"display_mode,omitempty"`
+	GroupBy     *string         `json:"group_by,omitempty"`
+	Pinned      *bool           `json:"pinned,omitempty"`
 }
 
 type ListSavedViewsInput struct {
 	ProjectID string `json:"project_id,omitempty"`
+	Pinned    bool   `json:"pinned"`
 	Limit     int    `json:"limit"`
 	Offset    int    `json:"offset"`
 }

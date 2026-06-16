@@ -227,13 +227,13 @@ Saved views:
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
-| `GET` | `/api/saved-views` | Optional `project_id`, `limit`, `offset`. |
-| `POST` | `/api/saved-views` | `{"scope_type":"user","project_id":"","name":"My bugs","query":{"filter":"assignee_id == currentUser()","text":"bug"},"sort":[{"field":"updated_at","direction":"desc"}],"columns":["key","title","status"]}` |
+| `GET` | `/api/saved-views` | Optional `project_id`, `pinned=true`, `limit`, `offset`. |
+| `POST` | `/api/saved-views` | `{"scope_type":"user","project_id":"","name":"My bugs","query":{"filter":"assignee_id == currentUser()","text":"bug"},"sort":[{"field":"updated_at","direction":"desc"}],"columns":["key","title","status"],"display_mode":"list","group_by":"","pinned":false}` |
 | `GET` | `/api/saved-views/{view_id}` | none |
-| `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`. |
+| `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
-Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission.
+Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Only project-scoped views can be pinned.
 
 ## Notifications
 

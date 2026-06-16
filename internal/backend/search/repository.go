@@ -32,6 +32,7 @@ type savedViewListQuery struct {
 	OwnerUserID       string
 	ProjectID         string
 	VisibleProjectIDs []string
+	PinnedOnly        bool
 	Limit             int
 	Offset            int
 }
@@ -171,10 +172,10 @@ func (r *Repository) insertSavedView(ctx context.Context, q sqlRunner, view Save
 	_, err = q.ExecContext(ctx, `
 		INSERT INTO saved_views (
 			id, owner_user_id, project_id, scope_type, name, query_json,
-			sort_json, columns_json, created_at, updated_at
+			sort_json, columns_json, display_mode, group_by, is_pinned, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, view.ID, nullableString(view.OwnerUserID), nullableString(view.ProjectID), view.ScopeType, view.Name, queryJSON, sortJSON, columnsJSON, formatTime(view.CreatedAt), formatTime(view.UpdatedAt))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, view.ID, nullableString(view.OwnerUserID), nullableString(view.ProjectID), view.ScopeType, view.Name, queryJSON, sortJSON, columnsJSON, view.DisplayMode, nullableString(view.GroupBy), boolInt(view.Pinned), formatTime(view.CreatedAt), formatTime(view.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("insert saved view: %w", err)
 	}
@@ -184,7 +185,7 @@ func (r *Repository) insertSavedView(ctx context.Context, q sqlRunner, view Save
 func (r *Repository) getSavedView(ctx context.Context, q sqlRunner, id string) (SavedView, error) {
 	view, err := scanSavedView(q.QueryRowContext(ctx, `
 		SELECT id, owner_user_id, project_id, scope_type, name, query_json,
-			sort_json, columns_json, created_at, updated_at
+			sort_json, columns_json, display_mode, group_by, is_pinned, created_at, updated_at
 		FROM saved_views
 		WHERE id = ?
 	`, id))
@@ -208,9 +209,12 @@ func (r *Repository) updateSavedView(ctx context.Context, q sqlRunner, view Save
 			query_json = ?,
 			sort_json = ?,
 			columns_json = ?,
+			display_mode = ?,
+			group_by = ?,
+			is_pinned = ?,
 			updated_at = ?
 		WHERE id = ?
-	`, view.Name, queryJSON, sortJSON, columnsJSON, formatTime(view.UpdatedAt), view.ID)
+	`, view.Name, queryJSON, sortJSON, columnsJSON, view.DisplayMode, nullableString(view.GroupBy), boolInt(view.Pinned), formatTime(view.UpdatedAt), view.ID)
 	if err != nil {
 		return fmt.Errorf("update saved view: %w", err)
 	}
@@ -244,10 +248,11 @@ func (r *Repository) listSavedViews(ctx context.Context, q sqlRunner, input save
 	args = append(args, input.Limit, input.Offset)
 	rows, err := q.QueryContext(ctx, `
 		SELECT id, owner_user_id, project_id, scope_type, name, query_json,
-			sort_json, columns_json, created_at, updated_at
+			sort_json, columns_json, display_mode, group_by, is_pinned, created_at, updated_at
 		FROM saved_views
 		WHERE `+where+`
 		ORDER BY
+			is_pinned DESC,
 			CASE scope_type WHEN 'user' THEN 0 WHEN 'project' THEN 1 ELSE 2 END,
 			name COLLATE NOCASE ASC,
 			id ASC
@@ -294,7 +299,11 @@ func savedViewListWhere(input savedViewListQuery) (string, []any) {
 	}
 
 	parts = append(parts, "(scope_type = 'global')")
-	return strings.Join(parts, " OR "), args
+	where := "(" + strings.Join(parts, " OR ") + ")"
+	if input.PinnedOnly {
+		where += " AND is_pinned = 1"
+	}
+	return where, args
 }
 
 func (r *Repository) searchTickets(ctx context.Context, q sqlRunner, input ticketSearchQuery) ([]Ticket, error) {
@@ -432,13 +441,20 @@ func scanSavedView(scanner rowScanner) (SavedView, error) {
 	var queryJSON string
 	var sortJSON string
 	var columnsJSON string
+	var groupBy sql.NullString
+	var isPinned int
 	var createdAt string
 	var updatedAt string
-	if err := scanner.Scan(&view.ID, &ownerUserID, &projectID, &view.ScopeType, &view.Name, &queryJSON, &sortJSON, &columnsJSON, &createdAt, &updatedAt); err != nil {
+	if err := scanner.Scan(&view.ID, &ownerUserID, &projectID, &view.ScopeType, &view.Name, &queryJSON, &sortJSON, &columnsJSON, &view.DisplayMode, &groupBy, &isPinned, &createdAt, &updatedAt); err != nil {
 		return SavedView{}, err
 	}
 	view.OwnerUserID = nullString(ownerUserID)
 	view.ProjectID = nullString(projectID)
+	view.GroupBy = nullString(groupBy)
+	view.Pinned = isPinned != 0
+	if view.DisplayMode == "" {
+		view.DisplayMode = SavedViewDisplayList
+	}
 	if queryJSON == "" {
 		queryJSON = "{}"
 	}
@@ -542,6 +558,13 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func nullString(value sql.NullString) string {
