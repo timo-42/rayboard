@@ -499,6 +499,9 @@ func openBackendTestDB(t *testing.T, ctx context.Context) (*store.DB, auth.Boots
 func postJSON(t *testing.T, handler http.Handler, path string, body any, cookies []*http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 
+	if path == "/api/login" {
+		body = map[string]any{"spec": body}
+	}
 	request := httptest.NewRequest(http.MethodPost, path, mustJSON(t, body))
 	request.Header.Set("Content-Type", "application/json")
 	for _, cookie := range cookies {

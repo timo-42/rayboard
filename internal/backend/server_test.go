@@ -17,11 +17,21 @@ func TestHealth(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
-	var body map[string]string
+	var body struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Service string `json:"service"`
+		} `json:"spec"`
+		Status struct {
+			State string `json:"state"`
+		} `json:"status"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["status"] != "ok" || body["service"] != "backend" {
+	if body.Metadata.ID != "backend" || body.Spec.Service != "backend" || body.Status.State != "ok" {
 		t.Fatalf("unexpected response: %#v", body)
 	}
 }
@@ -69,7 +79,8 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
 	}
-	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"username"}, []string{"password"})
+	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
+	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})
 	assertRequestBodyFields(t, spec, "/api/tokens", http.MethodPost, []string{"spec"}, []string{"spec", "name"})
 	assertResponseBodyFields(t, spec, "/api/tokens", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"status"}, []string{"status", "token"})
 	assertRequestBodyFields(t, spec, "/api/users", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "display_name"}, []string{"spec", "disabled"})
@@ -99,17 +110,21 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/comments", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/attachments", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
 	assertRequestBodyFields(t, spec, "/api/search", http.MethodPost, []string{"spec"}, []string{"spec", "text"}, []string{"spec", "sort"})
-	assertResponseBodyFields(t, spec, "/api/search", http.MethodPost, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
+	assertResponseBodyFields(t, spec, "/api/search", http.MethodPost, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertRequestBodyFields(t, spec, "/api/saved-views", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "query"})
 	assertResponseBodyFields(t, spec, "/api/saved-views/{view_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"})
 	assertResponseBodyFields(t, spec, "/api/notifications", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"}, []string{"items", "status", "read_at"})
+	assertRequestBodyFields(t, spec, "/api/openrouter-providers", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "default_model"}, []string{"spec", "api_key"})
+	assertResponseBodyFields(t, spec, "/api/openrouter-providers/{provider_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "default_model"}, []string{"status"}, []string{"status", "api_key_set"})
 	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
 	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/cron-jobs", http.MethodPost), []string{"spec", "engine"})
 	assertResponseBodyFields(t, spec, "/api/cron-jobs/{job_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "next_run_at"})
+	assertResponseBodyFields(t, spec, "/api/cron-jobs/{job_id}/run", http.MethodPost, "202", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/sprints", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "goal"}, []string{"spec", "start_date"}, []string{"spec", "end_date"})
 	assertResponseBodyFields(t, spec, "/api/sprints/{sprint_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
-	assertResponseBodyFields(t, spec, "/api/boards/{board_id}/tickets", http.MethodGet, "200", []string{"columns"}, []string{"columns", "tickets"}, []string{"columns", "tickets", "metadata"}, []string{"columns", "tickets", "spec"}, []string{"columns", "tickets", "status"})
-	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"items"}, []string{"items", "epic"}, []string{"items", "epic", "metadata"}, []string{"items", "epic", "spec"}, []string{"items", "epic", "status"}, []string{"items", "progress"})
+	assertRequestBodyFields(t, spec, "/api/tickets/{ticket_id}/sprint", http.MethodPut, []string{"spec"}, []string{"spec", "sprint_id"})
+	assertResponseBodyFields(t, spec, "/api/boards/{board_id}/tickets", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "board"}, []string{"status"}, []string{"status", "columns"}, []string{"status", "columns", "tickets"}, []string{"status", "columns", "tickets", "metadata"}, []string{"status", "columns", "tickets", "spec"}, []string{"status", "columns", "tickets", "status"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "spec", "epic"}, []string{"items", "spec", "epic", "metadata"}, []string{"items", "spec", "epic", "spec"}, []string{"items", "spec", "epic", "status"}, []string{"items", "status"}, []string{"items", "status", "progress"})
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {

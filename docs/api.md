@@ -4,7 +4,7 @@ Backend API routes live under `/api`. Requests and responses are JSON unless upl
 
 The backend generates an OpenAPI document in-process with Huma and serves it from the same Rayboard binary. No generated spec file or external docs server is required.
 
-Long-lived resource endpoints are moving to a Kubernetes-inspired object shape. Create/update requests use `{"spec": {...}}`; resource responses use `{"metadata": {...}, "spec": {...}, "status": {...}}`. `metadata` holds identity/bookkeeping, `spec` holds desired user-controlled state, and `status` holds observed/computed server state. Command endpoints such as login, search, manual runs, tests, uploads, downloads, and webhooks can keep command-specific bodies.
+JSON API endpoints use a Kubernetes-inspired object shape. Create/update/action requests use `{"spec": {...}}` when they accept JSON; JSON responses use `{"metadata": {...}, "spec": {...}, "status": {...}}` for resources and resource-like computed views. `metadata` holds identity/bookkeeping, `spec` holds desired user-controlled state or request intent, and `status` holds observed/computed server state. List responses return `{"items":[...]}` where each item follows the resource object shape. Empty `204` responses and binary attachment downloads are the practical exceptions.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
@@ -42,7 +42,7 @@ Common codes are `unauthenticated`, `forbidden`, `not_found`, `validation_failed
 
 ## Pagination
 
-Project, ticket, user/admin, saved-view, and notification list endpoints currently use optional `limit` and `offset` query parameters where implemented. `POST /api/search` uses `limit` and an opaque `cursor` in the JSON body and returns `next_cursor`.
+Project, ticket, user/admin, saved-view, and notification list endpoints currently use optional `limit` and `offset` query parameters where implemented. `POST /api/search` uses `spec.limit` and an opaque `spec.cursor`; the response cursor is returned as `status.next_cursor`.
 
 ## Health
 
@@ -50,11 +50,13 @@ Project, ticket, user/admin, saved-view, and notification list endpoints current
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | No | Returns backend health. |
 
+Health response uses `metadata.id`, `spec.service`, and `status.state`.
+
 ## Auth, Users, Groups, Roles
 
 | Method | Path | Body |
 | --- | --- | --- |
-| `POST` | `/api/login` | `{"username":"admin","password":"..."}` |
+| `POST` | `/api/login` | `{"spec":{"username":"admin","password":"..."}}` |
 | `POST` | `/api/logout` | none |
 | `GET` | `/api/me` | none |
 | `GET` | `/api/tokens` | none |
@@ -75,7 +77,7 @@ Project, ticket, user/admin, saved-view, and notification list endpoints current
 | `POST` | `/api/role-bindings` | `{"spec":{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}}` |
 | `DELETE` | `/api/role-bindings/{binding_id}` | none |
 
-Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
+Login and `/api/me` responses use `metadata.user_id`, `spec.username`, `spec.display_name`, and session/auth state under `status`. Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
 
 ## Projects and Tickets
 
@@ -130,9 +132,7 @@ The first board/workflow API slice is backend/API-only. It defines ordered proje
 
 Status and board responses use `metadata`, `spec`, and `status`. Status slugs/names are returned in `spec`; board columns are returned in `status.columns`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
 
-Board ticket responses use the same persisted ticket shape as project ticket lists, grouped or ordered by board column according to the board definition. Moving tickets between columns continues to use ticket status updates.
-
-Board ticket responses keep the board and column objects as board metadata and return each column's tickets as ticket resources with `metadata`, `spec`, and `status`.
+Board ticket responses use `metadata` for the board view identity, `spec.board` for the board definition resource, and `status.columns` for computed columns with ticket resources. Moving tickets between columns continues to use ticket status updates.
 
 ## Sprints
 
@@ -147,7 +147,7 @@ The first sprint API slice is backend/API-only. It supports sprint CRUD within a
 | `DELETE` | `/api/sprints/{sprint_id}` | none |
 | `POST` | `/api/sprints/{sprint_id}/start` | Starts a planned sprint. |
 | `POST` | `/api/sprints/{sprint_id}/complete` | Completes an active sprint. |
-| `PUT` | `/api/tickets/{ticket_id}/sprint` | `{"sprint_id":"sprint_..."}` |
+| `PUT` | `/api/tickets/{ticket_id}/sprint` | `{"spec":{"sprint_id":"sprint_..."}}` |
 | `DELETE` | `/api/tickets/{ticket_id}/sprint` | Removes the ticket from its sprint. |
 
 Sprint responses use `metadata`, `spec`, and `status`. Sprint states are returned in `status.state` and can be `planned`, `active`, or `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
@@ -191,7 +191,7 @@ The roadmap slice is backend/API-only. Epics are regular tickets with `type: "ep
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/roadmap` | none |
 
-Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap responses return each epic as a ticket resource plus direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
+Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
 ## Custom Fields
 
@@ -262,14 +262,25 @@ Search returns:
 
 ```json
 {
-  "items": [
-    {
-      "metadata": {"id": "ticket_...", "project_id": "project_...", "created_at": "...", "updated_at": "..."},
-      "spec": {"title": "Fix login", "status": "todo"},
-      "status": {"key": "CORE-12", "reporter_id": "user_..."}
-    }
-  ],
-  "next_cursor": ""
+  "metadata": {"generated_at": "..."},
+  "spec": {
+    "project_id": "project_...",
+    "filter": "status == \"todo\" && assignee_id == currentUser()",
+    "text": "login error",
+    "sort": [{"field": "updated_at", "direction": "desc"}],
+    "limit": 50,
+    "cursor": ""
+  },
+  "status": {
+    "items": [
+      {
+        "metadata": {"id": "ticket_...", "project_id": "project_...", "created_at": "...", "updated_at": "..."},
+        "spec": {"title": "Fix login", "status": "todo"},
+        "status": {"key": "CORE-12", "reporter_id": "user_..."}
+      }
+    ],
+    "next_cursor": ""
+  }
 }
 ```
 
@@ -334,6 +345,20 @@ Read state is owned by the notification row. `read_at: null` means unread; marki
 
 Shoutrrr destinations, notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
 
+## OpenRouter Providers
+
+Global admins configure OpenRouter provider references for future AI automation. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/openrouter-providers` | none |
+| `POST` | `/api/openrouter-providers` | `{"spec":{"name":"default","default_model":"openai/gpt-4.1-mini","api_key":"sk-or-...","allowed_models":["openai/gpt-4.1-mini"],"default_timeout_seconds":30,"max_output_tokens":2048,"enabled":true}}` |
+| `GET` | `/api/openrouter-providers/{provider_id}` | none |
+| `PATCH` | `/api/openrouter-providers/{provider_id}` | `{"spec":{...}}`; omit `api_key` to keep the existing key, provide a non-empty `api_key` to rotate it. |
+| `DELETE` | `/api/openrouter-providers/{provider_id}` | soft-deletes and disables the provider. |
+
+Provider responses use `metadata`, `spec`, and `status`. `spec` contains name, default model, allowed model list, limits, and enabled state. `status.api_key_set` reports whether a secret is configured. OpenRouter provider create/update/delete writes security audit entries without storing the key in audit payloads.
+
 ## Cron Jobs
 
 The first cron automation API/scheduler slice exposes Lua cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
@@ -348,7 +373,7 @@ The first cron automation API/scheduler slice exposes Lua cron job management, m
 | `POST` | `/api/cron-jobs/{cron_job_id}/run` | Starts a manual run. |
 | `GET` | `/api/cron-jobs/{cron_job_id}/runs` | Run history for the job. |
 
-Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. The implemented cron slice is Lua-only.
+Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. Run resources use `metadata` for run identity/timestamps, `spec` for trigger and input context, and `status` for state, output, error, and start/finish timestamps. The implemented cron slice is Lua-only.
 
 Cron job engine configuration is nested and reusable across future hooks/webhooks:
 

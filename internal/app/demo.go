@@ -198,7 +198,9 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 }
 
 func (s *demoSeeder) login(ctx context.Context, username string, password string) error {
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/login", demoLoginRequest{Username: username, Password: password}, nil); err != nil {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/login", map[string]demoLoginRequest{
+		"spec": {Username: username, Password: password},
+	}, nil); err != nil {
 		return err
 	}
 	for _, cookie := range s.client.Jar.Cookies(s.baseURL) {

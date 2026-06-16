@@ -66,15 +66,15 @@ internal/backend/httpapi/
   - top-level resources such as `/api/tickets/{ticket_id}`, `/api/boards/{board_id}`, and `/api/sprints/{sprint_id}` should have their own route packages.
   - avoid deeply recursive package trees unless a subresource becomes large enough to justify its own package.
   - migrate toward this layout incrementally; the existing tracker service can remain during the transition.
-- Use a Kubernetes-inspired resource object shape for long-lived API resources:
-  - create/update inputs for resources use a `spec` object containing desired state.
-  - resource outputs use `metadata`, `spec`, and `status` objects.
+- Use a Kubernetes-inspired resource object shape for JSON API endpoints:
+  - create/update/action inputs that accept JSON use a `spec` object containing desired state or command intent.
+  - JSON outputs for resources and resource-like computed views use `metadata`, `spec`, and `status` objects.
   - `metadata` contains identity and bookkeeping such as `id`, `name` or `key` where applicable, timestamps, soft-delete/archive timestamps, generation/version fields, labels, and annotations.
   - `spec` contains user-controlled desired configuration, such as ticket title/description/assignee/status, project name/settings, board columns, sprint goal/dates, cron schedule, or hook engine configuration.
   - `status` contains observed or computed state, such as ticket key, lifecycle state, derived workflow state, sprint progress, attachment counts, last run status, next run time, delivery state, validation state, and last error.
-  - list endpoints return arrays of these resource objects.
+  - list endpoints return arrays of resource objects, and each listed item uses `metadata`, `spec`, and `status` when it represents API state.
   - status-only or server-observed fields are never accepted in create/update `spec`.
-  - command/action endpoints such as login/logout, token creation, search, sprint start/complete, cron manual run, test/preview endpoints, uploads, downloads, and webhook delivery endpoints may use command-specific request/response bodies instead of the resource envelope.
+  - binary attachment downloads and empty `204` responses are the practical exceptions; JSON command/action surfaces should still use `spec` inputs and resource-like `metadata`/`spec`/`status` outputs where they return a body.
   - generated OpenAPI schemas must show the concrete `spec` and `status` body shape for each resource.
 - Add proper RBAC with groups:
   - model users, groups, group memberships, roles, permissions, and role bindings in SQLite.

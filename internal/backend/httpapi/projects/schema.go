@@ -175,8 +175,22 @@ type CreateVersionOutput = shared.CreatedOutput[versionapi.VersionResource]
 type ListCustomFieldsOutput = shared.ListOutput[fieldapi.FieldResource]
 type CreateCustomFieldOutput = shared.CreatedOutput[fieldapi.FieldResource]
 type RoadmapItemResource struct {
-	Epic     ticketapi.TicketResource `json:"epic"`
-	Progress tracker.RoadmapProgress  `json:"progress"`
+	Metadata RoadmapItemMetadata `json:"metadata"`
+	Spec     RoadmapItemSpec     `json:"spec"`
+	Status   RoadmapItemStatus   `json:"status"`
+}
+
+type RoadmapItemMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type RoadmapItemSpec struct {
+	Epic ticketapi.TicketResource `json:"epic"`
+}
+
+type RoadmapItemStatus struct {
+	Progress tracker.RoadmapProgress `json:"progress"`
 }
 
 type ListRoadmapOutput = shared.ListOutput[RoadmapItemResource]
@@ -249,9 +263,18 @@ func projectStatusResources(statuses []tracker.ProjectStatus) []ProjectStatusRes
 func roadmapItemResources(items []tracker.RoadmapItem) []RoadmapItemResource {
 	resources := make([]RoadmapItemResource, 0, len(items))
 	for _, item := range items {
+		epic := ticketapi.ResourceFromTracker(item.Epic)
 		resources = append(resources, RoadmapItemResource{
-			Epic:     ticketapi.ResourceFromTracker(item.Epic),
-			Progress: item.Progress,
+			Metadata: RoadmapItemMetadata{
+				ID:        item.Epic.ID,
+				ProjectID: item.Epic.ProjectID,
+			},
+			Spec: RoadmapItemSpec{
+				Epic: epic,
+			},
+			Status: RoadmapItemStatus{
+				Progress: item.Progress,
+			},
 		})
 	}
 	return resources

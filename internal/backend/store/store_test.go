@@ -64,6 +64,8 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"automation_runs",
 		"cron_jobs",
 		"notifications",
+		"audit_log",
+		"openrouter_providers",
 	} {
 		t.Run(table, func(t *testing.T) {
 			assertTableExists(t, ctx, db.SQL, table)

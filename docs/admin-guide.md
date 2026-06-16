@@ -12,10 +12,11 @@ Admin workflows currently available through the API:
 - add and remove group members;
 - list roles;
 - create and delete role bindings.
+- create, update, disable, and delete OpenRouter provider references for future AI automation.
 
 The current browser UI does not expose admin screens yet.
 
-Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, and role binding create/delete. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets.
+Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, and OpenRouter provider create/update/delete. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets.
 
 ## RBAC
 
@@ -33,6 +34,8 @@ Admin, project, and board settings pages are **Planned**. Future settings should
 - custom CSS override layers for projects and boards;
 - automation, webhook, notification, and OpenRouter configuration;
 - Shoutrrr destination definitions.
+
+OpenRouter provider configuration is currently API-only at `/api/openrouter-providers` and requires global `ai:manage`. Provider API keys are write-only; responses return `status.api_key_set` instead of the key.
 
 Custom CSS is planned as an override layer only. The first implementation should not allow arbitrary template changes.
 

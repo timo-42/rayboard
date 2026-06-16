@@ -30,7 +30,7 @@ function bindEvents() {
     event.preventDefault();
     const data = formData(event.currentTarget);
     await runAction(async () => {
-      await api("/api/login", { method: "POST", body: data });
+      await api("/api/login", { method: "POST", body: { spec: data } });
       event.currentTarget.reset();
       await refreshSession();
     }, "Signed in");
@@ -88,7 +88,11 @@ function bindEvents() {
 async function refreshSession() {
   try {
     const data = await api("/api/me");
-    state.user = data.user;
+    state.user = {
+      id: data.metadata.user_id,
+      username: data.spec.username,
+      display_name: data.spec.display_name
+    };
     await loadProjects();
   } catch (error) {
     state.user = null;

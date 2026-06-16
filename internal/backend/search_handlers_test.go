@@ -48,13 +48,15 @@ func TestSearchEndpointsAndSavedViews(t *testing.T) {
 		t.Fatalf("unexpected search response %d: %s", searchRec.Code, searchRec.Body.String())
 	}
 	var searchBody struct {
-		Items []ticketResourceBody `json:"items"`
+		Status struct {
+			Items []ticketResourceBody `json:"items"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(searchRec.Body.Bytes(), &searchBody); err != nil {
 		t.Fatalf("decode search response: %v", err)
 	}
-	if len(searchBody.Items) != 1 || searchBody.Items[0].Status.Key != ticket.Key {
-		t.Fatalf("unexpected search items: %#v", searchBody.Items)
+	if len(searchBody.Status.Items) != 1 || searchBody.Status.Items[0].Status.Key != ticket.Key {
+		t.Fatalf("unexpected search items: %#v", searchBody.Status.Items)
 	}
 
 	createViewReq := httptest.NewRequest(http.MethodPost, "/api/saved-views", mustJSON(t, map[string]any{

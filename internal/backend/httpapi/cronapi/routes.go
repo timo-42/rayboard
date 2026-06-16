@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 )
@@ -92,7 +91,7 @@ func (provider Provider) runJob(ctx context.Context, input *JobIDInput) (*RunJob
 	if err != nil && run.ID == "" {
 		return nil, shared.CronError(err)
 	}
-	return &RunJobOutput{Body: run}, nil
+	return &RunJobOutput{Body: runResource(run)}, nil
 }
 
 func (provider Provider) listRuns(ctx context.Context, input *ListRunsInput) (*ListRunsOutput, error) {
@@ -104,7 +103,7 @@ func (provider Provider) listRuns(ctx context.Context, input *ListRunsInput) (*L
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &ListRunsOutput{Body: shared.ItemList[automation.Run]{Items: runs}}, nil
+	return &ListRunsOutput{Body: shared.ItemList[RunResource]{Items: runResources(runs)}}, nil
 }
 
 func operation(method string, path string, tag string, summary string, status int) huma.Operation {

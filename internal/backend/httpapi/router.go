@@ -22,6 +22,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/cronapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/customfields"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/notificationsapi"
+	"github.com/timo-42/rayboard/internal/backend/httpapi/openrouterapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/projects"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/searchapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
@@ -29,6 +30,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/versions"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -42,12 +44,27 @@ type Options struct {
 	Comments      *comments.Service
 	Cron          *cronjobs.Service
 	Notifications *notifications.Service
+	OpenRouter    *openrouter.Service
 	Search        *search.Service
 }
 
 type healthResponse struct {
-	Body map[string]string
+	Body healthResource
 }
+
+type healthMetadata struct {
+	ID string `json:"id"`
+}
+
+type healthSpec struct {
+	Service string `json:"service"`
+}
+
+type healthStatus struct {
+	State string `json:"state"`
+}
+
+type healthResource = shared.Resource[healthMetadata, healthSpec, healthStatus]
 
 func NewHandler(options Options) http.Handler {
 	mux := http.NewServeMux()
@@ -69,6 +86,7 @@ func NewHandler(options Options) http.Handler {
 	searchapi.Register(api, searchapi.Provider{Search: options.Search, Authenticator: authenticator})
 	cronapi.Register(api, cronapi.Provider{Cron: options.Cron, Authenticator: authenticator})
 	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Authenticator: authenticator})
+	openrouterapi.Register(api, openrouterapi.Provider{OpenRouter: options.OpenRouter, Audit: options.Audit, Authenticator: authenticator})
 	return mux
 }
 
@@ -114,9 +132,10 @@ func registerHealth(api huma.API) {
 		Tags:        []string{"System"},
 		Security:    []map[string][]string{},
 	}, func(context.Context, *struct{}) (*healthResponse, error) {
-		return &healthResponse{Body: map[string]string{
-			"status":  "ok",
-			"service": "backend",
+		return &healthResponse{Body: healthResource{
+			Metadata: healthMetadata{ID: "backend"},
+			Spec:     healthSpec{Service: "backend"},
+			Status:   healthStatus{State: "ok"},
 		}}, nil
 	})
 }

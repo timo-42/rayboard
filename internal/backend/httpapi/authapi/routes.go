@@ -40,15 +40,15 @@ func Register(api huma.API, provider Provider) {
 }
 
 func (provider Provider) login(ctx context.Context, input *LoginInput) (*LoginOutput, error) {
-	session, err := provider.Auth.Login(ctx, input.Body.Username, input.Body.Password)
+	session, err := provider.Auth.Login(ctx, input.Body.Spec.Username, input.Body.Spec.Password)
 	if err != nil {
 		_ = provider.recordAudit(ctx, audit.RecordInput{
 			EventType:   "auth.login_failed",
 			SubjectType: "user",
-			SubjectID:   input.Body.Username,
+			SubjectID:   input.Body.Spec.Username,
 			Outcome:     audit.OutcomeFailure,
 			Payload: map[string]any{
-				"username":    input.Body.Username,
+				"username":    input.Body.Spec.Username,
 				"auth_method": "password",
 				"reason":      authFailureReason(err),
 			},
@@ -79,7 +79,11 @@ func (provider Provider) login(ctx context.Context, input *LoginInput) (*LoginOu
 			sessionCookie(session),
 			csrfCookie(csrf, session.ExpiresAt),
 		},
-		Body: LoginOutputBody{User: session.User},
+		Body: sessionResource(session.User, authz.Principal{
+			UserID:   session.User.ID,
+			AuthKind: authz.AuthKindSession,
+			Disabled: session.User.Disabled,
+		}),
 	}, nil
 }
 
@@ -134,7 +138,7 @@ func (provider Provider) me(ctx context.Context, input *MeInput) (*MeOutput, err
 		return nil, err
 	}
 	_ = ctx
-	return &MeOutput{Body: MeOutputBody{User: user, Principal: principal}}, nil
+	return &MeOutput{Body: sessionResource(user, principal)}, nil
 }
 
 func (provider Provider) listTokens(ctx context.Context, input *struct{ shared.AuthInput }) (*ListTokensOutput, error) {

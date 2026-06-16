@@ -106,8 +106,32 @@ type JobResource = shared.Resource[JobMetadata, JobSpec, JobStatus]
 
 type ListJobsOutput = shared.ListOutput[JobResource]
 type CreateJobOutput = shared.CreatedOutput[JobResource]
-type RunJobOutput = shared.AcceptedOutput[automation.Run]
-type ListRunsOutput = shared.ListOutput[automation.Run]
+
+type RunMetadata struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type RunSpec struct {
+	TriggerType string         `json:"trigger_type"`
+	TriggerRef  string         `json:"trigger_ref,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	TicketID    string         `json:"ticket_id,omitempty"`
+	Input       map[string]any `json:"input"`
+}
+
+type RunStatus struct {
+	State      string         `json:"state"`
+	Output     map[string]any `json:"output"`
+	Error      string         `json:"error,omitempty"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
+}
+
+type RunResource = shared.Resource[RunMetadata, RunSpec, RunStatus]
+
+type RunJobOutput = shared.AcceptedOutput[RunResource]
+type ListRunsOutput = shared.ListOutput[RunResource]
 
 func (spec JobSpec) createInput() cronjobs.CreateInput {
 	return cronjobs.CreateInput{
@@ -198,6 +222,37 @@ func jobResources(jobs []cronjobs.Job) []JobResource {
 	resources := make([]JobResource, 0, len(jobs))
 	for _, job := range jobs {
 		resources = append(resources, jobResource(job))
+	}
+	return resources
+}
+
+func runResource(run automation.Run) RunResource {
+	return RunResource{
+		Metadata: RunMetadata{
+			ID:        run.ID,
+			CreatedAt: run.CreatedAt,
+		},
+		Spec: RunSpec{
+			TriggerType: run.TriggerType,
+			TriggerRef:  run.TriggerRef,
+			ProjectID:   run.ProjectID,
+			TicketID:    run.TicketID,
+			Input:       run.Input,
+		},
+		Status: RunStatus{
+			State:      run.Status,
+			Output:     run.Output,
+			Error:      run.Error,
+			StartedAt:  run.StartedAt,
+			FinishedAt: run.FinishedAt,
+		},
+	}
+}
+
+func runResources(runs []automation.Run) []RunResource {
+	resources := make([]RunResource, 0, len(runs))
+	for _, run := range runs {
+		resources = append(resources, runResource(run))
 	}
 	return resources
 }

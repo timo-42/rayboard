@@ -21,11 +21,11 @@ type UpdateTicketInput struct {
 type AssignSprintInput struct {
 	shared.AuthInput
 	TicketID string `path:"ticket_id"`
-	Body     AssignSprintInputBody
+	Body     shared.ResourceInput[AssignSprintSpec]
 }
 
-type AssignSprintInputBody struct {
-	SprintID string `json:"sprint_id"`
+type AssignSprintSpec struct {
+	SprintID string `json:"sprint_id,omitempty"`
 }
 
 type TicketOutput struct {

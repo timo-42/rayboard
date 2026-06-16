@@ -12,6 +12,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/httpapi"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -29,6 +30,7 @@ type options struct {
 	comments      *comments.Service
 	cron          *cronjobs.Service
 	notifications *notifications.Service
+	openrouter    *openrouter.Service
 	search        *search.Service
 }
 
@@ -82,6 +84,12 @@ func WithNotificationService(service *notifications.Service) Option {
 	}
 }
 
+func WithOpenRouterService(service *openrouter.Service) Option {
+	return func(options *options) {
+		options.openrouter = service
+	}
+}
+
 func WithSearchService(service *search.Service) Option {
 	return func(options *options) {
 		options.search = service
@@ -120,6 +128,7 @@ func NewHandler(opts ...Option) http.Handler {
 		Comments:      options.comments,
 		Cron:          options.cron,
 		Notifications: options.notifications,
+		OpenRouter:    options.openrouter,
 		Search:        options.search,
 	})
 }

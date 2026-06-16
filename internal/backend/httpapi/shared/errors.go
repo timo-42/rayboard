@@ -10,6 +10,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -111,6 +112,24 @@ func CronError(err error) error {
 		return huma.Error400BadRequest("Validation failed")
 	case errors.Is(err, cronjobs.ErrNotFound):
 		return huma.Error404NotFound("Resource was not found")
+	case errors.Is(err, authz.ErrForbidden):
+		return huma.Error403Forbidden("Permission denied")
+	default:
+		return huma.Error500InternalServerError("Request failed")
+	}
+}
+
+func OpenRouterError(err error) error {
+	var validation *openrouter.ValidationError
+	switch {
+	case errors.As(err, &validation):
+		return huma.Error400BadRequest(validation.Message)
+	case errors.Is(err, openrouter.ErrValidation):
+		return huma.Error400BadRequest("Validation failed")
+	case errors.Is(err, openrouter.ErrNotFound):
+		return huma.Error404NotFound("Resource was not found")
+	case errors.Is(err, openrouter.ErrConflict):
+		return huma.Error409Conflict("Resource already exists")
 	case errors.Is(err, authz.ErrForbidden):
 		return huma.Error403Forbidden("Permission denied")
 	default:

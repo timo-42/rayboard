@@ -27,7 +27,7 @@ func (provider Provider) searchTickets(ctx context.Context, input *SearchTickets
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &SearchTicketsOutput{Body: searchTicketsResultResource(result)}, nil
+	return &SearchTicketsOutput{Body: searchTicketsResultResource(input.Body.Spec, result)}, nil
 }
 
 func (provider Provider) listSavedViews(ctx context.Context, input *ListSavedViewsInput) (*ListSavedViewsOutput, error) {

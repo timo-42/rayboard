@@ -57,10 +57,16 @@ type SearchTicketsSpec struct {
 	Cursor    string            `json:"cursor,omitempty"`
 }
 
-type SearchTicketsResultResource struct {
+type SearchTicketsResultMetadata struct {
+	GeneratedAt time.Time `json:"generated_at"`
+}
+
+type SearchTicketsResultStatus struct {
 	Items      []ticketapi.TicketResource `json:"items"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
 }
+
+type SearchTicketsResultResource = shared.Resource[SearchTicketsResultMetadata, SearchTicketsSpec, SearchTicketsResultStatus]
 
 type SavedViewMetadata struct {
 	ID        string    `json:"id"`
@@ -133,10 +139,16 @@ func (spec SavedViewUpdateSpec) updateInput() search.UpdateSavedViewInput {
 	}
 }
 
-func searchTicketsResultResource(result search.SearchTicketsResult) SearchTicketsResultResource {
+func searchTicketsResultResource(spec SearchTicketsSpec, result search.SearchTicketsResult) SearchTicketsResultResource {
 	return SearchTicketsResultResource{
-		Items:      ticketapi.ResourcesFromTracker(result.Tickets),
-		NextCursor: result.NextCursor,
+		Metadata: SearchTicketsResultMetadata{
+			GeneratedAt: time.Now().UTC(),
+		},
+		Spec: spec,
+		Status: SearchTicketsResultStatus{
+			Items:      ticketapi.ResourcesFromTracker(result.Tickets),
+			NextCursor: result.NextCursor,
+		},
 	}
 }
 

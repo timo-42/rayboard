@@ -189,20 +189,24 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected board tickets status 200, got %d: %s", boardTickets.Code, boardTickets.Body.String())
 	}
 	var boardTicketsBody struct {
-		Board   tracker.Board `json:"board"`
-		Columns []struct {
-			Column  tracker.BoardColumn  `json:"column"`
-			Tickets []ticketResourceBody `json:"tickets"`
-		} `json:"columns"`
+		Spec struct {
+			Board boardResourceBody `json:"board"`
+		} `json:"spec"`
+		Status struct {
+			Columns []struct {
+				Column  tracker.BoardColumn  `json:"column"`
+				Tickets []ticketResourceBody `json:"tickets"`
+			} `json:"columns"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(boardTickets.Body.Bytes(), &boardTicketsBody); err != nil {
 		t.Fatalf("decode board tickets: %v", err)
 	}
-	if len(boardTicketsBody.Columns) != 3 || len(boardTicketsBody.Columns[0].Tickets) != 1 {
+	if boardTicketsBody.Spec.Board.Metadata.ID != board.ID || len(boardTicketsBody.Status.Columns) != 3 || len(boardTicketsBody.Status.Columns[0].Tickets) != 1 {
 		t.Fatalf("unexpected board tickets: %#v", boardTicketsBody)
 	}
-	if !slices.Equal(boardTicketsBody.Columns[0].Tickets[0].Spec.Labels, []string{"api", "backend"}) {
-		t.Fatalf("unexpected board ticket labels: %#v", boardTicketsBody.Columns[0].Tickets[0].Spec.Labels)
+	if !slices.Equal(boardTicketsBody.Status.Columns[0].Tickets[0].Spec.Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected board ticket labels: %#v", boardTicketsBody.Status.Columns[0].Tickets[0].Spec.Labels)
 	}
 
 	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
@@ -323,18 +327,22 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 	var roadmapBody struct {
 		Items []struct {
-			Epic     ticketResourceBody      `json:"epic"`
-			Progress tracker.RoadmapProgress `json:"progress"`
+			Spec struct {
+				Epic ticketResourceBody `json:"epic"`
+			} `json:"spec"`
+			Status struct {
+				Progress tracker.RoadmapProgress `json:"progress"`
+			} `json:"status"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(roadmap.Body.Bytes(), &roadmapBody); err != nil {
 		t.Fatalf("decode roadmap: %v", err)
 	}
-	if len(roadmapBody.Items) != 1 || roadmapBody.Items[0].Epic.Metadata.ID != epic.ID || roadmapBody.Items[0].Progress.Total != 1 || roadmapBody.Items[0].Progress.Done != 1 {
+	if len(roadmapBody.Items) != 1 || roadmapBody.Items[0].Spec.Epic.Metadata.ID != epic.ID || roadmapBody.Items[0].Status.Progress.Total != 1 || roadmapBody.Items[0].Status.Progress.Done != 1 {
 		t.Fatalf("unexpected roadmap body: %#v", roadmapBody.Items)
 	}
-	if !slices.Equal(roadmapBody.Items[0].Epic.Spec.Labels, []string{"roadmap"}) {
-		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Items[0].Epic.Spec.Labels)
+	if !slices.Equal(roadmapBody.Items[0].Spec.Epic.Spec.Labels, []string{"roadmap"}) {
+		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Items[0].Spec.Epic.Spec.Labels)
 	}
 
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{
@@ -420,7 +428,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	assignSprintReq := httptest.NewRequest(http.MethodPut, "/api/tickets/"+ticket.ID+"/sprint", mustJSON(t, map[string]any{
-		"sprint_id": sprint.Metadata.ID,
+		"spec": map[string]any{
+			"sprint_id": sprint.Metadata.ID,
+		},
 	}))
 	addSessionCSRF(assignSprintReq, session, csrf)
 	assignSprint := httptest.NewRecorder()

@@ -10,21 +10,17 @@ import (
 )
 
 type LoginInput struct {
-	Body LoginInputBody
+	Body shared.ResourceInput[LoginSpec]
 }
 
-type LoginInputBody struct {
+type LoginSpec struct {
 	Username string `json:"username,omitempty" doc:"Username."`
 	Password string `json:"password,omitempty" doc:"Password."`
 }
 
 type LoginOutput struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      LoginOutputBody
-}
-
-type LoginOutputBody struct {
-	User auth.User `json:"user"`
+	Body      SessionResource
 }
 
 type LogoutInput struct {
@@ -36,12 +32,7 @@ type MeInput struct {
 }
 
 type MeOutput struct {
-	Body MeOutputBody
-}
-
-type MeOutputBody struct {
-	User      auth.User       `json:"user"`
-	Principal authz.Principal `json:"principal"`
+	Body SessionResource
 }
 
 type CreateTokenInput struct {
@@ -128,6 +119,23 @@ type ResourceMetadata struct {
 	ID string `json:"id"`
 }
 
+type SessionMetadata struct {
+	UserID string `json:"user_id"`
+}
+
+type SessionSpec struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+type SessionStatus struct {
+	AuthKind  authz.AuthKind  `json:"auth_kind"`
+	Disabled  bool            `json:"disabled"`
+	Principal authz.Principal `json:"principal"`
+}
+
+type SessionResource = shared.Resource[SessionMetadata, SessionSpec, SessionStatus]
+
 type TokenSpec struct {
 	Name string `json:"name"`
 }
@@ -200,6 +208,21 @@ type ListGroupMembersOutput = shared.ListOutput[UserResource]
 type ListRolesOutput = shared.ListOutput[RoleResource]
 type ListRoleBindingsOutput = shared.ListOutput[RoleBindingResource]
 type CreateRoleBindingOutput = shared.CreatedOutput[RoleBindingResource]
+
+func sessionResource(user auth.User, principal authz.Principal) SessionResource {
+	return SessionResource{
+		Metadata: SessionMetadata{UserID: user.ID},
+		Spec: SessionSpec{
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+		},
+		Status: SessionStatus{
+			AuthKind:  principal.AuthKind,
+			Disabled:  user.Disabled,
+			Principal: principal,
+		},
+	}
+}
 
 func tokenResource(token auth.APIToken) TokenResource {
 	return TokenResource{

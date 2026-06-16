@@ -53,10 +53,20 @@ type BoardTicketsOutput struct {
 	Body BoardTicketsResource
 }
 
-type BoardTicketsResource struct {
-	Board   BoardResource                `json:"board"`
+type BoardTicketsMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type BoardTicketsSpec struct {
+	Board BoardResource `json:"board"`
+}
+
+type BoardTicketsStatus struct {
 	Columns []BoardTicketsColumnResource `json:"columns"`
 }
+
+type BoardTicketsResource = shared.Resource[BoardTicketsMetadata, BoardTicketsSpec, BoardTicketsStatus]
 
 type BoardTicketsColumnResource struct {
 	Column  tracker.BoardColumn        `json:"column"`
@@ -72,8 +82,16 @@ func BoardTicketsResourceFromTracker(boardTickets tracker.BoardTickets) BoardTic
 		})
 	}
 	return BoardTicketsResource{
-		Board:   ResourceFromTracker(boardTickets.Board),
-		Columns: columns,
+		Metadata: BoardTicketsMetadata{
+			ID:        boardTickets.Board.ID,
+			ProjectID: boardTickets.Board.ProjectID,
+		},
+		Spec: BoardTicketsSpec{
+			Board: ResourceFromTracker(boardTickets.Board),
+		},
+		Status: BoardTicketsStatus{
+			Columns: columns,
+		},
 	}
 }
 

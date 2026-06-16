@@ -4,7 +4,7 @@ Rayboard authentication is backend-owned. Browser users authenticate with sessio
 
 ## Browser Sessions
 
-`POST /api/login` accepts a username and password. On success it returns the user and sets:
+`POST /api/login` accepts `{"spec":{"username":"...","password":"..."}}`. On success it returns a session resource and sets:
 
 - `rayboard_session`: opaque `HttpOnly` session cookie.
 - `rayboard_csrf`: readable CSRF cookie used by the frontend for mutating requests.
@@ -30,11 +30,11 @@ Authenticated users can create, list, and revoke their own API tokens:
 ```bash
 curl -b cookies.txt -H "X-CSRF-Token: $CSRF" \
   -H "Content-Type: application/json" \
-  -d '{"name":"local-script"}' \
+  -d '{"spec":{"name":"local-script"}}' \
   http://127.0.0.1:8081/api/tokens
 ```
 
-The token secret is returned once on creation as `token`. SQLite stores only a hash. Use it as:
+The token secret is returned once on creation as `status.token`. SQLite stores only a hash. Use it as:
 
 ```bash
 curl -H "Authorization: Bearer $RAYBOARD_TOKEN" \
@@ -68,9 +68,10 @@ Built-in roles:
 | `automation_manager` | Project read, automations, webhooks. |
 | `notification_manager` | Project read, notifications. |
 
-Common implemented permission checks include `users:read`, `users:write`, `groups:read`, `groups:write`, `roles:read`, `roles:bind`, `projects:read`, `projects:write`, `tickets:read`, `tickets:write`, `comments:write`, `attachments:write`, and `views:manage`.
+Common implemented permission checks include `users:read`, `users:write`, `groups:read`, `groups:write`, `roles:read`, `roles:bind`, `projects:read`, `projects:write`, `tickets:read`, `tickets:write`, `comments:write`, `attachments:write`, `views:manage`, and `ai:manage`.
+
+Global `ai:manage` is required to manage OpenRouter provider references because those records hold global secret material.
 
 ## Current Limitations
 
 There is no dedicated effective-permissions endpoint yet. Inspect roles with `GET /api/roles` and bindings with `GET /api/role-bindings`. Project-scoped role assignment is implemented through the generic role binding endpoint.
-

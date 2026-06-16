@@ -108,9 +108,9 @@ Custom-field CEL filtering, UI field management screens, custom create page inte
 
 ## Resource Objects
 
-Long-lived resources use a Kubernetes-inspired envelope, adapted for Rayboard rather than copied wholesale.
+JSON API resources and resource-like computed views use a Kubernetes-inspired envelope, adapted for Rayboard rather than copied wholesale.
 
-Create and update requests put desired state under `spec`:
+Create, update, and JSON action requests put desired state or command intent under `spec`:
 
 ```json
 {
@@ -147,11 +147,11 @@ Resource responses use `metadata`, `spec`, and `status`:
 ```
 
 - `metadata` is identity/bookkeeping: IDs, keys, slugs/names where they identify the object, timestamps, generation/resource-version fields, labels, annotations, archive/delete markers.
-- `spec` is user-controlled desired state and is the only resource object section accepted by create/update handlers.
+- `spec` is user-controlled desired state or command intent and is the only resource object section accepted by create/update/action handlers.
 - `status` is observed/computed/server-controlled state and is never accepted in create/update input.
-- List endpoints return arrays of resource objects.
+- List endpoints return arrays of resource objects, and each item uses `metadata`, `spec`, and `status` when it represents API state.
 - Huma schema DTOs must expose concrete `spec` and `status` object fields so `/api/openapi.json`, Swagger UI, and Redoc show useful request/response bodies.
-- Command/action endpoints may use command-specific bodies instead of this envelope when no long-lived resource is being created or updated. Examples: login/logout, token creation, search, sprint start/complete, cron manual run, preview/test endpoints, file upload/download, and webhook ingress/delivery actions.
+- Binary attachment downloads and empty `204` responses are the practical exceptions. JSON command/action endpoints should still use `spec` inputs and resource-like `metadata`/`spec`/`status` outputs when they return a body.
 
 ## Errors
 
@@ -188,7 +188,7 @@ Use cursor pagination for lists that may grow:
 ```json
 {
   "items": [],
-  "next_cursor": "opaque"
+  "status": {"next_cursor": "opaque"}
 }
 ```
 
@@ -200,11 +200,13 @@ For the first implementation, offset pagination is acceptable only for small adm
 
 ```json
 {
-  "filter": "project == \"CORE\" && status != \"Done\"",
-  "text": "login error",
-  "sort": [{"field": "updated_at", "direction": "desc"}],
-  "limit": 50,
-  "cursor": ""
+  "spec": {
+    "filter": "project == \"CORE\" && status != \"Done\"",
+    "text": "login error",
+    "sort": [{"field": "updated_at", "direction": "desc"}],
+    "limit": 50,
+    "cursor": ""
+  }
 }
 ```
 

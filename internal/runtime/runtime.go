@@ -16,6 +16,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -62,6 +63,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
+	openRouterService := openrouter.NewService(db.SQL)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)
@@ -89,6 +91,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithCommentService(commentService),
 		backend.WithCronService(cronService),
 		backend.WithNotificationService(notificationService),
+		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
@@ -119,6 +122,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
+	openRouterService := openrouter.NewService(db.SQL)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)
@@ -146,6 +150,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithCommentService(commentService),
 		backend.WithCronService(cronService),
 		backend.WithNotificationService(notificationService),
+		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)

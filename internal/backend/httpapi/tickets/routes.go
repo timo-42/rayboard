@@ -58,7 +58,7 @@ func (provider Provider) assignSprint(ctx context.Context, input *AssignSprintIn
 	if err != nil {
 		return nil, err
 	}
-	ticket, err := provider.Tracker.SetTicketSprint(ctx, principal, input.TicketID, input.Body.SprintID)
+	ticket, err := provider.Tracker.SetTicketSprint(ctx, principal, input.TicketID, input.Body.Spec.SprintID)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
