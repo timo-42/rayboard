@@ -7,12 +7,16 @@ import (
 )
 
 type Event struct {
-	Type      string
-	ActorID   string
-	ProjectID string
-	ObjectID  string
-	At        time.Time
-	Data      map[string]any
+	Type        string
+	ActorID     string
+	ProjectID   string
+	ObjectID    string
+	SubjectType string
+	SubjectID   string
+	RelatedType string
+	RelatedID   string
+	At          time.Time
+	Data        map[string]any
 }
 
 type Handler func(context.Context, Event) error

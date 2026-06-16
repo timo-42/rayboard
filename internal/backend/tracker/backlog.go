@@ -121,14 +121,27 @@ func (s *Service) ReorderBacklog(ctx context.Context, principal authz.Principal,
 			}); err != nil {
 				return err
 			}
-			published = append(published, events.Event{
+			event := events.Event{
 				Type:      activityTicketUpdated,
 				ActorID:   actorID(principal),
 				ProjectID: updated.ProjectID,
 				ObjectID:  updated.ID,
 				At:        now,
 				Data:      data,
-			})
+			}
+			if err := s.appendDomainEvent(ctx, tx, events.Event{
+				Type:        event.Type,
+				ActorID:     event.ActorID,
+				ProjectID:   event.ProjectID,
+				ObjectID:    event.ObjectID,
+				SubjectType: "ticket",
+				SubjectID:   updated.ID,
+				At:          event.At,
+				Data:        event.Data,
+			}); err != nil {
+				return err
+			}
+			published = append(published, event)
 		}
 		return nil
 	}); err != nil {

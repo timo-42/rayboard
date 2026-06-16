@@ -33,6 +33,7 @@ type Service struct {
 	authorizer authz.Evaluator
 	now        func() time.Time
 	eventBus   *events.Bus
+	eventStore *events.Store
 }
 
 type Option func(*Service)
@@ -61,6 +62,12 @@ func WithNow(now func() time.Time) Option {
 func WithEventBus(bus *events.Bus) Option {
 	return func(service *Service) {
 		service.eventBus = bus
+	}
+}
+
+func WithEventStore(store *events.Store) Option {
+	return func(service *Service) {
+		service.eventStore = store
 	}
 }
 
@@ -337,6 +344,18 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 		}); err != nil {
 			return err
 		}
+		if err := s.appendDomainEvent(ctx, tx, events.Event{
+			Type:        activityTicketUpdated,
+			ActorID:     actorID(principal),
+			ProjectID:   candidate.ProjectID,
+			ObjectID:    candidate.ID,
+			SubjectType: "ticket",
+			SubjectID:   candidate.ID,
+			At:          candidate.UpdatedAt,
+			Data:        eventData,
+		}); err != nil {
+			return err
+		}
 
 		updated = candidate
 		return nil
@@ -487,6 +506,18 @@ func (s *Service) createTicketOnce(ctx context.Context, principal authz.Principa
 			ActivityType: activityTicketCreated,
 			Data:         eventData,
 			CreatedAt:    ticket.CreatedAt,
+		}); err != nil {
+			return err
+		}
+		if err := s.appendDomainEvent(ctx, tx, events.Event{
+			Type:        activityTicketCreated,
+			ActorID:     actorID(principal),
+			ProjectID:   ticket.ProjectID,
+			ObjectID:    ticket.ID,
+			SubjectType: "ticket",
+			SubjectID:   ticket.ID,
+			At:          ticket.CreatedAt,
+			Data:        eventData,
 		}); err != nil {
 			return err
 		}
@@ -890,6 +921,13 @@ func (s *Service) publish(ctx context.Context, event events.Event) {
 		return
 	}
 	_ = s.eventBus.Publish(ctx, event)
+}
+
+func (s *Service) appendDomainEvent(ctx context.Context, tx sqlRunner, event events.Event) error {
+	if s == nil || s.eventStore == nil {
+		return nil
+	}
+	return s.eventStore.Append(ctx, tx, event)
 }
 
 func validateListInput(limit int, offset int) error {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -230,6 +231,69 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	changes, ok := updatedActivity.Data["changes"].(map[string]any)
 	if !ok || changes["status"] == nil || changes["assignee_id"] == nil {
 		t.Fatalf("expected status and assignee changes, got %#v", updatedActivity.Data)
+	}
+}
+
+func TestTicketMutationsAppendDomainEvents(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithEventStore(events.NewStore(db.SQL)))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "First ticket"})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	title := "Updated"
+	if _, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Title: &title}); err != nil {
+		t.Fatalf("update ticket: %v", err)
+	}
+
+	rows, err := db.SQL.QueryContext(ctx, `
+		SELECT event_type, actor_id, project_id, subject_type, subject_id, processing_status
+		FROM domain_events
+		WHERE subject_type = 'ticket' AND subject_id = ?
+		ORDER BY occurred_at, created_at
+	`, ticket.ID)
+	if err != nil {
+		t.Fatalf("list domain events: %v", err)
+	}
+	defer rows.Close()
+
+	var eventTypes []string
+	for rows.Next() {
+		var eventType string
+		var actorID string
+		var projectID string
+		var subjectType string
+		var subjectID string
+		var status string
+		if err := rows.Scan(&eventType, &actorID, &projectID, &subjectType, &subjectID, &status); err != nil {
+			t.Fatalf("scan domain event: %v", err)
+		}
+		if actorID != "user-member" || projectID != project.ID || subjectType != "ticket" || subjectID != ticket.ID || status != "pending" {
+			t.Fatalf("unexpected domain event row: %s %s %s %s %s %s", eventType, actorID, projectID, subjectType, subjectID, status)
+		}
+		eventTypes = append(eventTypes, eventType)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate domain events: %v", err)
+	}
+	if !slices.Equal(eventTypes, []string{"ticket.created", "ticket.updated"}) {
+		t.Fatalf("unexpected event types: %#v", eventTypes)
 	}
 }
 

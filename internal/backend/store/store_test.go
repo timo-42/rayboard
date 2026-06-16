@@ -41,6 +41,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"roles",
 		"role_permissions",
 		"role_bindings",
+		"domain_events",
 		"projects",
 		"project_statuses",
 		"project_components",

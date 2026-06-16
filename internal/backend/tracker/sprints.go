@@ -168,21 +168,29 @@ func (s *Service) StartSprint(ctx context.Context, principal authz.Principal, sp
 	current.State = SprintStateActive
 	current.StartedAt = &now
 	current.UpdatedAt = now
-	if _, err := s.db.ExecContext(ctx, `
-		UPDATE sprints
-		SET state = ?, started_at = ?, updated_at = ?
-		WHERE id = ?
-	`, current.State, formatTime(now), formatTime(now), current.ID); err != nil {
-		return Sprint{}, fmt.Errorf("start sprint: %w", err)
+	event := events.Event{
+		Type:        "sprint.started",
+		ActorID:     actorID(principal),
+		ProjectID:   current.ProjectID,
+		ObjectID:    current.ID,
+		SubjectType: "sprint",
+		SubjectID:   current.ID,
+		At:          now,
+		Data:        map[string]any{"name": current.Name},
 	}
-	s.publish(ctx, events.Event{
-		Type:      "sprint.started",
-		ActorID:   actorID(principal),
-		ProjectID: current.ProjectID,
-		ObjectID:  current.ID,
-		At:        now,
-		Data:      map[string]any{"name": current.Name},
-	})
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE sprints
+			SET state = ?, started_at = ?, updated_at = ?
+			WHERE id = ?
+		`, current.State, formatTime(now), formatTime(now), current.ID); err != nil {
+			return fmt.Errorf("start sprint: %w", err)
+		}
+		return s.appendDomainEvent(ctx, tx, event)
+	}); err != nil {
+		return Sprint{}, err
+	}
+	s.publish(ctx, event)
 	return current, nil
 }
 
@@ -201,21 +209,29 @@ func (s *Service) CompleteSprint(ctx context.Context, principal authz.Principal,
 	current.State = SprintStateCompleted
 	current.CompletedAt = &now
 	current.UpdatedAt = now
-	if _, err := s.db.ExecContext(ctx, `
-		UPDATE sprints
-		SET state = ?, completed_at = ?, updated_at = ?
-		WHERE id = ?
-	`, current.State, formatTime(now), formatTime(now), current.ID); err != nil {
-		return Sprint{}, fmt.Errorf("complete sprint: %w", err)
+	event := events.Event{
+		Type:        "sprint.completed",
+		ActorID:     actorID(principal),
+		ProjectID:   current.ProjectID,
+		ObjectID:    current.ID,
+		SubjectType: "sprint",
+		SubjectID:   current.ID,
+		At:          now,
+		Data:        map[string]any{"name": current.Name},
 	}
-	s.publish(ctx, events.Event{
-		Type:      "sprint.completed",
-		ActorID:   actorID(principal),
-		ProjectID: current.ProjectID,
-		ObjectID:  current.ID,
-		At:        now,
-		Data:      map[string]any{"name": current.Name},
-	})
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE sprints
+			SET state = ?, completed_at = ?, updated_at = ?
+			WHERE id = ?
+		`, current.State, formatTime(now), formatTime(now), current.ID); err != nil {
+			return fmt.Errorf("complete sprint: %w", err)
+		}
+		return s.appendDomainEvent(ctx, tx, event)
+	}); err != nil {
+		return Sprint{}, err
+	}
+	s.publish(ctx, event)
 	return current, nil
 }
 
@@ -252,13 +268,27 @@ func (s *Service) SetTicketSprint(ctx context.Context, principal authz.Principal
 		if err != nil {
 			return err
 		}
-		return s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+		if err := s.repo.insertTicketActivity(ctx, tx, TicketActivity{
 			ID:           activityID,
 			TicketID:     updated.ID,
 			ActorID:      actorID(principal),
 			ActivityType: activityTicketUpdated,
 			Data:         data,
 			CreatedAt:    updated.UpdatedAt,
+		}); err != nil {
+			return err
+		}
+		return s.appendDomainEvent(ctx, tx, events.Event{
+			Type:        activityTicketUpdated,
+			ActorID:     actorID(principal),
+			ProjectID:   updated.ProjectID,
+			ObjectID:    updated.ID,
+			SubjectType: "ticket",
+			SubjectID:   updated.ID,
+			RelatedType: "sprint",
+			RelatedID:   sprintID,
+			At:          updated.UpdatedAt,
+			Data:        data,
 		})
 	}); err != nil {
 		return Ticket{}, err

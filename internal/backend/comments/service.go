@@ -60,6 +60,7 @@ type Service struct {
 	authorizer authz.Evaluator
 	now        func() time.Time
 	eventBus   *events.Bus
+	eventStore *events.Store
 }
 
 type Option func(*Service)
@@ -87,6 +88,12 @@ func WithNow(now func() time.Time) Option {
 func WithEventBus(bus *events.Bus) Option {
 	return func(service *Service) {
 		service.eventBus = bus
+	}
+}
+
+func WithEventStore(store *events.Store) Option {
+	return func(service *Service) {
+		service.eventStore = store
 	}
 }
 
@@ -146,20 +153,28 @@ func (s *Service) Create(ctx context.Context, principal authz.Principal, input C
 	}, comment.CreatedAt); err != nil {
 		return Comment{}, err
 	}
+	event := events.Event{
+		Type:        activityCommentCreated,
+		ActorID:     comment.AuthorID,
+		ProjectID:   projectID,
+		ObjectID:    comment.ID,
+		SubjectType: "comment",
+		SubjectID:   comment.ID,
+		RelatedType: "ticket",
+		RelatedID:   comment.TicketID,
+		At:          comment.CreatedAt,
+		Data: map[string]any{
+			"ticket_id": comment.TicketID,
+		},
+	}
+	if err := s.appendDomainEvent(ctx, tx, event); err != nil {
+		return Comment{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return Comment{}, fmt.Errorf("commit create comment: %w", err)
 	}
 
-	s.publish(ctx, events.Event{
-		Type:      activityCommentCreated,
-		ActorID:   comment.AuthorID,
-		ProjectID: projectID,
-		ObjectID:  comment.ID,
-		At:        comment.CreatedAt,
-		Data: map[string]any{
-			"ticket_id": comment.TicketID,
-		},
-	})
+	s.publish(ctx, event)
 	return comment, nil
 }
 
@@ -237,20 +252,28 @@ func (s *Service) Delete(ctx context.Context, principal authz.Principal, comment
 	}, deletedAt); err != nil {
 		return err
 	}
+	event := events.Event{
+		Type:        activityCommentDeleted,
+		ActorID:     actorID(principal),
+		ProjectID:   projectID,
+		ObjectID:    comment.ID,
+		SubjectType: "comment",
+		SubjectID:   comment.ID,
+		RelatedType: "ticket",
+		RelatedID:   comment.TicketID,
+		At:          deletedAt,
+		Data: map[string]any{
+			"ticket_id": comment.TicketID,
+		},
+	}
+	if err := s.appendDomainEvent(ctx, tx, event); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit delete comment: %w", err)
 	}
 
-	s.publish(ctx, events.Event{
-		Type:      activityCommentDeleted,
-		ActorID:   actorID(principal),
-		ProjectID: projectID,
-		ObjectID:  comment.ID,
-		At:        deletedAt,
-		Data: map[string]any{
-			"ticket_id": comment.TicketID,
-		},
-	})
+	s.publish(ctx, event)
 	return nil
 }
 
@@ -303,6 +326,13 @@ func (s *Service) publish(ctx context.Context, event events.Event) {
 		return
 	}
 	_ = s.eventBus.Publish(ctx, event)
+}
+
+func (s *Service) appendDomainEvent(ctx context.Context, tx *sql.Tx, event events.Event) error {
+	if s == nil || s.eventStore == nil {
+		return nil
+	}
+	return s.eventStore.Append(ctx, tx, event)
 }
 
 func scanComment(scanner interface{ Scan(...any) error }) (Comment, error) {

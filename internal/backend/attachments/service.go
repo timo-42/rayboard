@@ -71,6 +71,7 @@ type Service struct {
 	authorizer authz.Evaluator
 	now        func() time.Time
 	eventBus   *events.Bus
+	eventStore *events.Store
 }
 
 type Option func(*Service)
@@ -98,6 +99,12 @@ func WithNow(now func() time.Time) Option {
 func WithEventBus(bus *events.Bus) Option {
 	return func(service *Service) {
 		service.eventBus = bus
+	}
+}
+
+func WithEventStore(store *events.Store) Option {
+	return func(service *Service) {
+		service.eventStore = store
 	}
 }
 
@@ -168,22 +175,30 @@ func (s *Service) Upload(ctx context.Context, principal authz.Principal, input U
 	}, meta.CreatedAt); err != nil {
 		return Metadata{}, err
 	}
-	if err := tx.Commit(); err != nil {
-		return Metadata{}, fmt.Errorf("commit upload attachment: %w", err)
-	}
-
-	s.publish(ctx, events.Event{
-		Type:      activityAttachmentUploaded,
-		ActorID:   meta.UploaderID,
-		ProjectID: projectID,
-		ObjectID:  meta.ID,
-		At:        meta.CreatedAt,
+	event := events.Event{
+		Type:        activityAttachmentUploaded,
+		ActorID:     meta.UploaderID,
+		ProjectID:   projectID,
+		ObjectID:    meta.ID,
+		SubjectType: "attachment",
+		SubjectID:   meta.ID,
+		RelatedType: "ticket",
+		RelatedID:   meta.TicketID,
+		At:          meta.CreatedAt,
 		Data: map[string]any{
 			"ticket_id":  meta.TicketID,
 			"file_name":  meta.FileName,
 			"size_bytes": meta.SizeBytes,
 		},
-	})
+	}
+	if err := s.appendDomainEvent(ctx, tx, event); err != nil {
+		return Metadata{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Metadata{}, fmt.Errorf("commit upload attachment: %w", err)
+	}
+
+	s.publish(ctx, event)
 	return meta, nil
 }
 
@@ -281,21 +296,29 @@ func (s *Service) Delete(ctx context.Context, principal authz.Principal, attachm
 	}, deletedAt); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit delete attachment: %w", err)
-	}
-
-	s.publish(ctx, events.Event{
-		Type:      activityAttachmentDeleted,
-		ActorID:   actorID(principal),
-		ProjectID: projectID,
-		ObjectID:  file.ID,
-		At:        deletedAt,
+	event := events.Event{
+		Type:        activityAttachmentDeleted,
+		ActorID:     actorID(principal),
+		ProjectID:   projectID,
+		ObjectID:    file.ID,
+		SubjectType: "attachment",
+		SubjectID:   file.ID,
+		RelatedType: "ticket",
+		RelatedID:   file.TicketID,
+		At:          deletedAt,
 		Data: map[string]any{
 			"ticket_id": file.TicketID,
 			"file_name": file.FileName,
 		},
-	})
+	}
+	if err := s.appendDomainEvent(ctx, tx, event); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete attachment: %w", err)
+	}
+
+	s.publish(ctx, event)
 	return nil
 }
 
@@ -353,6 +376,13 @@ func (s *Service) publish(ctx context.Context, event events.Event) {
 		return
 	}
 	_ = s.eventBus.Publish(ctx, event)
+}
+
+func (s *Service) appendDomainEvent(ctx context.Context, tx *sql.Tx, event events.Event) error {
+	if s == nil || s.eventStore == nil {
+		return nil
+	}
+	return s.eventStore.Append(ctx, tx, event)
 }
 
 func scanMetadata(scanner interface{ Scan(...any) error }) (Metadata, error) {
