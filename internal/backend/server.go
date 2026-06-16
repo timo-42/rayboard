@@ -7,6 +7,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -20,6 +21,7 @@ type options struct {
 	authorizer  authz.Evaluator
 	tracker     *tracker.Service
 	attachments *attachments.Service
+	comments    *comments.Service
 }
 
 type Option func(*options)
@@ -45,6 +47,12 @@ func WithTrackerService(service *tracker.Service) Option {
 func WithAttachmentService(service *attachments.Service) Option {
 	return func(options *options) {
 		options.attachments = service
+	}
+}
+
+func WithCommentService(service *comments.Service) Option {
+	return func(options *options) {
+		options.comments = service
 	}
 }
 
@@ -81,6 +89,9 @@ func NewHandler(opts ...Option) http.Handler {
 	}
 	if options.auth != nil && options.attachments != nil {
 		registerAttachmentRoutes(mux, options.auth, options.attachments)
+	}
+	if options.auth != nil && options.comments != nil {
+		registerCommentRoutes(mux, options.auth, options.comments)
 	}
 	return mux
 }
