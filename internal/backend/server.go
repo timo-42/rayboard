@@ -2,8 +2,9 @@ package backend
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
+
+	"github.com/timo-42/rayboard/internal/backend/httpjson"
 )
 
 type Server struct {
@@ -34,8 +35,7 @@ func NewHandler() http.Handler {
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	httpjson.Write(w, http.StatusOK, map[string]string{
 		"status":  "ok",
 		"service": "backend",
 	})
