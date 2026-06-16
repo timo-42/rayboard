@@ -86,9 +86,11 @@ Built-in roles:
 | `automation_manager` | Project read, automations, webhooks. |
 | `notification_manager` | Project read, notifications. |
 
-Common implemented permission checks include `users:read`, `users:write`, `groups:read`, `groups:write`, `roles:read`, `roles:bind`, `projects:read`, `projects:write`, `tickets:read`, `tickets:write`, `comments:write`, `attachments:write`, `views:manage`, and `ai:manage`.
+Common implemented permission checks include `users:read`, `users:write`, `groups:read`, `groups:write`, `roles:read`, `roles:bind`, `projects:read`, `projects:write`, `tickets:read`, `tickets:write`, `comments:write`, `attachments:write`, `views:manage`, `notifications:manage`, and `ai:manage`.
 
 Global `ai:manage` is required to manage OpenRouter provider references because those records hold global secret material.
+
+`notifications:manage` is required to manage Shoutrrr notification destinations. Global destination CRUD requires the permission at global scope; project destination CRUD requires it at the destination's project scope.
 
 ## Current Limitations
 

@@ -85,7 +85,7 @@ func NewHandler(options Options) http.Handler {
 	attachmentapi.Register(api, attachmentapi.Provider{Attachments: options.Attachments, Authenticator: authenticator})
 	searchapi.Register(api, searchapi.Provider{Search: options.Search, Authenticator: authenticator})
 	cronapi.Register(api, cronapi.Provider{Cron: options.Cron, Authenticator: authenticator})
-	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Authenticator: authenticator})
+	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Audit: options.Audit, Authenticator: authenticator})
 	openrouterapi.Register(api, openrouterapi.Provider{OpenRouter: options.OpenRouter, Audit: options.Audit, Authenticator: authenticator})
 	return mux
 }

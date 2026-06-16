@@ -345,7 +345,23 @@ Notification responses use `metadata`, `spec`, and `status`:
 
 Read state is owned by the notification row. `read_at: null` means unread; marking read sets `read_at`, and marking unread clears it. Users may only list or mutate their own notifications.
 
-Shoutrrr destinations, notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+## Notification Destinations
+
+Admins and project notification managers can configure named Shoutrrr destinations for later reuse by notification hooks and delivery policies. Destination create/update uses the standard `spec` body. The Shoutrrr URL is write-only: create/update accepts `spec.shoutrrr_url`, but responses only expose `status.url_set` and `spec.type`.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/notification-destinations` | List global destinations; requires global `notifications:manage`. |
+| `POST` | `/api/notification-destinations` | `{"spec":{"name":"ops","shoutrrr_url":"logger://","enabled":true}}` |
+| `GET` | `/api/projects/{project_id}/notification-destinations` | List project destinations; requires project `notifications:manage`. |
+| `POST` | `/api/projects/{project_id}/notification-destinations` | `{"spec":{"name":"team","shoutrrr_url":"logger://","enabled":true}}` |
+| `GET` | `/api/notification-destinations/{destination_id}` | none |
+| `PATCH` | `/api/notification-destinations/{destination_id}` | `{"spec":{"name":"ops-primary","shoutrrr_url":"logger://","enabled":false}}`; omit `shoutrrr_url` to keep the existing secret. |
+| `DELETE` | `/api/notification-destinations/{destination_id}` | soft-deletes and disables the destination. |
+
+Destination responses use `metadata`, `spec`, and `status`. Scope identity and timestamps are in `metadata`; name, Shoutrrr service type, and enabled state are in `spec`; URL presence, last delivery state, and last error are in `status`. CRUD writes security audit entries without storing the URL in audit payloads.
+
+Notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, destination test-send, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

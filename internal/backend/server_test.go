@@ -116,6 +116,10 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/saved-views", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "query"})
 	assertResponseBodyFields(t, spec, "/api/saved-views/{view_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"})
 	assertResponseBodyFields(t, spec, "/api/notifications", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"}, []string{"items", "status", "read_at"})
+	assertRequestBodyFields(t, spec, "/api/notification-destinations", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "shoutrrr_url"}, []string{"spec", "enabled"})
+	assertResponseBodyFields(t, spec, "/api/notification-destinations/{destination_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "scope_type"}, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "type"}, []string{"status"}, []string{"status", "url_set"})
+	assertRequestBodyFields(t, spec, "/api/notification-destinations/{destination_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "shoutrrr_url"}, []string{"spec", "enabled"})
+	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/notification-destinations", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "shoutrrr_url"})
 	assertRequestBodyFields(t, spec, "/api/openrouter-providers", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "default_model"}, []string{"spec", "api_key"})
 	assertResponseBodyFields(t, spec, "/api/openrouter-providers/{provider_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "default_model"}, []string{"status"}, []string{"status", "api_key_set"})
 	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
@@ -127,6 +131,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/tickets/{ticket_id}/sprint", http.MethodPut, []string{"spec"}, []string{"spec", "sprint_id"})
 	assertResponseBodyFields(t, spec, "/api/boards/{board_id}/tickets", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "board"}, []string{"status"}, []string{"status", "columns"}, []string{"status", "columns", "tickets"}, []string{"status", "columns", "tickets", "metadata"}, []string{"status", "columns", "tickets", "spec"}, []string{"status", "columns", "tickets", "status"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "spec", "epic"}, []string{"items", "spec", "epic", "metadata"}, []string{"items", "spec", "epic", "spec"}, []string{"items", "spec", "epic", "status"}, []string{"items", "status"}, []string{"items", "status", "progress"})
+	assertOpenAPIUsesResourceConvention(t, spec)
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {
@@ -259,6 +264,93 @@ func assertDiscriminatedEngineSchema(t *testing.T, spec map[string]any, root map
 	}
 	assertOneOfVariant(t, oneOf, "lua", []string{"type", "script"}, []string{"script"})
 	assertOneOfVariant(t, oneOf, "ai", []string{"type", "prompt", "provider_id"}, []string{"prompt", "provider_id"})
+}
+
+func assertOpenAPIUsesResourceConvention(t *testing.T, spec map[string]any) {
+	t.Helper()
+
+	paths := mapField(t, spec, "paths")
+	for path, pathValue := range paths {
+		pathItem, ok := pathValue.(map[string]any)
+		if !ok {
+			continue
+		}
+		for method, operationValue := range pathItem {
+			operation, ok := operationValue.(map[string]any)
+			if !ok {
+				continue
+			}
+			if requestBody, ok := operation["requestBody"].(map[string]any); ok {
+				content, ok := requestBody["content"].(map[string]any)
+				if ok {
+					if media, ok := content["application/json"].(map[string]any); ok {
+						schema := resolveSchema(t, spec, mapField(t, media, "schema"))
+						assertSchemaField(t, spec, schema, []string{"spec"})
+					}
+				}
+			}
+			responses, ok := operation["responses"].(map[string]any)
+			if !ok {
+				continue
+			}
+			for status, responseValue := range responses {
+				if !strings.HasPrefix(status, "2") {
+					continue
+				}
+				response, ok := responseValue.(map[string]any)
+				if !ok {
+					continue
+				}
+				content, ok := response["content"].(map[string]any)
+				if !ok {
+					continue
+				}
+				media, ok := content["application/json"].(map[string]any)
+				if !ok {
+					continue
+				}
+				schema := resolveSchema(t, spec, mapField(t, media, "schema"))
+				if schemaHasField(t, spec, schema, []string{"items"}) {
+					assertSchemaField(t, spec, schema, []string{"items", "metadata"})
+					assertSchemaField(t, spec, schema, []string{"items", "spec"})
+					assertSchemaField(t, spec, schema, []string{"items", "status"})
+					continue
+				}
+				if !schemaHasField(t, spec, schema, []string{"metadata"}) || !schemaHasField(t, spec, schema, []string{"spec"}) || !schemaHasField(t, spec, schema, []string{"status"}) {
+					t.Fatalf("expected %s %s response %s to use metadata/spec/status resource convention, got %#v", strings.ToUpper(method), path, status, schema)
+				}
+			}
+		}
+	}
+}
+
+func schemaHasField(t *testing.T, spec map[string]any, schema map[string]any, fieldPath []string) bool {
+	t.Helper()
+
+	defer func() {
+		_ = recover()
+	}()
+	return schemaAtPathOK(t, spec, schema, fieldPath)
+}
+
+func schemaAtPathOK(t *testing.T, spec map[string]any, schema map[string]any, fieldPath []string) bool {
+	t.Helper()
+
+	current := schema
+	for _, field := range fieldPath {
+		current = resolveSchema(t, spec, current)
+		current = schemaArrayItem(t, spec, current)
+		properties, ok := current["properties"].(map[string]any)
+		if !ok {
+			return false
+		}
+		next, ok := properties[field].(map[string]any)
+		if !ok {
+			return false
+		}
+		current = next
+	}
+	return true
 }
 
 func assertOneOfVariant(t *testing.T, variants []any, engineType string, required []string, properties []string) {
