@@ -16,6 +16,10 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, operation(http.MethodPost, "/api/notifications/read-all", "Notifications", "Mark all notifications read", http.StatusNoContent), provider.markAllRead)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/notifications/{notification_id}/read", "Notifications", "Mark notification read"), provider.markRead)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/notifications/{notification_id}/unread", "Notifications", "Mark notification unread"), provider.markUnread)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/me/notification-preferences", "Notification Preferences", "Get current user notification preferences"), provider.getMyPreferences)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/me/notification-preferences", "Notification Preferences", "Update current user notification preferences"), provider.updateMyPreferences)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-preferences", "Notification Preferences", "Get project notification defaults"), provider.getProjectPreferences)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/notification-preferences", "Notification Preferences", "Update project notification defaults"), provider.updateProjectPreferences)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-destinations", "Notification Destinations", "List global notification destinations"), provider.listGlobalDestinations)
 	huma.Register(api, operation(http.MethodPost, "/api/notification-destinations", "Notification Destinations", "Create global notification destination", http.StatusCreated), provider.createGlobalDestination)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-destinations", "Notification Destinations", "List project notification destinations"), provider.listProjectDestinations)
@@ -75,6 +79,60 @@ func (provider Provider) markUnread(ctx context.Context, input *NotificationIDIn
 		return nil, shared.NotificationError(err)
 	}
 	return &NotificationOutput{Body: notificationResource(notification)}, nil
+}
+
+func (provider Provider) getMyPreferences(ctx context.Context, input *PreferencesInput) (*PreferencesOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	preferences, err := provider.Notifications.GetUserPreferences(ctx, principal.UserID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &PreferencesOutput{Body: preferencesResource(preferences)}, nil
+}
+
+func (provider Provider) updateMyPreferences(ctx context.Context, input *UpdatePreferencesInput) (*PreferencesOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	preferences, err := provider.Notifications.UpdateUserPreferences(ctx, principal.UserID, input.Body.Spec.updateInput())
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &PreferencesOutput{Body: preferencesResource(preferences)}, nil
+}
+
+func (provider Provider) getProjectPreferences(ctx context.Context, input *ProjectPreferencesInput) (*PreferencesOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	preferences, err := provider.Notifications.GetProjectPreferences(ctx, input.ProjectID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &PreferencesOutput{Body: preferencesResource(preferences)}, nil
+}
+
+func (provider Provider) updateProjectPreferences(ctx context.Context, input *UpdateProjectPreferencesInput) (*PreferencesOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	preferences, err := provider.Notifications.UpdateProjectPreferences(ctx, input.ProjectID, input.Body.Spec.updateInput())
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &PreferencesOutput{Body: preferencesResource(preferences)}, nil
 }
 
 func (provider Provider) listGlobalDestinations(ctx context.Context, input *ListDestinationsInput) (*ListDestinationsOutput, error) {

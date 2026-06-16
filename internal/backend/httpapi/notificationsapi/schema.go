@@ -23,6 +23,26 @@ type MarkAllReadInput struct {
 	shared.AuthInput
 }
 
+type PreferencesInput struct {
+	shared.AuthInput
+}
+
+type UpdatePreferencesInput struct {
+	shared.AuthInput
+	Body shared.ResourceInput[UpdatePreferencesSpec]
+}
+
+type ProjectPreferencesInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+}
+
+type UpdateProjectPreferencesInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+	Body      shared.ResourceInput[UpdatePreferencesSpec]
+}
+
 type ListDestinationsInput struct {
 	shared.AuthInput
 }
@@ -65,6 +85,9 @@ type NotificationOutput struct {
 }
 
 type ListNotificationsOutput = shared.ListOutput[NotificationResource]
+type PreferencesOutput struct {
+	Body PreferencesResource
+}
 type ListDestinationsOutput = shared.ListOutput[DestinationResource]
 type CreateDestinationOutput = shared.CreatedOutput[DestinationResource]
 
@@ -91,6 +114,43 @@ type NotificationStatus struct {
 }
 
 type NotificationResource = shared.Resource[NotificationMetadata, NotificationSpec, NotificationStatus]
+
+type PreferencesMetadata struct {
+	ID        string     `json:"id,omitempty"`
+	ScopeType string     `json:"scope_type"`
+	UserID    string     `json:"user_id,omitempty"`
+	ProjectID string     `json:"project_id,omitempty"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+type PreferencesSpec struct {
+	InAppEnabled             bool `json:"in_app_enabled"`
+	ExternalEnabled          bool `json:"external_enabled"`
+	AssignmentEnabled        bool `json:"assignment_enabled"`
+	CommentEnabled           bool `json:"comment_enabled"`
+	StatusChangeEnabled      bool `json:"status_change_enabled"`
+	SprintChangeEnabled      bool `json:"sprint_change_enabled"`
+	ReleaseChangeEnabled     bool `json:"release_change_enabled"`
+	AutomationFailureEnabled bool `json:"automation_failure_enabled"`
+}
+
+type UpdatePreferencesSpec struct {
+	InAppEnabled             *bool `json:"in_app_enabled,omitempty"`
+	ExternalEnabled          *bool `json:"external_enabled,omitempty"`
+	AssignmentEnabled        *bool `json:"assignment_enabled,omitempty"`
+	CommentEnabled           *bool `json:"comment_enabled,omitempty"`
+	StatusChangeEnabled      *bool `json:"status_change_enabled,omitempty"`
+	SprintChangeEnabled      *bool `json:"sprint_change_enabled,omitempty"`
+	ReleaseChangeEnabled     *bool `json:"release_change_enabled,omitempty"`
+	AutomationFailureEnabled *bool `json:"automation_failure_enabled,omitempty"`
+}
+
+type PreferencesStatus struct {
+	Customized bool `json:"customized"`
+}
+
+type PreferencesResource = shared.Resource[PreferencesMetadata, PreferencesSpec, PreferencesStatus]
 
 type DestinationMetadata struct {
 	ID          string    `json:"id"`
@@ -159,6 +219,52 @@ func notificationResources(items []notifications.Notification) []NotificationRes
 		resources = append(resources, notificationResource(item))
 	}
 	return resources
+}
+
+func (spec UpdatePreferencesSpec) updateInput() notifications.UpdatePreferencesInput {
+	return notifications.UpdatePreferencesInput{
+		InAppEnabled:             spec.InAppEnabled,
+		ExternalEnabled:          spec.ExternalEnabled,
+		AssignmentEnabled:        spec.AssignmentEnabled,
+		CommentEnabled:           spec.CommentEnabled,
+		StatusChangeEnabled:      spec.StatusChangeEnabled,
+		SprintChangeEnabled:      spec.SprintChangeEnabled,
+		ReleaseChangeEnabled:     spec.ReleaseChangeEnabled,
+		AutomationFailureEnabled: spec.AutomationFailureEnabled,
+	}
+}
+
+func preferencesResource(preferences notifications.Preferences) PreferencesResource {
+	return PreferencesResource{
+		Metadata: PreferencesMetadata{
+			ID:        preferences.ID,
+			ScopeType: preferences.ScopeType,
+			UserID:    preferences.UserID,
+			ProjectID: preferences.ProjectID,
+			CreatedAt: optionalTime(preferences.CreatedAt),
+			UpdatedAt: optionalTime(preferences.UpdatedAt),
+		},
+		Spec: PreferencesSpec{
+			InAppEnabled:             preferences.InAppEnabled,
+			ExternalEnabled:          preferences.ExternalEnabled,
+			AssignmentEnabled:        preferences.AssignmentEnabled,
+			CommentEnabled:           preferences.CommentEnabled,
+			StatusChangeEnabled:      preferences.StatusChangeEnabled,
+			SprintChangeEnabled:      preferences.SprintChangeEnabled,
+			ReleaseChangeEnabled:     preferences.ReleaseChangeEnabled,
+			AutomationFailureEnabled: preferences.AutomationFailureEnabled,
+		},
+		Status: PreferencesStatus{
+			Customized: preferences.Customized,
+		},
+	}
+}
+
+func optionalTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
 }
 
 func (spec CreateDestinationSpec) createInput(scopeType string, projectID string) notifications.CreateDestinationInput {

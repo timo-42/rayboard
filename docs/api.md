@@ -345,6 +345,19 @@ Notification responses use `metadata`, `spec`, and `status`:
 
 Read state is owned by the notification row. `read_at: null` means unread; marking read sets `read_at`, and marking unread clears it. Users may only list or mutate their own notifications.
 
+## Notification Preferences
+
+Authenticated users can manage their own notification preferences. Project notification managers can manage project notification defaults. Preferences are stored as reusable resource objects; missing rows use enabled defaults and return `status.customized: false`.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/me/notification-preferences` | Current user's notification preferences. |
+| `PATCH` | `/api/me/notification-preferences` | `{"spec":{"external_enabled":false,"status_change_enabled":false}}` |
+| `GET` | `/api/projects/{project_id}/notification-preferences` | Project defaults; requires project `notifications:manage`. |
+| `PATCH` | `/api/projects/{project_id}/notification-preferences` | `{"spec":{"comment_enabled":false}}`; requires project `notifications:manage`. |
+
+Preference responses use `metadata`, `spec`, and `status`. The scope and subject IDs are in `metadata`; booleans such as `in_app_enabled`, `external_enabled`, `assignment_enabled`, `comment_enabled`, `status_change_enabled`, `sprint_change_enabled`, `release_change_enabled`, and `automation_failure_enabled` are in `spec`; `status.customized` shows whether a persisted override exists.
+
 ## Notification Destinations
 
 Admins and project notification managers can configure named Shoutrrr destinations for later reuse by notification hooks and delivery policies. Destination create/update uses the standard `spec` body. The Shoutrrr URL is write-only: create/update accepts `spec.shoutrrr_url`, but responses only expose `status.url_set` and `spec.type`.
@@ -362,7 +375,7 @@ Admins and project notification managers can configure named Shoutrrr destinatio
 
 Destination responses use `metadata`, `spec`, and `status`. Scope identity and timestamps are in `metadata`; name, Shoutrrr service type, and enabled state are in `spec`; URL presence, last delivery state, and last error are in `status`. Test-send updates `status.last_delivery_status`, `status.last_delivery_at`, and `status.last_error`. CRUD and test-send write security audit entries without storing the URL in audit payloads.
 
-Notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+Global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

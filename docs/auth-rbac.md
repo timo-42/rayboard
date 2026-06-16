@@ -90,7 +90,9 @@ Common implemented permission checks include `users:read`, `users:write`, `group
 
 Global `ai:manage` is required to manage OpenRouter provider references because those records hold global secret material.
 
-`notifications:manage` is required to manage Shoutrrr notification destinations. Global destination CRUD requires the permission at global scope; project destination CRUD requires it at the destination's project scope.
+Personal notification preferences require authentication but no RBAC permission because users can only access their own preference resource.
+
+`notifications:manage` is required to manage project notification defaults and Shoutrrr notification destinations. Global destination CRUD requires the permission at global scope; project preference/default and destination CRUD require it at the destination or preference project scope.
 
 ## Current Limitations
 

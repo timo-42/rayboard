@@ -250,6 +250,17 @@ func seedNotificationUser(t *testing.T, ctx context.Context, db *store.DB, id st
 	}
 }
 
+func seedNotificationProject(t *testing.T, ctx context.Context, db *store.DB, id string, key string) {
+	t.Helper()
+
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES (?, ?, ?)
+	`, id, key, key); err != nil {
+		t.Fatalf("seed project %s: %v", id, err)
+	}
+}
+
 func seedNotificationTicket(t *testing.T, ctx context.Context, db *store.DB, id string, key string, reporterID string, assigneeID string) {
 	t.Helper()
 

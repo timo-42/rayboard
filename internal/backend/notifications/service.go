@@ -506,6 +506,13 @@ func nullString(value sql.NullString) string {
 	return value.String
 }
 
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
 func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
