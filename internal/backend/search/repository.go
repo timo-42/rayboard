@@ -127,6 +127,20 @@ func (r *Repository) RefreshFTSIndex(ctx context.Context) error {
 		return fmt.Errorf("populate comment fts: %w", err)
 	}
 
+	if _, err = tx.ExecContext(ctx, `DELETE FROM attachment_fts`); err != nil {
+		return fmt.Errorf("clear attachment fts: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO attachment_fts (attachment_id, file_name, content_type)
+		SELECT a.id, a.file_name, a.content_type
+		FROM ticket_attachments a
+		JOIN tickets t ON t.id = a.ticket_id
+		WHERE a.deleted_at IS NULL
+		  AND t.deleted_at IS NULL
+	`); err != nil {
+		return fmt.Errorf("populate attachment fts: %w", err)
+	}
+
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("commit search index refresh: %w", err)
 	}
@@ -337,8 +351,15 @@ func (r *Repository) searchTickets(ctx context.Context, q sqlRunner, input ticke
 				WHERE comment_fts MATCH ?
 				  AND c.deleted_at IS NULL
 			)
+			OR t.id IN (
+				SELECT a.ticket_id
+				FROM attachment_fts af
+				JOIN ticket_attachments a ON a.id = af.attachment_id
+				WHERE attachment_fts MATCH ?
+				  AND a.deleted_at IS NULL
+			)
 		)`)
-		args = append(args, input.FTSQuery, input.FTSQuery)
+		args = append(args, input.FTSQuery, input.FTSQuery, input.FTSQuery)
 	}
 
 	orderBy := ticketOrderBy(input.Sort)

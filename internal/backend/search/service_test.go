@@ -184,6 +184,8 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		UpdatedAt:   fixedNow().Add(-1 * time.Hour),
 	})
 	seedComment(t, ctx, db.SQL, "comment-core-2", "ticket-core-2", "panic also appears in a comment")
+	seedAttachment(t, ctx, db.SQL, "attachment-core-2", "ticket-core-2", "runbook-panic-notes.txt", "text/plain")
+	seedAttachment(t, ctx, db.SQL, "attachment-ops-1", "ticket-ops-1", "secret-ops-runbook.pdf", "application/pdf")
 
 	var ftsRows int
 	if err := db.SQL.QueryRowContext(ctx, `SELECT COUNT(*) FROM ticket_fts`).Scan(&ftsRows); err != nil {
@@ -212,6 +214,32 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 	assertTicketIDs(t, result.Tickets, "ticket-core-1", "ticket-core-2")
 	if !slices.Equal(result.Tickets[0].Labels, []string{"auth", "backend"}) || !slices.Equal(result.Tickets[1].Labels, []string{"docs"}) {
 		t.Fatalf("unexpected search labels: %#v", result.Tickets)
+	}
+
+	attachmentOnly, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Text: "runbook",
+		Sort: []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search attachment metadata: %v", err)
+	}
+	assertTicketIDs(t, attachmentOnly.Tickets, "ticket-core-2")
+
+	attachmentContentType, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Text: "plain",
+		Sort: []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search attachment content type: %v", err)
+	}
+	assertTicketIDs(t, attachmentContentType.Tickets, "ticket-core-2")
+
+	hiddenAttachment, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{Text: "secret"})
+	if err != nil {
+		t.Fatalf("search hidden attachment metadata: %v", err)
+	}
+	if len(hiddenAttachment.Tickets) != 0 {
+		t.Fatalf("expected RBAC to hide ops attachment match, got %#v", hiddenAttachment.Tickets)
 	}
 
 	filtered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
@@ -264,6 +292,14 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("delete comment: %v", err)
 	}
+	_, err = db.SQL.ExecContext(ctx, `
+		UPDATE ticket_attachments
+		SET deleted_at = ?
+		WHERE id = 'attachment-core-2'
+	`, formatTime(fixedNow()))
+	if err != nil {
+		t.Fatalf("delete attachment: %v", err)
+	}
 
 	refreshed, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{Text: "panic"})
 	if err != nil {
@@ -271,6 +307,13 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 	}
 	if len(refreshed.Tickets) != 0 {
 		t.Fatalf("expected refresh to remove stale core matches, got %#v", refreshed.Tickets)
+	}
+	refreshedAttachment, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{Text: "runbook"})
+	if err != nil {
+		t.Fatalf("search attachment after refresh: %v", err)
+	}
+	if len(refreshedAttachment.Tickets) != 0 {
+		t.Fatalf("expected refresh to remove deleted attachment match, got %#v", refreshedAttachment.Tickets)
 	}
 }
 
@@ -476,6 +519,20 @@ func seedComment(t *testing.T, ctx context.Context, db *sql.DB, commentID string
 	`, commentID, ticketID, body, formatTime(fixedNow()), formatTime(fixedNow()))
 	if err != nil {
 		t.Fatalf("seed comment %s: %v", commentID, err)
+	}
+}
+
+func seedAttachment(t *testing.T, ctx context.Context, db *sql.DB, attachmentID string, ticketID string, fileName string, contentType string) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO ticket_attachments (
+			id, ticket_id, file_name, content_type, size_bytes, data, created_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, attachmentID, ticketID, fileName, contentType, 4, []byte("test"), formatTime(fixedNow()))
+	if err != nil {
+		t.Fatalf("seed attachment %s: %v", attachmentID, err)
 	}
 }
 

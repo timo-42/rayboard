@@ -267,7 +267,7 @@ Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, 
 
 Full CEL support is **Planned**. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
 
-Full-text search uses SQLite FTS5 virtual tables for ticket title/description and comments. See https://www.sqlite.org/fts5.html. Current text input is tokenized into quoted FTS terms; it is not raw FTS syntax.
+Full-text search uses SQLite FTS5 virtual tables for ticket title/description, comments, and attachment metadata such as filename and content type. See https://www.sqlite.org/fts5.html. Current text input is tokenized into quoted FTS terms; it is not raw FTS syntax.
 
 Saved views:
 

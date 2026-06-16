@@ -40,7 +40,7 @@ Browser inbox and badge UI, user/project notification preferences, external deli
 
 ## Search
 
-Current search supports full-text search over ticket title, description, and comments with SQLite FTS5, plus a constrained filter expression subset. Roadmap date fields `start_date` and `due_date` are available for search filters, sort specs, and saved-view columns. Full CEL-backed queries are **Planned**. See:
+Current search supports full-text search over ticket title, description, comments, and attachment metadata such as filename and content type with SQLite FTS5, plus a constrained filter expression subset. Roadmap date fields `start_date` and `due_date` are available for search filters, sort specs, and saved-view columns. Full CEL-backed queries are **Planned**. See:
 
 - CEL: https://cel.dev/
 - cel-go: https://github.com/google/cel-go
