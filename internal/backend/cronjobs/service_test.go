@@ -9,7 +9,10 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
+	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
 func TestCronJobLifecycleAndManualRun(t *testing.T) {
@@ -126,6 +129,80 @@ func TestCronJobValidationAndDisabledOwner(t *testing.T) {
 	}
 }
 
+func TestCronJobLuaRayboardHelpers(t *testing.T) {
+	ctx := context.Background()
+	db := openCronTestDB(t, ctx)
+	seedCronUser(t, ctx, db, "user-1", false)
+	seedCronProject(t, ctx, db, "project-1")
+
+	authorizer := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-1", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	trackerService := tracker.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
+	commentService := comments.NewService(db.SQL, authorizer)
+	service := NewService(
+		db.SQL,
+		authorizer,
+		automation.NewRunStore(db.SQL),
+		WithTrackerService(trackerService),
+		WithSearchService(searchService),
+		WithCommentService(commentService),
+	)
+	principal := authz.Principal{UserID: "user-1", AuthKind: authz.AuthKindSession}
+
+	job, err := service.Create(ctx, principal, CreateInput{
+		Name:     "Lua helpers",
+		Schedule: "* * * * *",
+		Engine:   EngineLua,
+		LuaSource: `
+local ticket, err = rayboard.create_ticket({
+  project_id = "project-1",
+  title = "Lua-created ticket",
+  description = "Created from a cron script"
+})
+if err then error(err.message) end
+
+local comment, comment_err = rayboard.comment({
+  ticket_id = ticket.id,
+  body = "Lua helper comment"
+})
+if comment_err then error(comment_err.message) end
+
+local fetched, get_err = rayboard.get_ticket(ticket.id)
+if get_err then error(get_err.message) end
+
+local results, search_err = rayboard.search({
+  project_id = "project-1",
+  text = "Lua-created",
+  limit = 10
+})
+if search_err then error(search_err.message) end
+
+rayboard.log(fetched.key .. ":" .. tostring(#results.items))
+`,
+	})
+	if err != nil {
+		t.Fatalf("create cron job: %v", err)
+	}
+
+	run, err := service.RunNow(ctx, principal, job.ID)
+	if err != nil {
+		t.Fatalf("run cron job: %v", err)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected run status: %#v", run)
+	}
+	if countRows(t, ctx, db, "tickets") != 1 {
+		t.Fatalf("expected one ticket")
+	}
+	if countRows(t, ctx, db, "ticket_comments") != 1 {
+		t.Fatalf("expected one comment")
+	}
+	logs, ok := run.Output["logs"].([]any)
+	if !ok || len(logs) != 1 || logs[0] != "AUTO-1:1" {
+		t.Fatalf("unexpected helper logs: %#v", run.Output)
+	}
+}
+
 func openCronTestDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 
@@ -153,4 +230,25 @@ func seedCronUser(t *testing.T, ctx context.Context, db *store.DB, id string, di
 	`, id, id, id, disabled); err != nil {
 		t.Fatalf("seed user %s: %v", id, err)
 	}
+}
+
+func seedCronProject(t *testing.T, ctx context.Context, db *store.DB, id string) {
+	t.Helper()
+
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES (?, 'AUTO', 'Automation')
+	`, id); err != nil {
+		t.Fatalf("seed project %s: %v", id, err)
+	}
+}
+
+func countRows(t *testing.T, ctx context.Context, db *store.DB, table string) int {
+	t.Helper()
+
+	var count int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return count
 }

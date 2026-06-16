@@ -56,7 +56,14 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	commentService := comments.NewService(db.SQL, authorizer)
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
-	cronService := cronjobs.NewService(db.SQL, authorizer, runStore)
+	cronService := cronjobs.NewService(
+		db.SQL,
+		authorizer,
+		runStore,
+		cronjobs.WithTrackerService(trackerService),
+		cronjobs.WithSearchService(searchService),
+		cronjobs.WithCommentService(commentService),
+	)
 	if err := cronService.StartScheduler(ctx); err != nil {
 		return err
 	}
@@ -97,7 +104,14 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	commentService := comments.NewService(db.SQL, authorizer)
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
-	cronService := cronjobs.NewService(db.SQL, authorizer, runStore)
+	cronService := cronjobs.NewService(
+		db.SQL,
+		authorizer,
+		runStore,
+		cronjobs.WithTrackerService(trackerService),
+		cronjobs.WithSearchService(searchService),
+		cronjobs.WithCommentService(commentService),
+	)
 	if err := cronService.StartScheduler(ctx); err != nil {
 		return err
 	}

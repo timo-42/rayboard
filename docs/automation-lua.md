@@ -80,6 +80,17 @@ Cron job management requires automation permissions. Disabled users cannot run o
 
 Run history uses the shared automation run-history model. A run record is used for scheduled and manual runs and may include trigger type, job identity, owner/project context when applicable, input/output summaries, logs, status, error details, start/finish timestamps, duration, and applied limits. Run history must not expose secrets.
 
+Implemented cron Lua helpers:
+
+- `rayboard.log(message)`
+- `rayboard.search({ project_id, filter, text, sort, limit, cursor })`
+- `rayboard.get_ticket(ticket_id)`
+- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, rank })`
+- `rayboard.update_ticket(ticket_id, { title, description, status, priority, type, assignee_id, parent_ticket_id, rank })`
+- `rayboard.comment({ ticket_id, body })`
+
+These helpers return `value, nil` on success and `nil, { message = "..." }` on failure. Each helper goes through the normal backend service and RBAC path using the cron job owner as an `AuthKindCron` principal.
+
 Example shape:
 
 ```lua
@@ -92,6 +103,22 @@ if err then return { error = err.message } end
 for _, ticket in ipairs(tickets.items) do
   rayboard.log(ticket.key .. ": " .. ticket.title)
 end
+```
+
+Example create/comment shape:
+
+```lua
+local ticket, err = rayboard.create_ticket({
+  project_id = "project_...",
+  title = "Investigate recurring alert"
+})
+if err then return { error = err.message } end
+
+local comment, comment_err = rayboard.comment({
+  ticket_id = ticket.id,
+  body = "Created by scheduled triage."
+})
+if comment_err then return { error = comment_err.message } end
 ```
 
 ## Planned Ticket Hooks

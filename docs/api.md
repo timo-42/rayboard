@@ -156,4 +156,6 @@ The first cron automation API/scheduler slice exposes Lua cron job management, m
 | `POST` | `/api/cron-jobs/{cron_job_id}/run` | Starts a manual run. |
 | `GET` | `/api/cron-jobs/{cron_job_id}/runs` | Run history for the job. |
 
-Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. The implemented cron slice is Lua-only; OpenRouter AI automation, ticket hooks, custom create pages, webhooks, and notification hooks are **Planned**.
+Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. The implemented cron slice is Lua-only.
+
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. OpenRouter AI automation, ticket hooks, custom create pages, webhooks, and notification hooks are **Planned**.

@@ -16,7 +16,7 @@ Implemented API-only user workflows:
 - attachments on tickets;
 - saved views;
 - text and filter search;
-- Lua cron job management, manual runs, and run history.
+- Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
 
 See [API Guide](api.md) for endpoint details.
 

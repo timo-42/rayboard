@@ -16,8 +16,10 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
-	lua "github.com/yuin/gopher-lua"
+	"github.com/timo-42/rayboard/internal/backend/search"
+	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
 const (
@@ -99,6 +101,9 @@ type Service struct {
 	db         *sql.DB
 	authorizer authz.Evaluator
 	runs       *automation.RunStore
+	tracker    *tracker.Service
+	search     *search.Service
+	comments   *comments.Service
 	now        func() time.Time
 
 	mu      sync.Mutex
@@ -128,6 +133,24 @@ func WithNow(now func() time.Time) Option {
 		if now != nil {
 			service.now = now
 		}
+	}
+}
+
+func WithTrackerService(trackerService *tracker.Service) Option {
+	return func(service *Service) {
+		service.tracker = trackerService
+	}
+}
+
+func WithSearchService(searchService *search.Service) Option {
+	return func(service *Service) {
+		service.search = searchService
+	}
+}
+
+func WithCommentService(commentService *comments.Service) Option {
+	return func(service *Service) {
+		service.comments = commentService
 	}
 }
 
@@ -398,7 +421,7 @@ func (s *Service) runJob(ctx context.Context, job Job, mode string) (automation.
 func (s *Service) execute(ctx context.Context, job Job) (map[string]any, []string, error) {
 	switch job.Engine {
 	case EngineLua:
-		return executeLua(ctx, job)
+		return s.executeLua(ctx, job)
 	case EngineAI:
 		return nil, nil, fmt.Errorf("%w: AI cron jobs are not implemented yet", ErrValidation)
 	default:
@@ -406,7 +429,7 @@ func (s *Service) execute(ctx context.Context, job Job) (map[string]any, []strin
 	}
 }
 
-func executeLua(ctx context.Context, job Job) (map[string]any, []string, error) {
+func (s *Service) executeLua(ctx context.Context, job Job) (map[string]any, []string, error) {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	sandbox := luasandbox.New(luasandbox.DefaultJSONLimits())
@@ -414,18 +437,7 @@ func executeLua(ctx context.Context, job Job) (map[string]any, []string, error) 
 	sandbox.L.SetContext(runCtx)
 
 	logs := []string{}
-	rayboard := sandbox.L.GetGlobal("rayboard")
-	rayboardTable, ok := rayboard.(*lua.LTable)
-	if !ok {
-		rayboardTable = sandbox.L.NewTable()
-		sandbox.L.SetGlobal("rayboard", rayboardTable)
-	}
-	sandbox.L.SetField(rayboardTable, "log", sandbox.L.NewFunction(func(L *lua.LState) int {
-		if len(logs) < 100 {
-			logs = append(logs, L.CheckString(1))
-		}
-		return 0
-	}))
+	s.registerLuaHelpers(runCtx, sandbox, job, &logs)
 
 	if err := sandbox.L.DoString(job.LuaSource); err != nil {
 		return map[string]any{}, logs, err
