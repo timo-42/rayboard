@@ -1,6 +1,7 @@
 package config
 
 import "flag"
+import "os"
 
 const (
 	DefaultFrontendAddr = "127.0.0.1:8080"
@@ -23,6 +24,23 @@ func Default() Config {
 		BackendURL:   DefaultBackendURL,
 		DBPath:       DefaultDBPath,
 	}
+}
+
+func FromEnv() Config {
+	cfg := Default()
+	if value := os.Getenv("RAYBOARD_FRONTEND_ADDR"); value != "" {
+		cfg.FrontendAddr = value
+	}
+	if value := os.Getenv("RAYBOARD_BACKEND_ADDR"); value != "" {
+		cfg.BackendAddr = value
+	}
+	if value := os.Getenv("RAYBOARD_BACKEND_URL"); value != "" {
+		cfg.BackendURL = value
+	}
+	if value := os.Getenv("RAYBOARD_DB"); value != "" {
+		cfg.DBPath = value
+	}
+	return cfg
 }
 
 func (c *Config) BindRuntimeFlags(flags *flag.FlagSet) {

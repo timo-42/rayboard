@@ -46,7 +46,7 @@ func runRuntime(ctx context.Context, mode runtime.Mode, args []string, stdout, s
 	flags := flag.NewFlagSet(string(mode), flag.ContinueOnError)
 	flags.SetOutput(stderr)
 
-	cfg := config.Default()
+	cfg := config.FromEnv()
 	cfg.BindRuntimeFlags(flags)
 
 	if err := flags.Parse(args); err != nil {
