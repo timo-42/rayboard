@@ -132,6 +132,8 @@ Statuses are ordered rows scoped to one project. Each status has a stable `slug`
 
 Board ticket responses use the same persisted ticket shape as project ticket lists, grouped or ordered by board column according to the board definition. Moving tickets between columns continues to use ticket status updates.
 
+Board ticket responses keep the board and column objects as board metadata and return each column's tickets as ticket resources with `metadata`, `spec`, and `status`.
+
 ## Sprints
 
 The first sprint API slice is backend/API-only. It supports sprint CRUD within a project, starting and completing sprints, and assigning or removing a ticket from a sprint. Browser backlog planning, board drag/drop, and sprint report screens are **Planned**.
@@ -189,7 +191,7 @@ The roadmap slice is backend/API-only. Epics are regular tickets with `type: "ep
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/roadmap` | none |
 
-Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap responses return each epic ticket plus direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
+Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap responses return each epic as a ticket resource plus direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
 ## Custom Fields
 

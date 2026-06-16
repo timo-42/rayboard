@@ -269,7 +269,7 @@ func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListRoadmapOutput{Body: shared.ItemList[tracker.RoadmapItem]{Items: items}}, nil
+	return &ListRoadmapOutput{Body: shared.ItemList[RoadmapItemResource]{Items: roadmapItemResources(items)}}, nil
 }
 
 func (provider Provider) listSprints(ctx context.Context, input *ListSprintsInput) (*ListSprintsOutput, error) {

@@ -59,5 +59,5 @@ func (provider Provider) listBoardTickets(ctx context.Context, input *BoardIDInp
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &BoardTicketsOutput{Body: tickets}, nil
+	return &BoardTicketsOutput{Body: BoardTicketsResourceFromTracker(tickets)}, nil
 }

@@ -79,6 +79,8 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/cron-jobs/{job_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "next_run_at"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/sprints", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "goal"}, []string{"spec", "start_date"}, []string{"spec", "end_date"})
 	assertResponseBodyFields(t, spec, "/api/sprints/{sprint_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
+	assertResponseBodyFields(t, spec, "/api/boards/{board_id}/tickets", http.MethodGet, "200", []string{"columns"}, []string{"columns", "tickets"}, []string{"columns", "tickets", "metadata"}, []string{"columns", "tickets", "spec"}, []string{"columns", "tickets", "status"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"items"}, []string{"items", "epic"}, []string{"items", "epic", "metadata"}, []string{"items", "epic", "spec"}, []string{"items", "epic", "status"}, []string{"items", "progress"})
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {
@@ -250,6 +252,7 @@ func schemaAtPath(t *testing.T, spec map[string]any, schema map[string]any, fiel
 	current := schema
 	for _, field := range fieldPath {
 		current = resolveSchema(t, spec, current)
+		current = schemaArrayItem(t, spec, current)
 		properties := mapField(t, current, "properties")
 		next, ok := properties[field].(map[string]any)
 		if !ok {
@@ -258,6 +261,21 @@ func schemaAtPath(t *testing.T, spec map[string]any, schema map[string]any, fiel
 		current = next
 	}
 	return current
+}
+
+func schemaArrayItem(t *testing.T, spec map[string]any, schema map[string]any) map[string]any {
+	t.Helper()
+
+	typ := schema["type"]
+	isArray := typ == "array" || jsonArrayContains(typ, "array")
+	if !isArray {
+		return schema
+	}
+	items, ok := schema["items"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected array items schema in %#v", schema)
+	}
+	return resolveSchema(t, spec, items)
 }
 
 func resolveSchema(t *testing.T, spec map[string]any, schema map[string]any) map[string]any {
