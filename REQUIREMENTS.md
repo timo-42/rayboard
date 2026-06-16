@@ -119,6 +119,17 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
   - expose only a Rayboard Lua sandbox with functions such as `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, `rayboard.comment`, and `rayboard.log`.
   - do not expose filesystem, shell, raw sockets, arbitrary HTTP, or direct SQLite access to Lua scripts.
   - enforce per-run timeout, max log size, max API response size, and no overlapping runs by default.
+- Add shared Lua JSON and Go bridge support:
+  - every Lua-capable surface uses one shared sandbox runtime package and one shared Go<->Lua conversion layer.
+  - expose a sandboxed JSON module as `json` and `rayboard.json` with `json.encode(value)` and `json.decode(text)`.
+  - JSON decode converts objects to Lua tables with string keys, arrays to 1-indexed Lua array tables, booleans/strings/numbers directly, and JSON null to a stable `json.null` sentinel.
+  - JSON encode converts Lua array tables to JSON arrays, string-key tables to JSON objects, `json.null` to JSON null, and rejects mixed-key tables, functions, userdata, threads, recursive tables, non-finite numbers, and unsupported values.
+  - enforce max JSON input bytes, max encoded output bytes, max nesting depth, and clear validation errors for invalid JSON or unsupported Lua values.
+  - Go-backed Rayboard functions exposed to Lua accept plain Lua tables and return plain Lua tables plus errors, e.g. `local ticket, err = rayboard.create_ticket({ title = "Bug" })`.
+  - Go service DTOs and API payloads should use the same table/JSON conversion rules instead of one-off reflection or ad-hoc map handling.
+  - Lua scripts must never receive raw Go pointers, unrestricted userdata, DB handles, HTTP clients, or Shoutrrr/OpenRouter secrets.
+  - table-to-table helper functions should exist for common Rayboard payloads so cron jobs, hooks, custom create pages, webhooks, and notification hooks behave consistently.
+  - provide Lua examples for JSON encode/decode, `json.null`, API function calls, validation errors, and safe payload transformation.
 - Add Lua ticket hook plugins:
   - use the existing GopherLua stack for project-scoped ticket hooks.
   - hooks are managed by project owners/admins.
@@ -291,6 +302,22 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
   - browser dependencies are vendored into the repository and served from the embedded filesystem.
   - required vendored assets: HTMX and SortableJS.
   - optional vendored asset: CodeMirror for editor-quality Lua/CEL editing.
+- Documentation:
+  - create and maintain proper project documentation under `/docs`.
+  - `/docs/README.md` is the documentation index and links to all user, admin, API, automation, development, and operations docs.
+  - document runtime modes, configuration flags/env vars, database behavior, admin bootstrap behavior, demo seed behavior, and split frontend/backend deployment.
+  - document authentication flows for browser sessions, CSRF, API bearer tokens, incoming webhook tokens, disabled users, and password/admin bootstrap caveats.
+  - document RBAC concepts: users, groups, roles, permissions, global/project scopes, role bindings, built-in roles, and effective permission inspection.
+  - document backend API conventions, error format, pagination, auth requirements, and every implemented endpoint with request/response examples.
+  - document projects, tickets, comments, attachments, search, saved views, settings, notifications, webhooks, cron jobs, hooks, custom create pages, and AI automation as they are implemented.
+  - document the query language with links to CEL upstream docs, supported Rayboard CEL subset, examples, and current limitations.
+  - document Lua automation with GopherLua details, sandbox restrictions, available `rayboard.*` functions, the shared `json` module, Go<->Lua table conversion rules, limits, and examples for each Lua surface.
+  - document OpenRouter AI automation configuration, prompt/output schema requirements, validation rules, limits, and audit/history behavior.
+  - document Shoutrrr destination configuration, secret redaction, destination inheritance, policies, hooks, and delivery troubleshooting.
+  - document frontend architecture, embedded assets, vendoring policy, CSS extension-point conventions, and no-node build assumption.
+  - document development workflows: local run commands, tests, cross-build commands, migration rules, package boundaries, and release checklist.
+  - documentation must be updated in the same PR/commit series as any user-facing feature, endpoint, CLI flag, config variable, Lua function, or automation surface.
+  - include runnable examples where practical; keep generated/demo credentials out of committed docs.
 - Query examples:
   - `project == "CORE" && status != "Done"`
   - `assignee == currentUser() && sprint.state == "active"`
@@ -311,6 +338,9 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
 - Example Lua cron script:
 
 ```lua
+local payload = json.encode({ status = "Stale", assignee = json.null })
+local decoded = json.decode(payload)
+
 local tickets = rayboard.search('project == "CORE" && status == "Stale"', { limit = 50 })
 
 for _, ticket in ipairs(tickets) do
