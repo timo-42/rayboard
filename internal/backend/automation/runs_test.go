@@ -69,6 +69,14 @@ func TestRunLifecycle(t *testing.T) {
 	if len(listed) != 1 || listed[0].ID != started.ID {
 		t.Fatalf("unexpected listed runs: %#v", listed)
 	}
+
+	listed, err = runStore.List(ctx, ListInput{TriggerType: "cron", TriggerRef: "job-1"})
+	if err != nil {
+		t.Fatalf("list runs by trigger ref: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != started.ID {
+		t.Fatalf("unexpected trigger-ref listed runs: %#v", listed)
+	}
 }
 
 func TestRunStoreValidationAndNotFound(t *testing.T) {

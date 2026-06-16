@@ -38,6 +38,12 @@ func (g *serverGroup) start(name string, serve func() error, shutdown func(conte
 	}()
 }
 
+func (g *serverGroup) addShutdown(shutdown func(context.Context) error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.shutdowns = append(g.shutdowns, shutdown)
+}
+
 func (g *serverGroup) wait(ctx context.Context, stderr io.Writer) error {
 	select {
 	case <-ctx.Done():

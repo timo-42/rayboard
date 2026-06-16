@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"testing"
 
+	"github.com/timo-42/rayboard/internal/backend/migrations"
 	"github.com/timo-42/rayboard/internal/backend/store"
 )
 
@@ -25,8 +27,9 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrations != 1 {
-		t.Fatalf("expected 1 applied migration, got %d", migrations)
+	expectedMigrations := countMigrationFiles(t)
+	if migrations != expectedMigrations {
+		t.Fatalf("expected %d applied migrations, got %d", expectedMigrations, migrations)
 	}
 
 	for _, table := range []string{
@@ -45,12 +48,23 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"ticket_attachments",
 		"saved_views",
 		"automation_runs",
+		"cron_jobs",
 		"notifications",
 	} {
 		t.Run(table, func(t *testing.T) {
 			assertTableExists(t, ctx, db.SQL, table)
 		})
 	}
+}
+
+func countMigrationFiles(t *testing.T) int {
+	t.Helper()
+
+	names, err := fs.Glob(migrations.Files, "*.sql")
+	if err != nil {
+		t.Fatalf("list migration files: %v", err)
+	}
+	return len(names)
 }
 
 func TestForeignKeysEnforced(t *testing.T) {

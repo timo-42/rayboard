@@ -9,7 +9,9 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -53,6 +55,12 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	attachmentService := attachments.NewService(db.SQL, authorizer)
 	commentService := comments.NewService(db.SQL, authorizer)
 	searchService := search.NewService(db.SQL, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	cronService := cronjobs.NewService(db.SQL, authorizer, runStore)
+	if err := cronService.StartScheduler(ctx); err != nil {
+		return err
+	}
+	group.addShutdown(cronService.Shutdown)
 	backendServer := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
@@ -60,6 +68,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithCronService(cronService),
 		backend.WithSearchService(searchService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
@@ -87,6 +96,12 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	attachmentService := attachments.NewService(db.SQL, authorizer)
 	commentService := comments.NewService(db.SQL, authorizer)
 	searchService := search.NewService(db.SQL, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	cronService := cronjobs.NewService(db.SQL, authorizer, runStore)
+	if err := cronService.StartScheduler(ctx); err != nil {
+		return err
+	}
+	group.addShutdown(cronService.Shutdown)
 	server := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
@@ -94,6 +109,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithCronService(cronService),
 		backend.WithSearchService(searchService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)

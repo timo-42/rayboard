@@ -15,13 +15,14 @@ Implemented API-only user workflows:
 - comments on tickets;
 - attachments on tickets;
 - saved views;
-- text and filter search.
+- text and filter search;
+- Lua cron job management, manual runs, and run history.
 
 See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog, boards, sprints, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML.
+Backlog, boards, sprints, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification hooks, and OpenRouter AI automation are also **Planned**.
 
 ## Search
 

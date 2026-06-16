@@ -1,8 +1,8 @@
 # Automation and Lua
 
-Automation public surfaces are mostly **Planned**. The current implementation already includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, and automation run history persistence in `internal/backend/automation`. There are no implemented public cron, Lua hook, webhook, notification hook, or OpenRouter AI automation endpoints yet.
+Automation public surfaces are mostly **Planned**. The current implementation includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, automation run history persistence in `internal/backend/automation`, and the first cron jobs API/scheduler slice for Lua cron job CRUD, manual runs, and run history.
 
-Planned upstream dependencies:
+Relevant upstream references:
 
 - GopherLua: https://github.com/yuin/gopher-lua
 - robfig cron: https://pkg.go.dev/github.com/robfig/cron/v3
@@ -15,14 +15,14 @@ Planned upstream dependencies:
 
 Lua surfaces use one shared sandbox runtime package and one shared Go/Lua conversion layer. Sandboxes must not expose filesystem access, shell execution, raw sockets, unrestricted HTTP, direct SQLite handles, raw Go pointers, backend store/service handles, Shoutrrr secrets, or OpenRouter keys.
 
-Planned Lua-capable surfaces:
+Lua-capable surfaces:
 
-- cron jobs;
-- ticket hooks;
-- custom ticket create pages;
-- incoming webhooks;
-- outgoing webhooks;
-- notification hooks.
+- cron jobs: first API/scheduler slice implemented;
+- ticket hooks: **Planned**;
+- custom ticket create pages: **Planned**;
+- incoming webhooks: **Planned**;
+- outgoing webhooks: **Planned**;
+- notification hooks: **Planned**.
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist.
 
@@ -72,9 +72,13 @@ if err then
 end
 ```
 
-## Planned Cron Jobs
+## Cron Jobs
 
-Cron jobs will use robfig cron for schedules and GopherLua for execution. Jobs act as their owner user, inherit the owner's current RBAC permissions at run time, and should not overlap by default.
+Cron jobs use robfig cron for schedules and GopherLua for execution. The first public API/scheduler slice supports cron job CRUD, manual runs, and run history. Jobs act as their owner user, inherit the owner's current RBAC permissions at run time, and should not overlap by default.
+
+Cron job management requires automation permissions. Disabled users cannot run owned cron jobs.
+
+Run history uses the shared automation run-history model. A run record is used for scheduled and manual runs and may include trigger type, job identity, owner/project context when applicable, input/output summaries, logs, status, error details, start/finish timestamps, duration, and applied limits. Run history must not expose secrets.
 
 Example shape:
 

@@ -8,6 +8,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -23,6 +24,7 @@ type options struct {
 	tracker     *tracker.Service
 	attachments *attachments.Service
 	comments    *comments.Service
+	cron        *cronjobs.Service
 	search      *search.Service
 }
 
@@ -55,6 +57,12 @@ func WithAttachmentService(service *attachments.Service) Option {
 func WithCommentService(service *comments.Service) Option {
 	return func(options *options) {
 		options.comments = service
+	}
+}
+
+func WithCronService(service *cronjobs.Service) Option {
+	return func(options *options) {
+		options.cron = service
 	}
 }
 
@@ -100,6 +108,9 @@ func NewHandler(opts ...Option) http.Handler {
 	}
 	if options.auth != nil && options.comments != nil {
 		registerCommentRoutes(mux, options.auth, options.comments)
+	}
+	if options.auth != nil && options.cron != nil {
+		registerCronRoutes(mux, options.auth, options.cron)
 	}
 	if options.auth != nil && options.search != nil {
 		registerSearchRoutes(mux, options.auth, options.search)

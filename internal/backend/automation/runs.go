@@ -59,6 +59,7 @@ type FinishInput struct {
 
 type ListInput struct {
 	TriggerType string
+	TriggerRef  string
 	ProjectID   string
 	TicketID    string
 	Status      string
@@ -200,6 +201,10 @@ func (s *RunStore) List(ctx context.Context, input ListInput) ([]Run, error) {
 	if input.TriggerType != "" {
 		where = append(where, "trigger_type = ?")
 		args = append(args, input.TriggerType)
+	}
+	if input.TriggerRef != "" {
+		where = append(where, "trigger_ref = ?")
+		args = append(args, input.TriggerRef)
 	}
 	if input.ProjectID != "" {
 		where = append(where, "project_id = ?")

@@ -142,3 +142,18 @@ Saved views:
 
 Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission.
 
+## Cron Jobs
+
+The first cron automation API/scheduler slice exposes Lua cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/cron-jobs` | Optional list filters where implemented. |
+| `POST` | `/api/cron-jobs` | Cron job definition. |
+| `GET` | `/api/cron-jobs/{cron_job_id}` | none |
+| `PATCH` | `/api/cron-jobs/{cron_job_id}` | Cron job definition updates. |
+| `DELETE` | `/api/cron-jobs/{cron_job_id}` | none |
+| `POST` | `/api/cron-jobs/{cron_job_id}/run` | Starts a manual run. |
+| `GET` | `/api/cron-jobs/{cron_job_id}/runs` | Run history for the job. |
+
+Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. The implemented cron slice is Lua-only; OpenRouter AI automation, ticket hooks, custom create pages, webhooks, and notification hooks are **Planned**.
