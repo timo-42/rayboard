@@ -52,6 +52,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"boards",
 		"board_columns",
 		"sprints",
+		"ticket_labels",
 		"ticket_comments",
 		"ticket_activity",
 		"ticket_attachments",

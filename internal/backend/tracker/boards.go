@@ -635,7 +635,7 @@ func (s *Service) listTicketsForStatus(ctx context.Context, projectID string, st
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate board tickets: %w", err)
 	}
-	return s.attachCustomFieldsToTickets(ctx, tickets)
+	return s.attachTicketDetailsToTickets(ctx, tickets)
 }
 
 func scanProjectStatus(scanner rowScanner) (ProjectStatus, error) {

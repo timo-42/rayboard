@@ -33,6 +33,7 @@ var ticketFilterFields = map[string]string{
 	"sprint_id":        "t.sprint_id",
 	"component_id":     "t.component_id",
 	"version_id":       "t.version_id",
+	"labels":           "",
 	"start_date":       "t.start_date",
 	"due_date":         "t.due_date",
 }
@@ -147,6 +148,18 @@ func (p *filterParser) parseComparison() (wherePart, error) {
 		return wherePart{}, err
 	}
 	value = normalizeFilterValue(field, value)
+	if field == "labels" {
+		if operator == "!=" {
+			return wherePart{
+				SQL:  "NOT EXISTS (SELECT 1 FROM ticket_labels tl WHERE tl.ticket_id = t.id AND tl.label = ?)",
+				Args: []any{value},
+			}, nil
+		}
+		return wherePart{
+			SQL:  "EXISTS (SELECT 1 FROM ticket_labels tl WHERE tl.ticket_id = t.id AND tl.label = ?)",
+			Args: []any{value},
+		}, nil
+	}
 
 	return wherePart{
 		SQL:  sqlField + " " + operator + " ?",
@@ -301,7 +314,7 @@ func normalizeFilterValue(field string, value string) string {
 	switch field {
 	case "project", "key":
 		return strings.ToUpper(value)
-	case "status", "priority", "type":
+	case "status", "priority", "type", "labels":
 		return strings.ToLower(value)
 	default:
 		return value

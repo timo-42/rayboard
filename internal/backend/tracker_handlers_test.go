@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
@@ -137,6 +138,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		"description": "Created through HTTP",
 		"priority":    "High",
 		"type":        "Bug",
+		"labels":      []string{"backend", "API", "backend"},
 		"custom_fields": map[string]any{
 			"severity": "High",
 		},
@@ -157,6 +159,24 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if ticket.CustomFields["severity"] != "High" {
 		t.Fatalf("unexpected ticket custom fields: %#v", ticket.CustomFields)
 	}
+	if !slices.Equal(ticket.Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected ticket labels: %#v", ticket.Labels)
+	}
+
+	getTicketReq := httptest.NewRequest(http.MethodGet, "/api/tickets/"+ticket.ID, nil)
+	getTicketReq.AddCookie(session)
+	getTicket := httptest.NewRecorder()
+	handler.ServeHTTP(getTicket, getTicketReq)
+	if getTicket.Code != http.StatusOK {
+		t.Fatalf("expected get ticket status 200, got %d: %s", getTicket.Code, getTicket.Body.String())
+	}
+	var fetchedTicket tracker.Ticket
+	if err := json.Unmarshal(getTicket.Body.Bytes(), &fetchedTicket); err != nil {
+		t.Fatalf("decode fetched ticket: %v", err)
+	}
+	if !slices.Equal(fetchedTicket.Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected fetched ticket labels: %#v", fetchedTicket.Labels)
+	}
 
 	boardTicketsReq := httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID+"/tickets", nil)
 	boardTicketsReq.AddCookie(session)
@@ -172,9 +192,13 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if len(boardTicketsBody.Columns) != 3 || len(boardTicketsBody.Columns[0].Tickets) != 1 {
 		t.Fatalf("unexpected board tickets: %#v", boardTicketsBody)
 	}
+	if !slices.Equal(boardTicketsBody.Columns[0].Tickets[0].Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected board ticket labels: %#v", boardTicketsBody.Columns[0].Tickets[0].Labels)
+	}
 
 	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
-		"title": "Second API ticket",
+		"title":  "Second API ticket",
+		"labels": []string{"docs"},
 		"custom_fields": map[string]any{
 			"severity": "Low",
 		},
@@ -188,6 +212,26 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	var second tracker.Ticket
 	if err := json.Unmarshal(createSecond.Body.Bytes(), &second); err != nil {
 		t.Fatalf("decode second ticket: %v", err)
+	}
+	if !slices.Equal(second.Labels, []string{"docs"}) {
+		t.Fatalf("unexpected second ticket labels: %#v", second.Labels)
+	}
+
+	listByLabelReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/tickets?label=Backend", nil)
+	listByLabelReq.AddCookie(session)
+	listByLabel := httptest.NewRecorder()
+	handler.ServeHTTP(listByLabel, listByLabelReq)
+	if listByLabel.Code != http.StatusOK {
+		t.Fatalf("expected list by label status 200, got %d: %s", listByLabel.Code, listByLabel.Body.String())
+	}
+	var labelList struct {
+		Items []tracker.Ticket `json:"items"`
+	}
+	if err := json.Unmarshal(listByLabel.Body.Bytes(), &labelList); err != nil {
+		t.Fatalf("decode label ticket list: %v", err)
+	}
+	if len(labelList.Items) != 1 || labelList.Items[0].ID != ticket.ID || !slices.Equal(labelList.Items[0].Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected label ticket list: %#v", labelList.Items)
 	}
 
 	reorderBacklogReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/backlog", mustJSON(t, map[string]any{
@@ -216,12 +260,16 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if len(backlog.Items) != 2 || backlog.Items[0].ID != second.ID || backlog.Items[0].Rank != "000001" {
 		t.Fatalf("unexpected backlog: %#v", backlog.Items)
 	}
+	if !slices.Equal(backlog.Items[0].Labels, []string{"docs"}) {
+		t.Fatalf("unexpected backlog labels: %#v", backlog.Items[0].Labels)
+	}
 
 	createEpicReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
 		"title":      "Roadmap epic",
 		"type":       "Epic",
 		"start_date": "2026-07-01",
 		"due_date":   "2026-07-31",
+		"labels":     []string{"roadmap"},
 		"custom_fields": map[string]any{
 			"severity": "High",
 		},
@@ -270,6 +318,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 	if len(roadmapBody.Items) != 1 || roadmapBody.Items[0].Epic.ID != epic.ID || roadmapBody.Items[0].Progress.Total != 1 || roadmapBody.Items[0].Progress.Done != 1 {
 		t.Fatalf("unexpected roadmap body: %#v", roadmapBody.Items)
+	}
+	if !slices.Equal(roadmapBody.Items[0].Epic.Labels, []string{"roadmap"}) {
+		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Items[0].Epic.Labels)
 	}
 
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{

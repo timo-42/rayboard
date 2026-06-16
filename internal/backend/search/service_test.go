@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -64,7 +65,7 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	}
 
 	name := "My Open Bugs"
-	columns := []string{"KEY", "updated_at", "START_DATE", "due_date", "key"}
+	columns := []string{"KEY", "updated_at", "START_DATE", "due_date", "labels", "key"}
 	updated, err := service.UpdateSavedView(ctx, member, personal.ID, search.UpdateSavedViewInput{
 		Name:    &name,
 		Columns: &columns,
@@ -72,7 +73,7 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update personal saved view: %v", err)
 	}
-	if updated.Name != name || len(updated.Columns) != 4 || updated.Columns[0] != "key" || updated.Columns[1] != "updated_at" || updated.Columns[2] != "start_date" || updated.Columns[3] != "due_date" {
+	if updated.Name != name || len(updated.Columns) != 5 || updated.Columns[0] != "key" || updated.Columns[1] != "updated_at" || updated.Columns[2] != "start_date" || updated.Columns[3] != "due_date" || updated.Columns[4] != "labels" {
 		t.Fatalf("expected normalized columns, got %#v", updated.Columns)
 	}
 
@@ -160,6 +161,7 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Description: "OAuth callback stack trace",
 		Status:      "todo",
 		AssigneeID:  "user-member",
+		Labels:      []string{"backend", "auth"},
 		UpdatedAt:   fixedNow().Add(-3 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
@@ -168,6 +170,7 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Key:       "CORE-2",
 		Title:     "Billing issue",
 		Status:    "done",
+		Labels:    []string{"docs"},
 		UpdatedAt: fixedNow().Add(-2 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
@@ -177,6 +180,7 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Title:       "Login panic in private ops",
 		Description: "Should not be visible to core member",
 		Status:      "todo",
+		Labels:      []string{"backend"},
 		UpdatedAt:   fixedNow().Add(-1 * time.Hour),
 	})
 	seedComment(t, ctx, db.SQL, "comment-core-2", "ticket-core-2", "panic also appears in a comment")
@@ -206,6 +210,9 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		t.Fatalf("search panic: %v", err)
 	}
 	assertTicketIDs(t, result.Tickets, "ticket-core-1", "ticket-core-2")
+	if !slices.Equal(result.Tickets[0].Labels, []string{"auth", "backend"}) || !slices.Equal(result.Tickets[1].Labels, []string{"docs"}) {
+		t.Fatalf("unexpected search labels: %#v", result.Tickets)
+	}
 
 	filtered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
 		Filter: `project == "core" && status != "Done"`,
@@ -215,6 +222,27 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		t.Fatalf("search filter: %v", err)
 	}
 	assertTicketIDs(t, filtered.Tickets, "ticket-core-1")
+
+	backendLabel, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `labels == "Backend"`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search label: %v", err)
+	}
+	assertTicketIDs(t, backendLabel.Tickets, "ticket-core-1")
+	if !slices.Equal(backendLabel.Tickets[0].Labels, []string{"auth", "backend"}) {
+		t.Fatalf("unexpected backend label result labels: %#v", backendLabel.Tickets[0].Labels)
+	}
+
+	notBackendLabel, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `labels != "backend"`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search not label: %v", err)
+	}
+	assertTicketIDs(t, notBackendLabel.Tickets, "ticket-core-2")
 
 	if _, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{ProjectID: "project-ops", Text: "panic"}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected project search forbidden, got %v", err)
@@ -310,6 +338,7 @@ type testTicket struct {
 	Description string
 	Status      string
 	AssigneeID  string
+	Labels      []string
 	UpdatedAt   time.Time
 }
 
@@ -426,6 +455,15 @@ func seedTicket(t *testing.T, ctx context.Context, db *sql.DB, ticket testTicket
 	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, ticket.Description, ticket.Status, nullableString(ticket.AssigneeID), formatTime(fixedNow()), formatTime(ticket.UpdatedAt))
 	if err != nil {
 		t.Fatalf("seed ticket %s: %v", ticket.ID, err)
+	}
+	for _, label := range ticket.Labels {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO ticket_labels (ticket_id, label, created_at)
+			VALUES (?, ?, ?)
+		`, ticket.ID, label, formatTime(fixedNow()))
+		if err != nil {
+			t.Fatalf("seed ticket label %s/%s: %v", ticket.ID, label, err)
+		}
 	}
 }
 

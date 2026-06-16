@@ -275,6 +275,14 @@ func (r *Repository) listTickets(ctx context.Context, q sqlRunner, input ListTic
 		query += " AND version_id = ?"
 		args = append(args, input.VersionID)
 	}
+	if input.Label != "" {
+		query += ` AND id IN (
+			SELECT ticket_id
+			FROM ticket_labels
+			WHERE label = ?
+		)`
+		args = append(args, input.Label)
+	}
 	query += " ORDER BY created_at DESC, key DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 

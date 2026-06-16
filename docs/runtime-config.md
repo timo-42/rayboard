@@ -33,7 +33,7 @@ rayboard frontend --frontend-addr 0.0.0.0:8080 --backend-url http://127.0.0.1:80
 
 The backend uses `modernc.org/sqlite`. Foreign keys are enabled on every connection, `busy_timeout` is set to 5000 ms, and WAL mode is enabled for file-backed databases.
 
-Migrations are embedded under `internal/backend/migrations`. The initial schema includes users, sessions, API tokens, groups, group memberships, roles, role permissions, role bindings, projects, tickets, comments, activity, attachments, saved views, automation run records, notifications, and SQLite FTS5 virtual tables for ticket and comment text.
+Migrations are embedded under `internal/backend/migrations`. The initial schema includes users, sessions, API tokens, groups, group memberships, roles, role permissions, role bindings, projects, tickets, ticket labels, comments, activity, attachments, saved views, automation run records, notifications, and SQLite FTS5 virtual tables for ticket and comment text.
 
 ## Admin Bootstrap
 
@@ -56,4 +56,3 @@ browser UI -> frontend server -> backend HTTP API -> services -> repositories ->
 ```
 
 In current `frontend` mode, `/api/*` requests are reverse-proxied to `--backend-url`. In `combined` mode, both servers run in the same process but still expose separate frontend and backend listeners.
-

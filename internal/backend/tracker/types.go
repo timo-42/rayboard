@@ -108,6 +108,7 @@ type Ticket struct {
 	Rank           string         `json:"rank,omitempty"`
 	StartDate      string         `json:"start_date,omitempty"`
 	DueDate        string         `json:"due_date,omitempty"`
+	Labels         []string       `json:"labels,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
@@ -130,6 +131,7 @@ type CreateTicketInput struct {
 	Rank           string         `json:"rank"`
 	StartDate      string         `json:"start_date"`
 	DueDate        string         `json:"due_date"`
+	Labels         []string       `json:"labels"`
 	CustomFields   map[string]any `json:"custom_fields"`
 }
 
@@ -140,6 +142,7 @@ type ListTicketsInput struct {
 	SprintID    string `json:"sprint_id"`
 	ComponentID string `json:"component_id"`
 	VersionID   string `json:"version_id"`
+	Label       string `json:"label"`
 	Limit       int    `json:"limit"`
 	Offset      int    `json:"offset"`
 }
@@ -158,6 +161,7 @@ type UpdateTicketInput struct {
 	Rank           *string         `json:"rank,omitempty"`
 	StartDate      *string         `json:"start_date,omitempty"`
 	DueDate        *string         `json:"due_date,omitempty"`
+	Labels         *[]string       `json:"labels,omitempty"`
 	CustomFields   *map[string]any `json:"custom_fields,omitempty"`
 }
 

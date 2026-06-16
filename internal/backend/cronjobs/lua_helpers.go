@@ -82,6 +82,10 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		if !ok {
 			return pushLuaError(L, sandbox, "custom_fields must be a table")
 		}
+		labels, ok := stringSliceValue(input, "labels")
+		if !ok {
+			return pushLuaError(L, sandbox, "labels must be an array of strings")
+		}
 		ticket, err := s.tracker.CreateTicket(ctx, cronPrincipal(job), tracker.CreateTicketInput{
 			ProjectID:      stringValue(input, "project_id"),
 			Title:          stringValue(input, "title"),
@@ -96,6 +100,7 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			ComponentID:    stringValue(input, "component_id"),
 			VersionID:      stringValue(input, "version_id"),
 			Rank:           stringValue(input, "rank"),
+			Labels:         labels,
 			CustomFields:   customFields,
 		})
 		return pushLuaResult(L, sandbox, ticket, err)
@@ -115,6 +120,10 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		if !ok {
 			return pushLuaError(L, sandbox, "custom_fields must be a table")
 		}
+		labels, hasLabels, ok := optionalStringSliceValue(input, "labels")
+		if !ok {
+			return pushLuaError(L, sandbox, "labels must be an array of strings")
+		}
 		update := tracker.UpdateTicketInput{
 			Title:          optionalString(input, "title"),
 			Description:    optionalString(input, "description"),
@@ -130,6 +139,9 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		}
 		if hasCustomFields {
 			update.CustomFields = &customFields
+		}
+		if hasLabels {
+			update.Labels = &labels
 		}
 		ticket, err := s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketIDValue(input), update)
 		return pushLuaResult(L, sandbox, ticket, err)
@@ -253,6 +265,31 @@ func optionalString(input map[string]any, key string) *string {
 	}
 	value := stringValue(input, key)
 	return &value
+}
+
+func stringSliceValue(input map[string]any, key string) ([]string, bool) {
+	values, _, ok := optionalStringSliceValue(input, key)
+	return values, ok
+}
+
+func optionalStringSliceValue(input map[string]any, key string) ([]string, bool, bool) {
+	value, exists := input[key]
+	if !exists || value == nil {
+		return nil, false, true
+	}
+	items, ok := value.([]any)
+	if !ok {
+		return nil, true, false
+	}
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		text, ok := item.(string)
+		if !ok {
+			return nil, true, false
+		}
+		values = append(values, text)
+	}
+	return values, true, true
 }
 
 func intValue(input map[string]any, key string) int {

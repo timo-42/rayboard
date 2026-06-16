@@ -53,6 +53,7 @@ var allowedColumns = map[string]struct{}{
 	"sprint_id":        {},
 	"component_id":     {},
 	"version_id":       {},
+	"labels":           {},
 	"start_date":       {},
 	"due_date":         {},
 	"rank":             {},

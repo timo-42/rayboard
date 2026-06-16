@@ -157,7 +157,8 @@ func TestCronJobLuaRayboardHelpers(t *testing.T) {
 local ticket, err = rayboard.create_ticket({
   project_id = "project-1",
   title = "Lua-created ticket",
-  description = "Created from a cron script"
+  description = "Created from a cron script",
+  labels = {"Backend", "Lua"}
 })
 if err then error(err.message) end
 
@@ -169,7 +170,8 @@ if comment_err then error(comment_err.message) end
 
 local updated, update_err = rayboard.update_ticket({
   ticket_id = ticket.id,
-  priority = "High"
+  priority = "High",
+  labels = {"automation", "Backend"}
 })
 if update_err then error(update_err.message) end
 
@@ -178,12 +180,12 @@ if get_err then error(get_err.message) end
 
 local results, search_err = rayboard.search({
   project_id = "project-1",
-  text = "Lua-created",
+  filter = 'labels == "automation"',
   limit = 10
 })
 if search_err then error(search_err.message) end
 
-rayboard.log(fetched.key .. ":" .. tostring(#results.items))
+rayboard.log(fetched.key .. ":" .. tostring(#fetched.labels) .. ":" .. fetched.labels[1] .. ":" .. tostring(#results.items))
 `,
 	})
 	if err != nil {
@@ -204,7 +206,7 @@ rayboard.log(fetched.key .. ":" .. tostring(#results.items))
 		t.Fatalf("expected one comment")
 	}
 	logs, ok := run.Output["logs"].([]any)
-	if !ok || len(logs) != 1 || logs[0] != "AUTO-1:1" {
+	if !ok || len(logs) != 1 || logs[0] != "AUTO-1:2:automation:1" {
 		t.Fatalf("unexpected helper logs: %#v", run.Output)
 	}
 }

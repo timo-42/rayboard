@@ -82,15 +82,17 @@ Creating a user with an empty password generates a random password and returns i
 | `GET` | `/api/projects` | Optional `include_archived=true`, `limit`, `offset`. |
 | `POST` | `/api/projects` | `{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}` |
 | `GET` | `/api/projects/{project_id}` | none |
-| `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `limit`, `offset`. |
-| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","custom_fields":{}}` |
+| `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `label`, `limit`, `offset`. |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}` |
 | `GET` | `/api/tickets/{ticket_id}` | none |
-| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `custom_fields`. |
+| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
 Ticket statuses are stored as strings. Workflow status APIs define the ordered project-scoped status slugs available to a project.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
+
+Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. There are no separate label CRUD endpoints in this slice.
 
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
@@ -255,7 +257,7 @@ Search returns:
 }
 ```
 
-Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `start_date`, and `due_date`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `labels`, `start_date`, and `due_date`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
 
 Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, `priority`, `start_date`, and `due_date`.
 
@@ -273,7 +275,7 @@ Saved views:
 | `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
-Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `start_date` and `due_date`. Only project-scoped views can be pinned.
+Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `labels`, `start_date`, and `due_date`. Only project-scoped views can be pinned.
 
 ## Notifications
 

@@ -31,5 +31,4 @@ The command exercises normal backend validation, permissions, and activity behav
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global/project role bindings, components, versions, workflows, boards, backlog ordering, sprints, epics, comments, labels, custom fields, saved CEL query examples, Lua cron jobs, ticket hooks, and custom create pages.
-
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global/project role bindings, components, versions, workflows, boards, backlog ordering, sprints, epics, comments, richer label coverage on seeded tickets, custom fields, saved CEL query examples, Lua cron jobs, ticket hooks, and custom create pages.

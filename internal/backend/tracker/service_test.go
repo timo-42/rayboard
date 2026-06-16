@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -128,12 +129,16 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 		Priority:   "High",
 		Type:       "Bug",
 		AssigneeID: "user-assignee",
+		Labels:     []string{"Backend", "backend", "API"},
 	})
 	if err != nil {
 		t.Fatalf("create ticket: %v", err)
 	}
 	if ticket.Key != "CORE-1" || ticket.Status != "todo" || ticket.Priority != "high" || ticket.Type != "bug" || ticket.ReporterID != "user-member" {
 		t.Fatalf("unexpected ticket: %#v", ticket)
+	}
+	if !slices.Equal(ticket.Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected created labels: %#v", ticket.Labels)
 	}
 
 	second, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Second ticket"})
@@ -177,13 +182,41 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	if got.Title != title || got.Status != "in_progress" {
 		t.Fatalf("unexpected fetched ticket: %#v", got)
 	}
+	if !slices.Equal(got.Labels, []string{"api", "backend"}) {
+		t.Fatalf("expected fetched labels to be preserved, got %#v", got.Labels)
+	}
 
-	listed, err := service.ListTickets(ctx, member, tracker.ListTicketsInput{ProjectID: project.ID, Status: "in_progress"})
+	listed, err := service.ListTickets(ctx, member, tracker.ListTicketsInput{ProjectID: project.ID, Status: "in_progress", Label: "Backend"})
 	if err != nil {
 		t.Fatalf("list tickets: %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != ticket.ID {
+	if len(listed) != 1 || listed[0].ID != ticket.ID || !slices.Equal(listed[0].Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected tickets: %#v", listed)
+	}
+
+	labels := []string{"Docs", "api"}
+	updatedLabels, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Labels: &labels})
+	if err != nil {
+		t.Fatalf("update labels: %v", err)
+	}
+	if !slices.Equal(updatedLabels.Labels, []string{"api", "docs"}) {
+		t.Fatalf("unexpected updated labels: %#v", updatedLabels.Labels)
+	}
+	emptyTitlePreserve := "Labels preserved"
+	preserved, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Title: &emptyTitlePreserve})
+	if err != nil {
+		t.Fatalf("update without labels: %v", err)
+	}
+	if !slices.Equal(preserved.Labels, []string{"api", "docs"}) {
+		t.Fatalf("expected omitted labels to preserve existing labels, got %#v", preserved.Labels)
+	}
+	cleared := []string{}
+	clearedLabels, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Labels: &cleared})
+	if err != nil {
+		t.Fatalf("clear labels: %v", err)
+	}
+	if len(clearedLabels.Labels) != 0 {
+		t.Fatalf("expected cleared labels, got %#v", clearedLabels.Labels)
 	}
 
 	activities, err = service.ListTicketActivity(ctx, member, ticket.ID)
@@ -191,7 +224,7 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 		t.Fatalf("list updated activity: %v", err)
 	}
 	updatedActivity := ticketActivityByType(activities, "ticket.updated")
-	if len(activities) != 2 || updatedActivity == nil {
+	if len(activities) != 5 || updatedActivity == nil {
 		t.Fatalf("unexpected activity after update: %#v", activities)
 	}
 	changes, ok := updatedActivity.Data["changes"].(map[string]any)
@@ -228,6 +261,19 @@ func TestTicketValidationNotFoundAndAuthorization(t *testing.T) {
 
 	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID}); !errors.Is(err, tracker.ErrValidation) {
 		t.Fatalf("expected validation error, got %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Bad label", Labels: []string{""}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected empty label validation error, got %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Bad label", Labels: []string{"not valid"}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected invalid label validation error, got %v", err)
+	}
+	manyLabels := make([]string, 51)
+	for index := range manyLabels {
+		manyLabels[index] = "label_" + string(rune('a'+index%26))
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Too many labels", Labels: manyLabels}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected too many labels validation error, got %v", err)
 	}
 	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: "missing-project", Title: "Missing"}); !errors.Is(err, tracker.ErrNotFound) {
 		t.Fatalf("expected not found, got %v", err)

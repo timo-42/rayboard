@@ -212,6 +212,10 @@ func (s *Service) ListTickets(ctx context.Context, principal authz.Principal, in
 		fields["status"] = "Must be a lowercase slug"
 	}
 	input.AssigneeID = strings.TrimSpace(input.AssigneeID)
+	input.Label = normalizeSlug(input.Label)
+	if input.Label != "" && !slugPattern.MatchString(input.Label) {
+		fields["label"] = "Must be a lowercase slug"
+	}
 	addListFieldErrors(fields, input.Limit, input.Offset)
 	if len(fields) > 0 {
 		return nil, validationFailed(fields)
@@ -224,7 +228,7 @@ func (s *Service) ListTickets(ctx context.Context, principal authz.Principal, in
 	if err != nil {
 		return nil, err
 	}
-	return s.attachCustomFieldsToTickets(ctx, tickets)
+	return s.attachTicketDetailsToTickets(ctx, tickets)
 }
 
 func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
@@ -240,7 +244,7 @@ func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, tick
 	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(ticket.ProjectID)); err != nil {
 		return Ticket{}, err
 	}
-	return s.attachCustomFields(ctx, ticket)
+	return s.attachTicketDetails(ctx, ticket)
 }
 
 func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, ticketID string, input UpdateTicketInput) (Ticket, error) {
@@ -272,6 +276,12 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 			return &ConflictError{Resource: "project", Field: "archived_at", Value: project.ID, Message: "project is archived"}
 		}
 
+		currentLabels, err := s.loadTicketLabelsFrom(ctx, tx, current.ID)
+		if err != nil {
+			return err
+		}
+		current.Labels = currentLabels
+
 		candidate, changes, err := s.applyTicketUpdate(ctx, tx, current, input)
 		if err != nil {
 			return err
@@ -284,7 +294,8 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 				return err
 			}
 		}
-		if len(changes) == 0 && !customChanged {
+		labelsChanged := input.Labels != nil && !equalStringSlices(current.Labels, candidate.Labels)
+		if len(changes) == 0 && !customChanged && !labelsChanged {
 			updated = current
 			return nil
 		}
@@ -299,10 +310,18 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 			}
 			candidate.CustomFields = customFieldValueMap(customValues)
 		}
+		if labelsChanged {
+			if err := s.replaceTicketLabels(ctx, tx, candidate.ID, candidate.Labels, candidate.UpdatedAt); err != nil {
+				return err
+			}
+		}
 
 		eventData = map[string]any{"changes": changes}
 		if customChanged {
 			eventData["custom_fields"] = "updated"
+		}
+		if labelsChanged {
+			eventData["labels"] = candidate.Labels
 		}
 		activityID, err := newID("activity")
 		if err != nil {
@@ -336,7 +355,7 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 		})
 	}
 
-	return s.attachCustomFields(ctx, updated)
+	return s.attachTicketDetails(ctx, updated)
 }
 
 func (s *Service) ListTicketActivity(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketActivity, error) {
@@ -441,6 +460,9 @@ func (s *Service) createTicketOnce(ctx context.Context, principal authz.Principa
 		if err := s.repo.insertTicket(ctx, tx, ticket); err != nil {
 			return err
 		}
+		if err := s.replaceTicketLabels(ctx, tx, ticket.ID, ticket.Labels, ticket.CreatedAt); err != nil {
+			return err
+		}
 		if err := s.replaceTicketCustomFieldValues(ctx, tx, ticket.ID, customValues, ticket.CreatedAt); err != nil {
 			return err
 		}
@@ -450,6 +472,9 @@ func (s *Service) createTicketOnce(ctx context.Context, principal authz.Principa
 			"key":    ticket.Key,
 			"title":  ticket.Title,
 			"status": ticket.Status,
+		}
+		if len(ticket.Labels) > 0 {
+			eventData["labels"] = ticket.Labels
 		}
 		activityID, err := newID("activity")
 		if err != nil {
@@ -522,6 +547,10 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		fields["rank"] = "Must be 200 characters or fewer"
 	}
 	validateTicketDates(fields, startDate, dueDate)
+	labels, err := normalizeTicketLabels(input.Labels)
+	if err != nil {
+		return Ticket{}, err
+	}
 
 	if len(fields) > 0 {
 		return Ticket{}, validationFailed(fields)
@@ -568,6 +597,7 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		Rank:           rank,
 		StartDate:      startDate,
 		DueDate:        dueDate,
+		Labels:         labels,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}, nil
@@ -661,6 +691,13 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	if input.DueDate != nil {
 		next.DueDate = strings.TrimSpace(*input.DueDate)
 	}
+	if input.Labels != nil {
+		labels, err := normalizeTicketLabels(*input.Labels)
+		if err != nil {
+			return Ticket{}, nil, err
+		}
+		next.Labels = labels
+	}
 	validateTicketDates(fields, next.StartDate, next.DueDate)
 
 	if len(fields) > 0 {
@@ -696,6 +733,9 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	addChange(changes, "rank", current.Rank, next.Rank)
 	addChange(changes, "start_date", current.StartDate, next.StartDate)
 	addChange(changes, "due_date", current.DueDate, next.DueDate)
+	if input.Labels != nil && !equalStringSlices(current.Labels, next.Labels) {
+		changes["labels"] = ticketFieldChange{Old: strings.Join(current.Labels, ","), New: strings.Join(next.Labels, ",")}
+	}
 
 	return next, changes, nil
 }

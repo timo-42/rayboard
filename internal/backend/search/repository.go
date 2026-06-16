@@ -370,7 +370,7 @@ func (r *Repository) searchTickets(ctx context.Context, q sqlRunner, input ticke
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate tickets: %w", err)
 	}
-	return tickets, nil
+	return r.attachTicketLabels(ctx, q, tickets)
 }
 
 func (r *Repository) projectExists(ctx context.Context, q sqlRunner, projectID string) (bool, error) {
@@ -529,6 +529,49 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	}
 	ticket.DeletedAt = parseNullableTime(deletedAt)
 	return ticket, nil
+}
+
+func (r *Repository) attachTicketLabels(ctx context.Context, q sqlRunner, tickets []Ticket) ([]Ticket, error) {
+	if len(tickets) == 0 {
+		return tickets, nil
+	}
+
+	placeholders := make([]string, len(tickets))
+	args := make([]any, len(tickets))
+	for index, ticket := range tickets {
+		placeholders[index] = "?"
+		args[index] = ticket.ID
+	}
+
+	rows, err := q.QueryContext(ctx, `
+		SELECT ticket_id, label
+		FROM ticket_labels
+		WHERE ticket_id IN (`+strings.Join(placeholders, ", ")+`)
+		ORDER BY ticket_id ASC, label ASC
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("load ticket labels: %w", err)
+	}
+	defer rows.Close()
+
+	labelsByTicket := map[string][]string{}
+	for rows.Next() {
+		var ticketID string
+		var label string
+		if err := rows.Scan(&ticketID, &label); err != nil {
+			return nil, fmt.Errorf("scan ticket label: %w", err)
+		}
+		labelsByTicket[ticketID] = append(labelsByTicket[ticketID], label)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket labels: %w", err)
+	}
+	for index := range tickets {
+		if labels := labelsByTicket[tickets[index].ID]; len(labels) > 0 {
+			tickets[index].Labels = labels
+		}
+	}
+	return tickets, nil
 }
 
 func inClause(field string, values []string) (string, []any) {

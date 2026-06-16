@@ -381,6 +381,7 @@ func (route trackerRoute) listTickets(w http.ResponseWriter, r *http.Request, pr
 		SprintID:    r.URL.Query().Get("sprint_id"),
 		ComponentID: r.URL.Query().Get("component_id"),
 		VersionID:   r.URL.Query().Get("version_id"),
+		Label:       r.URL.Query().Get("label"),
 		Limit:       limit,
 		Offset:      offset,
 	})

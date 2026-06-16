@@ -62,7 +62,7 @@ func (s *Service) ListRoadmap(ctx context.Context, principal authz.Principal, pr
 	for index := range items {
 		epics[index] = items[index].Epic
 	}
-	epics, err = s.attachCustomFieldsToTickets(ctx, epics)
+	epics, err = s.attachTicketDetailsToTickets(ctx, epics)
 	if err != nil {
 		return nil, err
 	}

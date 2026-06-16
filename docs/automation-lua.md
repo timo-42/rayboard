@@ -96,8 +96,8 @@ Implemented cron Lua helpers:
 - `rayboard.log(message)`
 - `rayboard.search({ project_id, filter, text, sort, limit, cursor })`
 - `rayboard.get_ticket({ ticket_id })`
-- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, custom_fields })`
-- `rayboard.update_ticket({ ticket_id, title, description, status, priority, type, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, custom_fields })`
+- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, labels, custom_fields })`
+- `rayboard.update_ticket({ ticket_id, title, description, status, priority, type, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, labels, custom_fields })`
 - `rayboard.comment({ ticket_id, body })`
 
 These helpers return `value, nil` on success and `nil, { message = "..." }` on failure. Each helper goes through the normal backend service and RBAC path using the cron job owner as an `AuthKindCron` principal.
@@ -123,13 +123,21 @@ Example create/comment shape:
 ```lua
 local ticket, err = rayboard.create_ticket({
   project_id = "project_...",
-  title = "Investigate recurring alert"
+  title = "Investigate recurring alert",
+  labels = {"automation", "triage"}
 })
 if err then return { error = err.message } end
 
+local matching, search_err = rayboard.search({
+  project_id = "project_...",
+  filter = 'labels == "automation"',
+  limit = 10
+})
+if search_err then return { error = search_err.message } end
+
 local comment, comment_err = rayboard.comment({
   ticket_id = ticket.id,
-  body = "Created by scheduled triage."
+  body = "Created by scheduled triage for " .. tostring(#matching.items) .. " matching tickets."
 })
 if comment_err then return { error = comment_err.message } end
 ```
