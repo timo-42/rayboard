@@ -42,6 +42,15 @@ func registerAuthRoutes(mux *http.ServeMux, authService *auth.Service, authorize
 	mux.HandleFunc("GET /api/users/{user_id}", route.requireAuth(route.getUser))
 	mux.HandleFunc("PATCH /api/users/{user_id}", route.requireAuth(route.updateUser))
 	mux.HandleFunc("DELETE /api/users/{user_id}", route.requireAuth(route.deleteUser))
+	mux.HandleFunc("GET /api/groups", route.requireAuth(route.listGroups))
+	mux.HandleFunc("POST /api/groups", route.requireAuth(route.createGroup))
+	mux.HandleFunc("GET /api/groups/{group_id}/members", route.requireAuth(route.listGroupMembers))
+	mux.HandleFunc("POST /api/groups/{group_id}/members/{user_id}", route.requireAuth(route.addGroupMember))
+	mux.HandleFunc("DELETE /api/groups/{group_id}/members/{user_id}", route.requireAuth(route.removeGroupMember))
+	mux.HandleFunc("GET /api/roles", route.requireAuth(route.listRoles))
+	mux.HandleFunc("GET /api/role-bindings", route.requireAuth(route.listRoleBindings))
+	mux.HandleFunc("POST /api/role-bindings", route.requireAuth(route.createRoleBinding))
+	mux.HandleFunc("DELETE /api/role-bindings/{binding_id}", route.requireAuth(route.deleteRoleBinding))
 }
 
 type loginRequest struct {
@@ -71,6 +80,19 @@ type createUserRequest struct {
 
 type updateUserRequest struct {
 	Disabled *bool `json:"disabled"`
+}
+
+type createGroupRequest struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+}
+
+type createRoleBindingRequest struct {
+	RoleName    authz.RoleName          `json:"role_name"`
+	SubjectType authz.BindingTargetKind `json:"subject_type"`
+	SubjectID   string                  `json:"subject_id"`
+	Scope       string                  `json:"scope"`
+	ProjectID   string                  `json:"project_id"`
 }
 
 func (route authRoute) login(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +235,127 @@ func (route authRoute) deleteUser(w http.ResponseWriter, r *http.Request, princi
 		return
 	}
 	if err := route.auth.DeleteUser(r.Context(), r.PathValue("user_id")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route authRoute) listGroups(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionGroupsRead, authz.GlobalScope()) {
+		return
+	}
+	groups, err := route.auth.ListGroups(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": groups})
+}
+
+func (route authRoute) createGroup(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionGroupsWrite, authz.GlobalScope()) {
+		return
+	}
+	var request createGroupRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	group, err := route.auth.CreateGroup(r.Context(), auth.CreateGroupInput{
+		Name:        request.Name,
+		DisplayName: request.DisplayName,
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, group)
+}
+
+func (route authRoute) listGroupMembers(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionGroupsRead, authz.GlobalScope()) {
+		return
+	}
+	users, err := route.auth.ListGroupMembers(r.Context(), r.PathValue("group_id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": users})
+}
+
+func (route authRoute) addGroupMember(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionGroupsWrite, authz.GlobalScope()) {
+		return
+	}
+	if err := route.auth.AddGroupMember(r.Context(), r.PathValue("group_id"), r.PathValue("user_id")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route authRoute) removeGroupMember(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionGroupsWrite, authz.GlobalScope()) {
+		return
+	}
+	if err := route.auth.RemoveGroupMember(r.Context(), r.PathValue("group_id"), r.PathValue("user_id")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route authRoute) listRoles(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionRolesRead, authz.GlobalScope()) {
+		return
+	}
+	roles, err := route.auth.ListRoles(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": roles})
+}
+
+func (route authRoute) listRoleBindings(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionRolesRead, authz.GlobalScope()) {
+		return
+	}
+	bindings, err := route.auth.ListRoleBindings(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": bindings})
+}
+
+func (route authRoute) createRoleBinding(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionRolesBind, authz.GlobalScope()) {
+		return
+	}
+	var request createRoleBindingRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	binding, err := route.auth.CreateRoleBinding(r.Context(), auth.CreateRoleBindingInput{
+		RoleName:    request.RoleName,
+		SubjectType: request.SubjectType,
+		SubjectID:   request.SubjectID,
+		Scope:       requestScope(request),
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, binding)
+}
+
+func (route authRoute) deleteRoleBinding(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionRolesBind, authz.GlobalScope()) {
+		return
+	}
+	if err := route.auth.DeleteRoleBinding(r.Context(), r.PathValue("binding_id")); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -373,6 +516,17 @@ func mutatesState(method string) bool {
 		return false
 	default:
 		return true
+	}
+}
+
+func requestScope(request createRoleBindingRequest) authz.Scope {
+	switch request.Scope {
+	case "", string(authz.ScopeKindGlobal):
+		return authz.GlobalScope()
+	case string(authz.ScopeKindProject):
+		return authz.ProjectScope(request.ProjectID)
+	default:
+		return authz.Scope{}
 	}
 }
 

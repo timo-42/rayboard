@@ -200,6 +200,94 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 	}
 }
 
+func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+	)
+
+	adminLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	adminSession := responseCookie(t, adminLogin.Result(), auth.SessionCookieName)
+	adminCSRF := responseCookie(t, adminLogin.Result(), csrfCookieName)
+
+	createUserReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
+		"username": "delegate",
+	}))
+	addSessionCSRF(createUserReq, adminSession, adminCSRF)
+	createUser := httptest.NewRecorder()
+	handler.ServeHTTP(createUser, createUserReq)
+	if createUser.Code != http.StatusCreated {
+		t.Fatalf("expected create user status 201, got %d: %s", createUser.Code, createUser.Body.String())
+	}
+	var createdUser auth.CreatedUser
+	if err := json.Unmarshal(createUser.Body.Bytes(), &createdUser); err != nil {
+		t.Fatalf("decode created user: %v", err)
+	}
+
+	userLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": createdUser.Username,
+		"password": createdUser.Password,
+	}, nil)
+	userSession := responseCookie(t, userLogin.Result(), auth.SessionCookieName)
+
+	deniedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	deniedReq.AddCookie(userSession)
+	denied := httptest.NewRecorder()
+	handler.ServeHTTP(denied, deniedReq)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("expected initial delegate status 403, got %d: %s", denied.Code, denied.Body.String())
+	}
+
+	createGroupReq := httptest.NewRequest(http.MethodPost, "/api/groups", mustJSON(t, map[string]any{
+		"name":         "delegates",
+		"display_name": "Delegates",
+	}))
+	addSessionCSRF(createGroupReq, adminSession, adminCSRF)
+	createGroup := httptest.NewRecorder()
+	handler.ServeHTTP(createGroup, createGroupReq)
+	if createGroup.Code != http.StatusCreated {
+		t.Fatalf("expected create group status 201, got %d: %s", createGroup.Code, createGroup.Body.String())
+	}
+	var group auth.Group
+	if err := json.Unmarshal(createGroup.Body.Bytes(), &group); err != nil {
+		t.Fatalf("decode group: %v", err)
+	}
+
+	addMemberReq := httptest.NewRequest(http.MethodPost, "/api/groups/"+group.ID+"/members/"+createdUser.ID, nil)
+	addSessionCSRF(addMemberReq, adminSession, adminCSRF)
+	addMember := httptest.NewRecorder()
+	handler.ServeHTTP(addMember, addMemberReq)
+	if addMember.Code != http.StatusNoContent {
+		t.Fatalf("expected add member status 204, got %d: %s", addMember.Code, addMember.Body.String())
+	}
+
+	createBindingReq := httptest.NewRequest(http.MethodPost, "/api/role-bindings", mustJSON(t, map[string]any{
+		"role_name":    authz.RoleGlobalUserManager,
+		"subject_type": authz.BindingTargetGroup,
+		"subject_id":   group.ID,
+		"scope":        authz.ScopeKindGlobal,
+	}))
+	addSessionCSRF(createBindingReq, adminSession, adminCSRF)
+	createBinding := httptest.NewRecorder()
+	handler.ServeHTTP(createBinding, createBindingReq)
+	if createBinding.Code != http.StatusCreated {
+		t.Fatalf("expected create binding status 201, got %d: %s", createBinding.Code, createBinding.Body.String())
+	}
+
+	allowedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	allowedReq.AddCookie(userSession)
+	allowed := httptest.NewRecorder()
+	handler.ServeHTTP(allowed, allowedReq)
+	if allowed.Code != http.StatusOK {
+		t.Fatalf("expected existing session to gain access status 200, got %d: %s", allowed.Code, allowed.Body.String())
+	}
+}
+
 func openBackendTestDB(t *testing.T, ctx context.Context) (*store.DB, auth.BootstrapAdminResult) {
 	t.Helper()
 
