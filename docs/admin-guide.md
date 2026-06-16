@@ -39,7 +39,7 @@ OpenRouter provider configuration is currently API-only at `/api/openrouter-prov
 
 Project notification defaults are currently API-only at `/api/projects/{project_id}/notification-preferences` and require project `notifications:manage`.
 
-Notification policy CRUD is currently API-only. Global policies live under `/api/notification-policies`; project policies live under `/api/projects/{project_id}/notification-policies`. Policies validate event types and destination visibility, but external delivery queues are not implemented yet.
+Notification policy CRUD is currently API-only. Global policies live under `/api/notification-policies`; project policies live under `/api/projects/{project_id}/notification-policies`. Policies validate event types and destination visibility. Delivery history is available under `/api/notification-deliveries` and `/api/projects/{project_id}/notification-deliveries`, with manual retry at `/api/notification-deliveries/{delivery_id}/retry`.
 
 Shoutrrr destination configuration is currently API-only. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only, can be rotated with `PATCH`, and can be verified with `POST /api/notification-destinations/{destination_id}/test-send`.
 
@@ -47,6 +47,6 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 ## Notifications
 
-The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, API-only notification policy CRUD, and API-only Shoutrrr destination CRUD for global and project scopes.
+The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, API-only notification policy CRUD, API-only Shoutrrr destination CRUD for global and project scopes, and API-only delivery history/manual retry.
 
-External delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+The external delivery worker, webhooks, and AI/Lua notification hooks are **Planned**.

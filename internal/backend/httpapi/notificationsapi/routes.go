@@ -27,6 +27,10 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-policies/{policy_id}", "Notification Policies", "Get notification policy"), provider.getPolicy)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-policies/{policy_id}", "Notification Policies", "Update notification policy"), provider.updatePolicy)
 	huma.Register(api, operation(http.MethodDelete, "/api/notification-policies/{policy_id}", "Notification Policies", "Delete notification policy", http.StatusNoContent), provider.deletePolicy)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-deliveries", "Notification Deliveries", "List global notification deliveries"), provider.listGlobalDeliveries)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-deliveries", "Notification Deliveries", "List project notification deliveries"), provider.listProjectDeliveries)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-deliveries/{delivery_id}", "Notification Deliveries", "Get notification delivery"), provider.getDelivery)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/notification-deliveries/{delivery_id}/retry", "Notification Deliveries", "Retry notification delivery"), provider.retryDelivery)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-destinations", "Notification Destinations", "List global notification destinations"), provider.listGlobalDestinations)
 	huma.Register(api, operation(http.MethodPost, "/api/notification-destinations", "Notification Destinations", "Create global notification destination", http.StatusCreated), provider.createGlobalDestination)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-destinations", "Notification Destinations", "List project notification destinations"), provider.listProjectDestinations)
@@ -50,7 +54,7 @@ func (provider Provider) listNotifications(ctx context.Context, input *ListNotif
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListNotificationsOutput{Body: shared.ItemList[NotificationResource]{Items: notificationResources(items)}}, nil
+	return &ListNotificationsOutput{Body: shared.NewListResource[NotificationResource](notificationResources(items))}, nil
 }
 
 func (provider Provider) markAllRead(ctx context.Context, input *MarkAllReadInput) (*shared.EmptyOutput, error) {
@@ -154,7 +158,7 @@ func (provider Provider) listGlobalPolicies(ctx context.Context, input *ListPoli
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListPoliciesOutput{Body: shared.ItemList[PolicyResource]{Items: policyResources(items)}}, nil
+	return &ListPoliciesOutput{Body: shared.NewListResource[PolicyResource](policyResources(items))}, nil
 }
 
 func (provider Provider) createGlobalPolicy(ctx context.Context, input *CreatePolicyInput) (*CreatePolicyOutput, error) {
@@ -187,7 +191,7 @@ func (provider Provider) listProjectPolicies(ctx context.Context, input *Project
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListPoliciesOutput{Body: shared.ItemList[PolicyResource]{Items: policyResources(items)}}, nil
+	return &ListPoliciesOutput{Body: shared.NewListResource[PolicyResource](policyResources(items))}, nil
 }
 
 func (provider Provider) createProjectPolicy(ctx context.Context, input *CreateProjectPolicyInput) (*CreatePolicyOutput, error) {
@@ -257,6 +261,85 @@ func (provider Provider) deletePolicy(ctx context.Context, input *PolicyIDInput)
 	return &shared.EmptyOutput{}, nil
 }
 
+func (provider Provider) listGlobalDeliveries(ctx context.Context, input *ListDeliveriesInput) (*ListDeliveriesOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	items, err := provider.Notifications.ListDeliveries(ctx, notifications.ListDeliveriesInput{
+		ScopeType:     notifications.PolicyScopeGlobal,
+		Status:        input.Status,
+		PolicyID:      input.PolicyID,
+		DestinationID: input.DestinationID,
+		Limit:         input.Limit,
+		Offset:        input.Offset,
+	})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListDeliveriesOutput{Body: shared.NewListResource[DeliveryResource](deliveryResources(items))}, nil
+}
+
+func (provider Provider) listProjectDeliveries(ctx context.Context, input *ProjectDeliveriesInput) (*ListDeliveriesOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	items, err := provider.Notifications.ListDeliveries(ctx, notifications.ListDeliveriesInput{
+		ScopeType:     notifications.PolicyScopeProject,
+		ProjectID:     input.ProjectID,
+		Status:        input.Status,
+		PolicyID:      input.PolicyID,
+		DestinationID: input.DestinationID,
+		Limit:         input.Limit,
+		Offset:        input.Offset,
+	})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListDeliveriesOutput{Body: shared.NewListResource[DeliveryResource](deliveryResources(items))}, nil
+}
+
+func (provider Provider) getDelivery(ctx context.Context, input *DeliveryIDInput) (*DeliveryOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	delivery, err := provider.Notifications.GetDelivery(ctx, input.DeliveryID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireDeliveryManage(principal, delivery); err != nil {
+		return nil, err
+	}
+	return &DeliveryOutput{Body: deliveryResource(delivery)}, nil
+}
+
+func (provider Provider) retryDelivery(ctx context.Context, input *DeliveryIDInput) (*DeliveryOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetDelivery(ctx, input.DeliveryID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireDeliveryManage(principal, current); err != nil {
+		return nil, err
+	}
+	delivery, err := provider.Notifications.RetryDelivery(ctx, input.DeliveryID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &DeliveryOutput{Body: deliveryResource(delivery)}, nil
+}
+
 func (provider Provider) listGlobalDestinations(ctx context.Context, input *ListDestinationsInput) (*ListDestinationsOutput, error) {
 	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
 	if err != nil {
@@ -269,7 +352,7 @@ func (provider Provider) listGlobalDestinations(ctx context.Context, input *List
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListDestinationsOutput{Body: shared.ItemList[DestinationResource]{Items: destinationResources(items)}}, nil
+	return &ListDestinationsOutput{Body: shared.NewListResource[DestinationResource](destinationResources(items))}, nil
 }
 
 func (provider Provider) createGlobalDestination(ctx context.Context, input *CreateDestinationInput) (*CreateDestinationOutput, error) {
@@ -305,7 +388,7 @@ func (provider Provider) listProjectDestinations(ctx context.Context, input *Pro
 	if err != nil {
 		return nil, shared.NotificationError(err)
 	}
-	return &ListDestinationsOutput{Body: shared.ItemList[DestinationResource]{Items: destinationResources(items)}}, nil
+	return &ListDestinationsOutput{Body: shared.NewListResource[DestinationResource](destinationResources(items))}, nil
 }
 
 func (provider Provider) createProjectDestination(ctx context.Context, input *CreateProjectDestinationInput) (*CreateDestinationOutput, error) {
@@ -423,6 +506,14 @@ func (provider Provider) requirePolicyManage(principal authz.Principal, policy n
 	scope := authz.GlobalScope()
 	if policy.ScopeType == notifications.PolicyScopeProject {
 		scope = authz.ProjectScope(policy.ProjectID)
+	}
+	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
+}
+
+func (provider Provider) requireDeliveryManage(principal authz.Principal, delivery notifications.Delivery) error {
+	scope := authz.GlobalScope()
+	if delivery.ScopeType == notifications.PolicyScopeProject {
+		scope = authz.ProjectScope(delivery.ProjectID)
 	}
 	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
 }

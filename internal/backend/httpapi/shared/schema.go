@@ -3,7 +3,14 @@ package shared
 type EmptyOutput struct {
 }
 
-type ItemList[T any] struct {
+type ListMetadata struct {
+	Count int `json:"count"`
+}
+
+type ListSpec struct {
+}
+
+type ListStatus[T any] struct {
 	Items []T `json:"items"`
 }
 
@@ -17,8 +24,18 @@ type Resource[Metadata any, Spec any, Status any] struct {
 	Status   Status   `json:"status"`
 }
 
+type ListResource[T any] = Resource[ListMetadata, ListSpec, ListStatus[T]]
+
+func NewListResource[T any](items []T) ListResource[T] {
+	return ListResource[T]{
+		Metadata: ListMetadata{Count: len(items)},
+		Spec:     ListSpec{},
+		Status:   ListStatus[T]{Items: items},
+	}
+}
+
 type ListOutput[T any] struct {
-	Body ItemList[T]
+	Body ListResource[T]
 }
 
 type CreatedOutput[T any] struct {

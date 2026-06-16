@@ -51,7 +51,7 @@ func (provider Provider) listProjects(ctx context.Context, input *ListProjectsIn
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListProjectsOutput{Body: shared.ItemList[ProjectResource]{Items: projectResources(items)}}, nil
+	return &ListProjectsOutput{Body: shared.NewListResource[ProjectResource](projectResources(items))}, nil
 }
 
 func (provider Provider) createProject(ctx context.Context, input *CreateProjectInput) (*CreateProjectOutput, error) {
@@ -87,7 +87,7 @@ func (provider Provider) listBacklog(ctx context.Context, input *ProjectIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
+	return &ListTicketsOutput{Body: shared.NewListResource[ticketapi.TicketResource](ticketapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) reorderBacklog(ctx context.Context, input *ReorderBacklogInput) (*ListTicketsOutput, error) {
@@ -99,7 +99,7 @@ func (provider Provider) reorderBacklog(ctx context.Context, input *ReorderBackl
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
+	return &ListTicketsOutput{Body: shared.NewListResource[ticketapi.TicketResource](ticketapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) listStatuses(ctx context.Context, input *ProjectIDInput) (*ListStatusesOutput, error) {
@@ -111,7 +111,7 @@ func (provider Provider) listStatuses(ctx context.Context, input *ProjectIDInput
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListStatusesOutput{Body: shared.ItemList[ProjectStatusResource]{Items: projectStatusResources(items)}}, nil
+	return &ListStatusesOutput{Body: shared.NewListResource[ProjectStatusResource](projectStatusResources(items))}, nil
 }
 
 func (provider Provider) replaceStatuses(ctx context.Context, input *ReplaceStatusesInput) (*ListStatusesOutput, error) {
@@ -123,7 +123,7 @@ func (provider Provider) replaceStatuses(ctx context.Context, input *ReplaceStat
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListStatusesOutput{Body: shared.ItemList[ProjectStatusResource]{Items: projectStatusResources(items)}}, nil
+	return &ListStatusesOutput{Body: shared.NewListResource[ProjectStatusResource](projectStatusResources(items))}, nil
 }
 
 func (provider Provider) listBoards(ctx context.Context, input *ProjectIDInput) (*ListBoardsOutput, error) {
@@ -135,7 +135,7 @@ func (provider Provider) listBoards(ctx context.Context, input *ProjectIDInput) 
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListBoardsOutput{Body: shared.ItemList[boardapi.BoardResource]{Items: boardapi.ResourcesFromTracker(items)}}, nil
+	return &ListBoardsOutput{Body: shared.NewListResource[boardapi.BoardResource](boardapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) createBoard(ctx context.Context, input *CreateBoardInput) (*CreateBoardOutput, error) {
@@ -159,7 +159,7 @@ func (provider Provider) listComponents(ctx context.Context, input *ProjectIDInp
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListComponentsOutput{Body: shared.ItemList[componentapi.ComponentResource]{Items: componentapi.ResourcesFromTracker(items)}}, nil
+	return &ListComponentsOutput{Body: shared.NewListResource[componentapi.ComponentResource](componentapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) createComponent(ctx context.Context, input *CreateComponentInput) (*CreateComponentOutput, error) {
@@ -183,7 +183,7 @@ func (provider Provider) listVersions(ctx context.Context, input *ListVersionsIn
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListVersionsOutput{Body: shared.ItemList[versionapi.VersionResource]{Items: versionapi.ResourcesFromTracker(items)}}, nil
+	return &ListVersionsOutput{Body: shared.NewListResource[versionapi.VersionResource](versionapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) createVersion(ctx context.Context, input *CreateVersionInput) (*CreateVersionOutput, error) {
@@ -207,7 +207,7 @@ func (provider Provider) listCustomFields(ctx context.Context, input *ProjectIDI
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListCustomFieldsOutput{Body: shared.ItemList[fieldapi.FieldResource]{Items: fieldapi.ResourcesFromTracker(items)}}, nil
+	return &ListCustomFieldsOutput{Body: shared.NewListResource[fieldapi.FieldResource](fieldapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) createCustomField(ctx context.Context, input *CreateCustomFieldInput) (*CreateCustomFieldOutput, error) {
@@ -241,7 +241,7 @@ func (provider Provider) listTickets(ctx context.Context, input *ListTicketsInpu
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
+	return &ListTicketsOutput{Body: shared.NewListResource[ticketapi.TicketResource](ticketapi.ResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) createTicket(ctx context.Context, input *CreateTicketInput) (*CreateTicketOutput, error) {
@@ -265,7 +265,7 @@ func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListRoadmapOutput{Body: shared.ItemList[RoadmapItemResource]{Items: roadmapItemResources(items)}}, nil
+	return &ListRoadmapOutput{Body: shared.NewListResource[RoadmapItemResource](roadmapItemResources(items))}, nil
 }
 
 func (provider Provider) listSprints(ctx context.Context, input *ListSprintsInput) (*ListSprintsOutput, error) {
@@ -277,7 +277,7 @@ func (provider Provider) listSprints(ctx context.Context, input *ListSprintsInpu
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListSprintsOutput{Body: shared.ItemList[sprintapi.SprintResource]{Items: sprintapi.Resources(items)}}, nil
+	return &ListSprintsOutput{Body: shared.NewListResource[sprintapi.SprintResource](sprintapi.Resources(items))}, nil
 }
 
 func (provider Provider) createSprint(ctx context.Context, input *CreateSprintInput) (*CreateSprintOutput, error) {

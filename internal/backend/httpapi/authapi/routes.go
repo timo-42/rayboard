@@ -33,7 +33,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/groups", "RBAC", "List groups"), provider.listGroups)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/groups", "RBAC", "Create group", http.StatusCreated), provider.createGroup)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/groups/{group_id}/members", "RBAC", "List group members"), provider.listGroupMembers)
-	huma.Register(api, shared.Operation(http.MethodPost, "/api/groups/{group_id}/members/{user_id}", "RBAC", "Add group member"), provider.addGroupMember)
+	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/groups/{group_id}/members/{user_id}", "RBAC", "Add group member", http.StatusNoContent), provider.addGroupMember)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/groups/{group_id}/members/{user_id}", "RBAC", "Remove group member", http.StatusNoContent), provider.removeGroupMember)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/roles", "RBAC", "List roles"), provider.listRoles)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/role-bindings", "RBAC", "List role bindings"), provider.listRoleBindings)
@@ -168,7 +168,7 @@ func (provider Provider) listTokens(ctx context.Context, input *struct{ shared.A
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Could not list API tokens")
 	}
-	return &ListTokensOutput{Body: shared.ItemList[TokenResource]{Items: tokenResources(tokens)}}, nil
+	return &ListTokensOutput{Body: shared.NewListResource[TokenResource](tokenResources(tokens))}, nil
 }
 
 func (provider Provider) createToken(ctx context.Context, input *CreateTokenInput) (*CreateTokenOutput, error) {
@@ -235,7 +235,7 @@ func (provider Provider) listUsers(ctx context.Context, input *struct{ shared.Au
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListUsersOutput{Body: shared.ItemList[UserResource]{Items: userResources(users)}}, nil
+	return &ListUsersOutput{Body: shared.NewListResource[UserResource](userResources(users))}, nil
 }
 
 func (provider Provider) createUser(ctx context.Context, input *CreateUserInput) (*CreateUserOutput, error) {
@@ -390,7 +390,7 @@ func (provider Provider) listGroups(ctx context.Context, input *struct{ shared.A
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListGroupsOutput{Body: shared.ItemList[GroupResource]{Items: groupResources(groups)}}, nil
+	return &ListGroupsOutput{Body: shared.NewListResource[GroupResource](groupResources(groups))}, nil
 }
 
 func (provider Provider) createGroup(ctx context.Context, input *CreateGroupInput) (*CreateGroupOutput, error) {
@@ -438,7 +438,7 @@ func (provider Provider) listGroupMembers(ctx context.Context, input *GroupIDInp
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListGroupMembersOutput{Body: shared.ItemList[UserResource]{Items: userResources(users)}}, nil
+	return &ListGroupMembersOutput{Body: shared.NewListResource[UserResource](userResources(users))}, nil
 }
 
 func (provider Provider) addGroupMember(ctx context.Context, input *GroupMemberInput) (*shared.EmptyOutput, error) {
@@ -509,7 +509,7 @@ func (provider Provider) listRoles(ctx context.Context, input *struct{ shared.Au
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListRolesOutput{Body: shared.ItemList[RoleResource]{Items: roleResources(roles)}}, nil
+	return &ListRolesOutput{Body: shared.NewListResource[RoleResource](roleResources(roles))}, nil
 }
 
 func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ shared.AuthInput }) (*ListRoleBindingsOutput, error) {
@@ -524,7 +524,7 @@ func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ sh
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
-	return &ListRoleBindingsOutput{Body: shared.ItemList[RoleBindingResource]{Items: roleBindingResources(bindings)}}, nil
+	return &ListRoleBindingsOutput{Body: shared.NewListResource[RoleBindingResource](roleBindingResources(bindings))}, nil
 }
 
 func (provider Provider) createRoleBinding(ctx context.Context, input *CreateRoleBindingInput) (*CreateRoleBindingOutput, error) {

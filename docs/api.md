@@ -4,7 +4,7 @@ Backend API routes live under `/api`. Requests and responses are JSON unless upl
 
 The backend generates an OpenAPI document in-process with Huma and serves it from the same Rayboard binary. No generated spec file or external docs server is required.
 
-JSON API endpoints use a Kubernetes-inspired object shape. Create/update/action requests use `{"spec": {...}}` when they accept JSON; JSON responses use `{"metadata": {...}, "spec": {...}, "status": {...}}` for resources and resource-like computed views. `metadata` holds identity/bookkeeping, `spec` holds desired user-controlled state or request intent, and `status` holds observed/computed server state. List responses return `{"items":[...]}` where each item follows the resource object shape. Empty `204` responses and binary attachment downloads are the practical exceptions.
+JSON API endpoints use a Kubernetes-inspired object shape. Create/update/action requests use `{"spec": {...}}` when they accept JSON; JSON responses use `{"metadata": {...}, "spec": {...}, "status": {...}}` for resources and resource-like computed views. `metadata` holds identity/bookkeeping, `spec` holds desired user-controlled state or request intent, and `status` holds observed/computed server state. List responses use the same envelope with `metadata.count` and `status.items`; each item follows the resource object shape. Empty `204` responses and binary attachment downloads are the practical exceptions.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
@@ -308,7 +308,7 @@ Saved-view responses use `metadata`, `spec`, and `status`. The view ID and times
 
 ## Notifications
 
-The first notification API slice is in-app only. It lists notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. It does not send external messages.
+The first notification API slice lists in-app notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. External Shoutrrr destinations, policies, and delivery history are API-only; the background external delivery worker is still planned.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -317,29 +317,33 @@ The first notification API slice is in-app only. It lists notifications for the 
 | `POST` | `/api/notifications/{notification_id}/unread` | Marks one of the current user's notifications unread. |
 | `POST` | `/api/notifications/read-all` | Marks all current user's unread notifications read. |
 
-Notification responses use `metadata`, `spec`, and `status`:
+Notification list responses use the standard list envelope; notification resources use `metadata`, `spec`, and `status`:
 
 ```json
 {
-  "items": [
-    {
-      "metadata": {
-        "id": "notification_...",
-        "user_id": "user_...",
-        "created_at": "2026-06-16T10:30:00Z"
-      },
-      "spec": {
-        "type": "ticket_assigned",
-        "subject_type": "ticket",
-        "subject_id": "ticket_...",
-        "body": "You were assigned CORE-12",
-        "data": {}
-      },
-      "status": {
-        "read_at": null
+  "metadata": {"count": 1},
+  "spec": {},
+  "status": {
+    "items": [
+      {
+        "metadata": {
+          "id": "notification_...",
+          "user_id": "user_...",
+          "created_at": "2026-06-16T10:30:00Z"
+        },
+        "spec": {
+          "type": "ticket_assigned",
+          "subject_type": "ticket",
+          "subject_id": "ticket_...",
+          "body": "You were assigned CORE-12",
+          "data": {}
+        },
+        "status": {
+          "read_at": null
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -377,7 +381,7 @@ Destination responses use `metadata`, `spec`, and `status`. Scope identity and t
 
 ## Notification Policies
 
-Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice; it stores and validates policy intent but does not enqueue external deliveries yet.
+Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice; it stores and validates policy intent. Delivery queue rows are represented separately so workers can process or retry them without exposing destination secrets.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -391,7 +395,20 @@ Notification policies define which event types should route to named destination
 
 Supported policy event types are `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, `release_changed`, and `automation_failed`. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
 
-Dashboard/view notification policies, recipient rules, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+## Notification Deliveries
+
+Notification deliveries are the durable queue/history foundation for external notification sending. They snapshot policy and destination names/service at queue time, keep delivery state in `status`, and never expose raw Shoutrrr URLs. Manual retry requeues failed or canceled deliveries for immediate processing. The external background worker that drains this queue is still planned.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/notification-deliveries` | Global delivery history; optional `status`, `policy_id`, `destination_id`, `limit`, `offset`; requires global `notifications:manage`. |
+| `GET` | `/api/projects/{project_id}/notification-deliveries` | Project delivery history; optional `status`, `policy_id`, `destination_id`, `limit`, `offset`; requires project `notifications:manage`. |
+| `GET` | `/api/notification-deliveries/{delivery_id}` | Delivery resource; requires notification management permission for that delivery scope. |
+| `POST` | `/api/notification-deliveries/{delivery_id}/retry` | Requeue a failed or canceled delivery. |
+
+Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error.
+
+Dashboard/view notification policies, recipient rules, notification hooks, the external delivery worker, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

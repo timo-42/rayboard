@@ -74,6 +74,30 @@ type UpdatePolicyInput struct {
 	Body     shared.ResourceInput[UpdatePolicySpec]
 }
 
+type ListDeliveriesInput struct {
+	shared.AuthInput
+	Status        string `query:"status" doc:"Filter by delivery status."`
+	PolicyID      string `query:"policy_id" doc:"Filter by notification policy ID."`
+	DestinationID string `query:"destination_id" doc:"Filter by destination ID."`
+	Limit         int    `query:"limit" doc:"Maximum number of deliveries to return."`
+	Offset        int    `query:"offset" doc:"Number of deliveries to skip."`
+}
+
+type ProjectDeliveriesInput struct {
+	shared.AuthInput
+	ProjectID     string `path:"project_id" doc:"Project ID."`
+	Status        string `query:"status" doc:"Filter by delivery status."`
+	PolicyID      string `query:"policy_id" doc:"Filter by notification policy ID."`
+	DestinationID string `query:"destination_id" doc:"Filter by destination ID."`
+	Limit         int    `query:"limit" doc:"Maximum number of deliveries to return."`
+	Offset        int    `query:"offset" doc:"Number of deliveries to skip."`
+}
+
+type DeliveryIDInput struct {
+	shared.AuthInput
+	DeliveryID string `path:"delivery_id" doc:"Notification delivery ID."`
+}
+
 type ListDestinationsInput struct {
 	shared.AuthInput
 }
@@ -121,11 +145,16 @@ type PreferencesOutput struct {
 }
 type ListPoliciesOutput = shared.ListOutput[PolicyResource]
 type CreatePolicyOutput = shared.CreatedOutput[PolicyResource]
+type ListDeliveriesOutput = shared.ListOutput[DeliveryResource]
 type ListDestinationsOutput = shared.ListOutput[DestinationResource]
 type CreateDestinationOutput = shared.CreatedOutput[DestinationResource]
 
 type PolicyOutput struct {
 	Body PolicyResource
+}
+
+type DeliveryOutput struct {
+	Body DeliveryResource
 }
 
 type DestinationOutput struct {
@@ -223,6 +252,41 @@ type PolicyStatus struct {
 }
 
 type PolicyResource = shared.Resource[PolicyMetadata, PolicySpec, PolicyStatus]
+
+type DeliveryMetadata struct {
+	ID                 string    `json:"id"`
+	DomainEventID      string    `json:"domain_event_id,omitempty"`
+	IdempotencyKey     string    `json:"idempotency_key,omitempty"`
+	ScopeType          string    `json:"scope_type"`
+	ProjectID          string    `json:"project_id,omitempty"`
+	PolicyID           string    `json:"policy_id,omitempty"`
+	PolicyName         string    `json:"policy_name,omitempty"`
+	DestinationID      string    `json:"destination_id,omitempty"`
+	DestinationName    string    `json:"destination_name,omitempty"`
+	DestinationService string    `json:"destination_service,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type DeliverySpec struct {
+	EventType   string         `json:"event_type"`
+	SubjectType string         `json:"subject_type,omitempty"`
+	SubjectID   string         `json:"subject_id,omitempty"`
+	Message     string         `json:"message"`
+	Payload     map[string]any `json:"payload"`
+	MaxAttempts int            `json:"max_attempts"`
+}
+
+type DeliveryStatus struct {
+	State         string     `json:"state"`
+	AttemptCount  int        `json:"attempt_count"`
+	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
+	LastAttemptAt *time.Time `json:"last_attempt_at,omitempty"`
+	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
+}
+
+type DeliveryResource = shared.Resource[DeliveryMetadata, DeliverySpec, DeliveryStatus]
 
 type DestinationMetadata struct {
 	ID          string    `json:"id"`
@@ -381,6 +445,49 @@ func policyResources(policies []notifications.Policy) []PolicyResource {
 	resources := make([]PolicyResource, 0, len(policies))
 	for _, policy := range policies {
 		resources = append(resources, policyResource(policy))
+	}
+	return resources
+}
+
+func deliveryResource(delivery notifications.Delivery) DeliveryResource {
+	return DeliveryResource{
+		Metadata: DeliveryMetadata{
+			ID:                 delivery.ID,
+			DomainEventID:      delivery.DomainEventID,
+			IdempotencyKey:     delivery.IdempotencyKey,
+			ScopeType:          delivery.ScopeType,
+			ProjectID:          delivery.ProjectID,
+			PolicyID:           delivery.PolicyID,
+			PolicyName:         delivery.PolicyName,
+			DestinationID:      delivery.DestinationID,
+			DestinationName:    delivery.DestinationName,
+			DestinationService: delivery.DestinationService,
+			CreatedAt:          delivery.CreatedAt,
+			UpdatedAt:          delivery.UpdatedAt,
+		},
+		Spec: DeliverySpec{
+			EventType:   delivery.EventType,
+			SubjectType: delivery.SubjectType,
+			SubjectID:   delivery.SubjectID,
+			Message:     delivery.Message,
+			Payload:     delivery.Payload,
+			MaxAttempts: delivery.MaxAttempts,
+		},
+		Status: DeliveryStatus{
+			State:         delivery.Status,
+			AttemptCount:  delivery.AttemptCount,
+			NextAttemptAt: delivery.NextAttemptAt,
+			LastAttemptAt: delivery.LastAttemptAt,
+			DeliveredAt:   delivery.DeliveredAt,
+			LastError:     delivery.LastError,
+		},
+	}
+}
+
+func deliveryResources(deliveries []notifications.Delivery) []DeliveryResource {
+	resources := make([]DeliveryResource, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		resources = append(resources, deliveryResource(delivery))
 	}
 	return resources
 }

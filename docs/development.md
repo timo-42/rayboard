@@ -47,7 +47,7 @@ Current packages:
 
 Backend HTTP route packages are resource-focused. Each package keeps `routes.go` for route registration/thin handlers, `schema.go` for Huma/OpenAPI request and response DTOs, and `provider.go` for dependency wiring. Huma DTOs are the source of the generated OpenAPI request/response body schemas served by the binary.
 
-New JSON DTOs should follow the Rayboard resource object convention: create/update/action `Input` bodies contain `spec`, and JSON `Output` bodies contain `metadata`, `spec`, and `status` for resources or resource-like computed views. List outputs contain `items`, and each item should use the same resource object shape when it represents API state.
+New JSON DTOs should follow the Rayboard resource object convention: create/update/action `Input` bodies contain `spec`, and JSON `Output` bodies contain `metadata`, `spec`, and `status` for resources or resource-like computed views. List outputs use the same envelope with `metadata.count` and `status.items`; each item should use the same resource object shape when it represents API state.
 
 ## Migration Rules
 

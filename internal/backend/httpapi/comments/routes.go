@@ -20,7 +20,7 @@ func Register(api huma.API, provider Provider) {
 
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}/comments", commentsTag, "List ticket comments"), route.list)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/tickets/{ticket_id}/comments", commentsTag, "Create ticket comment", http.StatusCreated), route.create)
-	huma.Register(api, shared.Operation(http.MethodDelete, "/api/comments/{comment_id}", commentsTag, "Delete comment"), route.delete)
+	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/comments/{comment_id}", commentsTag, "Delete comment", http.StatusNoContent), route.delete)
 }
 
 func (r routes) list(ctx context.Context, input *listCommentsInput) (*listCommentsOutput, error) {
@@ -33,7 +33,7 @@ func (r routes) list(ctx context.Context, input *listCommentsInput) (*listCommen
 	if err != nil {
 		return nil, shared.CommentError(err)
 	}
-	return &listCommentsOutput{Body: shared.ItemList[CommentResource]{Items: commentResources(items)}}, nil
+	return &listCommentsOutput{Body: shared.NewListResource[CommentResource](commentResources(items))}, nil
 }
 
 func (r routes) create(ctx context.Context, input *createCommentInput) (*createCommentOutput, error) {

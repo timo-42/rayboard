@@ -52,13 +52,15 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list statuses status 200, got %d: %s", listStatuses.Code, listStatuses.Body.String())
 	}
 	var statusBody struct {
-		Items []projectStatusResourceBody `json:"items"`
+		Status struct {
+			Items []projectStatusResourceBody `json:"items"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(listStatuses.Body.Bytes(), &statusBody); err != nil {
 		t.Fatalf("decode statuses: %v", err)
 	}
-	if len(statusBody.Items) != 3 || statusBody.Items[0].Spec.Slug != "todo" {
-		t.Fatalf("unexpected statuses: %#v", statusBody.Items)
+	if len(statusBody.Status.Items) != 3 || statusBody.Status.Items[0].Spec.Slug != "todo" {
+		t.Fatalf("unexpected statuses: %#v", statusBody.Status.Items)
 	}
 
 	replaceStatusesReq := httptest.NewRequest(http.MethodPut, "/api/projects/"+project.ID+"/statuses", mustJSON(t, map[string]any{
@@ -237,13 +239,15 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list by label status 200, got %d: %s", listByLabel.Code, listByLabel.Body.String())
 	}
 	var labelList struct {
-		Items []ticketResourceBody `json:"items"`
+		Status struct {
+			Items []ticketResourceBody `json:"items"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(listByLabel.Body.Bytes(), &labelList); err != nil {
 		t.Fatalf("decode label ticket list: %v", err)
 	}
-	if len(labelList.Items) != 1 || labelList.Items[0].Metadata.ID != ticket.ID || !slices.Equal(labelList.Items[0].Spec.Labels, []string{"api", "backend"}) {
-		t.Fatalf("unexpected label ticket list: %#v", labelList.Items)
+	if len(labelList.Status.Items) != 1 || labelList.Status.Items[0].Metadata.ID != ticket.ID || !slices.Equal(labelList.Status.Items[0].Spec.Labels, []string{"api", "backend"}) {
+		t.Fatalf("unexpected label ticket list: %#v", labelList.Status.Items)
 	}
 
 	reorderBacklogReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/backlog", mustJSON(t, map[string]any{
@@ -266,16 +270,18 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list backlog status 200, got %d: %s", listBacklog.Code, listBacklog.Body.String())
 	}
 	var backlog struct {
-		Items []ticketResourceBody `json:"items"`
+		Status struct {
+			Items []ticketResourceBody `json:"items"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(listBacklog.Body.Bytes(), &backlog); err != nil {
 		t.Fatalf("decode backlog: %v", err)
 	}
-	if len(backlog.Items) != 2 || backlog.Items[0].Metadata.ID != second.ID || backlog.Items[0].Spec.Rank != "000001" {
-		t.Fatalf("unexpected backlog: %#v", backlog.Items)
+	if len(backlog.Status.Items) != 2 || backlog.Status.Items[0].Metadata.ID != second.ID || backlog.Status.Items[0].Spec.Rank != "000001" {
+		t.Fatalf("unexpected backlog: %#v", backlog.Status.Items)
 	}
-	if !slices.Equal(backlog.Items[0].Spec.Labels, []string{"docs"}) {
-		t.Fatalf("unexpected backlog labels: %#v", backlog.Items[0].Spec.Labels)
+	if !slices.Equal(backlog.Status.Items[0].Spec.Labels, []string{"docs"}) {
+		t.Fatalf("unexpected backlog labels: %#v", backlog.Status.Items[0].Spec.Labels)
 	}
 
 	createEpicReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
@@ -326,23 +332,25 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected roadmap status 200, got %d: %s", roadmap.Code, roadmap.Body.String())
 	}
 	var roadmapBody struct {
-		Items []struct {
-			Spec struct {
-				Epic ticketResourceBody `json:"epic"`
-			} `json:"spec"`
-			Status struct {
-				Progress tracker.RoadmapProgress `json:"progress"`
-			} `json:"status"`
-		} `json:"items"`
+		Status struct {
+			Items []struct {
+				Spec struct {
+					Epic ticketResourceBody `json:"epic"`
+				} `json:"spec"`
+				Status struct {
+					Progress tracker.RoadmapProgress `json:"progress"`
+				} `json:"status"`
+			} `json:"items"`
+		} `json:"status"`
 	}
 	if err := json.Unmarshal(roadmap.Body.Bytes(), &roadmapBody); err != nil {
 		t.Fatalf("decode roadmap: %v", err)
 	}
-	if len(roadmapBody.Items) != 1 || roadmapBody.Items[0].Spec.Epic.Metadata.ID != epic.ID || roadmapBody.Items[0].Status.Progress.Total != 1 || roadmapBody.Items[0].Status.Progress.Done != 1 {
-		t.Fatalf("unexpected roadmap body: %#v", roadmapBody.Items)
+	if len(roadmapBody.Status.Items) != 1 || roadmapBody.Status.Items[0].Spec.Epic.Metadata.ID != epic.ID || roadmapBody.Status.Items[0].Status.Progress.Total != 1 || roadmapBody.Status.Items[0].Status.Progress.Done != 1 {
+		t.Fatalf("unexpected roadmap body: %#v", roadmapBody.Status.Items)
 	}
-	if !slices.Equal(roadmapBody.Items[0].Spec.Epic.Spec.Labels, []string{"roadmap"}) {
-		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Items[0].Spec.Epic.Spec.Labels)
+	if !slices.Equal(roadmapBody.Status.Items[0].Spec.Epic.Spec.Labels, []string{"roadmap"}) {
+		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Status.Items[0].Spec.Epic.Spec.Labels)
 	}
 
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{

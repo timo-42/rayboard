@@ -13,7 +13,7 @@ type listCommentsInput struct {
 }
 
 type listCommentsOutput struct {
-	Body shared.ItemList[CommentResource]
+	Body shared.ListResource[CommentResource]
 }
 
 type createCommentInput struct {

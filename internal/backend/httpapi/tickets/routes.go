@@ -50,7 +50,7 @@ func (provider Provider) listActivity(ctx context.Context, input *TicketIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ActivityOutput{Body: shared.ItemList[ActivityResource]{Items: ActivityResourcesFromTracker(items)}}, nil
+	return &ActivityOutput{Body: shared.NewListResource[ActivityResource](ActivityResourcesFromTracker(items))}, nil
 }
 
 func (provider Provider) assignSprint(ctx context.Context, input *AssignSprintInput) (*TicketOutput, error) {

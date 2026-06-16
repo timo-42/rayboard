@@ -32,7 +32,7 @@ func (provider Provider) listJobs(ctx context.Context, input *ListJobsInput) (*L
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &ListJobsOutput{Body: shared.ItemList[JobResource]{Items: jobResources(jobs)}}, nil
+	return &ListJobsOutput{Body: shared.NewListResource[JobResource](jobResources(jobs))}, nil
 }
 
 func (provider Provider) createJob(ctx context.Context, input *CreateJobInput) (*CreateJobOutput, error) {
@@ -103,7 +103,7 @@ func (provider Provider) listRuns(ctx context.Context, input *ListRunsInput) (*L
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &ListRunsOutput{Body: shared.ItemList[RunResource]{Items: runResources(runs)}}, nil
+	return &ListRunsOutput{Body: shared.NewListResource[RunResource](runResources(runs))}, nil
 }
 
 func operation(method string, path string, tag string, summary string, status int) huma.Operation {

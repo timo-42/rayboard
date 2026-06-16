@@ -44,7 +44,7 @@ func (provider Provider) listSavedViews(ctx context.Context, input *ListSavedVie
 	if err != nil {
 		return nil, shared.SearchError(err)
 	}
-	return &ListSavedViewsOutput{Body: shared.ItemList[SavedViewResource]{Items: savedViewResources(views)}}, nil
+	return &ListSavedViewsOutput{Body: shared.NewListResource[SavedViewResource](savedViewResources(views))}, nil
 }
 
 func (provider Provider) createSavedView(ctx context.Context, input *CreateSavedViewInput) (*CreateSavedViewOutput, error) {

@@ -28,7 +28,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}/attachments", attachmentsTag, "List ticket attachments"), route.list)
 	route.registerUpload(api)
 	huma.Register(api, downloadAttachmentOperation(), route.download)
-	huma.Register(api, shared.Operation(http.MethodDelete, "/api/attachments/{attachment_id}", attachmentsTag, "Delete attachment"), route.delete)
+	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/attachments/{attachment_id}", attachmentsTag, "Delete attachment", http.StatusNoContent), route.delete)
 }
 
 func (r routes) list(ctx context.Context, input *listAttachmentsInput) (*listAttachmentsOutput, error) {
@@ -41,7 +41,7 @@ func (r routes) list(ctx context.Context, input *listAttachmentsInput) (*listAtt
 	if err != nil {
 		return nil, shared.AttachmentError(err)
 	}
-	return &listAttachmentsOutput{Body: shared.ItemList[AttachmentResource]{Items: attachmentResources(items)}}, nil
+	return &listAttachmentsOutput{Body: shared.NewListResource[AttachmentResource](attachmentResources(items))}, nil
 }
 
 func (r routes) registerUpload(api huma.API) {

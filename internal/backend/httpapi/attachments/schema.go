@@ -17,7 +17,7 @@ type listAttachmentsInput struct {
 }
 
 type listAttachmentsOutput struct {
-	Body shared.ItemList[AttachmentResource]
+	Body shared.ListResource[AttachmentResource]
 }
 
 type uploadAttachmentInput struct {

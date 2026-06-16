@@ -96,9 +96,9 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"spec"}, []string{"spec", "title"}, []string{"spec", "labels"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "title"}, []string{"status"}, []string{"status", "key"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/backlog", http.MethodPatch, []string{"spec"}, []string{"spec", "ticket_ids"})
-	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/activity", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
+	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/activity", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/statuses", http.MethodPut, []string{"spec"}, []string{"spec", "statuses"})
-	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/statuses", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/statuses", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/boards", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "status_slugs"})
 	assertRequestBodyFields(t, spec, "/api/boards/{board_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "name"})
 	assertResponseBodyFields(t, spec, "/api/boards/{board_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "columns"})
@@ -109,13 +109,13 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/custom-fields", http.MethodPost, []string{"spec"}, []string{"spec", "key"}, []string{"spec", "field_type"})
 	assertResponseBodyFields(t, spec, "/api/custom-fields/{field_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "options"})
 	assertRequestBodyFields(t, spec, "/api/tickets/{ticket_id}/comments", http.MethodPost, []string{"spec"}, []string{"spec", "body"})
-	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/comments", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
-	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/attachments", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"})
+	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/comments", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
+	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/attachments", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertRequestBodyFields(t, spec, "/api/search", http.MethodPost, []string{"spec"}, []string{"spec", "text"}, []string{"spec", "sort"})
 	assertResponseBodyFields(t, spec, "/api/search", http.MethodPost, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertRequestBodyFields(t, spec, "/api/saved-views", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "query"})
 	assertResponseBodyFields(t, spec, "/api/saved-views/{view_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"})
-	assertResponseBodyFields(t, spec, "/api/notifications", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "status"}, []string{"items", "status", "read_at"})
+	assertResponseBodyFields(t, spec, "/api/notifications", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"}, []string{"status", "items", "status", "read_at"})
 	assertResponseBodyFields(t, spec, "/api/me/notification-preferences", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "scope_type"}, []string{"spec"}, []string{"spec", "in_app_enabled"}, []string{"spec", "external_enabled"}, []string{"status"}, []string{"status", "customized"})
 	assertRequestBodyFields(t, spec, "/api/me/notification-preferences", http.MethodPatch, []string{"spec"}, []string{"spec", "in_app_enabled"}, []string{"spec", "external_enabled"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/notification-preferences", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "project_id"}, []string{"spec"}, []string{"status"})
@@ -124,6 +124,10 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/notification-policies/{policy_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "scope_type"}, []string{"spec"}, []string{"spec", "event_types"}, []string{"spec", "destination_ids"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/notification-policies/{policy_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "enabled"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/notification-policies", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "event_types"}, []string{"spec", "destination_ids"})
+	assertResponseBodyFields(t, spec, "/api/notification-deliveries", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "metadata", "scope_type"}, []string{"status", "items", "metadata", "destination_id"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "event_type"}, []string{"status", "items", "status"}, []string{"status", "items", "status", "state"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/notification-deliveries", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
+	assertResponseBodyFields(t, spec, "/api/notification-deliveries/{delivery_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "scope_type"}, []string{"metadata", "destination_id"}, []string{"spec"}, []string{"spec", "event_type"}, []string{"spec", "message"}, []string{"status"}, []string{"status", "state"}, []string{"status", "attempt_count"})
+	assertResponseBodyFields(t, spec, "/api/notification-deliveries/{delivery_id}/retry", http.MethodPost, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"}, []string{"status", "next_attempt_at"})
 	assertRequestBodyFields(t, spec, "/api/notification-destinations", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "shoutrrr_url"}, []string{"spec", "enabled"})
 	assertResponseBodyFields(t, spec, "/api/notification-destinations/{destination_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "scope_type"}, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "type"}, []string{"status"}, []string{"status", "url_set"})
 	assertRequestBodyFields(t, spec, "/api/notification-destinations/{destination_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "shoutrrr_url"}, []string{"spec", "enabled"})
@@ -140,7 +144,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/sprints/{sprint_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
 	assertRequestBodyFields(t, spec, "/api/tickets/{ticket_id}/sprint", http.MethodPut, []string{"spec"}, []string{"spec", "sprint_id"})
 	assertResponseBodyFields(t, spec, "/api/boards/{board_id}/tickets", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "board"}, []string{"status"}, []string{"status", "columns"}, []string{"status", "columns", "tickets"}, []string{"status", "columns", "tickets", "metadata"}, []string{"status", "columns", "tickets", "spec"}, []string{"status", "columns", "tickets", "status"})
-	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"items"}, []string{"items", "metadata"}, []string{"items", "spec"}, []string{"items", "spec", "epic"}, []string{"items", "spec", "epic", "metadata"}, []string{"items", "spec", "epic", "spec"}, []string{"items", "spec", "epic", "status"}, []string{"items", "status"}, []string{"items", "status", "progress"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/roadmap", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "epic"}, []string{"status", "items", "spec", "epic", "metadata"}, []string{"status", "items", "spec", "epic", "spec"}, []string{"status", "items", "spec", "epic", "status"}, []string{"status", "items", "status"}, []string{"status", "items", "status", "progress"})
 	assertOpenAPIUsesResourceConvention(t, spec)
 }
 
@@ -320,14 +324,13 @@ func assertOpenAPIUsesResourceConvention(t *testing.T, spec map[string]any) {
 					continue
 				}
 				schema := resolveSchema(t, spec, mapField(t, media, "schema"))
-				if schemaHasField(t, spec, schema, []string{"items"}) {
-					assertSchemaField(t, spec, schema, []string{"items", "metadata"})
-					assertSchemaField(t, spec, schema, []string{"items", "spec"})
-					assertSchemaField(t, spec, schema, []string{"items", "status"})
-					continue
-				}
 				if !schemaHasField(t, spec, schema, []string{"metadata"}) || !schemaHasField(t, spec, schema, []string{"spec"}) || !schemaHasField(t, spec, schema, []string{"status"}) {
 					t.Fatalf("expected %s %s response %s to use metadata/spec/status resource convention, got %#v", strings.ToUpper(method), path, status, schema)
+				}
+				if schemaHasField(t, spec, schema, []string{"status", "items"}) {
+					assertSchemaField(t, spec, schema, []string{"status", "items", "metadata"})
+					assertSchemaField(t, spec, schema, []string{"status", "items", "spec"})
+					assertSchemaField(t, spec, schema, []string{"status", "items", "status"})
 				}
 			}
 		}

@@ -30,7 +30,7 @@ func (provider Provider) listProviders(ctx context.Context, input *struct{ share
 	if err != nil {
 		return nil, shared.OpenRouterError(err)
 	}
-	return &ListProvidersOutput{Body: shared.ItemList[ProviderResource]{Items: providerResources(providers)}}, nil
+	return &ListProvidersOutput{Body: shared.NewListResource[ProviderResource](providerResources(providers))}, nil
 }
 
 func (provider Provider) createProvider(ctx context.Context, input *CreateProviderInput) (*CreateProviderOutput, error) {
