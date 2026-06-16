@@ -328,4 +328,31 @@ The first cron automation API/scheduler slice exposes Lua cron job management, m
 
 Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. The implemented cron slice is Lua-only.
 
+Cron job engine configuration is nested and reusable across future hooks/webhooks:
+
+```json
+{
+  "name": "Daily triage",
+  "schedule": "0 9 * * *",
+  "timezone": "UTC",
+  "enabled": true,
+  "engine": {
+    "type": "lua",
+    "script": "rayboard.log(\"triage started\")"
+  }
+}
+```
+
+The planned AI form uses the same `engine` object with an OpenRouter provider reference:
+
+```json
+{
+  "engine": {
+    "type": "ai",
+    "prompt": "Return JSON actions for stale tickets.",
+    "provider_id": "ai_provider_default"
+  }
+}
+```
+
 Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. OpenRouter AI automation, ticket hooks, custom create pages, webhooks, and notification hooks are **Planned**.

@@ -30,11 +30,13 @@ func TestCronJobLifecycleAndManualRun(t *testing.T) {
 	principal := authz.Principal{UserID: "user-1", AuthKind: authz.AuthKindSession}
 
 	job, err := service.Create(ctx, principal, CreateInput{
-		Name:      "Daily triage",
-		Schedule:  "0 9 * * *",
-		Timezone:  "UTC",
-		Engine:    EngineLua,
-		LuaSource: `rayboard.log("triage started")`,
+		Name:     "Daily triage",
+		Schedule: "0 9 * * *",
+		Timezone: "UTC",
+		Engine: EngineSpec{
+			Type:   EngineLua,
+			Script: `rayboard.log("triage started")`,
+		},
 	})
 	if err != nil {
 		t.Fatalf("create cron job: %v", err)
@@ -111,19 +113,23 @@ func TestCronJobValidationAndDisabledOwner(t *testing.T) {
 		Name:        "Disabled",
 		Schedule:    "* * * * *",
 		Timezone:    "UTC",
-		Engine:      EngineLua,
-		LuaSource:   `rayboard.log("nope")`,
+		Engine: EngineSpec{
+			Type:   EngineLua,
+			Script: `rayboard.log("nope")`,
+		},
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected disabled owner validation, got %v", err)
 	}
 
 	if _, err := service.Create(ctx, principal, CreateInput{
-		Name:      "AI",
-		Schedule:  "* * * * *",
-		Timezone:  "UTC",
-		Engine:    EngineAI,
-		AIPrompt:  "Return JSON",
-		LuaSource: "",
+		Name:     "AI",
+		Schedule: "* * * * *",
+		Timezone: "UTC",
+		Engine: EngineSpec{
+			Type:       EngineAI,
+			Prompt:     "Return JSON",
+			ProviderID: "openrouter-default",
+		},
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected AI validation, got %v", err)
 	}
@@ -152,8 +158,9 @@ func TestCronJobLuaRayboardHelpers(t *testing.T) {
 	job, err := service.Create(ctx, principal, CreateInput{
 		Name:     "Lua helpers",
 		Schedule: "* * * * *",
-		Engine:   EngineLua,
-		LuaSource: `
+		Engine: EngineSpec{
+			Type: EngineLua,
+			Script: `
 local ticket, err = rayboard.create_ticket({
   project_id = "project-1",
   title = "Lua-created ticket",
@@ -187,6 +194,7 @@ if search_err then error(search_err.message) end
 
 rayboard.log(fetched.key .. ":" .. tostring(#fetched.labels) .. ":" .. fetched.labels[1] .. ":" .. tostring(#results.items))
 `,
+		},
 	})
 	if err != nil {
 		t.Fatalf("create cron job: %v", err)

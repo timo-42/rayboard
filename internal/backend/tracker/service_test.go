@@ -223,7 +223,7 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list updated activity: %v", err)
 	}
-	updatedActivity := ticketActivityByType(activities, "ticket.updated")
+	updatedActivity := ticketActivityWithChanges(activities, "status", "assignee_id")
 	if len(activities) != 5 || updatedActivity == nil {
 		t.Fatalf("unexpected activity after update: %#v", activities)
 	}
@@ -236,6 +236,29 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 func ticketActivityByType(activities []tracker.TicketActivity, activityType string) *tracker.TicketActivity {
 	for index := range activities {
 		if activities[index].ActivityType == activityType {
+			return &activities[index]
+		}
+	}
+	return nil
+}
+
+func ticketActivityWithChanges(activities []tracker.TicketActivity, fields ...string) *tracker.TicketActivity {
+	for index := range activities {
+		if activities[index].ActivityType != "ticket.updated" {
+			continue
+		}
+		changes, ok := activities[index].Data["changes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		matches := true
+		for _, field := range fields {
+			if changes[field] == nil {
+				matches = false
+				break
+			}
+		}
+		if matches {
 			return &activities[index]
 		}
 	}

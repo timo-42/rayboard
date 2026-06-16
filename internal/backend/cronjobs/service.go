@@ -56,9 +56,7 @@ type Job struct {
 	Schedule      string     `json:"schedule"`
 	Timezone      string     `json:"timezone"`
 	Enabled       bool       `json:"enabled"`
-	Engine        string     `json:"engine"`
-	LuaSource     string     `json:"lua_source,omitempty"`
-	AIPrompt      string     `json:"ai_prompt,omitempty"`
+	Engine        EngineSpec `json:"engine"`
 	LastRunStatus string     `json:"last_run_status,omitempty"`
 	LastRunAt     *time.Time `json:"last_run_at,omitempty"`
 	NextRunAt     *time.Time `json:"next_run_at,omitempty"`
@@ -67,28 +65,31 @@ type Job struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
+type EngineSpec struct {
+	Type       string `json:"type" enum:"lua,ai" doc:"Execution engine discriminator."`
+	Script     string `json:"script,omitempty" doc:"Lua script source. Required when type is lua."`
+	Prompt     string `json:"prompt,omitempty" doc:"AI prompt. Required when type is ai."`
+	ProviderID string `json:"provider_id,omitempty" doc:"AI provider configuration ID. Required when type is ai."`
+}
+
 type CreateInput struct {
-	OwnerUserID string `json:"owner_user_id"`
-	ProjectID   string `json:"project_id"`
-	Name        string `json:"name"`
-	Schedule    string `json:"schedule"`
-	Timezone    string `json:"timezone"`
-	Enabled     bool   `json:"enabled"`
-	Engine      string `json:"engine"`
-	LuaSource   string `json:"lua_source"`
-	AIPrompt    string `json:"ai_prompt"`
+	OwnerUserID string     `json:"owner_user_id,omitempty"`
+	ProjectID   string     `json:"project_id,omitempty"`
+	Name        string     `json:"name,omitempty"`
+	Schedule    string     `json:"schedule,omitempty"`
+	Timezone    string     `json:"timezone,omitempty"`
+	Enabled     bool       `json:"enabled,omitempty"`
+	Engine      EngineSpec `json:"engine"`
 }
 
 type UpdateInput struct {
-	OwnerUserID *string `json:"owner_user_id"`
-	ProjectID   *string `json:"project_id"`
-	Name        *string `json:"name"`
-	Schedule    *string `json:"schedule"`
-	Timezone    *string `json:"timezone"`
-	Enabled     *bool   `json:"enabled"`
-	Engine      *string `json:"engine"`
-	LuaSource   *string `json:"lua_source"`
-	AIPrompt    *string `json:"ai_prompt"`
+	OwnerUserID *string     `json:"owner_user_id,omitempty"`
+	ProjectID   *string     `json:"project_id,omitempty"`
+	Name        *string     `json:"name,omitempty"`
+	Schedule    *string     `json:"schedule,omitempty"`
+	Timezone    *string     `json:"timezone,omitempty"`
+	Enabled     *bool       `json:"enabled,omitempty"`
+	Engine      *EngineSpec `json:"engine,omitempty"`
 }
 
 type ListInput struct {
@@ -222,7 +223,7 @@ func (s *Service) List(ctx context.Context, principal authz.Principal, input Lis
 	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, owner_user_id, project_id, name, schedule, timezone, enabled, engine,
-			lua_source, ai_prompt, last_run_status, last_run_at, next_run_at, last_error,
+			lua_source, ai_prompt, ai_provider_id, last_run_status, last_run_at, next_run_at, last_error,
 			created_at, updated_at
 		FROM cron_jobs
 		WHERE `+joinAnd(where)+`
@@ -268,10 +269,10 @@ func (s *Service) Create(ctx context.Context, principal authz.Principal, input C
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO cron_jobs (
 			id, owner_user_id, project_id, name, schedule, timezone, enabled, engine,
-			lua_source, ai_prompt, next_run_at, created_at, updated_at
+			lua_source, ai_prompt, ai_provider_id, next_run_at, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, job.ID, job.OwnerUserID, nullableString(job.ProjectID), job.Name, job.Schedule, job.Timezone, job.Enabled, job.Engine, job.LuaSource, job.AIPrompt, nullableTime(job.NextRunAt), formatTime(job.CreatedAt), formatTime(job.UpdatedAt)); err != nil {
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, job.ID, job.OwnerUserID, nullableString(job.ProjectID), job.Name, job.Schedule, job.Timezone, job.Enabled, job.Engine.Type, job.Engine.Script, job.Engine.Prompt, job.Engine.ProviderID, nullableTime(job.NextRunAt), formatTime(job.CreatedAt), formatTime(job.UpdatedAt)); err != nil {
 		return Job{}, fmt.Errorf("insert cron job: %w", err)
 	}
 	s.refreshSchedule(job)
@@ -309,9 +310,9 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, jobID s
 	if _, err := s.db.ExecContext(ctx, `
 		UPDATE cron_jobs
 		SET owner_user_id = ?, project_id = ?, name = ?, schedule = ?, timezone = ?,
-			enabled = ?, engine = ?, lua_source = ?, ai_prompt = ?, next_run_at = ?, updated_at = ?
+			enabled = ?, engine = ?, lua_source = ?, ai_prompt = ?, ai_provider_id = ?, next_run_at = ?, updated_at = ?
 		WHERE id = ?
-	`, updated.OwnerUserID, nullableString(updated.ProjectID), updated.Name, updated.Schedule, updated.Timezone, updated.Enabled, updated.Engine, updated.LuaSource, updated.AIPrompt, nullableTime(updated.NextRunAt), formatTime(updated.UpdatedAt), updated.ID); err != nil {
+	`, updated.OwnerUserID, nullableString(updated.ProjectID), updated.Name, updated.Schedule, updated.Timezone, updated.Enabled, updated.Engine.Type, updated.Engine.Script, updated.Engine.Prompt, updated.Engine.ProviderID, nullableTime(updated.NextRunAt), formatTime(updated.UpdatedAt), updated.ID); err != nil {
 		return Job{}, fmt.Errorf("update cron job: %w", err)
 	}
 	s.refreshSchedule(updated)
@@ -382,7 +383,7 @@ func (s *Service) runJob(ctx context.Context, job Job, mode string) (automation.
 		TriggerType: "cron",
 		TriggerRef:  job.ID,
 		ProjectID:   job.ProjectID,
-		Engine:      job.Engine,
+		Engine:      job.Engine.Type,
 		ActorUserID: job.OwnerUserID,
 		Input: map[string]any{
 			"mode":     mode,
@@ -419,7 +420,7 @@ func (s *Service) runJob(ctx context.Context, job Job, mode string) (automation.
 }
 
 func (s *Service) execute(ctx context.Context, job Job) (map[string]any, []string, error) {
-	switch job.Engine {
+	switch job.Engine.Type {
 	case EngineLua:
 		return s.executeLua(ctx, job)
 	case EngineAI:
@@ -439,7 +440,7 @@ func (s *Service) executeLua(ctx context.Context, job Job) (map[string]any, []st
 	logs := []string{}
 	s.registerLuaHelpers(runCtx, sandbox, job, &logs)
 
-	if err := sandbox.L.DoString(job.LuaSource); err != nil {
+	if err := sandbox.L.DoString(job.Engine.Script); err != nil {
 		return map[string]any{}, logs, err
 	}
 	return map[string]any{"ok": true}, logs, nil
@@ -453,15 +454,10 @@ func (s *Service) validateCreate(ctx context.Context, input CreateInput) (Job, e
 		Schedule:    strings.TrimSpace(input.Schedule),
 		Timezone:    strings.TrimSpace(input.Timezone),
 		Enabled:     input.Enabled,
-		Engine:      strings.TrimSpace(input.Engine),
-		LuaSource:   input.LuaSource,
-		AIPrompt:    input.AIPrompt,
+		Engine:      normalizeEngine(input.Engine),
 	}
 	if job.Timezone == "" {
 		job.Timezone = "UTC"
-	}
-	if job.Engine == "" {
-		job.Engine = EngineLua
 	}
 	if err := s.validateJob(ctx, job); err != nil {
 		return Job{}, err
@@ -489,15 +485,21 @@ func (s *Service) validateJob(ctx context.Context, job Job) error {
 	} else if _, err := time.LoadLocation(job.Timezone); err != nil {
 		fields["timezone"] = "Invalid timezone"
 	}
-	switch job.Engine {
+	switch job.Engine.Type {
 	case EngineLua:
-		if strings.TrimSpace(job.LuaSource) == "" {
-			fields["lua_source"] = "Required for lua engine"
+		if strings.TrimSpace(job.Engine.Script) == "" {
+			fields["engine.script"] = "Required for lua engine"
 		}
 	case EngineAI:
-		fields["engine"] = "AI cron jobs are planned but not implemented"
+		if strings.TrimSpace(job.Engine.Prompt) == "" {
+			fields["engine.prompt"] = "Required for ai engine"
+		}
+		if strings.TrimSpace(job.Engine.ProviderID) == "" {
+			fields["engine.provider_id"] = "Required for ai engine"
+		}
+		fields["engine.type"] = "AI cron jobs are planned but not implemented"
 	default:
-		fields["engine"] = "Must be lua or ai"
+		fields["engine.type"] = "Must be lua or ai"
 	}
 	if len(fields) > 0 {
 		return &ValidationError{Message: "Invalid cron job", Fields: fields}
@@ -533,7 +535,7 @@ func (s *Service) requireManage(principal authz.Principal, projectID string) err
 func (s *Service) get(ctx context.Context, jobID string) (Job, error) {
 	job, err := scanJob(s.db.QueryRowContext(ctx, `
 		SELECT id, owner_user_id, project_id, name, schedule, timezone, enabled, engine,
-			lua_source, ai_prompt, last_run_status, last_run_at, next_run_at, last_error,
+			lua_source, ai_prompt, ai_provider_id, last_run_status, last_run_at, next_run_at, last_error,
 			created_at, updated_at
 		FROM cron_jobs
 		WHERE id = ?
@@ -550,7 +552,7 @@ func (s *Service) get(ctx context.Context, jobID string) (Job, error) {
 func (s *Service) listEnabled(ctx context.Context) ([]Job, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, owner_user_id, project_id, name, schedule, timezone, enabled, engine,
-			lua_source, ai_prompt, last_run_status, last_run_at, next_run_at, last_error,
+			lua_source, ai_prompt, ai_provider_id, last_run_status, last_run_at, next_run_at, last_error,
 			created_at, updated_at
 		FROM cron_jobs
 		WHERE enabled = 1
@@ -580,6 +582,10 @@ func scanJob(scanner interface{ Scan(...any) error }) (Job, error) {
 	var lastRunAt sql.NullString
 	var nextRunAt sql.NullString
 	var lastError sql.NullString
+	var engineType string
+	var script string
+	var prompt string
+	var providerID string
 	var createdAt string
 	var updatedAt string
 	if err := scanner.Scan(
@@ -590,9 +596,10 @@ func scanJob(scanner interface{ Scan(...any) error }) (Job, error) {
 		&job.Schedule,
 		&job.Timezone,
 		&job.Enabled,
-		&job.Engine,
-		&job.LuaSource,
-		&job.AIPrompt,
+		&engineType,
+		&script,
+		&prompt,
+		&providerID,
 		&lastStatus,
 		&lastRunAt,
 		&nextRunAt,
@@ -603,6 +610,12 @@ func scanJob(scanner interface{ Scan(...any) error }) (Job, error) {
 		return Job{}, err
 	}
 	job.ProjectID = nullString(projectID)
+	job.Engine = EngineSpec{
+		Type:       engineType,
+		Script:     script,
+		Prompt:     prompt,
+		ProviderID: providerID,
+	}
 	job.LastRunStatus = nullString(lastStatus)
 	job.LastRunAt = parseNullableTime(lastRunAt)
 	job.NextRunAt = parseNullableTime(nextRunAt)
@@ -640,15 +653,25 @@ func applyUpdate(job Job, input UpdateInput) Job {
 		job.Enabled = *input.Enabled
 	}
 	if input.Engine != nil {
-		job.Engine = strings.TrimSpace(*input.Engine)
-	}
-	if input.LuaSource != nil {
-		job.LuaSource = *input.LuaSource
-	}
-	if input.AIPrompt != nil {
-		job.AIPrompt = *input.AIPrompt
+		job.Engine = normalizeEngine(*input.Engine)
 	}
 	return job
+}
+
+func normalizeEngine(engine EngineSpec) EngineSpec {
+	engine.Type = strings.TrimSpace(engine.Type)
+	engine.ProviderID = strings.TrimSpace(engine.ProviderID)
+	if engine.Type == "" {
+		engine.Type = EngineLua
+	}
+	switch engine.Type {
+	case EngineLua:
+		engine.Prompt = ""
+		engine.ProviderID = ""
+	case EngineAI:
+		engine.Script = ""
+	}
+	return engine
 }
 
 func (s *Service) refreshSchedule(job Job) {

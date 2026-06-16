@@ -55,10 +55,10 @@ type BoardColumn struct {
 }
 
 type CreateBoardInput struct {
-	ProjectID   string   `json:"project_id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	StatusSlugs []string `json:"status_slugs"`
+	ProjectID   string   `json:"project_id,omitempty"`
+	Name        string   `json:"name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	StatusSlugs []string `json:"status_slugs,omitempty"`
 }
 
 type UpdateBoardInput struct {
@@ -78,10 +78,10 @@ type BoardTicketsColumn struct {
 }
 
 type CreateProjectInput struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	LeadUserID  string `json:"lead_user_id"`
+	Key         string `json:"key,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	LeadUserID  string `json:"lead_user_id,omitempty"`
 }
 
 type ListProjectsInput struct {
@@ -116,23 +116,23 @@ type Ticket struct {
 }
 
 type CreateTicketInput struct {
-	ProjectID      string         `json:"project_id"`
-	Title          string         `json:"title"`
-	Description    string         `json:"description"`
-	Status         string         `json:"status"`
-	Priority       string         `json:"priority"`
-	Type           string         `json:"type"`
-	ReporterID     string         `json:"reporter_id"`
-	AssigneeID     string         `json:"assignee_id"`
-	ParentTicketID string         `json:"parent_ticket_id"`
-	SprintID       string         `json:"sprint_id"`
-	ComponentID    string         `json:"component_id"`
-	VersionID      string         `json:"version_id"`
-	Rank           string         `json:"rank"`
-	StartDate      string         `json:"start_date"`
-	DueDate        string         `json:"due_date"`
-	Labels         []string       `json:"labels"`
-	CustomFields   map[string]any `json:"custom_fields"`
+	ProjectID      string         `json:"project_id,omitempty"`
+	Title          string         `json:"title,omitempty"`
+	Description    string         `json:"description,omitempty"`
+	Status         string         `json:"status,omitempty"`
+	Priority       string         `json:"priority,omitempty"`
+	Type           string         `json:"type,omitempty"`
+	ReporterID     string         `json:"reporter_id,omitempty"`
+	AssigneeID     string         `json:"assignee_id,omitempty"`
+	ParentTicketID string         `json:"parent_ticket_id,omitempty"`
+	SprintID       string         `json:"sprint_id,omitempty"`
+	ComponentID    string         `json:"component_id,omitempty"`
+	VersionID      string         `json:"version_id,omitempty"`
+	Rank           string         `json:"rank,omitempty"`
+	StartDate      string         `json:"start_date,omitempty"`
+	DueDate        string         `json:"due_date,omitempty"`
+	Labels         []string       `json:"labels,omitempty"`
+	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 }
 
 type ListTicketsInput struct {
@@ -211,11 +211,11 @@ type Component struct {
 }
 
 type CreateComponentInput struct {
-	ProjectID         string `json:"project_id"`
-	Name              string `json:"name"`
-	Description       string `json:"description"`
-	OwnerUserID       string `json:"owner_user_id"`
-	DefaultAssigneeID string `json:"default_assignee_id"`
+	ProjectID         string `json:"project_id,omitempty"`
+	Name              string `json:"name,omitempty"`
+	Description       string `json:"description,omitempty"`
+	OwnerUserID       string `json:"owner_user_id,omitempty"`
+	DefaultAssigneeID string `json:"default_assignee_id,omitempty"`
 }
 
 type UpdateComponentInput struct {
@@ -238,12 +238,12 @@ type Version struct {
 }
 
 type CreateVersionInput struct {
-	ProjectID   string `json:"project_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-	TargetDate  string `json:"target_date"`
-	ReleaseDate string `json:"release_date"`
+	ProjectID   string `json:"project_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status,omitempty"`
+	TargetDate  string `json:"target_date,omitempty"`
+	ReleaseDate string `json:"release_date,omitempty"`
 }
 
 type UpdateVersionInput struct {
@@ -285,12 +285,12 @@ type CustomFieldOption struct {
 }
 
 type CreateCustomFieldInput struct {
-	ProjectID string   `json:"project_id"`
-	Key       string   `json:"key"`
-	Name      string   `json:"name"`
-	FieldType string   `json:"field_type"`
-	Required  bool     `json:"required"`
-	Options   []string `json:"options"`
+	ProjectID string   `json:"project_id,omitempty"`
+	Key       string   `json:"key,omitempty"`
+	Name      string   `json:"name,omitempty"`
+	FieldType string   `json:"field_type,omitempty"`
+	Required  bool     `json:"required,omitempty"`
+	Options   []string `json:"options,omitempty"`
 }
 
 type UpdateCustomFieldInput struct {
@@ -302,11 +302,11 @@ type UpdateCustomFieldInput struct {
 }
 
 type CreateSprintInput struct {
-	ProjectID string `json:"project_id"`
-	Name      string `json:"name"`
-	Goal      string `json:"goal"`
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
+	ProjectID string `json:"project_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Goal      string `json:"goal,omitempty"`
+	StartDate string `json:"start_date,omitempty"`
+	EndDate   string `json:"end_date,omitempty"`
 }
 
 type UpdateSprintInput struct {

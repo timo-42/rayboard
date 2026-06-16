@@ -124,7 +124,7 @@ internal/backend/httpapi/
   - hooks receive event context, candidate recipients, user preferences, project metadata, default message payload, and visible destination names.
   - hooks return a validated notification plan; Shoutrrr only receives validated output.
   - hooks route to named destinations, e.g. `route.to_destination("team-slack")`, and never receive raw Shoutrrr URLs or secrets.
-  - notification hooks support `engine = lua|ai` like other automation surfaces.
+  - notification hooks support the shared nested `engine` object like other automation surfaces.
   - enforce timeout, max script/prompt size, max log size, max recipients, and max generated deliveries.
 - Add saved views:
   - users can save personal CEL/FTS filters with sort, columns, grouping, and board/list/backlog display mode.
@@ -221,7 +221,12 @@ internal/backend/httpapi/
   - do not expose filesystem, shell, raw sockets, direct SQLite, unrestricted HTTP, or the full Rayboard API client to webhook Lua.
   - enforce timeout, max script size, max log size, max request/response body size, and max generated action count.
 - Add OpenRouter AI automation alongside Lua:
-  - everywhere Rayboard supports Lua automation, also support AI automation with `engine = lua|ai`.
+  - everywhere Rayboard supports Lua automation, also support AI automation with the same reusable engine object.
+  - automation definitions use `engine.type` as the discriminator with `lua` and `ai` values.
+  - Lua engine definitions use `engine.script`.
+  - AI engine definitions use `engine.prompt` and `engine.provider_id`.
+  - `engine.provider_id` references an admin-managed OpenRouter provider configuration containing model, API key/secret material, limits, and defaults.
+  - reuse this engine object for cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, and notification hooks.
   - OpenRouter is the only supported AI provider in the first version.
   - global admins configure the OpenRouter API key, default model, allowed models, default timeout, and usage limits.
   - store the OpenRouter API key securely and never expose it to project users.
@@ -313,7 +318,7 @@ internal/backend/httpapi/
   - saved view CRUD for personal and project-shared views
   - global admin settings endpoints, project settings endpoints, and user settings endpoints
   - admin OpenRouter settings endpoints
-  - automation engine selection for cron jobs, ticket hooks, custom create pages, and webhooks
+  - automation engine selection for cron jobs, ticket hooks, custom create pages, and webhooks using the shared `engine` object
   - test/validate AI prompt endpoints for each automation surface
   - admin-only demo reset endpoint and demo seed support endpoints only if normal CRUD endpoints are insufficient
 - Frontend:
@@ -549,7 +554,7 @@ Rules:
 - Notification hook tests verify suppression, payload transformation, routing, recipient limits, delivery preview, and run history.
 - Notification delivery tests verify queued delivery, retry/backoff, failure history, and named destination resolution at queue processing time.
 - OpenRouter config tests verify only global admins can configure the API key/model allowlist and secrets are not exposed.
-- Automation engine selection tests verify each Lua-capable surface can use `lua` or `ai`.
+- Automation engine selection tests verify each Lua-capable surface can use the shared nested `engine` object with `engine.type` set to `lua` or `ai`.
 - AI schema tests verify valid structured output is accepted and invalid/free-text output is rejected.
 - AI surface tests verify AI cron jobs, ticket hooks, custom create pages, incoming webhooks, and outgoing webhooks follow the same authorization and validation paths as Lua.
 - AI limit tests verify timeout, payload limits, action-count limits, and missing/disabled OpenRouter config behavior.

@@ -39,10 +39,13 @@ Current packages:
 - `internal/app`: CLI dispatch and demo seed.
 - `internal/config`: defaults, environment, and flags.
 - `internal/runtime`: runtime mode orchestration and graceful shutdown.
-- `internal/backend`: HTTP handlers.
+- `internal/backend`: public backend server facade and option wiring.
+- `internal/backend/httpapi`: Huma router, shared HTTP helpers, and resource route packages.
 - `internal/backend/auth`, `authz`, `tracker`, `comments`, `attachments`, `search`: domain services.
 - `internal/backend/store` and `migrations`: SQLite open/migrate behavior.
 - `internal/frontend`: embedded template/static frontend and API proxy.
+
+Backend HTTP route packages are resource-focused. Each package keeps `routes.go` for route registration/thin handlers, `schema.go` for Huma/OpenAPI request and response DTOs, and `provider.go` for dependency wiring. Huma DTOs are the source of the generated OpenAPI request/response body schemas served by the binary.
 
 ## Migration Rules
 
@@ -57,4 +60,3 @@ Migrations are embedded and applied at backend startup. New schema changes shoul
 - Log in through the frontend and create a project and ticket.
 - Run the demo seed against a backend and confirm it completes.
 - Update docs for any user-facing CLI, API, auth, frontend, or automation behavior.
-

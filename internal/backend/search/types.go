@@ -50,14 +50,14 @@ type SortSpec struct {
 type CreateSavedViewInput struct {
 	OwnerUserID string         `json:"owner_user_id,omitempty"`
 	ProjectID   string         `json:"project_id,omitempty"`
-	ScopeType   string         `json:"scope_type"`
-	Name        string         `json:"name"`
-	Query       SavedViewQuery `json:"query"`
-	Sort        []SortSpec     `json:"sort"`
-	Columns     []string       `json:"columns"`
-	DisplayMode string         `json:"display_mode"`
-	GroupBy     string         `json:"group_by"`
-	Pinned      bool           `json:"pinned"`
+	ScopeType   string         `json:"scope_type,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	Query       SavedViewQuery `json:"query,omitempty"`
+	Sort        []SortSpec     `json:"sort,omitempty"`
+	Columns     []string       `json:"columns,omitempty"`
+	DisplayMode string         `json:"display_mode,omitempty"`
+	GroupBy     string         `json:"group_by,omitempty"`
+	Pinned      bool           `json:"pinned,omitempty"`
 }
 
 type UpdateSavedViewInput struct {
@@ -81,8 +81,8 @@ type SearchTicketsInput struct {
 	ProjectID string     `json:"project_id,omitempty"`
 	Filter    string     `json:"filter,omitempty"`
 	Text      string     `json:"text,omitempty"`
-	Sort      []SortSpec `json:"sort"`
-	Limit     int        `json:"limit"`
+	Sort      []SortSpec `json:"sort,omitempty"`
+	Limit     int        `json:"limit,omitempty"`
 	Cursor    string     `json:"cursor,omitempty"`
 }
 

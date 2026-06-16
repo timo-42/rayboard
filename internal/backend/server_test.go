@@ -52,10 +52,14 @@ func TestOpenAPIJSON(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+	var spec map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("decode raw OpenAPI response: %v", err)
+	}
 	if body.OpenAPI == "" || body.Info.Title != "Rayboard API" {
 		t.Fatalf("unexpected OpenAPI metadata: %#v", body)
 	}
-	for _, path := range []string{"/api/health", "/api/login", "/api/projects/{project_id}/tickets"} {
+	for _, path := range []string{"/api/health", "/api/login", "/api/projects/{project_id}/tickets", "/api/cron-jobs"} {
 		if _, ok := body.Paths[path]; !ok {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
@@ -65,6 +69,9 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
 	}
+	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"username"}, []string{"password"})
+	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"title"}, []string{"labels"})
+	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"name"}, []string{"schedule"}, []string{"engine"}, []string{"engine", "type"}, []string{"engine", "script"}, []string{"engine", "prompt"}, []string{"engine", "provider_id"})
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {
@@ -132,4 +139,71 @@ func TestRedocDocsAreServedLocally(t *testing.T) {
 			t.Fatalf("redoc page must not reference external asset %q", external)
 		}
 	}
+}
+
+func assertRequestBodyFields(t *testing.T, spec map[string]any, path string, method string, fieldPaths ...[]string) {
+	t.Helper()
+
+	schema := requestBodySchema(t, spec, path, method)
+	for _, fieldPath := range fieldPaths {
+		assertSchemaField(t, spec, schema, fieldPath)
+	}
+}
+
+func requestBodySchema(t *testing.T, spec map[string]any, path string, method string) map[string]any {
+	t.Helper()
+
+	paths := mapField(t, spec, "paths")
+	pathItem := mapField(t, paths, path)
+	operation := mapField(t, pathItem, strings.ToLower(method))
+	requestBody := mapField(t, operation, "requestBody")
+	content := mapField(t, requestBody, "content")
+	jsonMedia := mapField(t, content, "application/json")
+	return resolveSchema(t, spec, mapField(t, jsonMedia, "schema"))
+}
+
+func assertSchemaField(t *testing.T, spec map[string]any, schema map[string]any, fieldPath []string) {
+	t.Helper()
+
+	current := schema
+	for _, field := range fieldPath {
+		current = resolveSchema(t, spec, current)
+		properties := mapField(t, current, "properties")
+		next, ok := properties[field].(map[string]any)
+		if !ok {
+			t.Fatalf("expected OpenAPI schema field %s in %#v", strings.Join(fieldPath, "."), properties)
+		}
+		current = next
+	}
+}
+
+func resolveSchema(t *testing.T, spec map[string]any, schema map[string]any) map[string]any {
+	t.Helper()
+
+	for {
+		ref, ok := schema["$ref"].(string)
+		if !ok || ref == "" {
+			return schema
+		}
+		const prefix = "#/components/schemas/"
+		if !strings.HasPrefix(ref, prefix) {
+			t.Fatalf("unsupported OpenAPI schema reference %q", ref)
+		}
+		schemas := mapField(t, mapField(t, spec, "components"), "schemas")
+		resolved, ok := schemas[strings.TrimPrefix(ref, prefix)].(map[string]any)
+		if !ok {
+			t.Fatalf("missing OpenAPI schema reference %q", ref)
+		}
+		schema = resolved
+	}
+}
+
+func mapField(t *testing.T, value map[string]any, field string) map[string]any {
+	t.Helper()
+
+	next, ok := value[field].(map[string]any)
+	if !ok {
+		t.Fatalf("expected object field %q in %#v", field, value)
+	}
+	return next
 }

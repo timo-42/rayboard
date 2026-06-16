@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/httpapi"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -103,30 +103,14 @@ func NewHandler(opts ...Option) http.Handler {
 		option(&options)
 	}
 
-	mux := http.NewServeMux()
-	api := humago.New(mux, openAPIConfig())
-	registerOpenAPIRoutes(api)
-	registerAPIDocsRoute(mux)
-	if options.auth != nil {
-		registerAuthRoutes(mux, options.auth, options.authorizer)
-	}
-	if options.auth != nil && options.tracker != nil {
-		registerTrackerRoutes(mux, options.auth, options.tracker)
-	}
-	if options.auth != nil && options.attachments != nil {
-		registerAttachmentRoutes(mux, options.auth, options.attachments)
-	}
-	if options.auth != nil && options.comments != nil {
-		registerCommentRoutes(mux, options.auth, options.comments)
-	}
-	if options.auth != nil && options.cron != nil {
-		registerCronRoutes(mux, options.auth, options.cron)
-	}
-	if options.auth != nil && options.notifications != nil {
-		registerNotificationRoutes(mux, options.auth, options.notifications)
-	}
-	if options.auth != nil && options.search != nil {
-		registerSearchRoutes(mux, options.auth, options.search)
-	}
-	return mux
+	return httpapi.NewHandler(httpapi.Options{
+		Auth:          options.auth,
+		Authorizer:    options.authorizer,
+		Tracker:       options.tracker,
+		Attachments:   options.attachments,
+		Comments:      options.comments,
+		Cron:          options.cron,
+		Notifications: options.notifications,
+		Search:        options.search,
+	})
 }

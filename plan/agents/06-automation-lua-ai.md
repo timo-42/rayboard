@@ -27,7 +27,9 @@ Read first:
 ## Package Tasks
 
 1. Common automation:
-   - `engine = lua|ai`
+   - shared nested `engine` object with `engine.type = lua|ai`
+   - Lua `engine.script`
+   - AI `engine.prompt` and `engine.provider_id`
    - run record creation
    - logs
    - limits

@@ -4,9 +4,16 @@
 
 Automation-capable surfaces support:
 
-```text
-engine = lua | ai
+```json
+{
+  "engine": {
+    "type": "lua",
+    "script": "rayboard.log(\"hello\")"
+  }
+}
 ```
+
+`engine.type` is the discriminator. Lua uses `engine.script`. AI uses `engine.prompt` plus `engine.provider_id`, where the provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, limits, and defaults.
 
 Lua uses GopherLua. AI uses OpenRouter only in v1.
 

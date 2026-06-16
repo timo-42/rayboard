@@ -222,4 +222,4 @@ return { suppress = true }
 
 ## Planned OpenRouter AI Automation
 
-AI automation will use OpenRouter only. Global admins configure the API key, default model, allowed models, timeout, and limits. Project users select only allowed models. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
+AI automation will use OpenRouter only. Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, timeout, and limits. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
