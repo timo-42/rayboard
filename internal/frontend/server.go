@@ -38,6 +38,7 @@ func NewHandler(backendURL string) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/", backendProxy(backendURL))
 	mux.Handle("POST /api/", backendProxy(backendURL))
+	mux.Handle("PUT /api/", backendProxy(backendURL))
 	mux.Handle("PATCH /api/", backendProxy(backendURL))
 	mux.Handle("DELETE /api/", backendProxy(backendURL))
 	mux.Handle("GET /static/", http.FileServerFS(assets))

@@ -28,12 +28,15 @@ func TestAPIProxy(t *testing.T) {
 		if r.URL.Path != "/api/health" {
 			t.Fatalf("unexpected proxied path: %s", r.URL.Path)
 		}
+		if r.Method != http.MethodPut {
+			t.Fatalf("expected PUT proxy, got %s", r.Method)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 	t.Cleanup(backend.Close)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := httptest.NewRequest(http.MethodPut, "/api/health", nil)
 	rec := httptest.NewRecorder()
 
 	NewHandler(backend.URL).ServeHTTP(rec, req)

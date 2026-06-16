@@ -84,7 +84,10 @@ func (s *Service) CreateProject(ctx context.Context, principal authz.Principal, 
 		if err := s.repo.insertProject(ctx, tx, project); err != nil {
 			return err
 		}
-		return s.repo.bindProjectOwner(ctx, tx, project.ID, project.LeadUserID, project.CreatedAt)
+		if err := s.repo.bindProjectOwner(ctx, tx, project.ID, project.LeadUserID, project.CreatedAt); err != nil {
+			return err
+		}
+		return s.seedDefaultProjectWorkflow(ctx, tx, project)
 	}); err != nil {
 		return Project{}, err
 	}

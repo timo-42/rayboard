@@ -479,6 +479,113 @@ func TestBacklogListAndReorder(t *testing.T) {
 	}
 }
 
+func TestProjectStatusesAndBoards(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-viewer")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	statuses, err := service.ListProjectStatuses(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list statuses: %v", err)
+	}
+	if got := statusSlugs(statuses); len(got) != 3 || got[0] != "todo" || got[1] != "in_progress" || got[2] != "done" {
+		t.Fatalf("unexpected default statuses: %#v", statuses)
+	}
+
+	boards, err := service.ListBoards(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list boards: %v", err)
+	}
+	if len(boards) != 1 || boards[0].Name != "Default Board" || len(boards[0].Columns) != 3 {
+		t.Fatalf("unexpected default board: %#v", boards)
+	}
+
+	blocked, err := service.ReplaceProjectStatuses(ctx, admin, project.ID, tracker.ReplaceProjectStatusesInput{Statuses: []tracker.ProjectStatusInput{
+		{Slug: "todo", Name: "Todo"},
+		{Slug: "blocked", Name: "Blocked"},
+		{Slug: "done", Name: "Done"},
+	}})
+	if err != nil {
+		t.Fatalf("replace statuses: %v", err)
+	}
+	if got := statusSlugs(blocked); len(got) != 3 || got[1] != "blocked" {
+		t.Fatalf("unexpected replaced statuses: %#v", blocked)
+	}
+
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Blocked ticket", Status: "blocked"}); err != nil {
+		t.Fatalf("create blocked ticket: %v", err)
+	}
+	if _, err := service.ReplaceProjectStatuses(ctx, admin, project.ID, tracker.ReplaceProjectStatusesInput{Statuses: []tracker.ProjectStatusInput{
+		{Slug: "todo", Name: "Todo"},
+		{Slug: "done", Name: "Done"},
+	}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected validation for removing used status, got %v", err)
+	}
+
+	board, err := service.CreateBoard(ctx, admin, tracker.CreateBoardInput{
+		ProjectID:   project.ID,
+		Name:        "Triage",
+		Description: "Triage board",
+		StatusSlugs: []string{"todo", "blocked", "done"},
+	})
+	if err != nil {
+		t.Fatalf("create board: %v", err)
+	}
+	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "blocked" {
+		t.Fatalf("unexpected board: %#v", board)
+	}
+
+	boardTickets, err := service.ListBoardTickets(ctx, admin, board.ID)
+	if err != nil {
+		t.Fatalf("list board tickets: %v", err)
+	}
+	if len(boardTickets.Columns) != 3 || len(boardTickets.Columns[1].Tickets) != 1 || boardTickets.Columns[1].Tickets[0].Status != "blocked" {
+		t.Fatalf("unexpected board tickets: %#v", boardTickets)
+	}
+
+	name := "Triage Updated"
+	columns := []string{"blocked", "done"}
+	updated, err := service.UpdateBoard(ctx, admin, board.ID, tracker.UpdateBoardInput{Name: &name, StatusSlugs: &columns})
+	if err != nil {
+		t.Fatalf("update board: %v", err)
+	}
+	if updated.Name != name || len(updated.Columns) != 2 || updated.Columns[0].StatusSlug != "blocked" {
+		t.Fatalf("unexpected updated board: %#v", updated)
+	}
+
+	evaluator.BindRole(authz.UserBinding("user-viewer", authz.RoleProjectViewer, authz.ProjectScope(project.ID)))
+	if _, err := service.ReplaceProjectStatuses(ctx, principal("user-viewer"), project.ID, tracker.ReplaceProjectStatusesInput{Statuses: []tracker.ProjectStatusInput{{Slug: "todo", Name: "Todo"}}}); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden for viewer status management, got %v", err)
+	}
+
+	if err := service.DeleteBoard(ctx, admin, board.ID); err != nil {
+		t.Fatalf("delete board: %v", err)
+	}
+	if _, err := service.GetBoard(ctx, admin, board.ID); !errors.Is(err, tracker.ErrNotFound) {
+		t.Fatalf("expected deleted board not found, got %v", err)
+	}
+}
+
+func statusSlugs(statuses []tracker.ProjectStatus) []string {
+	slugs := make([]string, len(statuses))
+	for index, status := range statuses {
+		slugs[index] = status.Slug
+	}
+	return slugs
+}
+
 func TestComponentsVersionsAndTicketAssignment(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

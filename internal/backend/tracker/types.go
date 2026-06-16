@@ -15,6 +15,68 @@ type Project struct {
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
 
+type ProjectStatus struct {
+	ID        string    `json:"id"`
+	ProjectID string    `json:"project_id"`
+	Slug      string    `json:"slug"`
+	Name      string    `json:"name"`
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ReplaceProjectStatusesInput struct {
+	Statuses []ProjectStatusInput `json:"statuses"`
+}
+
+type ProjectStatusInput struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type Board struct {
+	ID          string        `json:"id"`
+	ProjectID   string        `json:"project_id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description,omitempty"`
+	CreatedBy   string        `json:"created_by,omitempty"`
+	Columns     []BoardColumn `json:"columns,omitempty"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+}
+
+type BoardColumn struct {
+	ID         string    `json:"id"`
+	BoardID    string    `json:"board_id"`
+	StatusSlug string    `json:"status_slug"`
+	Name       string    `json:"name"`
+	Position   int       `json:"position"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type CreateBoardInput struct {
+	ProjectID   string   `json:"project_id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	StatusSlugs []string `json:"status_slugs"`
+}
+
+type UpdateBoardInput struct {
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	StatusSlugs *[]string `json:"status_slugs,omitempty"`
+}
+
+type BoardTickets struct {
+	Board   Board                `json:"board"`
+	Columns []BoardTicketsColumn `json:"columns"`
+}
+
+type BoardTicketsColumn struct {
+	Column  BoardColumn `json:"column"`
+	Tickets []Ticket    `json:"tickets"`
+}
+
 type CreateProjectInput struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`

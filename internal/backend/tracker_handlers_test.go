@@ -44,6 +44,57 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected project: %#v", project)
 	}
 
+	listStatusesReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/statuses", nil)
+	listStatusesReq.AddCookie(session)
+	listStatuses := httptest.NewRecorder()
+	handler.ServeHTTP(listStatuses, listStatusesReq)
+	if listStatuses.Code != http.StatusOK {
+		t.Fatalf("expected list statuses status 200, got %d: %s", listStatuses.Code, listStatuses.Body.String())
+	}
+	var statusBody struct {
+		Items []tracker.ProjectStatus `json:"items"`
+	}
+	if err := json.Unmarshal(listStatuses.Body.Bytes(), &statusBody); err != nil {
+		t.Fatalf("decode statuses: %v", err)
+	}
+	if len(statusBody.Items) != 3 || statusBody.Items[0].Slug != "todo" {
+		t.Fatalf("unexpected statuses: %#v", statusBody.Items)
+	}
+
+	replaceStatusesReq := httptest.NewRequest(http.MethodPut, "/api/projects/"+project.ID+"/statuses", mustJSON(t, map[string]any{
+		"statuses": []map[string]string{
+			{"slug": "todo", "name": "Todo"},
+			{"slug": "in_progress", "name": "In Progress"},
+			{"slug": "review", "name": "Review"},
+			{"slug": "done", "name": "Done"},
+		},
+	}))
+	addSessionCSRF(replaceStatusesReq, session, csrf)
+	replaceStatuses := httptest.NewRecorder()
+	handler.ServeHTTP(replaceStatuses, replaceStatusesReq)
+	if replaceStatuses.Code != http.StatusOK {
+		t.Fatalf("expected replace statuses status 200, got %d: %s", replaceStatuses.Code, replaceStatuses.Body.String())
+	}
+
+	createBoardReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/boards", mustJSON(t, map[string]any{
+		"name":         "Review Board",
+		"description":  "Review workflow",
+		"status_slugs": []string{"todo", "review", "done"},
+	}))
+	addSessionCSRF(createBoardReq, session, csrf)
+	createBoard := httptest.NewRecorder()
+	handler.ServeHTTP(createBoard, createBoardReq)
+	if createBoard.Code != http.StatusCreated {
+		t.Fatalf("expected create board status 201, got %d: %s", createBoard.Code, createBoard.Body.String())
+	}
+	var board tracker.Board
+	if err := json.Unmarshal(createBoard.Body.Bytes(), &board); err != nil {
+		t.Fatalf("decode board: %v", err)
+	}
+	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "review" {
+		t.Fatalf("unexpected board: %#v", board)
+	}
+
 	createCustomFieldReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/custom-fields", mustJSON(t, map[string]any{
 		"key":        "severity",
 		"name":       "Severity",
@@ -105,6 +156,21 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 	if ticket.CustomFields["severity"] != "High" {
 		t.Fatalf("unexpected ticket custom fields: %#v", ticket.CustomFields)
+	}
+
+	boardTicketsReq := httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID+"/tickets", nil)
+	boardTicketsReq.AddCookie(session)
+	boardTickets := httptest.NewRecorder()
+	handler.ServeHTTP(boardTickets, boardTicketsReq)
+	if boardTickets.Code != http.StatusOK {
+		t.Fatalf("expected board tickets status 200, got %d: %s", boardTickets.Code, boardTickets.Body.String())
+	}
+	var boardTicketsBody tracker.BoardTickets
+	if err := json.Unmarshal(boardTickets.Body.Bytes(), &boardTicketsBody); err != nil {
+		t.Fatalf("decode board tickets: %v", err)
+	}
+	if len(boardTicketsBody.Columns) != 3 || len(boardTicketsBody.Columns[0].Tickets) != 1 {
+		t.Fatalf("unexpected board tickets: %#v", boardTicketsBody)
 	}
 
 	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{

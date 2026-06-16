@@ -87,7 +87,7 @@ Creating a user with an empty password generates a random password and returns i
 | `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
-Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
+Ticket statuses are stored as strings. Workflow status APIs define the ordered project-scoped status slugs available to a project.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
@@ -103,6 +103,25 @@ The first backlog API slice is backend/API-only. It lists project backlog ticket
 | `PATCH` | `/api/projects/{project_id}/backlog` | `{"ticket_ids":["ticket_2","ticket_1"]}` |
 
 Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice.
+
+## Boards and Workflows
+
+The first board/workflow API slice is backend/API-only. It defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. Browser board settings UI and board drag/drop are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/statuses` | none |
+| `PUT` | `/api/projects/{project_id}/statuses` | `{"statuses":[{"slug":"todo","name":"To Do"},{"slug":"in_progress","name":"In Progress"},{"slug":"done","name":"Done"}]}` |
+| `GET` | `/api/projects/{project_id}/boards` | none |
+| `POST` | `/api/projects/{project_id}/boards` | `{"name":"Development","description":"Team delivery board","status_slugs":["todo","in_progress","done"]}` |
+| `GET` | `/api/boards/{board_id}` | none |
+| `PATCH` | `/api/boards/{board_id}` | Any subset of `name`, `description`, `status_slugs`. |
+| `DELETE` | `/api/boards/{board_id}` | none |
+| `GET` | `/api/boards/{board_id}/tickets` | none |
+
+Statuses are ordered rows scoped to one project. Each status has a stable `slug` used by tickets and board columns, plus a display `name`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
+
+Board ticket responses use the same persisted ticket shape as project ticket lists, grouped or ordered by board column according to the board definition. Moving tickets between columns continues to use ticket status updates.
 
 ## Sprints
 

@@ -24,6 +24,10 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("GET /api/projects/{project_id}", authRoute.requireAuth(route.getProject))
 	mux.HandleFunc("GET /api/projects/{project_id}/backlog", authRoute.requireAuth(route.listBacklog))
 	mux.HandleFunc("PATCH /api/projects/{project_id}/backlog", authRoute.requireAuth(route.reorderBacklog))
+	mux.HandleFunc("GET /api/projects/{project_id}/statuses", authRoute.requireAuth(route.listProjectStatuses))
+	mux.HandleFunc("PUT /api/projects/{project_id}/statuses", authRoute.requireAuth(route.replaceProjectStatuses))
+	mux.HandleFunc("GET /api/projects/{project_id}/boards", authRoute.requireAuth(route.listBoards))
+	mux.HandleFunc("POST /api/projects/{project_id}/boards", authRoute.requireAuth(route.createBoard))
 	mux.HandleFunc("GET /api/projects/{project_id}/components", authRoute.requireAuth(route.listComponents))
 	mux.HandleFunc("POST /api/projects/{project_id}/components", authRoute.requireAuth(route.createComponent))
 	mux.HandleFunc("GET /api/projects/{project_id}/versions", authRoute.requireAuth(route.listVersions))
@@ -46,6 +50,10 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("DELETE /api/sprints/{sprint_id}", authRoute.requireAuth(route.deleteSprint))
 	mux.HandleFunc("POST /api/sprints/{sprint_id}/start", authRoute.requireAuth(route.startSprint))
 	mux.HandleFunc("POST /api/sprints/{sprint_id}/complete", authRoute.requireAuth(route.completeSprint))
+	mux.HandleFunc("GET /api/boards/{board_id}", authRoute.requireAuth(route.getBoard))
+	mux.HandleFunc("PATCH /api/boards/{board_id}", authRoute.requireAuth(route.updateBoard))
+	mux.HandleFunc("DELETE /api/boards/{board_id}", authRoute.requireAuth(route.deleteBoard))
+	mux.HandleFunc("GET /api/boards/{board_id}/tickets", authRoute.requireAuth(route.listBoardTickets))
 	mux.HandleFunc("GET /api/components/{component_id}", authRoute.requireAuth(route.getComponent))
 	mux.HandleFunc("PATCH /api/components/{component_id}", authRoute.requireAuth(route.updateComponent))
 	mux.HandleFunc("DELETE /api/components/{component_id}", authRoute.requireAuth(route.deleteComponent))
@@ -116,6 +124,90 @@ func (route trackerRoute) reorderBacklog(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"items": tickets})
+}
+
+func (route trackerRoute) listProjectStatuses(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	statuses, err := route.tracker.ListProjectStatuses(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": statuses})
+}
+
+func (route trackerRoute) replaceProjectStatuses(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.ReplaceProjectStatusesInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	statuses, err := route.tracker.ReplaceProjectStatuses(r.Context(), principal, r.PathValue("project_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": statuses})
+}
+
+func (route trackerRoute) listBoards(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	boards, err := route.tracker.ListBoards(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": boards})
+}
+
+func (route trackerRoute) createBoard(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.CreateBoardInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	request.ProjectID = r.PathValue("project_id")
+	board, err := route.tracker.CreateBoard(r.Context(), principal, request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, board)
+}
+
+func (route trackerRoute) getBoard(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	board, err := route.tracker.GetBoard(r.Context(), principal, r.PathValue("board_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, board)
+}
+
+func (route trackerRoute) updateBoard(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.UpdateBoardInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	board, err := route.tracker.UpdateBoard(r.Context(), principal, r.PathValue("board_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, board)
+}
+
+func (route trackerRoute) deleteBoard(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if err := route.tracker.DeleteBoard(r.Context(), principal, r.PathValue("board_id")); err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route trackerRoute) listBoardTickets(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	boardTickets, err := route.tracker.ListBoardTickets(r.Context(), principal, r.PathValue("board_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, boardTickets)
 }
 
 func (route trackerRoute) listComponents(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
