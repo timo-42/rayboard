@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/timo-42/rayboard/internal/backend"
+	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/store"
@@ -47,11 +48,13 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	authService := auth.NewService(db.SQL)
 	trackerService := tracker.NewService(db.SQL, authorizer)
+	attachmentService := attachments.NewService(db.SQL, authorizer)
 	backendServer := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
+		backend.WithAttachmentService(attachmentService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
@@ -75,11 +78,13 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	authService := auth.NewService(db.SQL)
 	trackerService := tracker.NewService(db.SQL, authorizer)
+	attachmentService := attachments.NewService(db.SQL, authorizer)
 	server := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
+		backend.WithAttachmentService(attachmentService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
