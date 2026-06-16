@@ -200,7 +200,7 @@ return {
 
 ## Planned Notifications and Shoutrrr
 
-The first notification API slice is in-app only: users can list their own notifications and mark them read or unread. External notification delivery remains **Planned**.
+The first notification API slice is in-app only: users can list their own notifications and mark them read or unread. In-app notification generation for comments and ticket updates is driven by durable `domain_events`, with processed/failed state stored on the event row. External notification delivery remains **Planned**.
 
 External notifications will use named Shoutrrr destinations. Notification policies will route events to recipients and allowed destinations, and external deliveries will be queued with retry/backoff and delivery history. Notification hooks are **Planned** and may filter, suppress, transform, enrich, and route notification plans by destination name, but must never receive raw Shoutrrr URLs or secrets.
 

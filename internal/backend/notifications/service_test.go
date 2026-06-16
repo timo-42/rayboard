@@ -129,6 +129,98 @@ func TestNotificationEventHandlers(t *testing.T) {
 	}
 }
 
+func TestProcessPendingDomainEvents(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	seedNotificationUser(t, ctx, db, "actor")
+	seedNotificationUser(t, ctx, db, "reporter")
+	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
+
+	eventStore := events.NewStore(db.SQL)
+	service := NewService(db.SQL, WithEventStore(eventStore))
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "comment.created",
+		ActorID:  "actor",
+		ObjectID: "comment-1",
+		Data:     map[string]any{"ticket_id": "ticket-1"},
+	}); err != nil {
+		t.Fatalf("append comment event: %v", err)
+	}
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "ticket.updated",
+		ActorID:  "actor",
+		ObjectID: "ticket-1",
+		Data: map[string]any{
+			"changes": map[string]any{
+				"status":      map[string]string{"old": "todo", "new": "done"},
+				"assignee_id": map[string]string{"old": "", "new": "assignee"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("append ticket event: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDomainEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("process pending domain events: %v", err)
+	}
+	if processed != 2 {
+		t.Fatalf("expected 2 processed events, got %d", processed)
+	}
+	if got := countNotifications(t, ctx, db, "comment_added"); got != 2 {
+		t.Fatalf("expected 2 comment notifications, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "ticket_status_changed"); got != 2 {
+		t.Fatalf("expected 2 status notifications, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "ticket_assigned"); got != 1 {
+		t.Fatalf("expected 1 assignment notification, got %d", got)
+	}
+	assertDomainEventStatus(t, ctx, db, "comment.created", "processed", 1, "")
+	assertDomainEventStatus(t, ctx, db, "ticket.updated", "processed", 1, "")
+
+	processed, err = service.ProcessPendingDomainEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("process pending domain events again: %v", err)
+	}
+	if processed != 0 {
+		t.Fatalf("expected no processed events on rerun, got %d", processed)
+	}
+	if got := totalNotifications(t, ctx, db); got != 5 {
+		t.Fatalf("expected no duplicate notifications on rerun, got %d", got)
+	}
+}
+
+func TestProcessPendingDomainEventsMarksFailures(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+
+	eventStore := events.NewStore(db.SQL)
+	service := NewService(db.SQL, WithEventStore(eventStore))
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "ticket.updated",
+		ActorID:  "actor",
+		ObjectID: "missing-ticket",
+		Data: map[string]any{
+			"changes": map[string]any{
+				"status": map[string]string{"old": "todo", "new": "done"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("append missing ticket event: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDomainEvents(ctx, 10)
+	if err == nil {
+		t.Fatal("expected processing error")
+	}
+	if processed != 0 {
+		t.Fatalf("expected no processed events, got %d", processed)
+	}
+	assertDomainEventStatus(t, ctx, db, "ticket.updated", "failed", 1, "notifications: not found")
+}
+
 func openNotificationTestDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 
@@ -183,4 +275,32 @@ func countNotifications(t *testing.T, ctx context.Context, db *store.DB, notific
 		t.Fatalf("count notifications: %v", err)
 	}
 	return count
+}
+
+func totalNotifications(t *testing.T, ctx context.Context, db *store.DB) int {
+	t.Helper()
+
+	var count int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notifications").Scan(&count); err != nil {
+		t.Fatalf("count all notifications: %v", err)
+	}
+	return count
+}
+
+func assertDomainEventStatus(t *testing.T, ctx context.Context, db *store.DB, eventType string, wantStatus string, wantAttempts int, wantError string) {
+	t.Helper()
+
+	var status string
+	var attempts int
+	var lastError string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT processing_status, attempts, COALESCE(last_error, '')
+		FROM domain_events
+		WHERE event_type = ?
+	`, eventType).Scan(&status, &attempts, &lastError); err != nil {
+		t.Fatalf("read domain event status for %s: %v", eventType, err)
+	}
+	if status != wantStatus || attempts != wantAttempts || (wantError != "" && lastError != wantError) {
+		t.Fatalf("unexpected event status for %s: status=%s attempts=%d error=%q", eventType, status, attempts, lastError)
+	}
 }

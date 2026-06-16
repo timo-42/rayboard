@@ -283,7 +283,7 @@ Saved-view scopes are `user`, `project`, and `global`. Managing project/global v
 
 ## Notifications
 
-The first notification API slice is in-app only. It lists notifications for the authenticated user and supports read/unread state. It does not send external messages.
+The first notification API slice is in-app only. It lists notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. It does not send external messages.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

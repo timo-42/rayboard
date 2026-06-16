@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/timo-42/rayboard/internal/backend"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
@@ -59,8 +60,10 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
-	notificationService := notifications.NewService(db.SQL)
-	notificationService.RegisterEventHandlers(eventBus)
+	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
+	group.startWorker("notifications", func() error {
+		return runNotificationProcessor(ctx, notificationService, stderr)
+	})
 	runStore := automation.NewRunStore(db.SQL)
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -112,8 +115,10 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
-	notificationService := notifications.NewService(db.SQL)
-	notificationService.RegisterEventHandlers(eventBus)
+	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
+	group.startWorker("notifications", func() error {
+		return runNotificationProcessor(ctx, notificationService, stderr)
+	})
 	runStore := automation.NewRunStore(db.SQL)
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -160,6 +165,29 @@ func openAndMigrate(ctx context.Context, cfg config.Config, stdout io.Writer) (*
 	fmt.Fprintf(stdout, "database ready at %s\n", cfg.DBPath)
 	fmt.Fprintf(stdout, "POC admin credentials: username=%s password=%s\n", admin.Username, admin.Password)
 	return db, nil
+}
+
+func runNotificationProcessor(ctx context.Context, service *notifications.Service, stderr io.Writer) error {
+	if service == nil {
+		return nil
+	}
+	process := func() {
+		if _, err := service.ProcessPendingDomainEvents(ctx, 100); err != nil {
+			fmt.Fprintf(stderr, "notification processor error: %v\n", err)
+		}
+	}
+	process()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			process()
+		}
+	}
 }
 
 func runFrontend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer) error {

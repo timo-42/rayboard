@@ -38,6 +38,15 @@ func (g *serverGroup) start(name string, serve func() error, shutdown func(conte
 	}()
 }
 
+func (g *serverGroup) startWorker(name string, work func() error) {
+	go func() {
+		if err := work(); err != nil && !errors.Is(err, context.Canceled) {
+			g.errs <- fmt.Errorf("%s worker: %w", name, err)
+			g.cancel()
+		}
+	}()
+}
+
 func (g *serverGroup) addShutdown(shutdown func(context.Context) error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

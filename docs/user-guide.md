@@ -34,7 +34,7 @@ Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignme
 
 ## Notifications
 
-The current notification slice is API-only and in-app only. Authenticated users can list their own notifications, filter to unread notifications, and mark individual notifications read or unread. `read_at` is `null` while a notification is unread.
+The current notification slice is API-only and in-app only. Authenticated users can list their own notifications, filter to unread notifications, and mark individual notifications read or unread. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
 Browser inbox and badge UI, user/project notification preferences, external delivery, Shoutrrr destination settings, notification policies, delivery queues, webhooks, and AI/Lua notification hooks are **Planned**.
 

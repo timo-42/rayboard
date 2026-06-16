@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -82,6 +83,63 @@ func TestStoreAppendRollsBackWithTransaction(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected rollback to remove domain event, got %d rows", count)
+	}
+}
+
+func TestStoreListsAndMarksPendingEvents(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	store := events.NewStore(db.SQL)
+
+	if err := store.Append(ctx, nil, events.Event{Type: "ticket.updated", ObjectID: "ticket-1"}); err != nil {
+		t.Fatalf("append ticket event: %v", err)
+	}
+	if err := store.Append(ctx, nil, events.Event{Type: "comment.created", ObjectID: "comment-1", Data: map[string]any{"ticket_id": "ticket-1"}}); err != nil {
+		t.Fatalf("append comment event: %v", err)
+	}
+
+	pending, err := store.ListPending(ctx, 10, "comment.created")
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if len(pending) != 1 || pending[0].Type != "comment.created" || pending[0].ObjectID != "comment-1" || pending[0].Data["ticket_id"] != "ticket-1" {
+		t.Fatalf("unexpected pending events: %#v", pending)
+	}
+
+	if err := store.MarkProcessed(ctx, pending[0].ID); err != nil {
+		t.Fatalf("mark processed: %v", err)
+	}
+	pending, err = store.ListPending(ctx, 10, "comment.created")
+	if err != nil {
+		t.Fatalf("list pending after processed: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("expected no pending comment events, got %#v", pending)
+	}
+
+	ticketEvents, err := store.ListPending(ctx, 10, "ticket.updated")
+	if err != nil {
+		t.Fatalf("list ticket events: %v", err)
+	}
+	if len(ticketEvents) != 1 {
+		t.Fatalf("expected one ticket event, got %#v", ticketEvents)
+	}
+	wantErr := errors.New("handler failed")
+	if err := store.MarkFailed(ctx, ticketEvents[0].ID, wantErr); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+	var status string
+	var attempts int
+	var lastError string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT processing_status, attempts, COALESCE(last_error, '')
+		FROM domain_events
+		WHERE id = ?
+	`, ticketEvents[0].ID).Scan(&status, &attempts, &lastError); err != nil {
+		t.Fatalf("read failed event: %v", err)
+	}
+	if status != "failed" || attempts != 1 || lastError != wantErr.Error() {
+		t.Fatalf("unexpected failed event state: status=%s attempts=%d error=%q", status, attempts, lastError)
 	}
 }
 

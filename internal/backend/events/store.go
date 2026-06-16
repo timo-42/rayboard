@@ -21,6 +21,20 @@ type Store struct {
 	now func() time.Time
 }
 
+type StoredEvent struct {
+	ID          string
+	Type        string
+	ActorID     string
+	ProjectID   string
+	ObjectID    string
+	SubjectType string
+	SubjectID   string
+	RelatedType string
+	RelatedID   string
+	At          time.Time
+	Data        map[string]any
+}
+
 type StoreOption func(*Store)
 
 func NewStore(db *sql.DB, options ...StoreOption) *Store {
@@ -92,6 +106,103 @@ func (s *Store) Append(ctx context.Context, exec SQLExecutor, event Event) error
 	return nil
 }
 
+func (s *Store) ListPending(ctx context.Context, limit int, eventTypes ...string) ([]StoredEvent, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("events: database is required")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	where := []string{"processing_status = 'pending'", "(next_attempt_at IS NULL OR next_attempt_at <= ?)"}
+	args := []any{formatTime(s.now().UTC())}
+	if len(eventTypes) > 0 {
+		placeholders := make([]string, 0, len(eventTypes))
+		for _, eventType := range eventTypes {
+			eventType = strings.TrimSpace(eventType)
+			if eventType == "" {
+				continue
+			}
+			placeholders = append(placeholders, "?")
+			args = append(args, eventType)
+		}
+		if len(placeholders) > 0 {
+			where = append(where, "event_type IN ("+strings.Join(placeholders, ", ")+")")
+		}
+	}
+	args = append(args, limit)
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, event_type, actor_id, project_id, subject_type, subject_id,
+			related_type, related_id, payload_json, occurred_at
+		FROM domain_events
+		WHERE `+strings.Join(where, " AND ")+`
+		ORDER BY occurred_at ASC, created_at ASC, id ASC
+		LIMIT ?
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list pending domain events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []StoredEvent
+	for rows.Next() {
+		event, err := scanStoredEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending domain events: %w", err)
+	}
+	return events, nil
+}
+
+func (s *Store) MarkProcessed(ctx context.Context, eventID string) error {
+	if s == nil || s.db == nil {
+		return errors.New("events: database is required")
+	}
+	return s.mark(ctx, eventID, "processed", s.now().UTC(), nil)
+}
+
+func (s *Store) MarkFailed(ctx context.Context, eventID string, cause error) error {
+	if s == nil || s.db == nil {
+		return errors.New("events: database is required")
+	}
+	message := ""
+	if cause != nil {
+		message = cause.Error()
+	}
+	return s.mark(ctx, eventID, "failed", time.Time{}, &message)
+}
+
+func (s *Store) mark(ctx context.Context, eventID string, status string, processedAt time.Time, lastError *string) error {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return errors.New("events: event id is required")
+	}
+	var processed any
+	if !processedAt.IsZero() {
+		processed = formatTime(processedAt)
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE domain_events
+		SET processing_status = ?,
+			attempts = attempts + 1,
+			processed_at = ?,
+			last_error = ?
+		WHERE id = ?
+	`, status, processed, nullableStringPtr(lastError), eventID)
+	if err != nil {
+		return fmt.Errorf("mark domain event %s: %w", status, err)
+	}
+	return nil
+}
+
 func eventSubject(event Event) (string, string) {
 	subjectType := strings.TrimSpace(event.SubjectType)
 	subjectID := strings.TrimSpace(event.SubjectID)
@@ -135,4 +246,59 @@ func nullableString(value string) any {
 
 func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
+}
+
+func scanStoredEvent(scanner interface{ Scan(...any) error }) (StoredEvent, error) {
+	var event StoredEvent
+	var actorID sql.NullString
+	var projectID sql.NullString
+	var relatedType sql.NullString
+	var relatedID sql.NullString
+	var payloadJSON string
+	var occurredAt string
+	if err := scanner.Scan(
+		&event.ID,
+		&event.Type,
+		&actorID,
+		&projectID,
+		&event.SubjectType,
+		&event.SubjectID,
+		&relatedType,
+		&relatedID,
+		&payloadJSON,
+		&occurredAt,
+	); err != nil {
+		return StoredEvent{}, fmt.Errorf("scan domain event: %w", err)
+	}
+	event.ActorID = nullSQLString(actorID)
+	event.ProjectID = nullSQLString(projectID)
+	event.RelatedType = nullSQLString(relatedType)
+	event.RelatedID = nullSQLString(relatedID)
+	event.ObjectID = event.SubjectID
+	event.Data = map[string]any{}
+	if payloadJSON != "" {
+		if err := json.Unmarshal([]byte(payloadJSON), &event.Data); err != nil {
+			return StoredEvent{}, fmt.Errorf("decode domain event payload: %w", err)
+		}
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, occurredAt)
+	if err != nil {
+		return StoredEvent{}, fmt.Errorf("parse domain event occurred_at: %w", err)
+	}
+	event.At = parsed
+	return event, nil
+}
+
+func nullSQLString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
+}
+
+func nullableStringPtr(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return nullableString(*value)
 }

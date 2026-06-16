@@ -48,8 +48,9 @@ type ListInput struct {
 }
 
 type Service struct {
-	db  *sql.DB
-	now func() time.Time
+	db         *sql.DB
+	now        func() time.Time
+	eventStore *events.Store
 }
 
 type Option func(*Service)
@@ -70,6 +71,12 @@ func WithNow(now func() time.Time) Option {
 		if now != nil {
 			service.now = now
 		}
+	}
+}
+
+func WithEventStore(store *events.Store) Option {
+	return func(service *Service) {
+		service.eventStore = store
 	}
 }
 
@@ -210,6 +217,58 @@ func (s *Service) MarkAllRead(ctx context.Context, principal authz.Principal) er
 		return fmt.Errorf("mark all notifications read: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) ProcessPendingDomainEvents(ctx context.Context, limit int) (int, error) {
+	if s == nil || s.eventStore == nil {
+		return 0, nil
+	}
+	pending, err := s.eventStore.ListPending(ctx, limit, "comment.created", "ticket.updated")
+	if err != nil {
+		return 0, err
+	}
+
+	processed := 0
+	var firstErr error
+	for _, stored := range pending {
+		event := events.Event{
+			Type:        stored.Type,
+			ActorID:     stored.ActorID,
+			ProjectID:   stored.ProjectID,
+			ObjectID:    stored.ObjectID,
+			SubjectType: stored.SubjectType,
+			SubjectID:   stored.SubjectID,
+			RelatedType: stored.RelatedType,
+			RelatedID:   stored.RelatedID,
+			At:          stored.At,
+			Data:        stored.Data,
+		}
+		if err := s.handleDomainEvent(ctx, event); err != nil {
+			if markErr := s.eventStore.MarkFailed(ctx, stored.ID, err); markErr != nil {
+				return processed, markErr
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if err := s.eventStore.MarkProcessed(ctx, stored.ID); err != nil {
+			return processed, err
+		}
+		processed++
+	}
+	return processed, firstErr
+}
+
+func (s *Service) handleDomainEvent(ctx context.Context, event events.Event) error {
+	switch event.Type {
+	case "comment.created":
+		return s.handleCommentCreated(ctx, event)
+	case "ticket.updated":
+		return s.handleTicketUpdated(ctx, event)
+	default:
+		return nil
+	}
 }
 
 func (s *Service) handleCommentCreated(ctx context.Context, event events.Event) error {
