@@ -4,6 +4,7 @@ go 1.24.1
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.35.0
+	github.com/mvrilo/go-redoc v0.1.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggest/swgui v1.8.8
 	github.com/yuin/gopher-lua v1.1.2

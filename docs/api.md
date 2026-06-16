@@ -9,6 +9,7 @@ The backend generates an OpenAPI document in-process with Huma and serves it fro
 | `GET` | `/api/openapi.json` | No | OpenAPI 3.1 JSON document. |
 | `GET` | `/api/openapi.yaml` | No | OpenAPI 3.1 YAML document. |
 | `GET` | `/api/docs` | No | Swagger UI with embedded static assets, reading `/api/openapi.json`. |
+| `GET` | `/api/docs/redoc` | No | Redoc UI with embedded static assets, reading `/api/openapi.json`. |
 
 ## Authentication
 

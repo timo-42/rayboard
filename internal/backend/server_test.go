@@ -108,3 +108,28 @@ func TestAPIDocsAreServedLocally(t *testing.T) {
 		t.Fatalf("expected embedded Swagger UI bundle")
 	}
 }
+
+func TestRedocDocsAreServedLocally(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/redoc", nil)
+	rec := httptest.NewRecorder()
+
+	NewHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+		t.Fatalf("expected HTML content type, got %q", contentType)
+	}
+	body := rec.Body.String()
+	for _, expected := range []string{"Redoc.init", "/api/openapi.json", "Rayboard API"} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected Redoc page to contain %q", expected)
+		}
+	}
+	for _, external := range []string{`src="https://`, `href="https://`, "cdn.jsdelivr.net", "unpkg.com"} {
+		if strings.Contains(body, external) {
+			t.Fatalf("redoc page must not reference external asset %q", external)
+		}
+	}
+}

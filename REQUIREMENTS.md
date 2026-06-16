@@ -286,6 +286,7 @@ internal/backend/httpapi/
   - effective-permissions endpoint for the current user and for RBAC admin inspection
   - generated OpenAPI specification served from the same binary under `/api/openapi.json`
   - Swagger UI served under `/api/docs` with all Swagger UI static assets embedded into the Go binary; no CDN, Node build, generated runtime file, or external docs server is required.
+  - Redoc UI served under `/api/docs/redoc` with all Redoc static assets embedded into the Go binary; no CDN, Node build, generated runtime file, or external docs server is required.
   - project CRUD
   - project role/member endpoints
   - component CRUD

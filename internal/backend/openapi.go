@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	redoc "github.com/mvrilo/go-redoc"
 	"github.com/swaggest/swgui/v5emb"
 )
 
@@ -88,6 +89,22 @@ func registerAPIDocsRoute(mux *http.ServeMux) {
 	handler := v5emb.New("Rayboard API", "/api/openapi.json", "/api/docs")
 	mux.Handle("GET /api/docs", handler)
 	mux.Handle("GET /api/docs/", handler)
+
+	redocBody, err := redoc.Redoc{
+		Title:       "Rayboard API",
+		Description: "Rayboard OpenAPI reference",
+		SpecPath:    "/api/openapi.json",
+	}.Body()
+	if err != nil {
+		panic(err)
+	}
+	redocHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(redocBody)
+	}
+	mux.HandleFunc("GET /api/docs/redoc", redocHandler)
+	mux.HandleFunc("GET /api/docs/redoc/", redocHandler)
 }
 
 func routeOperation(doc routeDoc) *huma.Operation {
