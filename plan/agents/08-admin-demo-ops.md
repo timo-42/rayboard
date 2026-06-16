@@ -66,6 +66,7 @@ Read first:
    - docs link static check
    - verify `/docs/README.md` indexes required docs
    - verify user-facing endpoints/features added by other agents have matching docs updates or tracked docs follow-ups
+   - verify Lua/AI automation docs include JSON, Go<->Lua conversion, helper result, limit, and secret-redaction behavior
 
 ## Integration Points
 
@@ -86,6 +87,7 @@ Read first:
 - cross-build commands complete.
 - docs links present.
 - docs index covers user, admin, API, automation, development, and operations docs.
+- automation docs cover every implemented Lua helper and AI-capable surface.
 
 ## Acceptance Criteria
 

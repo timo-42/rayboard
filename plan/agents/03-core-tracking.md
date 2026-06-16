@@ -54,9 +54,11 @@ Read first:
    - epics with start/due dates
    - child ticket rollup by status
 7. Components/releases:
-   - CRUD
+   - first backend API slice: project component CRUD under `/api/projects/{project_id}/components` and `/api/components/{component_id}`
+   - first backend API slice: project version/release CRUD under `/api/projects/{project_id}/versions` and `/api/versions/{version_id}`
    - optional owner/default assignee
-   - assign tickets
+   - assign tickets through `component_id` and `version_id` fields on ticket create/update
+   - release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are planned follow-up work
 8. Custom fields:
    - definitions/options per project
    - typed values
@@ -81,6 +83,7 @@ Read first:
 - comment create and mention event.
 - board/backlog ordering.
 - sprint start/complete and ticket assignment.
+- component/version create/update/delete and ticket assignment.
 - epic rollup.
 - custom field validation and typed storage.
 - attachment permission/checksum/limits.

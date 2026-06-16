@@ -481,6 +481,8 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 	assigneeID := strings.TrimSpace(input.AssigneeID)
 	parentTicketID := strings.TrimSpace(input.ParentTicketID)
 	sprintID := strings.TrimSpace(input.SprintID)
+	componentID := strings.TrimSpace(input.ComponentID)
+	versionID := strings.TrimSpace(input.VersionID)
 	rank := strings.TrimSpace(input.Rank)
 	if len(rank) > 200 {
 		fields["rank"] = "Must be 200 characters or fewer"
@@ -502,6 +504,12 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 	if err := s.requireSprint(ctx, tx, "sprint_id", sprintID, project.ID); err != nil {
 		return Ticket{}, err
 	}
+	if err := s.requireComponent(ctx, tx, "component_id", componentID, project.ID); err != nil {
+		return Ticket{}, err
+	}
+	if err := s.requireVersion(ctx, tx, "version_id", versionID, project.ID); err != nil {
+		return Ticket{}, err
+	}
 
 	id, err := newID("ticket")
 	if err != nil {
@@ -520,6 +528,8 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		AssigneeID:     assigneeID,
 		ParentTicketID: parentTicketID,
 		SprintID:       sprintID,
+		ComponentID:    componentID,
+		VersionID:      versionID,
 		Rank:           rank,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -590,6 +600,14 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 		next.SprintID = strings.TrimSpace(*input.SprintID)
 	}
 
+	if input.ComponentID != nil {
+		next.ComponentID = strings.TrimSpace(*input.ComponentID)
+	}
+
+	if input.VersionID != nil {
+		next.VersionID = strings.TrimSpace(*input.VersionID)
+	}
+
 	if input.Rank != nil {
 		rank := strings.TrimSpace(*input.Rank)
 		if len(rank) > 200 {
@@ -612,6 +630,12 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	if err := s.requireSprint(ctx, tx, "sprint_id", next.SprintID, current.ProjectID); err != nil {
 		return Ticket{}, nil, err
 	}
+	if err := s.requireComponent(ctx, tx, "component_id", next.ComponentID, current.ProjectID); err != nil {
+		return Ticket{}, nil, err
+	}
+	if err := s.requireVersion(ctx, tx, "version_id", next.VersionID, current.ProjectID); err != nil {
+		return Ticket{}, nil, err
+	}
 
 	addChange(changes, "title", current.Title, next.Title)
 	addChange(changes, "description", current.Description, next.Description)
@@ -621,9 +645,47 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	addChange(changes, "assignee_id", current.AssigneeID, next.AssigneeID)
 	addChange(changes, "parent_ticket_id", current.ParentTicketID, next.ParentTicketID)
 	addChange(changes, "sprint_id", current.SprintID, next.SprintID)
+	addChange(changes, "component_id", current.ComponentID, next.ComponentID)
+	addChange(changes, "version_id", current.VersionID, next.VersionID)
 	addChange(changes, "rank", current.Rank, next.Rank)
 
 	return next, changes, nil
+}
+
+func (s *Service) requireComponent(ctx context.Context, q sqlRunner, field string, componentID string, projectID string) error {
+	if strings.TrimSpace(componentID) == "" {
+		return nil
+	}
+	var exists int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM project_components
+		WHERE id = ? AND project_id = ?
+	`, componentID, projectID).Scan(&exists); err != nil {
+		return fmt.Errorf("check component: %w", err)
+	}
+	if exists != 1 {
+		return validationFailed(map[string]string{field: "Component not found in project"})
+	}
+	return nil
+}
+
+func (s *Service) requireVersion(ctx context.Context, q sqlRunner, field string, versionID string, projectID string) error {
+	if strings.TrimSpace(versionID) == "" {
+		return nil
+	}
+	var exists int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM project_versions
+		WHERE id = ? AND project_id = ?
+	`, versionID, projectID).Scan(&exists); err != nil {
+		return fmt.Errorf("check version: %w", err)
+	}
+	if exists != 1 {
+		return validationFailed(map[string]string{field: "Version not found in project"})
+	}
+	return nil
 }
 
 func (s *Service) requireSprint(ctx context.Context, q sqlRunner, field string, sprintID string, projectID string) error {

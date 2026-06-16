@@ -13,6 +13,8 @@ The source of truth for product scope remains `REQUIREMENTS.md`. This plan turns
 - Add migrations from day one; never rely on implicit schema creation in feature code.
 - Prefer narrow vertical slices over broad untested scaffolding.
 - Do not bypass public service/API paths for demo seed, cron, webhooks, Lua, AI, or frontend behavior.
+- Treat the shared Lua JSON module and Go<->Lua table conversion layer as platform code, not surface-specific helper code.
+- Keep `/docs` current with user-facing behavior in the same change stream that introduces that behavior.
 
 ## Directory Layout
 
@@ -49,7 +51,7 @@ plan/
 - Agent 06: automation engine, Lua, OpenRouter AI, cron, hooks, custom create pages.
 - Agent 07: notifications, Shoutrrr, webhooks, delivery queues.
 - Agent 08: admin settings, demo seed, audit/ops glue, release/build verification.
-- Agent 09: `/docs` documentation, examples, API docs, automation docs, and docs checks.
+- Agent 09: `/docs` documentation, examples, API docs, automation docs, Lua JSON/Go bridge docs, and docs checks.
 
 ## Dependency Order
 
@@ -60,7 +62,7 @@ Work can start in parallel, but integration should follow this order:
 3. Agent 03 lands core project/ticket APIs and events.
 4. Agents 04, 06, and 07 integrate against core tickets/events.
 5. Agent 05 builds UI pages once API shapes are stable enough.
-6. Agent 09 documents each stable user-facing surface as it lands.
+6. Agent 09 documents each stable user-facing surface as it lands; feature agents should not wait until the end to hand over documentation.
 7. Agent 08 ties settings, demo data, documentation checks, and release verification together.
 
 ## Shared Contracts
@@ -83,6 +85,7 @@ A workstream is complete when:
 - It emits activity/audit events where applicable.
 - It does not introduce direct DB access from frontend, Lua, AI, cron, or demo seed.
 - It updates `/docs` or leaves a tracked documentation follow-up in Agent 09 when behavior is user-facing.
+- It updates automation docs and examples when adding or changing any Lua helper, JSON conversion rule, AI prompt schema, or automation surface.
 - `go test ./...` passes.
 
 ## Milestones
@@ -120,6 +123,7 @@ A workstream is complete when:
 - OpenRouter AI alternative engine.
 - Shoutrrr notifications and notification hooks.
 - Shared Lua JSON module and Go<->Lua table conversion layer.
+- Lua JSON/table conversion examples in `/docs` covering `json.null`, rejected values, limits, and table-to-table helper payloads.
 
 ### Milestone 5: Demo And Operations
 

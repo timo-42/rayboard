@@ -24,6 +24,10 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("GET /api/projects/{project_id}", authRoute.requireAuth(route.getProject))
 	mux.HandleFunc("GET /api/projects/{project_id}/backlog", authRoute.requireAuth(route.listBacklog))
 	mux.HandleFunc("PATCH /api/projects/{project_id}/backlog", authRoute.requireAuth(route.reorderBacklog))
+	mux.HandleFunc("GET /api/projects/{project_id}/components", authRoute.requireAuth(route.listComponents))
+	mux.HandleFunc("POST /api/projects/{project_id}/components", authRoute.requireAuth(route.createComponent))
+	mux.HandleFunc("GET /api/projects/{project_id}/versions", authRoute.requireAuth(route.listVersions))
+	mux.HandleFunc("POST /api/projects/{project_id}/versions", authRoute.requireAuth(route.createVersion))
 	mux.HandleFunc("GET /api/projects/{project_id}/tickets", authRoute.requireAuth(route.listTickets))
 	mux.HandleFunc("POST /api/projects/{project_id}/tickets", authRoute.requireAuth(route.createTicket))
 	mux.HandleFunc("GET /api/projects/{project_id}/sprints", authRoute.requireAuth(route.listSprints))
@@ -39,6 +43,12 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("DELETE /api/sprints/{sprint_id}", authRoute.requireAuth(route.deleteSprint))
 	mux.HandleFunc("POST /api/sprints/{sprint_id}/start", authRoute.requireAuth(route.startSprint))
 	mux.HandleFunc("POST /api/sprints/{sprint_id}/complete", authRoute.requireAuth(route.completeSprint))
+	mux.HandleFunc("GET /api/components/{component_id}", authRoute.requireAuth(route.getComponent))
+	mux.HandleFunc("PATCH /api/components/{component_id}", authRoute.requireAuth(route.updateComponent))
+	mux.HandleFunc("DELETE /api/components/{component_id}", authRoute.requireAuth(route.deleteComponent))
+	mux.HandleFunc("GET /api/versions/{version_id}", authRoute.requireAuth(route.getVersion))
+	mux.HandleFunc("PATCH /api/versions/{version_id}", authRoute.requireAuth(route.updateVersion))
+	mux.HandleFunc("DELETE /api/versions/{version_id}", authRoute.requireAuth(route.deleteVersion))
 }
 
 func (route trackerRoute) listProjects(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
@@ -102,18 +112,126 @@ func (route trackerRoute) reorderBacklog(w http.ResponseWriter, r *http.Request,
 	httpjson.Write(w, http.StatusOK, map[string]any{"items": tickets})
 }
 
+func (route trackerRoute) listComponents(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	components, err := route.tracker.ListComponents(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": components})
+}
+
+func (route trackerRoute) createComponent(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.CreateComponentInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	request.ProjectID = r.PathValue("project_id")
+	component, err := route.tracker.CreateComponent(r.Context(), principal, request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, component)
+}
+
+func (route trackerRoute) getComponent(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	component, err := route.tracker.GetComponent(r.Context(), principal, r.PathValue("component_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, component)
+}
+
+func (route trackerRoute) updateComponent(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.UpdateComponentInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	component, err := route.tracker.UpdateComponent(r.Context(), principal, r.PathValue("component_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, component)
+}
+
+func (route trackerRoute) deleteComponent(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if err := route.tracker.DeleteComponent(r.Context(), principal, r.PathValue("component_id")); err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route trackerRoute) listVersions(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	versions, err := route.tracker.ListVersions(r.Context(), principal, r.PathValue("project_id"), r.URL.Query().Get("status"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": versions})
+}
+
+func (route trackerRoute) createVersion(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.CreateVersionInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	request.ProjectID = r.PathValue("project_id")
+	version, err := route.tracker.CreateVersion(r.Context(), principal, request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, version)
+}
+
+func (route trackerRoute) getVersion(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	version, err := route.tracker.GetVersion(r.Context(), principal, r.PathValue("version_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, version)
+}
+
+func (route trackerRoute) updateVersion(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.UpdateVersionInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	version, err := route.tracker.UpdateVersion(r.Context(), principal, r.PathValue("version_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, version)
+}
+
+func (route trackerRoute) deleteVersion(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if err := route.tracker.DeleteVersion(r.Context(), principal, r.PathValue("version_id")); err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (route trackerRoute) listTickets(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
 	limit, offset, ok := listWindowFromQuery(w, r)
 	if !ok {
 		return
 	}
 	tickets, err := route.tracker.ListTickets(r.Context(), principal, tracker.ListTicketsInput{
-		ProjectID:  r.PathValue("project_id"),
-		Status:     r.URL.Query().Get("status"),
-		AssigneeID: r.URL.Query().Get("assignee_id"),
-		SprintID:   r.URL.Query().Get("sprint_id"),
-		Limit:      limit,
-		Offset:     offset,
+		ProjectID:   r.PathValue("project_id"),
+		Status:      r.URL.Query().Get("status"),
+		AssigneeID:  r.URL.Query().Get("assignee_id"),
+		SprintID:    r.URL.Query().Get("sprint_id"),
+		ComponentID: r.URL.Query().Get("component_id"),
+		VersionID:   r.URL.Query().Get("version_id"),
+		Limit:       limit,
+		Offset:      offset,
 	})
 	if err != nil {
 		writeTrackerError(w, err)

@@ -25,6 +25,7 @@ Read first:
 - frontend architecture guide
 - demo seed guide
 - docs link/checklist support for Agent 08
+- docs coverage checklist that feature agents can update when landing user-facing behavior
 
 ## Package Tasks
 
@@ -33,6 +34,7 @@ Read first:
    - split docs by audience: user, admin, API, automation, development, operations
    - keep docs concise and versioned with implemented behavior
    - label unimplemented planned features as planned
+   - maintain a lightweight coverage checklist mapping implemented CLI/API/UI/automation features to docs pages
 2. Runtime and deployment docs:
    - `combined`, `frontend`, and `backend` modes
    - config flags and environment variables
@@ -65,7 +67,8 @@ Read first:
    - document the shared `json` and `rayboard.json` module
    - document `json.encode`, `json.decode`, and `json.null`
    - document Go<->Lua table conversion rules, rejected values, size/depth limits, and error behavior
-   - provide examples for cron jobs, ticket hooks, create pages, webhooks, notification hooks, JSON payload transformation, and validation
+   - document the helper result convention where Go-backed Lua functions return plain Lua tables plus errors
+   - provide examples for cron jobs, ticket hooks, create pages, webhooks, notification hooks, JSON payload transformation, validation, `json.null`, and helper error handling
 7. AI docs:
    - link to OpenRouter docs: https://openrouter.ai/docs
    - document provider settings, allowed models, prompt/output schema expectations, limits, and audit/run history
@@ -85,6 +88,10 @@ Read first:
    - migration rules
    - package boundaries
    - release checklist
+11. Documentation gating:
+   - require docs updates in the same PR/commit series for user-facing behavior
+   - allow tracked Agent 09 follow-ups only for behavior that is intentionally hidden or still behind a planned/stub label
+   - make docs checks fail when required index links or upstream links are missing
 
 ## Integration Points
 
@@ -103,6 +110,7 @@ Read first:
 - docs contain required upstream links for CEL, cel-go, GopherLua, robfig cron, HTMX, SortableJS, CodeMirror, OpenRouter, Shoutrrr, and SQLite FTS5.
 - API docs include examples for every implemented public endpoint.
 - automation docs include JSON encode/decode and Go<->Lua conversion examples.
+- automation docs include at least one table-to-table helper example returning `value, err`.
 - docs checks fail on broken local links.
 
 ## Acceptance Criteria
@@ -111,4 +119,5 @@ Read first:
 - Implemented features are documented without overstating planned features.
 - Planned features are clearly labeled as planned.
 - User-facing code changes include docs changes or an explicit tracked docs follow-up.
+- New Lua helpers, AI schemas, endpoints, CLI flags, config variables, and frontend workflows are not done until documented.
 - Documentation never includes real generated credentials, API keys, webhook tokens, OpenRouter keys, or Shoutrrr secrets.

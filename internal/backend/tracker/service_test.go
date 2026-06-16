@@ -385,6 +385,117 @@ func TestBacklogListAndReorder(t *testing.T) {
 	}
 }
 
+func TestComponentsVersionsAndTicketAssignment(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-owner")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	component, err := service.CreateComponent(ctx, admin, tracker.CreateComponentInput{
+		ProjectID:         project.ID,
+		Name:              "API",
+		Description:       "Backend API",
+		OwnerUserID:       "user-owner",
+		DefaultAssigneeID: "user-admin",
+	})
+	if err != nil {
+		t.Fatalf("create component: %v", err)
+	}
+	if component.ID == "" || component.OwnerUserID != "user-owner" {
+		t.Fatalf("unexpected component: %#v", component)
+	}
+
+	version, err := service.CreateVersion(ctx, admin, tracker.CreateVersionInput{
+		ProjectID:   project.ID,
+		Name:        "1.0",
+		Description: "First release",
+		TargetDate:  "2026-07-01",
+	})
+	if err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+	if version.ID == "" || version.Status != tracker.VersionStatusPlanned {
+		t.Fatalf("unexpected version: %#v", version)
+	}
+
+	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:   project.ID,
+		Title:       "Component ticket",
+		ComponentID: component.ID,
+		VersionID:   version.ID,
+	})
+	if err != nil {
+		t.Fatalf("create ticket with component/version: %v", err)
+	}
+	if ticket.ComponentID != component.ID || ticket.VersionID != version.ID {
+		t.Fatalf("unexpected ticket component/version: %#v", ticket)
+	}
+
+	components, err := service.ListComponents(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list components: %v", err)
+	}
+	if len(components) != 1 || components[0].ID != component.ID {
+		t.Fatalf("unexpected components: %#v", components)
+	}
+	versions, err := service.ListVersions(ctx, admin, project.ID, tracker.VersionStatusPlanned)
+	if err != nil {
+		t.Fatalf("list versions: %v", err)
+	}
+	if len(versions) != 1 || versions[0].ID != version.ID {
+		t.Fatalf("unexpected versions: %#v", versions)
+	}
+
+	name := "API Platform"
+	updatedComponent, err := service.UpdateComponent(ctx, admin, component.ID, tracker.UpdateComponentInput{Name: &name})
+	if err != nil {
+		t.Fatalf("update component: %v", err)
+	}
+	if updatedComponent.Name != name {
+		t.Fatalf("unexpected updated component: %#v", updatedComponent)
+	}
+
+	status := tracker.VersionStatusReleased
+	releaseDate := "2026-07-03"
+	updatedVersion, err := service.UpdateVersion(ctx, admin, version.ID, tracker.UpdateVersionInput{
+		Status:      &status,
+		ReleaseDate: &releaseDate,
+	})
+	if err != nil {
+		t.Fatalf("update version: %v", err)
+	}
+	if updatedVersion.Status != tracker.VersionStatusReleased || updatedVersion.ReleaseDate != releaseDate {
+		t.Fatalf("unexpected updated version: %#v", updatedVersion)
+	}
+
+	otherProject, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "OPS", Name: "Ops"})
+	if err != nil {
+		t.Fatalf("create other project: %v", err)
+	}
+	otherComponent, err := service.CreateComponent(ctx, admin, tracker.CreateComponentInput{ProjectID: otherProject.ID, Name: "Ops"})
+	if err != nil {
+		t.Fatalf("create other component: %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:   project.ID,
+		Title:       "Wrong component",
+		ComponentID: otherComponent.ID,
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected cross-project component validation, got %v", err)
+	}
+}
+
 func openMigratedDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 

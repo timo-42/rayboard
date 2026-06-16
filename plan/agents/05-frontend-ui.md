@@ -50,10 +50,13 @@ Read first:
    - drag/drop status/order updates
    - sprint assignment
    - epic timeline basics
+   - component/version assignment controls
+   - release reports and advanced release planning are planned after the first backend/API slice
 5. Settings:
    - global admin settings
    - RBAC users/groups/roles/bindings
    - project settings
+   - component/version settings screens
    - user settings
 6. Automation UI:
    - cron

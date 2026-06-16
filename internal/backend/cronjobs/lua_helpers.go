@@ -85,6 +85,8 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			AssigneeID:     stringValue(input, "assignee_id"),
 			ParentTicketID: stringValue(input, "parent_ticket_id"),
 			SprintID:       stringValue(input, "sprint_id"),
+			ComponentID:    stringValue(input, "component_id"),
+			VersionID:      stringValue(input, "version_id"),
 			Rank:           stringValue(input, "rank"),
 		})
 		return pushLuaResult(L, sandbox, ticket, err)
@@ -110,6 +112,8 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			AssigneeID:     optionalString(input, "assignee_id"),
 			ParentTicketID: optionalString(input, "parent_ticket_id"),
 			SprintID:       optionalString(input, "sprint_id"),
+			ComponentID:    optionalString(input, "component_id"),
+			VersionID:      optionalString(input, "version_id"),
 			Rank:           optionalString(input, "rank"),
 		})
 		return pushLuaResult(L, sandbox, ticket, err)

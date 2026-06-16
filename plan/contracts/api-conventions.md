@@ -18,10 +18,20 @@ GET    /api/projects/{project_id}/backlog
 PATCH  /api/projects/{project_id}/backlog
 GET    /api/projects/{project_id}/sprints
 POST   /api/projects/{project_id}/sprints
+GET    /api/projects/{project_id}/components
+POST   /api/projects/{project_id}/components
+GET    /api/projects/{project_id}/versions
+POST   /api/projects/{project_id}/versions
 GET    /api/tickets/{ticket_id}
 PATCH  /api/tickets/{ticket_id}
 PUT    /api/tickets/{ticket_id}/sprint
 DELETE /api/tickets/{ticket_id}/sprint
+GET    /api/components/{component_id}
+PATCH  /api/components/{component_id}
+DELETE /api/components/{component_id}
+GET    /api/versions/{version_id}
+PATCH  /api/versions/{version_id}
+DELETE /api/versions/{version_id}
 ```
 
 Use `POST` for actions that are not simple CRUD:
@@ -43,6 +53,28 @@ PATCH /api/projects/{project_id}/backlog
 ```
 
 `GET` lists tickets for the project in stable backlog order. `PATCH` accepts ticket IDs in the desired order and updates persisted ranks atomically. Reorder handlers must validate project ownership for every ticket, keep ranks stable across repeated reads, and use a deterministic secondary sort when ranks collide.
+
+## Components And Versions
+
+The first component/version route shape is:
+
+```text
+GET    /api/projects/{project_id}/components
+POST   /api/projects/{project_id}/components
+GET    /api/components/{component_id}
+PATCH  /api/components/{component_id}
+DELETE /api/components/{component_id}
+GET    /api/projects/{project_id}/versions
+POST   /api/projects/{project_id}/versions
+GET    /api/versions/{version_id}
+PATCH  /api/versions/{version_id}
+DELETE /api/versions/{version_id}
+PATCH  /api/tickets/{ticket_id}
+```
+
+Components and versions are project-scoped resources. Nested project collection routes make create/list authorization explicit; item routes resolve the owning project before checking permissions. Ticket component/version assignment uses `component_id` and `version_id` fields on ticket create/update and must reject cross-project assignment.
+
+Release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are planned work outside this first backend/API slice.
 
 ## JSON
 

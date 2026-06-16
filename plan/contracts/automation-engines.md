@@ -60,6 +60,8 @@ All Lua-capable surfaces must reuse one shared sandbox package:
 - one Go<->Lua conversion layer
 - one JSON module implementation
 - one limit/error model for JSON/table conversion
+- one table-to-table adapter path for Go-backed Rayboard helper payloads
+- one documentation source for helper behavior and examples under `/docs`
 
 The shared JSON module is available as both:
 
@@ -95,6 +97,17 @@ local ticket, err = rayboard.create_ticket({
   title = "Bug",
   assignee_id = json.null
 })
+```
+
+The conversion layer must be explicit and testable. Do not expose raw Go structs, pointers, `map[string]any` values with inconsistent semantics, database handles, service handles, HTTP clients, or unrestricted userdata to Lua. Surface adapters should translate from Lua tables into the same DTOs used by API/service code, then translate responses back to Lua tables.
+
+Common helper result shape:
+
+```lua
+local result, err = rayboard.some_action({ id = "123" })
+if err ~= nil then
+  reject(err.message)
+end
 ```
 
 All Lua surfaces must enforce:
@@ -158,3 +171,16 @@ Notification hooks:
 - transform/suppress/route notification plans
 - route by named destination only
 - never see Shoutrrr URLs or secrets
+
+## Documentation Contract
+
+Every automation surface must document:
+
+- supported `engine` values
+- owner/actor and RBAC behavior
+- allowed Lua helpers and denied capabilities
+- JSON encode/decode behavior
+- Go<->Lua table conversion rules
+- input/output limits
+- AI prompt and structured output schema behavior
+- run history and secret redaction behavior

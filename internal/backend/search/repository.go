@@ -337,7 +337,7 @@ func (r *Repository) searchTickets(ctx context.Context, q sqlRunner, input ticke
 	rows, err := q.QueryContext(ctx, `
 		SELECT t.id, t.project_id, t.key, t.title, t.description, t.status,
 			t.priority, t.type, t.reporter_id, t.assignee_id, t.parent_ticket_id,
-			t.sprint_id, t.rank, t.created_at, t.updated_at, t.deleted_at
+			t.sprint_id, t.component_id, t.version_id, t.rank, t.created_at, t.updated_at, t.deleted_at
 		FROM tickets t
 		JOIN projects p ON p.id = t.project_id
 		WHERE `+strings.Join(where, " AND ")+`
@@ -478,11 +478,13 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	var assigneeID sql.NullString
 	var parentTicketID sql.NullString
 	var sprintID sql.NullString
+	var componentID sql.NullString
+	var versionID sql.NullString
 	var rank sql.NullString
 	var createdAt string
 	var updatedAt string
 	var deletedAt sql.NullString
-	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &sprintID, &rank, &createdAt, &updatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &sprintID, &componentID, &versionID, &rank, &createdAt, &updatedAt, &deletedAt); err != nil {
 		return Ticket{}, err
 	}
 	var err error
@@ -493,6 +495,8 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	ticket.AssigneeID = nullString(assigneeID)
 	ticket.ParentTicketID = nullString(parentTicketID)
 	ticket.SprintID = nullString(sprintID)
+	ticket.ComponentID = nullString(componentID)
+	ticket.VersionID = nullString(versionID)
 	ticket.Rank = nullString(rank)
 	ticket.CreatedAt, err = parseTime(createdAt)
 	if err != nil {

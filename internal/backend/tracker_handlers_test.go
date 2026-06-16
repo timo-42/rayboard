@@ -113,6 +113,61 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected backlog: %#v", backlog.Items)
 	}
 
+	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{
+		"name":        "API",
+		"description": "Backend API",
+	}))
+	addSessionCSRF(createComponentReq, session, csrf)
+	createComponent := httptest.NewRecorder()
+	handler.ServeHTTP(createComponent, createComponentReq)
+	if createComponent.Code != http.StatusCreated {
+		t.Fatalf("expected create component status 201, got %d: %s", createComponent.Code, createComponent.Body.String())
+	}
+	var component tracker.Component
+	if err := json.Unmarshal(createComponent.Body.Bytes(), &component); err != nil {
+		t.Fatalf("decode component: %v", err)
+	}
+	if component.ID == "" || component.Name != "API" {
+		t.Fatalf("unexpected component: %#v", component)
+	}
+
+	createVersionReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/versions", mustJSON(t, map[string]any{
+		"name":        "1.0",
+		"description": "First release",
+		"target_date": "2026-07-01",
+	}))
+	addSessionCSRF(createVersionReq, session, csrf)
+	createVersion := httptest.NewRecorder()
+	handler.ServeHTTP(createVersion, createVersionReq)
+	if createVersion.Code != http.StatusCreated {
+		t.Fatalf("expected create version status 201, got %d: %s", createVersion.Code, createVersion.Body.String())
+	}
+	var version tracker.Version
+	if err := json.Unmarshal(createVersion.Body.Bytes(), &version); err != nil {
+		t.Fatalf("decode version: %v", err)
+	}
+	if version.ID == "" || version.Status != tracker.VersionStatusPlanned {
+		t.Fatalf("unexpected version: %#v", version)
+	}
+
+	componentVersionUpdateReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+second.ID, mustJSON(t, map[string]any{
+		"component_id": component.ID,
+		"version_id":   version.ID,
+	}))
+	addSessionCSRF(componentVersionUpdateReq, session, csrf)
+	componentVersionUpdate := httptest.NewRecorder()
+	handler.ServeHTTP(componentVersionUpdate, componentVersionUpdateReq)
+	if componentVersionUpdate.Code != http.StatusOK {
+		t.Fatalf("expected component/version ticket update status 200, got %d: %s", componentVersionUpdate.Code, componentVersionUpdate.Body.String())
+	}
+	var componentVersionTicket tracker.Ticket
+	if err := json.Unmarshal(componentVersionUpdate.Body.Bytes(), &componentVersionTicket); err != nil {
+		t.Fatalf("decode component/version ticket: %v", err)
+	}
+	if componentVersionTicket.ComponentID != component.ID || componentVersionTicket.VersionID != version.ID {
+		t.Fatalf("unexpected component/version ticket: %#v", componentVersionTicket)
+	}
+
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
 		"name":       "Sprint 1",
 		"goal":       "Exercise sprint API",

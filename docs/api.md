@@ -73,13 +73,15 @@ Creating a user with an empty password generates a random password and returns i
 | `GET` | `/api/projects` | Optional `include_archived=true`, `limit`, `offset`. |
 | `POST` | `/api/projects` | `{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}` |
 | `GET` | `/api/projects/{project_id}` | none |
-| `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `limit`, `offset`. |
-| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":""}` |
+| `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `limit`, `offset`. |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":""}` |
 | `GET` | `/api/tickets/{ticket_id}` | none |
-| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `parent_ticket_id`, `rank`. |
+| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
 Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
+
+Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
 ## Backlog
 
@@ -111,6 +113,35 @@ The first sprint API slice is backend/API-only. It supports sprint CRUD within a
 Sprint states are `planned`, `active`, and `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
 
 Burndown, velocity, burnup, sprint report APIs, and other agile analytics are **Planned**.
+
+## Components and Versions
+
+The first components/versions API slice is backend/API-only. It supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. Release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/components` | none |
+| `POST` | `/api/projects/{project_id}/components` | `{"name":"API","description":"Backend API surface","owner_user_id":"","default_assignee_id":""}` |
+| `GET` | `/api/components/{component_id}` | none |
+| `PATCH` | `/api/components/{component_id}` | Any subset of `name`, `description`, `owner_user_id`, `default_assignee_id`. |
+| `DELETE` | `/api/components/{component_id}` | none |
+| `GET` | `/api/projects/{project_id}/versions` | Optional `status`. |
+| `POST` | `/api/projects/{project_id}/versions` | `{"name":"2026.7","description":"July release","status":"planned","target_date":"2026-07-31","release_date":""}` |
+| `GET` | `/api/versions/{version_id}` | none |
+| `PATCH` | `/api/versions/{version_id}` | Any subset of `name`, `description`, `status`, `target_date`, `release_date`. |
+| `DELETE` | `/api/versions/{version_id}` | none |
+
+Component names and version names are unique within a project. Component owner/default assignee IDs are optional user IDs. Version statuses are strings; the first slice accepts `planned`, `released`, and `archived`. Version `target_date` and `release_date` use `YYYY-MM-DD` date strings or empty strings.
+
+Deleting a component or version does not delete tickets. SQLite foreign-key behavior clears affected ticket assignments.
+
+Tickets are assigned to components and versions through the ticket API:
+
+| Method | Path | Body |
+| --- | --- | --- |
+| `PATCH` | `/api/tickets/{ticket_id}` | `{"component_id":"component_...","version_id":"version_..."}` |
+
+Ticket assignment keeps all records in one project. Cross-project component or version assignment is invalid.
 
 ## Comments and Attachments
 
@@ -155,7 +186,7 @@ Search returns:
 }
 ```
 
-Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, and `parent_ticket_id`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, and `version_id`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
 
 Full CEL support is **Planned**. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
 
