@@ -47,6 +47,8 @@ Current packages:
 
 Backend HTTP route packages are resource-focused. Each package keeps `routes.go` for route registration/thin handlers, `schema.go` for Huma/OpenAPI request and response DTOs, and `provider.go` for dependency wiring. Huma DTOs are the source of the generated OpenAPI request/response body schemas served by the binary.
 
+For long-lived resource endpoints, new DTOs should follow the Rayboard resource object convention: create/update `Input` bodies contain `spec`, and `Output` bodies contain `metadata`, `spec`, and `status`. Keep command/action routes command-shaped when no durable resource state is being declared.
+
 ## Migration Rules
 
 Migrations are embedded and applied at backend startup. New schema changes should be additive where possible and preserve existing POC data. Keep SQLite foreign keys enabled and avoid migrations that require manual shell access for normal upgrades.

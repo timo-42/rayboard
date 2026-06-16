@@ -4,6 +4,8 @@ Backend API routes live under `/api`. Requests and responses are JSON unless upl
 
 The backend generates an OpenAPI document in-process with Huma and serves it from the same Rayboard binary. No generated spec file or external docs server is required.
 
+Long-lived resource endpoints are moving to a Kubernetes-inspired object shape. Create/update requests use `{"spec": {...}}`; resource responses use `{"metadata": {...}, "spec": {...}, "status": {...}}`. `metadata` holds identity/bookkeeping, `spec` holds desired user-controlled state, and `status` holds observed/computed server state. Command endpoints such as login, search, manual runs, tests, uploads, downloads, and webhooks can keep command-specific bodies.
+
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/api/openapi.json` | No | OpenAPI 3.1 JSON document. |
@@ -332,13 +334,15 @@ Cron job engine configuration is nested and reusable across future hooks/webhook
 
 ```json
 {
-  "name": "Daily triage",
-  "schedule": "0 9 * * *",
-  "timezone": "UTC",
-  "enabled": true,
-  "engine": {
-    "type": "lua",
-    "script": "rayboard.log(\"triage started\")"
+  "spec": {
+    "name": "Daily triage",
+    "schedule": "0 9 * * *",
+    "timezone": "UTC",
+    "enabled": true,
+    "engine": {
+      "type": "lua",
+      "script": "rayboard.log(\"triage started\")"
+    }
   }
 }
 ```
@@ -347,10 +351,12 @@ The planned AI form uses the same `engine` object with an OpenRouter provider re
 
 ```json
 {
-  "engine": {
-    "type": "ai",
-    "prompt": "Return JSON actions for stale tickets.",
-    "provider_id": "ai_provider_default"
+  "spec": {
+    "engine": {
+      "type": "ai",
+      "prompt": "Return JSON actions for stale tickets.",
+      "provider_id": "ai_provider_default"
+    }
   }
 }
 ```

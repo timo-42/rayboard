@@ -71,7 +71,8 @@ func TestOpenAPIJSON(t *testing.T) {
 	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"username"}, []string{"password"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"title"}, []string{"labels"})
-	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"name"}, []string{"schedule"}, []string{"engine"}, []string{"engine", "type"}, []string{"engine", "script"}, []string{"engine", "prompt"}, []string{"engine", "provider_id"})
+	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"}, []string{"spec", "engine", "type"}, []string{"spec", "engine", "script"}, []string{"spec", "engine", "prompt"}, []string{"spec", "engine", "provider_id"})
+	assertResponseBodyFields(t, spec, "/api/cron-jobs/{job_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "next_run_at"})
 }
 
 func TestAPIDocsAreServedLocally(t *testing.T) {
@@ -150,6 +151,15 @@ func assertRequestBodyFields(t *testing.T, spec map[string]any, path string, met
 	}
 }
 
+func assertResponseBodyFields(t *testing.T, spec map[string]any, path string, method string, status string, fieldPaths ...[]string) {
+	t.Helper()
+
+	schema := responseBodySchema(t, spec, path, method, status)
+	for _, fieldPath := range fieldPaths {
+		assertSchemaField(t, spec, schema, fieldPath)
+	}
+}
+
 func requestBodySchema(t *testing.T, spec map[string]any, path string, method string) map[string]any {
 	t.Helper()
 
@@ -158,6 +168,19 @@ func requestBodySchema(t *testing.T, spec map[string]any, path string, method st
 	operation := mapField(t, pathItem, strings.ToLower(method))
 	requestBody := mapField(t, operation, "requestBody")
 	content := mapField(t, requestBody, "content")
+	jsonMedia := mapField(t, content, "application/json")
+	return resolveSchema(t, spec, mapField(t, jsonMedia, "schema"))
+}
+
+func responseBodySchema(t *testing.T, spec map[string]any, path string, method string, status string) map[string]any {
+	t.Helper()
+
+	paths := mapField(t, spec, "paths")
+	pathItem := mapField(t, paths, path)
+	operation := mapField(t, pathItem, strings.ToLower(method))
+	responses := mapField(t, operation, "responses")
+	response := mapField(t, responses, status)
+	content := mapField(t, response, "content")
 	jsonMedia := mapField(t, content, "application/json")
 	return resolveSchema(t, spec, mapField(t, jsonMedia, "schema"))
 }

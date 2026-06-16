@@ -106,6 +106,53 @@ Custom-field CEL filtering, UI field management screens, custom create page inte
 - Use UTC RFC3339 timestamps.
 - IDs are opaque strings in JSON, even if SQLite stores integers internally.
 
+## Resource Objects
+
+Long-lived resources use a Kubernetes-inspired envelope, adapted for Rayboard rather than copied wholesale.
+
+Create and update requests put desired state under `spec`:
+
+```json
+{
+  "spec": {
+    "title": "Fix login",
+    "description": "Session cookie is not persisted",
+    "assignee_id": "user_123"
+  }
+}
+```
+
+Resource responses use `metadata`, `spec`, and `status`:
+
+```json
+{
+  "metadata": {
+    "id": "ticket_123",
+    "key": "CORE-42",
+    "created_at": "2026-06-16T10:00:00Z",
+    "updated_at": "2026-06-16T11:00:00Z"
+  },
+  "spec": {
+    "title": "Fix login",
+    "description": "Session cookie is not persisted",
+    "assignee_id": "user_123",
+    "status": "in_progress"
+  },
+  "status": {
+    "state": "open",
+    "comment_count": 2,
+    "attachment_count": 1
+  }
+}
+```
+
+- `metadata` is identity/bookkeeping: IDs, keys, slugs/names where they identify the object, timestamps, generation/resource-version fields, labels, annotations, archive/delete markers.
+- `spec` is user-controlled desired state and is the only resource object section accepted by create/update handlers.
+- `status` is observed/computed/server-controlled state and is never accepted in create/update input.
+- List endpoints return arrays of resource objects.
+- Huma schema DTOs must expose concrete `spec` and `status` object fields so `/api/openapi.json`, Swagger UI, and Redoc show useful request/response bodies.
+- Command/action endpoints may use command-specific bodies instead of this envelope when no long-lived resource is being created or updated. Examples: login/logout, token creation, search, sprint start/complete, cron manual run, preview/test endpoints, file upload/download, and webhook ingress/delivery actions.
+
 ## Errors
 
 All API errors use:

@@ -56,6 +56,7 @@ internal/backend/httpapi/
 - `router.go` assembles resource route providers and shared middleware only.
 - `routes.go` registers routes and contains thin HTTP handlers.
 - `schema.go` contains Huma/OpenAPI-facing DTOs; request DTOs use `Input`, response DTOs use `Output`.
+- Resource DTOs should use the Rayboard resource object envelope: create/update input bodies contain `spec`, and resource outputs contain `metadata`, `spec`, and `status`.
 - `provider.go` wires dependencies and local route helpers.
 - HTTP packages decode/auth/call services/encode; domain services and repositories own validation, transactions, and SQLite access.
 - Do not put raw DB CRUD in HTTP route packages.

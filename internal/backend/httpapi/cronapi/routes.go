@@ -33,7 +33,7 @@ func (provider Provider) listJobs(ctx context.Context, input *ListJobsInput) (*L
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &ListJobsOutput{Body: shared.ItemList[cronjobs.Job]{Items: jobs}}, nil
+	return &ListJobsOutput{Body: shared.ItemList[JobResource]{Items: jobResources(jobs)}}, nil
 }
 
 func (provider Provider) createJob(ctx context.Context, input *CreateJobInput) (*CreateJobOutput, error) {
@@ -41,11 +41,11 @@ func (provider Provider) createJob(ctx context.Context, input *CreateJobInput) (
 	if err != nil {
 		return nil, err
 	}
-	job, err := provider.Cron.Create(ctx, principal, input.Body)
+	job, err := provider.Cron.Create(ctx, principal, input.Body.Spec.createInput())
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &CreateJobOutput{Body: job}, nil
+	return &CreateJobOutput{Body: jobResource(job)}, nil
 }
 
 func (provider Provider) getJob(ctx context.Context, input *JobIDInput) (*JobOutput, error) {
@@ -57,7 +57,7 @@ func (provider Provider) getJob(ctx context.Context, input *JobIDInput) (*JobOut
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &JobOutput{Body: job}, nil
+	return &JobOutput{Body: jobResource(job)}, nil
 }
 
 func (provider Provider) updateJob(ctx context.Context, input *UpdateJobInput) (*JobOutput, error) {
@@ -65,11 +65,11 @@ func (provider Provider) updateJob(ctx context.Context, input *UpdateJobInput) (
 	if err != nil {
 		return nil, err
 	}
-	job, err := provider.Cron.Update(ctx, principal, input.JobID, input.Body)
+	job, err := provider.Cron.Update(ctx, principal, input.JobID, input.Body.Spec.updateInput())
 	if err != nil {
 		return nil, shared.CronError(err)
 	}
-	return &JobOutput{Body: job}, nil
+	return &JobOutput{Body: jobResource(job)}, nil
 }
 
 func (provider Provider) deleteJob(ctx context.Context, input *JobIDInput) (*shared.EmptyOutput, error) {
