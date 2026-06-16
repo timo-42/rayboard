@@ -86,6 +86,18 @@ type demoRoleBinding struct {
 	ProjectID   string                  `json:"project_id,omitempty"`
 }
 
+type demoProjectResource struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		Key         string `json:"key"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		LeadUserID  string `json:"lead_user_id"`
+	} `json:"spec"`
+}
+
 func newDemoSeeder(rawBackendURL string, stdout io.Writer) (*demoSeeder, error) {
 	parsed, err := url.Parse(strings.TrimRight(rawBackendURL, "/"))
 	if err != nil {
@@ -220,15 +232,22 @@ func (s *demoSeeder) createGroups(ctx context.Context, users map[string]auth.Cre
 }
 
 func (s *demoSeeder) createProject(ctx context.Context) (tracker.Project, error) {
-	var project tracker.Project
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects", tracker.CreateProjectInput{
+	input := tracker.CreateProjectInput{
 		Key:         "DEMO" + s.suffix,
 		Name:        "Demo Project " + s.suffix,
 		Description: "Seeded project for demos",
-	}, &project); err != nil {
+	}
+	var project demoProjectResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects", map[string]tracker.CreateProjectInput{"spec": input}, &project); err != nil {
 		return tracker.Project{}, fmt.Errorf("create demo project: %w", err)
 	}
-	return project, nil
+	return tracker.Project{
+		ID:          project.Metadata.ID,
+		Key:         project.Spec.Key,
+		Name:        project.Spec.Name,
+		Description: project.Spec.Description,
+		LeadUserID:  project.Spec.LeadUserID,
+	}, nil
 }
 
 func (s *demoSeeder) bindProjectMembers(ctx context.Context, groupID string, projectID string) error {

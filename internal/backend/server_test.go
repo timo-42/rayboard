@@ -70,6 +70,8 @@ func TestOpenAPIJSON(t *testing.T) {
 		}
 	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"username"}, []string{"password"})
+	assertRequestBodyFields(t, spec, "/api/projects", http.MethodPost, []string{"spec"}, []string{"spec", "key"}, []string{"spec", "name"}, []string{"spec", "description"}, []string{"spec", "lead_user_id"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "key"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"title"}, []string{"labels"})
 	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
 	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/cron-jobs", http.MethodPost), []string{"spec", "engine"})

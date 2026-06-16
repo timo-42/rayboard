@@ -1,6 +1,8 @@
 package projects
 
 import (
+	"time"
+
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -15,7 +17,7 @@ type ListProjectsInput struct {
 
 type CreateProjectInput struct {
 	shared.AuthInput
-	Body tracker.CreateProjectInput
+	Body shared.ResourceInput[ProjectSpec]
 }
 
 type ProjectIDInput struct {
@@ -96,10 +98,31 @@ type CreateSprintInput struct {
 	Body      shared.ResourceInput[sprintapi.SprintSpec]
 }
 
-type ListProjectsOutput = shared.ListOutput[tracker.Project]
-type CreateProjectOutput = shared.CreatedOutput[tracker.Project]
+type ProjectMetadata struct {
+	ID        string    `json:"id"`
+	CreatedBy string    `json:"created_by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ProjectSpec struct {
+	Key         string `json:"key,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	LeadUserID  string `json:"lead_user_id,omitempty"`
+}
+
+type ProjectResourceStatus struct {
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
+}
+
+type ProjectResource = shared.Resource[ProjectMetadata, ProjectSpec, ProjectResourceStatus]
+
+type ListProjectsOutput = shared.ListOutput[ProjectResource]
+type CreateProjectOutput = shared.CreatedOutput[ProjectResource]
 type ProjectOutput struct {
-	Body tracker.Project
+	Body ProjectResource
 }
 type ListTicketsOutput = shared.ListOutput[tracker.Ticket]
 type CreateTicketOutput = shared.CreatedOutput[tracker.Ticket]
@@ -115,3 +138,41 @@ type CreateCustomFieldOutput = shared.CreatedOutput[tracker.CustomFieldDefinitio
 type ListRoadmapOutput = shared.ListOutput[tracker.RoadmapItem]
 type ListSprintsOutput = shared.ListOutput[sprintapi.SprintResource]
 type CreateSprintOutput = shared.CreatedOutput[sprintapi.SprintResource]
+
+func (spec ProjectSpec) ToCreateInput() tracker.CreateProjectInput {
+	return tracker.CreateProjectInput{
+		Key:         spec.Key,
+		Name:        spec.Name,
+		Description: spec.Description,
+		LeadUserID:  spec.LeadUserID,
+	}
+}
+
+func projectResource(project tracker.Project) ProjectResource {
+	return ProjectResource{
+		Metadata: ProjectMetadata{
+			ID:        project.ID,
+			CreatedBy: project.CreatedBy,
+			CreatedAt: project.CreatedAt,
+			UpdatedAt: project.UpdatedAt,
+		},
+		Spec: ProjectSpec{
+			Key:         project.Key,
+			Name:        project.Name,
+			Description: project.Description,
+			LeadUserID:  project.LeadUserID,
+		},
+		Status: ProjectResourceStatus{
+			ArchivedAt: project.ArchivedAt,
+			DeletedAt:  project.DeletedAt,
+		},
+	}
+}
+
+func projectResources(projects []tracker.Project) []ProjectResource {
+	resources := make([]ProjectResource, 0, len(projects))
+	for _, project := range projects {
+		resources = append(resources, projectResource(project))
+	}
+	return resources
+}

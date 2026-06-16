@@ -82,7 +82,7 @@ Creating a user with an empty password generates a random password and returns i
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects` | Optional `include_archived=true`, `limit`, `offset`. |
-| `POST` | `/api/projects` | `{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}` |
+| `POST` | `/api/projects` | `{"spec":{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}}` |
 | `GET` | `/api/projects/{project_id}` | none |
 | `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `label`, `limit`, `offset`. |
 | `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}` |
@@ -91,6 +91,8 @@ Creating a user with an empty password generates a random password and returns i
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
 Ticket statuses are stored as strings. Workflow status APIs define the ordered project-scoped status slugs available to a project.
+
+Project responses use `metadata`, `spec`, and `status`. Project IDs are returned as `metadata.id`; project key, name, description, and lead user are returned in `spec`; archive/delete lifecycle fields are returned in `status`.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 

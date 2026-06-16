@@ -108,8 +108,10 @@ func createSearchTestProject(t *testing.T, handler http.Handler, session *http.C
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/projects", mustJSON(t, map[string]any{
-		"key":  "SEA",
-		"name": "Search",
+		"spec": map[string]any{
+			"key":  "SEA",
+			"name": "Search",
+		},
 	}))
 	addSessionCSRF(req, session, csrf)
 	rec := httptest.NewRecorder()
@@ -117,11 +119,7 @@ func createSearchTestProject(t *testing.T, handler http.Handler, session *http.C
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected create project status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var project tracker.Project
-	if err := json.Unmarshal(rec.Body.Bytes(), &project); err != nil {
-		t.Fatalf("decode project: %v", err)
-	}
-	return project
+	return decodeProjectResourceAsTracker(t, rec.Body.Bytes())
 }
 
 func createSearchTestTicket(t *testing.T, handler http.Handler, session *http.Cookie, csrf *http.Cookie, projectID string) tracker.Ticket {

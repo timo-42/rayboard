@@ -51,7 +51,7 @@ function bindEvents() {
     event.preventDefault();
     const data = formData(event.currentTarget);
     await runAction(async () => {
-      const project = await api("/api/projects", { method: "POST", body: data });
+      const project = normalizeProject(await api("/api/projects", { method: "POST", body: { spec: data } }));
       event.currentTarget.reset();
       await loadProjects(project.id);
     }, "Project created");
@@ -98,7 +98,7 @@ async function refreshSession() {
 
 async function loadProjects(selectedID = "") {
   const data = await api("/api/projects");
-  state.projects = data.items || [];
+  state.projects = (data.items || []).map(normalizeProject);
   if (selectedID) {
     state.selectedProject = state.projects.find((project) => project.id === selectedID) || null;
   } else if (!state.selectedProject && state.projects.length > 0) {
@@ -276,6 +276,22 @@ function statusActions(status) {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function normalizeProject(project) {
+  if (!project) {
+    return null;
+  }
+  if (project.metadata && project.spec) {
+    return {
+      id: project.metadata.id,
+      key: project.spec.key,
+      name: project.spec.name,
+      description: project.spec.description || "",
+      lead_user_id: project.spec.lead_user_id || ""
+    };
+  }
+  return project;
 }
 
 function cookieValue(name) {

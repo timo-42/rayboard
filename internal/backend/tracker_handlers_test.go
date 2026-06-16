@@ -27,9 +27,11 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	csrf := responseCookie(t, login.Result(), csrfCookieName)
 
 	createProjectReq := httptest.NewRequest(http.MethodPost, "/api/projects", mustJSON(t, map[string]any{
-		"key":         "CORE",
-		"name":        "Core Tracking",
-		"description": "Project and ticket API",
+		"spec": map[string]any{
+			"key":         "CORE",
+			"name":        "Core Tracking",
+			"description": "Project and ticket API",
+		},
 	}))
 	addSessionCSRF(createProjectReq, session, csrf)
 	createProject := httptest.NewRecorder()
@@ -37,10 +39,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createProject.Code != http.StatusCreated {
 		t.Fatalf("expected create project status 201, got %d: %s", createProject.Code, createProject.Body.String())
 	}
-	var project tracker.Project
-	if err := json.Unmarshal(createProject.Body.Bytes(), &project); err != nil {
-		t.Fatalf("decode project: %v", err)
-	}
+	project := decodeProjectResourceAsTracker(t, createProject.Body.Bytes())
 	if project.ID == "" || project.Key != "CORE" {
 		t.Fatalf("unexpected project: %#v", project)
 	}
@@ -471,8 +470,10 @@ func TestTrackerEndpointsDenyUnprivilegedMutations(t *testing.T) {
 	csrf := responseCookie(t, login.Result(), csrfCookieName)
 
 	createProjectReq := httptest.NewRequest(http.MethodPost, "/api/projects", mustJSON(t, map[string]any{
-		"key":  "DENY",
-		"name": "Denied",
+		"spec": map[string]any{
+			"key":  "DENY",
+			"name": "Denied",
+		},
 	}))
 	addSessionCSRF(createProjectReq, session, csrf)
 	createProject := httptest.NewRecorder()
@@ -500,4 +501,34 @@ type sprintResourceBody struct {
 	Status struct {
 		State string `json:"state"`
 	} `json:"status"`
+}
+
+type projectResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		CreatedBy string `json:"created_by"`
+	} `json:"metadata"`
+	Spec struct {
+		Key         string `json:"key"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		LeadUserID  string `json:"lead_user_id"`
+	} `json:"spec"`
+}
+
+func decodeProjectResourceAsTracker(t *testing.T, data []byte) tracker.Project {
+	t.Helper()
+
+	var body projectResourceBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode project resource: %v", err)
+	}
+	return tracker.Project{
+		ID:          body.Metadata.ID,
+		Key:         body.Spec.Key,
+		Name:        body.Spec.Name,
+		Description: body.Spec.Description,
+		LeadUserID:  body.Spec.LeadUserID,
+		CreatedBy:   body.Metadata.CreatedBy,
+	}
 }

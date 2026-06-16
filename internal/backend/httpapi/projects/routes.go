@@ -46,7 +46,7 @@ func (provider Provider) listProjects(ctx context.Context, input *ListProjectsIn
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListProjectsOutput{Body: shared.ItemList[tracker.Project]{Items: items}}, nil
+	return &ListProjectsOutput{Body: shared.ItemList[ProjectResource]{Items: projectResources(items)}}, nil
 }
 
 func (provider Provider) createProject(ctx context.Context, input *CreateProjectInput) (*CreateProjectOutput, error) {
@@ -54,11 +54,11 @@ func (provider Provider) createProject(ctx context.Context, input *CreateProject
 	if err != nil {
 		return nil, err
 	}
-	project, err := provider.Tracker.CreateProject(ctx, principal, input.Body)
+	project, err := provider.Tracker.CreateProject(ctx, principal, input.Body.Spec.ToCreateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateProjectOutput{Body: project}, nil
+	return &CreateProjectOutput{Body: projectResource(project)}, nil
 }
 
 func (provider Provider) getProject(ctx context.Context, input *ProjectIDInput) (*ProjectOutput, error) {
@@ -70,7 +70,7 @@ func (provider Provider) getProject(ctx context.Context, input *ProjectIDInput) 
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ProjectOutput{Body: project}, nil
+	return &ProjectOutput{Body: projectResource(project)}, nil
 }
 
 func (provider Provider) listBacklog(ctx context.Context, input *ProjectIDInput) (*ListTicketsOutput, error) {
