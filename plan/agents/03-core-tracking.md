@@ -41,8 +41,10 @@ Read first:
    - activity log
 4. Boards/backlog:
    - list by project
-   - reorder within backlog/board
-   - stable ordering fields
+   - first backend backlog API slice: `GET /api/projects/{project_id}/backlog` and `PATCH /api/projects/{project_id}/backlog`
+   - reorder backlog tickets using stable persisted rank/order values
+   - stable ordering fields with deterministic tie-breakers
+   - board reorder can follow later once board APIs/UI are introduced
 5. Sprints:
    - CRUD
    - start/complete

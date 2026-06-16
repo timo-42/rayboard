@@ -22,6 +22,8 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("GET /api/projects", authRoute.requireAuth(route.listProjects))
 	mux.HandleFunc("POST /api/projects", authRoute.requireAuth(route.createProject))
 	mux.HandleFunc("GET /api/projects/{project_id}", authRoute.requireAuth(route.getProject))
+	mux.HandleFunc("GET /api/projects/{project_id}/backlog", authRoute.requireAuth(route.listBacklog))
+	mux.HandleFunc("PATCH /api/projects/{project_id}/backlog", authRoute.requireAuth(route.reorderBacklog))
 	mux.HandleFunc("GET /api/projects/{project_id}/tickets", authRoute.requireAuth(route.listTickets))
 	mux.HandleFunc("POST /api/projects/{project_id}/tickets", authRoute.requireAuth(route.createTicket))
 	mux.HandleFunc("GET /api/projects/{project_id}/sprints", authRoute.requireAuth(route.listSprints))
@@ -76,6 +78,28 @@ func (route trackerRoute) getProject(w http.ResponseWriter, r *http.Request, pri
 		return
 	}
 	httpjson.Write(w, http.StatusOK, project)
+}
+
+func (route trackerRoute) listBacklog(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	tickets, err := route.tracker.ListBacklog(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": tickets})
+}
+
+func (route trackerRoute) reorderBacklog(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.ReorderBacklogInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	tickets, err := route.tracker.ReorderBacklog(r.Context(), principal, r.PathValue("project_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": tickets})
 }
 
 func (route trackerRoute) listTickets(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {

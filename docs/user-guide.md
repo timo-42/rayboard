@@ -24,7 +24,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Rich backlog planning UI, board drag/drop, sprint report screens, burndown/velocity/burnup reports, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
+Backlog list/reorder, sprint CRUD, sprint start/complete, and ticket sprint assignment are currently API-only workflows. Rich backlog planning UI, board UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
 
 ## Notifications
 

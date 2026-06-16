@@ -328,6 +328,63 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	}
 }
 
+func TestBacklogListAndReorder(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	first, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "First"})
+	if err != nil {
+		t.Fatalf("create first ticket: %v", err)
+	}
+	second, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Second"})
+	if err != nil {
+		t.Fatalf("create second ticket: %v", err)
+	}
+
+	backlog, err := service.ReorderBacklog(ctx, admin, project.ID, tracker.ReorderBacklogInput{TicketIDs: []string{second.ID, first.ID}})
+	if err != nil {
+		t.Fatalf("reorder backlog: %v", err)
+	}
+	if len(backlog) != 2 || backlog[0].ID != second.ID || backlog[0].Rank != "000001" || backlog[1].ID != first.ID || backlog[1].Rank != "000002" {
+		t.Fatalf("unexpected reordered backlog: %#v", backlog)
+	}
+
+	listed, err := service.ListBacklog(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list backlog: %v", err)
+	}
+	if len(listed) != 2 || listed[0].ID != second.ID || listed[1].ID != first.ID {
+		t.Fatalf("unexpected listed backlog: %#v", listed)
+	}
+
+	if _, err := service.ReorderBacklog(ctx, admin, project.ID, tracker.ReorderBacklogInput{TicketIDs: []string{first.ID, first.ID}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected duplicate validation error, got %v", err)
+	}
+
+	otherProject, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "OPS", Name: "Ops"})
+	if err != nil {
+		t.Fatalf("create other project: %v", err)
+	}
+	otherTicket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: otherProject.ID, Title: "Other"})
+	if err != nil {
+		t.Fatalf("create other ticket: %v", err)
+	}
+	if _, err := service.ReorderBacklog(ctx, admin, project.ID, tracker.ReorderBacklogInput{TicketIDs: []string{otherTicket.ID}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected cross-project validation error, got %v", err)
+	}
+}
+
 func openMigratedDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 

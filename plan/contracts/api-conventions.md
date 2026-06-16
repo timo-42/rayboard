@@ -14,6 +14,8 @@ GET    /api/projects
 POST   /api/projects
 GET    /api/projects/{project_id}
 POST   /api/projects/{project_id}/tickets
+GET    /api/projects/{project_id}/backlog
+PATCH  /api/projects/{project_id}/backlog
 GET    /api/projects/{project_id}/sprints
 POST   /api/projects/{project_id}/sprints
 GET    /api/tickets/{ticket_id}
@@ -30,6 +32,17 @@ POST /api/sprints/{sprint_id}/complete
 POST /api/cron-jobs/{id}/run
 POST /api/webhooks/{id}/test
 ```
+
+## Backlog Ordering
+
+The first backlog route shape is:
+
+```text
+GET   /api/projects/{project_id}/backlog
+PATCH /api/projects/{project_id}/backlog
+```
+
+`GET` lists tickets for the project in stable backlog order. `PATCH` accepts ticket IDs in the desired order and updates persisted ranks atomically. Reorder handlers must validate project ownership for every ticket, keep ranks stable across repeated reads, and use a deterministic secondary sort when ranks collide.
 
 ## JSON
 

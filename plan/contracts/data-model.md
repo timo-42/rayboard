@@ -67,6 +67,7 @@ Projects:
 Tickets:
 
 - tickets
+- ticket backlog rank/order is persisted on tickets unless a later board-specific ordering table is needed
 - ticket_labels
 - ticket_comments
 - ticket_activity

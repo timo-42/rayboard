@@ -81,6 +81,17 @@ Creating a user with an empty password generates a random password and returns i
 
 Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
 
+## Backlog
+
+The first backlog API slice is backend/API-only. It lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. Browser drag/drop, board UI, richer backlog planning, and reports are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/backlog` | none |
+| `PATCH` | `/api/projects/{project_id}/backlog` | `{"ticket_ids":["ticket_2","ticket_1"]}` |
+
+Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice.
+
 ## Sprints
 
 The first sprint API slice is backend/API-only. It supports sprint CRUD within a project, starting and completing sprints, and assigning or removing a ticket from a sprint. Browser backlog planning, board drag/drop, and sprint report screens are **Planned**.

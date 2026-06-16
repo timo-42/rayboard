@@ -72,6 +72,47 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected ticket: %#v", ticket)
 	}
 
+	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
+		"title": "Second API ticket",
+	}))
+	addSessionCSRF(createSecondReq, session, csrf)
+	createSecond := httptest.NewRecorder()
+	handler.ServeHTTP(createSecond, createSecondReq)
+	if createSecond.Code != http.StatusCreated {
+		t.Fatalf("expected create second ticket status 201, got %d: %s", createSecond.Code, createSecond.Body.String())
+	}
+	var second tracker.Ticket
+	if err := json.Unmarshal(createSecond.Body.Bytes(), &second); err != nil {
+		t.Fatalf("decode second ticket: %v", err)
+	}
+
+	reorderBacklogReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/backlog", mustJSON(t, map[string]any{
+		"ticket_ids": []string{second.ID, ticket.ID},
+	}))
+	addSessionCSRF(reorderBacklogReq, session, csrf)
+	reorderBacklog := httptest.NewRecorder()
+	handler.ServeHTTP(reorderBacklog, reorderBacklogReq)
+	if reorderBacklog.Code != http.StatusOK {
+		t.Fatalf("expected reorder backlog status 200, got %d: %s", reorderBacklog.Code, reorderBacklog.Body.String())
+	}
+
+	listBacklogReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/backlog", nil)
+	listBacklogReq.AddCookie(session)
+	listBacklog := httptest.NewRecorder()
+	handler.ServeHTTP(listBacklog, listBacklogReq)
+	if listBacklog.Code != http.StatusOK {
+		t.Fatalf("expected list backlog status 200, got %d: %s", listBacklog.Code, listBacklog.Body.String())
+	}
+	var backlog struct {
+		Items []tracker.Ticket `json:"items"`
+	}
+	if err := json.Unmarshal(listBacklog.Body.Bytes(), &backlog); err != nil {
+		t.Fatalf("decode backlog: %v", err)
+	}
+	if len(backlog.Items) != 2 || backlog.Items[0].ID != second.ID || backlog.Items[0].Rank != "000001" {
+		t.Fatalf("unexpected backlog: %#v", backlog.Items)
+	}
+
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
 		"name":       "Sprint 1",
 		"goal":       "Exercise sprint API",
