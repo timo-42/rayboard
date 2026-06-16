@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
-	"github.com/timo-42/rayboard/internal/backend/httpjson"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -104,7 +104,9 @@ func NewHandler(opts ...Option) http.Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", health)
+	api := humago.New(mux, openAPIConfig())
+	registerOpenAPIRoutes(api)
+	registerAPIDocsRoute(mux)
 	if options.auth != nil {
 		registerAuthRoutes(mux, options.auth, options.authorizer)
 	}
@@ -127,11 +129,4 @@ func NewHandler(opts ...Option) http.Handler {
 		registerSearchRoutes(mux, options.auth, options.search)
 	}
 	return mux
-}
-
-func health(w http.ResponseWriter, _ *http.Request) {
-	httpjson.Write(w, http.StatusOK, map[string]string{
-		"status":  "ok",
-		"service": "backend",
-	})
 }

@@ -2,6 +2,14 @@
 
 Backend API routes live under `/api`. Requests and responses are JSON unless uploading or downloading attachments. JSON uses `snake_case`, UTC RFC3339 timestamps, and opaque string IDs.
 
+The backend generates an OpenAPI document in-process with Huma and serves it from the same Rayboard binary. No generated spec file or external docs server is required.
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/openapi.json` | No | OpenAPI 3.1 JSON document. |
+| `GET` | `/api/openapi.yaml` | No | OpenAPI 3.1 YAML document. |
+| `GET` | `/api/docs` | No | Self-contained API documentation page that reads `/api/openapi.json`. |
+
 ## Authentication
 
 Protected routes accept either:
