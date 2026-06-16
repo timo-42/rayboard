@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/audit"
@@ -280,6 +281,14 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 		t.Fatalf("expected initial delegate status 403, got %d: %s", denied.Code, denied.Body.String())
 	}
 
+	deniedEffectiveReq := httptest.NewRequest(http.MethodGet, "/api/users/"+createdUser.Metadata.ID+"/effective-permissions", nil)
+	deniedEffectiveReq.AddCookie(userSession)
+	deniedEffective := httptest.NewRecorder()
+	handler.ServeHTTP(deniedEffective, deniedEffectiveReq)
+	if deniedEffective.Code != http.StatusForbidden {
+		t.Fatalf("expected user effective-permissions inspection status 403, got %d: %s", deniedEffective.Code, deniedEffective.Body.String())
+	}
+
 	createGroupReq := httptest.NewRequest(http.MethodPost, "/api/groups", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"name":         "delegates",
@@ -335,12 +344,88 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 		t.Fatalf("decode binding: %v", err)
 	}
 
+	createProjectBindingReq := httptest.NewRequest(http.MethodPost, "/api/role-bindings", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"role_name":    authz.RoleProjectMember,
+			"subject_type": authz.BindingTargetGroup,
+			"subject_id":   group.Metadata.ID,
+			"scope":        authz.ScopeKindProject,
+			"project_id":   "project-alpha",
+		},
+	}))
+	addSessionCSRF(createProjectBindingReq, adminSession, adminCSRF)
+	createProjectBinding := httptest.NewRecorder()
+	handler.ServeHTTP(createProjectBinding, createProjectBindingReq)
+	if createProjectBinding.Code != http.StatusCreated {
+		t.Fatalf("expected create project binding status 201, got %d: %s", createProjectBinding.Code, createProjectBinding.Body.String())
+	}
+
 	allowedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	allowedReq.AddCookie(userSession)
 	allowed := httptest.NewRecorder()
 	handler.ServeHTTP(allowed, allowedReq)
 	if allowed.Code != http.StatusOK {
 		t.Fatalf("expected existing session to gain access status 200, got %d: %s", allowed.Code, allowed.Body.String())
+	}
+
+	selfEffectiveReq := httptest.NewRequest(http.MethodGet, "/api/me/effective-permissions", nil)
+	selfEffectiveReq.AddCookie(userSession)
+	selfEffective := httptest.NewRecorder()
+	handler.ServeHTTP(selfEffective, selfEffectiveReq)
+	if selfEffective.Code != http.StatusOK {
+		t.Fatalf("expected self effective permissions status 200, got %d: %s", selfEffective.Code, selfEffective.Body.String())
+	}
+	selfPermissions := decodeEffectivePermissions(t, selfEffective.Body.Bytes())
+	if selfPermissions.Metadata.UserID != createdUser.Metadata.ID || selfPermissions.Spec.Scope != authz.ScopeKindGlobal || !slices.Contains(selfPermissions.Status.Permissions, authz.PermissionRolesRead) {
+		t.Fatalf("unexpected self effective permissions: %#v", selfPermissions)
+	}
+
+	projectEffectiveReq := httptest.NewRequest(http.MethodGet, "/api/me/effective-permissions?scope=project&project_id=project-alpha", nil)
+	projectEffectiveReq.AddCookie(userSession)
+	projectEffective := httptest.NewRecorder()
+	handler.ServeHTTP(projectEffective, projectEffectiveReq)
+	if projectEffective.Code != http.StatusOK {
+		t.Fatalf("expected project effective permissions status 200, got %d: %s", projectEffective.Code, projectEffective.Body.String())
+	}
+	projectPermissions := decodeEffectivePermissions(t, projectEffective.Body.Bytes())
+	if projectPermissions.Spec.ProjectID != "project-alpha" || !slices.Contains(projectPermissions.Status.Permissions, authz.PermissionTicketsWrite) {
+		t.Fatalf("unexpected project effective permissions: %#v", projectPermissions)
+	}
+
+	adminEffectiveReq := httptest.NewRequest(http.MethodGet, "/api/users/"+createdUser.Metadata.ID+"/effective-permissions?scope=project&project_id=project-alpha", nil)
+	adminEffectiveReq.AddCookie(adminSession)
+	adminEffective := httptest.NewRecorder()
+	handler.ServeHTTP(adminEffective, adminEffectiveReq)
+	if adminEffective.Code != http.StatusOK {
+		t.Fatalf("expected admin effective-permissions inspection status 200, got %d: %s", adminEffective.Code, adminEffective.Body.String())
+	}
+	adminPermissions := decodeEffectivePermissions(t, adminEffective.Body.Bytes())
+	if adminPermissions.Metadata.UserID != createdUser.Metadata.ID || !slices.Contains(adminPermissions.Status.Permissions, authz.PermissionTicketsWrite) {
+		t.Fatalf("unexpected admin inspected effective permissions: %#v", adminPermissions)
+	}
+
+	invalidScopeReq := httptest.NewRequest(http.MethodGet, "/api/me/effective-permissions?scope=project", nil)
+	invalidScopeReq.AddCookie(userSession)
+	invalidScope := httptest.NewRecorder()
+	handler.ServeHTTP(invalidScope, invalidScopeReq)
+	if invalidScope.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid scope status 400, got %d: %s", invalidScope.Code, invalidScope.Body.String())
+	}
+
+	invalidGlobalReq := httptest.NewRequest(http.MethodGet, "/api/me/effective-permissions?scope=global&project_id=project-alpha", nil)
+	invalidGlobalReq.AddCookie(userSession)
+	invalidGlobal := httptest.NewRecorder()
+	handler.ServeHTTP(invalidGlobal, invalidGlobalReq)
+	if invalidGlobal.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid global scope status 400, got %d: %s", invalidGlobal.Code, invalidGlobal.Body.String())
+	}
+
+	missingUserReq := httptest.NewRequest(http.MethodGet, "/api/users/user_missing/effective-permissions", nil)
+	missingUserReq.AddCookie(adminSession)
+	missingUser := httptest.NewRecorder()
+	handler.ServeHTTP(missingUser, missingUserReq)
+	if missingUser.Code != http.StatusNotFound {
+		t.Fatalf("expected missing effective-permissions user status 404, got %d: %s", missingUser.Code, missingUser.Body.String())
 	}
 
 	deleteBindingReq := httptest.NewRequest(http.MethodDelete, "/api/role-bindings/"+binding.Metadata.ID, nil)
@@ -519,6 +604,29 @@ func auditEvents(entries []audit.Entry) map[string]*audit.Entry {
 		events[entry.EventType] = entry
 	}
 	return events
+}
+
+type effectivePermissionsBody struct {
+	Metadata struct {
+		UserID string `json:"user_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Scope     authz.ScopeKind `json:"scope"`
+		ProjectID string          `json:"project_id"`
+	} `json:"spec"`
+	Status struct {
+		Permissions []authz.Permission `json:"permissions"`
+	} `json:"status"`
+}
+
+func decodeEffectivePermissions(t *testing.T, data []byte) effectivePermissionsBody {
+	t.Helper()
+
+	var body effectivePermissionsBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode effective permissions: %v", err)
+	}
+	return body
 }
 
 func mustJSONBytes(t *testing.T, value any) []byte {

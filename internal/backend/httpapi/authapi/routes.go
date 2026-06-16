@@ -20,12 +20,14 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.PublicOperation(http.MethodPost, "/api/login", "Auth", "Log in with username and password"), provider.login)
 	registerLogout(api, provider)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/me", "Auth", "Get current authenticated user"), provider.me)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/me/effective-permissions", "Auth", "Get current effective permissions"), provider.myEffectivePermissions)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tokens", "Auth", "List API tokens"), provider.listTokens)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/tokens", "Auth", "Create API token", http.StatusCreated), provider.createToken)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/tokens/{token_id}", "Auth", "Revoke API token", http.StatusNoContent), provider.revokeToken)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/users", "Users", "List users"), provider.listUsers)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/users", "Users", "Create user", http.StatusCreated), provider.createUser)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/users/{user_id}", "Users", "Get user"), provider.getUser)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/users/{user_id}/effective-permissions", "RBAC", "Get user effective permissions"), provider.userEffectivePermissions)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/users/{user_id}", "Users", "Update user"), provider.updateUser)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/users/{user_id}", "Users", "Delete user", http.StatusNoContent), provider.deleteUser)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/groups", "RBAC", "List groups"), provider.listGroups)
@@ -139,6 +141,22 @@ func (provider Provider) me(ctx context.Context, input *MeInput) (*MeOutput, err
 	}
 	_ = ctx
 	return &MeOutput{Body: sessionResource(user, principal)}, nil
+}
+
+func (provider Provider) myEffectivePermissions(ctx context.Context, input *EffectivePermissionsInput) (*EffectivePermissionsOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	scope, ok := effectivePermissionsScope(input.Scope, input.ProjectID)
+	if !ok {
+		return nil, huma.Error400BadRequest("Invalid permission scope")
+	}
+	if provider.Authenticator.Authorizer == nil {
+		return nil, huma.Error500InternalServerError("Authorization is not configured")
+	}
+	permissions := provider.Authenticator.Authorizer.EffectivePermissions(principal.UserID, scope)
+	return &EffectivePermissionsOutput{Body: effectivePermissionsResource(principal.UserID, scope, permissions)}, nil
 }
 
 func (provider Provider) listTokens(ctx context.Context, input *struct{ shared.AuthInput }) (*ListTokensOutput, error) {
@@ -269,6 +287,28 @@ func (provider Provider) getUser(ctx context.Context, input *UserIDInput) (*User
 		return nil, shared.AuthServiceError(err)
 	}
 	return &UserOutput{Body: userResource(user)}, nil
+}
+
+func (provider Provider) userEffectivePermissions(ctx context.Context, input *UserEffectivePermissionsInput) (*EffectivePermissionsOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesRead, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	scope, ok := effectivePermissionsScope(input.Scope, input.ProjectID)
+	if !ok {
+		return nil, huma.Error400BadRequest("Invalid permission scope")
+	}
+	if provider.Authenticator.Authorizer == nil {
+		return nil, huma.Error500InternalServerError("Authorization is not configured")
+	}
+	if _, err := provider.Auth.GetUser(ctx, input.UserID); err != nil {
+		return nil, shared.AuthServiceError(err)
+	}
+	permissions := provider.Authenticator.Authorizer.EffectivePermissions(input.UserID, scope)
+	return &EffectivePermissionsOutput{Body: effectivePermissionsResource(input.UserID, scope, permissions)}, nil
 }
 
 func (provider Provider) updateUser(ctx context.Context, input *UpdateUserInput) (*UserOutput, error) {

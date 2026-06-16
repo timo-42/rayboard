@@ -31,6 +31,19 @@ type MeInput struct {
 	shared.AuthInput
 }
 
+type EffectivePermissionsInput struct {
+	shared.AuthInput
+	Scope     string `query:"scope" doc:"Authorization scope to inspect: global or project."`
+	ProjectID string `query:"project_id" doc:"Project ID when scope is project."`
+}
+
+type UserEffectivePermissionsInput struct {
+	shared.AuthInput
+	UserID    string `path:"user_id"`
+	Scope     string `query:"scope" doc:"Authorization scope to inspect: global or project."`
+	ProjectID string `query:"project_id" doc:"Project ID when scope is project."`
+}
+
 type MeOutput struct {
 	Body SessionResource
 }
@@ -136,6 +149,25 @@ type SessionStatus struct {
 
 type SessionResource = shared.Resource[SessionMetadata, SessionSpec, SessionStatus]
 
+type EffectivePermissionsMetadata struct {
+	UserID string `json:"user_id"`
+}
+
+type EffectivePermissionsSpec struct {
+	Scope     authz.ScopeKind `json:"scope"`
+	ProjectID string          `json:"project_id,omitempty"`
+}
+
+type EffectivePermissionsStatus struct {
+	Permissions []authz.Permission `json:"permissions"`
+}
+
+type EffectivePermissionsResource = shared.Resource[EffectivePermissionsMetadata, EffectivePermissionsSpec, EffectivePermissionsStatus]
+
+type EffectivePermissionsOutput struct {
+	Body EffectivePermissionsResource
+}
+
 type TokenSpec struct {
 	Name string `json:"name"`
 }
@@ -221,6 +253,42 @@ func sessionResource(user auth.User, principal authz.Principal) SessionResource 
 			Disabled:  user.Disabled,
 			Principal: principal,
 		},
+	}
+}
+
+func effectivePermissionsResource(userID string, scope authz.Scope, permissions []authz.Permission) EffectivePermissionsResource {
+	scopeKind := authz.ScopeKindGlobal
+	projectID := ""
+	if scope.Kind == authz.ScopeKindProject {
+		scopeKind = authz.ScopeKindProject
+		projectID = scope.ProjectID
+	}
+	return EffectivePermissionsResource{
+		Metadata: EffectivePermissionsMetadata{UserID: userID},
+		Spec: EffectivePermissionsSpec{
+			Scope:     scopeKind,
+			ProjectID: projectID,
+		},
+		Status: EffectivePermissionsStatus{
+			Permissions: permissions,
+		},
+	}
+}
+
+func effectivePermissionsScope(scope string, projectID string) (authz.Scope, bool) {
+	switch scope {
+	case "", string(authz.ScopeKindGlobal):
+		if projectID != "" {
+			return authz.Scope{}, false
+		}
+		return authz.GlobalScope(), true
+	case string(authz.ScopeKindProject):
+		if projectID == "" {
+			return authz.Scope{}, false
+		}
+		return authz.ProjectScope(projectID), true
+	default:
+		return authz.Scope{}, false
 	}
 }
 

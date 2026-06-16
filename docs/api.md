@@ -59,12 +59,14 @@ Health response uses `metadata.id`, `spec.service`, and `status.state`.
 | `POST` | `/api/login` | `{"spec":{"username":"admin","password":"..."}}` |
 | `POST` | `/api/logout` | none |
 | `GET` | `/api/me` | none |
+| `GET` | `/api/me/effective-permissions` | Optional `scope=global` or `scope=project&project_id=...`. |
 | `GET` | `/api/tokens` | none |
 | `POST` | `/api/tokens` | `{"spec":{"name":"local-script"}}` |
 | `DELETE` | `/api/tokens/{token_id}` | none |
 | `GET` | `/api/users` | none |
 | `POST` | `/api/users` | `{"spec":{"username":"alice","display_name":"Alice","password":"","disabled":false}}` |
 | `GET` | `/api/users/{user_id}` | none |
+| `GET` | `/api/users/{user_id}/effective-permissions` | Optional `scope=global` or `scope=project&project_id=...`; requires global `roles:read`. |
 | `PATCH` | `/api/users/{user_id}` | `{"spec":{"disabled":true}}` |
 | `DELETE` | `/api/users/{user_id}` | none |
 | `GET` | `/api/groups` | none |
@@ -77,7 +79,7 @@ Health response uses `metadata.id`, `spec.service`, and `status.state`.
 | `POST` | `/api/role-bindings` | `{"spec":{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}}` |
 | `DELETE` | `/api/role-bindings/{binding_id}` | none |
 
-Login and `/api/me` responses use `metadata.user_id`, `spec.username`, `spec.display_name`, and session/auth state under `status`. Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
+Login and `/api/me` responses use `metadata.user_id`, `spec.username`, `spec.display_name`, and session/auth state under `status`. Effective-permission responses use `metadata.user_id`, requested scope under `spec`, and `status.permissions`. Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
 
 ## Projects and Tickets
 

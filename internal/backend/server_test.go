@@ -81,10 +81,12 @@ func TestOpenAPIJSON(t *testing.T) {
 	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
 	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})
+	assertResponseBodyFields(t, spec, "/api/me/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})
 	assertRequestBodyFields(t, spec, "/api/tokens", http.MethodPost, []string{"spec"}, []string{"spec", "name"})
 	assertResponseBodyFields(t, spec, "/api/tokens", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"status"}, []string{"status", "token"})
 	assertRequestBodyFields(t, spec, "/api/users", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "display_name"}, []string{"spec", "disabled"})
 	assertResponseBodyFields(t, spec, "/api/users/{user_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "disabled"})
+	assertResponseBodyFields(t, spec, "/api/users/{user_id}/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})
 	assertRequestBodyFields(t, spec, "/api/groups", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "display_name"})
 	assertResponseBodyFields(t, spec, "/api/groups", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/role-bindings", http.MethodPost, []string{"spec"}, []string{"spec", "role_name"}, []string{"spec", "subject_type"}, []string{"spec", "subject_id"}, []string{"spec", "scope"})

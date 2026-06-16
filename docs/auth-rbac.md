@@ -41,6 +41,24 @@ curl -H "Authorization: Bearer $RAYBOARD_TOKEN" \
   http://127.0.0.1:8081/api/me
 ```
 
+## Effective Permissions
+
+Users can inspect their own effective permissions:
+
+```bash
+curl -b cookies.txt \
+  'http://127.0.0.1:8081/api/me/effective-permissions?scope=project&project_id=project_...'
+```
+
+RBAC admins with global `roles:read` can inspect another user:
+
+```bash
+curl -H "Authorization: Bearer $RAYBOARD_TOKEN" \
+  'http://127.0.0.1:8081/api/users/user_.../effective-permissions?scope=global'
+```
+
+Responses use the standard envelope. The requested scope is in `spec`; computed grants are in `status.permissions`.
+
 ## Disabled and Deleted Users
 
 Disabled users cannot log in or authenticate with existing sessions or API tokens. Disabling a user revokes that user's active sessions and API tokens. Deleting a user is a soft delete that renames the username, disables the user, and revokes active credentials.
@@ -74,4 +92,4 @@ Global `ai:manage` is required to manage OpenRouter provider references because 
 
 ## Current Limitations
 
-There is no dedicated effective-permissions endpoint yet. Inspect roles with `GET /api/roles` and bindings with `GET /api/role-bindings`. Project-scoped role assignment is implemented through the generic role binding endpoint.
+Inspect roles with `GET /api/roles`, bindings with `GET /api/role-bindings`, and computed grants with the effective-permissions endpoints. Project-scoped role assignment is implemented through the generic role binding endpoint.
