@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 )
 
 //go:embed templates static
@@ -34,6 +36,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func NewHandler(backendURL string) http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /api/", backendProxy(backendURL))
+	mux.Handle("POST /api/", backendProxy(backendURL))
+	mux.Handle("PATCH /api/", backendProxy(backendURL))
+	mux.Handle("DELETE /api/", backendProxy(backendURL))
 	mux.Handle("GET /static/", http.FileServerFS(assets))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -51,6 +57,16 @@ func NewHandler(backendURL string) http.Handler {
 		index(w, backendURL)
 	})
 	return mux
+}
+
+func backendProxy(backendURL string) http.Handler {
+	target, err := url.Parse(backendURL)
+	if err != nil || target.Scheme == "" || target.Host == "" {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "backend url is invalid", http.StatusBadGateway)
+		})
+	}
+	return httputil.NewSingleHostReverseProxy(target)
 }
 
 func index(w http.ResponseWriter, backendURL string) {

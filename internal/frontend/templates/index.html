@@ -5,16 +5,113 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rayboard</title>
   <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
 </head>
 <body>
-  <main class="shell">
-    <section class="panel">
-      <h1>Rayboard</h1>
-      <p>Runtime shell is ready.</p>
-      <dl>
-        <dt>Backend</dt>
-        <dd>{{ .BackendURL }}</dd>
-      </dl>
+  <main class="app-shell" data-backend-url="{{ .BackendURL }}">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">R</span>
+        <div>
+          <h1>Rayboard</h1>
+          <p id="session-state">Signed out</p>
+        </div>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>
+          Username
+          <input name="username" autocomplete="username" required>
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit"><span aria-hidden="true">+</span> Sign in</button>
+      </form>
+
+      <section id="project-create" class="tool-block" hidden>
+        <h2>New Project</h2>
+        <form id="project-form">
+          <label>
+            Key
+            <input name="key" maxlength="16" placeholder="CORE" required>
+          </label>
+          <label>
+            Name
+            <input name="name" required>
+          </label>
+          <label>
+            Description
+            <textarea name="description" rows="3"></textarea>
+          </label>
+          <button type="submit"><span aria-hidden="true">+</span> Project</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Backend</p>
+          <p class="backend-url">{{ .BackendURL }}</p>
+        </div>
+        <button id="logout-button" type="button" hidden>Sign out</button>
+      </header>
+
+      <section id="signed-out" class="empty-state">
+        <h2>Sign in to Rayboard</h2>
+      </section>
+
+      <section id="board-view" class="board-view" hidden>
+        <nav class="project-list" aria-label="Projects">
+          <h2>Projects</h2>
+          <div id="projects"></div>
+        </nav>
+
+        <section class="ticket-area">
+          <header class="ticket-header">
+            <div>
+              <p class="eyebrow">Selected Project</p>
+              <h2 id="selected-project">No project selected</h2>
+            </div>
+          </header>
+
+          <form id="ticket-form" class="ticket-form" hidden>
+            <input name="title" placeholder="Ticket title" required>
+            <select name="priority">
+              <option value="">Priority</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+            <select name="type">
+              <option value="">Type</option>
+              <option value="Task">Task</option>
+              <option value="Bug">Bug</option>
+              <option value="Story">Story</option>
+            </select>
+            <button type="submit"><span aria-hidden="true">+</span> Ticket</button>
+          </form>
+
+          <div class="columns" id="ticket-columns">
+            <section class="column" data-status="todo">
+              <h3>Todo</h3>
+              <div class="ticket-list"></div>
+            </section>
+            <section class="column" data-status="in_progress">
+              <h3>In Progress</h3>
+              <div class="ticket-list"></div>
+            </section>
+            <section class="column" data-status="done">
+              <h3>Done</h3>
+              <div class="ticket-list"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <p id="notice" class="notice" role="status"></p>
     </section>
   </main>
 </body>
