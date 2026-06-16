@@ -27,6 +27,12 @@ Startup logs include the randomized POC admin password. Demo seed logs include r
 
 OpenRouter keys, Shoutrrr destination URLs, webhook secrets, and generated tokens must never be exposed to Lua scripts, browser code, or ordinary API responses.
 
+## Security Audit Log
+
+Rayboard stores security/admin-sensitive events in the SQLite `audit_log` table, separate from user-facing ticket activity and durable domain events. The current audit slice records password login failures, session creation/logout, API token creation/revocation, user creation/disable/enable/delete, group creation, group membership changes, and role binding changes.
+
+Audit payloads are JSON metadata for operations and must not include plaintext API tokens, generated passwords, password hashes, session secrets, Shoutrrr URLs, webhook tokens, or OpenRouter keys. There is no audit log browser/API view yet; inspect the SQLite table directly for operational debugging in this POC.
+
 ## Upgrades
 
 Migrations run at backend startup. For now:
@@ -38,4 +44,4 @@ Migrations run at backend startup. For now:
 
 ## Planned Operational Work
 
-Production hardening is **Planned** and should include structured logging, configurable session TTLs, TLS/reverse-proxy guidance, online backup/restore docs, metrics, audit logs, rate limits, webhook delivery history, automation run inspection, and notification delivery inspection.
+Production hardening is **Planned** and should include structured logging, configurable session TTLs, TLS/reverse-proxy guidance, online backup/restore docs, metrics, audit-log UI/export tools, rate limits, webhook delivery history, automation run inspection, and notification delivery inspection.

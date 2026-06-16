@@ -9,6 +9,7 @@ import (
 	redoc "github.com/mvrilo/go-redoc"
 	"github.com/swaggest/swgui/v5emb"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
@@ -34,6 +35,7 @@ import (
 
 type Options struct {
 	Auth          *auth.Service
+	Audit         *audit.Store
 	Authorizer    authz.Evaluator
 	Tracker       *tracker.Service
 	Attachments   *attachments.Service
@@ -54,7 +56,7 @@ func NewHandler(options Options) http.Handler {
 	registerDocs(mux)
 
 	authenticator := shared.Authenticator{Auth: options.Auth, Authorizer: options.Authorizer}
-	authapi.Register(api, authapi.Provider{Auth: options.Auth, Authenticator: authenticator})
+	authapi.Register(api, authapi.Provider{Auth: options.Auth, Audit: options.Audit, Authenticator: authenticator})
 	projects.Register(api, projects.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	tickets.Register(api, tickets.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	boards.Register(api, boards.Provider{Tracker: options.Tracker, Authenticator: authenticator})

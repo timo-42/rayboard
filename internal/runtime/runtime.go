@@ -8,6 +8,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
@@ -55,6 +56,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	eventBus := events.NewBus()
 	eventStore := events.NewStore(db.SQL)
+	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore))
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
@@ -80,6 +82,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	backendServer := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
+		backend.WithAuditStore(auditStore),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
@@ -110,6 +113,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	eventBus := events.NewBus()
 	eventStore := events.NewStore(db.SQL)
+	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore))
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
@@ -135,6 +139,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	server := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
+		backend.WithAuditStore(auditStore),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),

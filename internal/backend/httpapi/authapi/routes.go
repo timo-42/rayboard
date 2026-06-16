@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
@@ -40,11 +42,37 @@ func Register(api huma.API, provider Provider) {
 func (provider Provider) login(ctx context.Context, input *LoginInput) (*LoginOutput, error) {
 	session, err := provider.Auth.Login(ctx, input.Body.Username, input.Body.Password)
 	if err != nil {
+		_ = provider.recordAudit(ctx, audit.RecordInput{
+			EventType:   "auth.login_failed",
+			SubjectType: "user",
+			SubjectID:   input.Body.Username,
+			Outcome:     audit.OutcomeFailure,
+			Payload: map[string]any{
+				"username":    input.Body.Username,
+				"auth_method": "password",
+				"reason":      authFailureReason(err),
+			},
+		})
 		return nil, shared.AuthError(err)
 	}
 	csrf, err := randomURLToken()
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Could not create CSRF token")
+	}
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "auth.session_created",
+		ActorID:     session.User.ID,
+		AuthKind:    authz.AuthKindSession,
+		SubjectType: "session",
+		SubjectID:   session.ID,
+		Payload: map[string]any{
+			"user_id":     session.User.ID,
+			"username":    session.User.Username,
+			"auth_method": "password",
+			"expires_at":  session.ExpiresAt,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &LoginOutput{
 		SetCookie: []http.Cookie{
@@ -81,6 +109,21 @@ func (provider Provider) logout(api huma.API, ctx huma.Context) {
 			_ = huma.WriteErr(api, ctx, http.StatusInternalServerError, "Could not log out")
 			return
 		}
+		if authErr == nil {
+			actorID, authKind := auditActor(principal)
+			if err := provider.recordAudit(ctx.Context(), audit.RecordInput{
+				EventType:   "auth.session_revoked",
+				ActorID:     actorID,
+				AuthKind:    authKind,
+				SubjectType: "session",
+				Payload: map[string]any{
+					"reason": "logout",
+				},
+			}); err != nil {
+				_ = huma.WriteErr(api, ctx, http.StatusInternalServerError, "Could not write audit log")
+				return
+			}
+		}
 	}
 	ctx.SetStatus(http.StatusNoContent)
 }
@@ -115,6 +158,21 @@ func (provider Provider) createToken(ctx context.Context, input *CreateTokenInpu
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Could not create API token")
 	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "auth.api_token_created",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "api_token",
+		SubjectID:   token.ID,
+		Payload: map[string]any{
+			"target_user_id": principal.UserID,
+			"token_id":       token.ID,
+			"token_name":     token.Name,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &CreateTokenOutput{Body: createdTokenResource(token)}, nil
 }
 
@@ -125,6 +183,20 @@ func (provider Provider) revokeToken(ctx context.Context, input *RevokeTokenInpu
 	}
 	if err := provider.Auth.RevokeAPIToken(ctx, principal.UserID, input.TokenID); err != nil {
 		return nil, huma.Error500InternalServerError("Could not revoke API token")
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "auth.api_token_revoked",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "api_token",
+		SubjectID:   input.TokenID,
+		Payload: map[string]any{
+			"target_user_id": principal.UserID,
+			"token_id":       input.TokenID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
 }
@@ -161,6 +233,22 @@ func (provider Provider) createUser(ctx context.Context, input *CreateUserInput)
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "user.created",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "user",
+		SubjectID:   user.ID,
+		Payload: map[string]any{
+			"username":           user.Username,
+			"display_name":       user.DisplayName,
+			"disabled":           user.Disabled,
+			"password_generated": input.Body.Spec.Password == "",
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &CreateUserOutput{Body: createdUserResource(user)}, nil
 }
 
@@ -194,6 +282,26 @@ func (provider Provider) updateUser(ctx context.Context, input *UpdateUserInput)
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
+	eventType := "user.enabled"
+	if user.Disabled {
+		eventType = "user.disabled"
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   eventType,
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "user",
+		SubjectID:   user.ID,
+		Payload: map[string]any{
+			"target_user_id":       user.ID,
+			"disabled":             user.Disabled,
+			"credentials_revoked":  user.Disabled,
+			"target_user_username": user.Username,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &UserOutput{Body: userResource(user)}, nil
 }
 
@@ -207,6 +315,21 @@ func (provider Provider) deleteUser(ctx context.Context, input *UserIDInput) (*s
 	}
 	if err := provider.Auth.DeleteUser(ctx, input.UserID); err != nil {
 		return nil, shared.AuthServiceError(err)
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "user.deleted",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "user",
+		SubjectID:   input.UserID,
+		Payload: map[string]any{
+			"target_user_id":      input.UserID,
+			"deletion_mode":       "soft_delete",
+			"credentials_revoked": true,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
 }
@@ -241,6 +364,21 @@ func (provider Provider) createGroup(ctx context.Context, input *CreateGroupInpu
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.group_created",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "group",
+		SubjectID:   group.ID,
+		Payload: map[string]any{
+			"group_id":     group.ID,
+			"name":         group.Name,
+			"display_name": group.DisplayName,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &CreateGroupOutput{Body: groupResource(group)}, nil
 }
 
@@ -270,6 +408,20 @@ func (provider Provider) addGroupMember(ctx context.Context, input *GroupMemberI
 	if err := provider.Auth.AddGroupMember(ctx, input.GroupID, input.UserID); err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.group_member_added",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "group_membership",
+		SubjectID:   input.GroupID + ":" + input.UserID,
+		Payload: map[string]any{
+			"group_id":       input.GroupID,
+			"target_user_id": input.UserID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &shared.EmptyOutput{}, nil
 }
 
@@ -283,6 +435,20 @@ func (provider Provider) removeGroupMember(ctx context.Context, input *GroupMemb
 	}
 	if err := provider.Auth.RemoveGroupMember(ctx, input.GroupID, input.UserID); err != nil {
 		return nil, shared.AuthServiceError(err)
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.group_member_removed",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "group_membership",
+		SubjectID:   input.GroupID + ":" + input.UserID,
+		Payload: map[string]any{
+			"group_id":       input.GroupID,
+			"target_user_id": input.UserID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
 }
@@ -334,6 +500,25 @@ func (provider Provider) createRoleBinding(ctx context.Context, input *CreateRol
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
 	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.role_binding_created",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "role_binding",
+		SubjectID:   binding.ID,
+		Payload: map[string]any{
+			"binding_id":    binding.ID,
+			"role_id":       binding.RoleID,
+			"role_name":     binding.RoleName,
+			"subject_type":  binding.SubjectType,
+			"subject_id":    binding.SubjectID,
+			"resource_type": binding.ResourceType,
+			"resource_id":   binding.ResourceID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
 	return &CreateRoleBindingOutput{Body: roleBindingResource(binding)}, nil
 }
 
@@ -347,6 +532,19 @@ func (provider Provider) deleteRoleBinding(ctx context.Context, input *RoleBindi
 	}
 	if err := provider.Auth.DeleteRoleBinding(ctx, input.BindingID); err != nil {
 		return nil, shared.AuthServiceError(err)
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.role_binding_deleted",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "role_binding",
+		SubjectID:   input.BindingID,
+		Payload: map[string]any{
+			"binding_id": input.BindingID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
 }
@@ -390,4 +588,17 @@ func randomURLToken() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func authFailureReason(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, auth.ErrDisabledUser):
+		return "disabled_user"
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		return "invalid_credentials"
+	default:
+		return "auth_error"
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/store"
@@ -225,8 +226,10 @@ func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
 func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	ctx := context.Background()
 	db, bootstrap := openBackendTestDB(t, ctx)
+	auditStore := audit.NewStore(db.SQL)
 	handler := NewHandler(
 		WithAuthService(auth.NewService(db.SQL)),
+		WithAuditStore(auditStore),
 		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
 	)
 
@@ -323,6 +326,14 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	if createBinding.Code != http.StatusCreated {
 		t.Fatalf("expected create binding status 201, got %d: %s", createBinding.Code, createBinding.Body.String())
 	}
+	var binding struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(createBinding.Body.Bytes(), &binding); err != nil {
+		t.Fatalf("decode binding: %v", err)
+	}
 
 	allowedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	allowedReq.AddCookie(userSession)
@@ -330,6 +341,136 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 	handler.ServeHTTP(allowed, allowedReq)
 	if allowed.Code != http.StatusOK {
 		t.Fatalf("expected existing session to gain access status 200, got %d: %s", allowed.Code, allowed.Body.String())
+	}
+
+	deleteBindingReq := httptest.NewRequest(http.MethodDelete, "/api/role-bindings/"+binding.Metadata.ID, nil)
+	addSessionCSRF(deleteBindingReq, adminSession, adminCSRF)
+	deleteBinding := httptest.NewRecorder()
+	handler.ServeHTTP(deleteBinding, deleteBindingReq)
+	if deleteBinding.Code != http.StatusNoContent {
+		t.Fatalf("expected delete binding status 204, got %d: %s", deleteBinding.Code, deleteBinding.Body.String())
+	}
+
+	removeMemberReq := httptest.NewRequest(http.MethodDelete, "/api/groups/"+group.Metadata.ID+"/members/"+createdUser.Metadata.ID, nil)
+	addSessionCSRF(removeMemberReq, adminSession, adminCSRF)
+	removeMember := httptest.NewRecorder()
+	handler.ServeHTTP(removeMember, removeMemberReq)
+	if removeMember.Code != http.StatusNoContent {
+		t.Fatalf("expected remove member status 204, got %d: %s", removeMember.Code, removeMember.Body.String())
+	}
+
+	entries, err := auditStore.List(ctx, 50)
+	if err != nil {
+		t.Fatalf("list audit entries: %v", err)
+	}
+	events := auditEvents(entries)
+	for _, eventType := range []string{"rbac.group_created", "rbac.group_member_added", "rbac.role_binding_created", "rbac.role_binding_deleted", "rbac.group_member_removed"} {
+		if events[eventType] == nil {
+			t.Fatalf("expected audit event %s in %#v", eventType, entries)
+		}
+	}
+	if events["rbac.role_binding_created"].Payload["role_name"] != string(authz.RoleGlobalUserManager) {
+		t.Fatalf("unexpected role binding payload: %#v", events["rbac.role_binding_created"].Payload)
+	}
+}
+
+func TestAuthEndpointsWriteAuditLog(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	auditStore := audit.NewStore(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuditStore(auditStore),
+		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+	)
+
+	failedLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": "wrong",
+	}, nil)
+	if failedLogin.Code != http.StatusUnauthorized {
+		t.Fatalf("expected failed login status 401, got %d: %s", failedLogin.Code, failedLogin.Body.String())
+	}
+
+	adminLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	adminSession := responseCookie(t, adminLogin.Result(), auth.SessionCookieName)
+	adminCSRF := responseCookie(t, adminLogin.Result(), csrfCookieName)
+
+	createTokenReq := httptest.NewRequest(http.MethodPost, "/api/tokens", mustJSON(t, map[string]any{
+		"spec": map[string]string{"name": "audit-token"},
+	}))
+	addSessionCSRF(createTokenReq, adminSession, adminCSRF)
+	createToken := httptest.NewRecorder()
+	handler.ServeHTTP(createToken, createTokenReq)
+	if createToken.Code != http.StatusCreated {
+		t.Fatalf("expected token create status 201, got %d: %s", createToken.Code, createToken.Body.String())
+	}
+	var token struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Status struct {
+			Token string `json:"token"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(createToken.Body.Bytes(), &token); err != nil {
+		t.Fatalf("decode token: %v", err)
+	}
+
+	createUserReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"username": "audit-user",
+		},
+	}))
+	addSessionCSRF(createUserReq, adminSession, adminCSRF)
+	createUser := httptest.NewRecorder()
+	handler.ServeHTTP(createUser, createUserReq)
+	if createUser.Code != http.StatusCreated {
+		t.Fatalf("expected user create status 201, got %d: %s", createUser.Code, createUser.Body.String())
+	}
+	var createdUser struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(createUser.Body.Bytes(), &createdUser); err != nil {
+		t.Fatalf("decode user: %v", err)
+	}
+
+	disableReq := httptest.NewRequest(http.MethodPatch, "/api/users/"+createdUser.Metadata.ID, mustJSON(t, map[string]any{
+		"spec": map[string]bool{"disabled": true},
+	}))
+	addSessionCSRF(disableReq, adminSession, adminCSRF)
+	disable := httptest.NewRecorder()
+	handler.ServeHTTP(disable, disableReq)
+	if disable.Code != http.StatusOK {
+		t.Fatalf("expected disable user status 200, got %d: %s", disable.Code, disable.Body.String())
+	}
+
+	entries, err := auditStore.List(ctx, 20)
+	if err != nil {
+		t.Fatalf("list audit entries: %v", err)
+	}
+	events := auditEvents(entries)
+	for _, eventType := range []string{"auth.login_failed", "auth.session_created", "auth.api_token_created", "user.created", "user.disabled"} {
+		if events[eventType] == nil {
+			t.Fatalf("expected audit event %s in %#v", eventType, entries)
+		}
+	}
+	if events["auth.api_token_created"].Payload["token_name"] != "audit-token" {
+		t.Fatalf("unexpected token audit payload: %#v", events["auth.api_token_created"].Payload)
+	}
+	if _, ok := events["auth.api_token_created"].Payload["token"]; ok {
+		t.Fatalf("audit payload leaked API token: %#v", events["auth.api_token_created"].Payload)
+	}
+	if token.Status.Token == "" || bytes.Contains(mustJSONBytes(t, entries), []byte(token.Status.Token)) {
+		t.Fatalf("audit entries leaked API token secret")
+	}
+	if events["user.disabled"].Payload["credentials_revoked"] != true {
+		t.Fatalf("expected credential revocation payload, got %#v", events["user.disabled"].Payload)
 	}
 }
 
@@ -366,6 +507,25 @@ func postJSON(t *testing.T, handler http.Handler, path string, body any, cookies
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func auditEvents(entries []audit.Entry) map[string]*audit.Entry {
+	events := make(map[string]*audit.Entry, len(entries))
+	for index := range entries {
+		entry := &entries[index]
+		events[entry.EventType] = entry
+	}
+	return events
+}
+
+func mustJSONBytes(t *testing.T, value any) []byte {
+	t.Helper()
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return data
 }
 
 func mustJSON(t *testing.T, body any) *bytes.Reader {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/timo-42/rayboard/internal/backend/attachments"
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
@@ -21,6 +22,7 @@ type Server struct {
 
 type options struct {
 	auth          *auth.Service
+	audit         *audit.Store
 	authorizer    authz.Evaluator
 	tracker       *tracker.Service
 	attachments   *attachments.Service
@@ -35,6 +37,12 @@ type Option func(*options)
 func WithAuthService(service *auth.Service) Option {
 	return func(options *options) {
 		options.auth = service
+	}
+}
+
+func WithAuditStore(store *audit.Store) Option {
+	return func(options *options) {
+		options.audit = store
 	}
 }
 
@@ -105,6 +113,7 @@ func NewHandler(opts ...Option) http.Handler {
 
 	return httpapi.NewHandler(httpapi.Options{
 		Auth:          options.auth,
+		Audit:         options.audit,
 		Authorizer:    options.authorizer,
 		Tracker:       options.tracker,
 		Attachments:   options.attachments,
