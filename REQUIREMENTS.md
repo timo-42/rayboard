@@ -31,6 +31,41 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
   - bearer-token requests do not require CSRF because bearer credentials are not automatically attached by browsers.
   - unauthenticated UI page requests redirect to login; unauthenticated API requests return `401`.
   - authentication and authorization remain backend-owned so split frontend/backend mode does not duplicate password, session, token, or permission logic.
+- Use a scalable backend HTTP API layout:
+  - avoid large centralized route files as the API surface grows.
+  - the top-level backend router only assembles resource route providers and shared infrastructure.
+  - resource-focused HTTP packages own route registration and high-level handlers for one API area.
+  - route handlers stay thin: decode input, authenticate/authorize, call domain services, and encode output.
+  - domain services and repositories own business rules, validation, transactions, persistence, and SQLite access.
+  - do not place raw DB CRUD in HTTP route packages.
+  - target layout:
+
+```text
+internal/backend/httpapi/
+  router.go
+  shared/
+  projects/
+    routes.go
+    schema.go
+    provider.go
+  tickets/
+    routes.go
+    schema.go
+    provider.go
+  boards/
+    routes.go
+    schema.go
+    provider.go
+```
+
+  - `routes.go` contains route registration and high-level HTTP handler methods.
+  - `schema.go` contains Huma/OpenAPI-facing request and response DTOs.
+  - request DTOs use the `Input` suffix; response DTOs use the `Output` suffix.
+  - `provider.go` contains dependency wiring and helpers for that resource package.
+  - `/api/projects` and closely project-scoped settings can live under the project route package.
+  - top-level resources such as `/api/tickets/{ticket_id}`, `/api/boards/{board_id}`, and `/api/sprints/{sprint_id}` should have their own route packages.
+  - avoid deeply recursive package trees unless a subresource becomes large enough to justify its own package.
+  - migrate toward this layout incrementally; the existing tracker service can remain during the transition.
 - Add proper RBAC with groups:
   - model users, groups, group memberships, roles, permissions, and role bindings in SQLite.
   - role bindings can target either a user or a group.
