@@ -357,11 +357,12 @@ Admins and project notification managers can configure named Shoutrrr destinatio
 | `POST` | `/api/projects/{project_id}/notification-destinations` | `{"spec":{"name":"team","shoutrrr_url":"logger://","enabled":true}}` |
 | `GET` | `/api/notification-destinations/{destination_id}` | none |
 | `PATCH` | `/api/notification-destinations/{destination_id}` | `{"spec":{"name":"ops-primary","shoutrrr_url":"logger://","enabled":false}}`; omit `shoutrrr_url` to keep the existing secret. |
+| `POST` | `/api/notification-destinations/{destination_id}/test-send` | `{"spec":{"message":"Rayboard test"}}`; message is optional and defaults to a Rayboard test message. |
 | `DELETE` | `/api/notification-destinations/{destination_id}` | soft-deletes and disables the destination. |
 
-Destination responses use `metadata`, `spec`, and `status`. Scope identity and timestamps are in `metadata`; name, Shoutrrr service type, and enabled state are in `spec`; URL presence, last delivery state, and last error are in `status`. CRUD writes security audit entries without storing the URL in audit payloads.
+Destination responses use `metadata`, `spec`, and `status`. Scope identity and timestamps are in `metadata`; name, Shoutrrr service type, and enabled state are in `spec`; URL presence, last delivery state, and last error are in `status`. Test-send updates `status.last_delivery_status`, `status.last_delivery_at`, and `status.last_error`. CRUD and test-send write security audit entries without storing the URL in audit payloads.
 
-Notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, destination test-send, and AI/Lua notification hooks are **Planned**.
+Notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

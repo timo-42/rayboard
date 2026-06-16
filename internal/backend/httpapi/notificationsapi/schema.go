@@ -54,6 +54,12 @@ type UpdateDestinationInput struct {
 	Body          shared.ResourceInput[UpdateDestinationSpec]
 }
 
+type TestDestinationInput struct {
+	shared.AuthInput
+	DestinationID string `path:"destination_id" doc:"Notification destination ID."`
+	Body          shared.ResourceInput[TestDestinationSpec]
+}
+
 type NotificationOutput struct {
 	Body NotificationResource
 }
@@ -111,6 +117,10 @@ type UpdateDestinationSpec struct {
 	Name        *string `json:"name,omitempty"`
 	ShoutrrrURL *string `json:"shoutrrr_url,omitempty" doc:"Shoutrrr service URL. Omit to leave unchanged; empty string is rejected."`
 	Enabled     *bool   `json:"enabled,omitempty"`
+}
+
+type TestDestinationSpec struct {
+	Message string `json:"message,omitempty" doc:"Optional test notification message. Defaults to a Rayboard test message."`
 }
 
 type DestinationStatus struct {
@@ -171,6 +181,10 @@ func (spec UpdateDestinationSpec) updateInput() notifications.UpdateDestinationI
 		ShoutrrrURL: spec.ShoutrrrURL,
 		Enabled:     spec.Enabled,
 	}
+}
+
+func (spec TestDestinationSpec) testInput() notifications.TestDestinationInput {
+	return notifications.TestDestinationInput{Message: spec.Message}
 }
 
 func destinationResource(destination notifications.Destination) DestinationResource {

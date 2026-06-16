@@ -145,6 +145,8 @@ func NotificationError(err error) error {
 		return huma.Error404NotFound("Resource was not found")
 	case errors.Is(err, authz.ErrForbidden):
 		return huma.Error403Forbidden("Permission denied")
+	case errors.Is(err, notifications.ErrDelivery):
+		return huma.Error502BadGateway("Notification delivery failed")
 	default:
 		return huma.Error500InternalServerError("Request failed")
 	}

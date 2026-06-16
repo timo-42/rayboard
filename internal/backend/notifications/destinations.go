@@ -55,6 +55,10 @@ type UpdateDestinationInput struct {
 	Enabled     *bool
 }
 
+type TestDestinationInput struct {
+	Message string
+}
+
 func (s *Service) CreateDestination(ctx context.Context, input CreateDestinationInput) (Destination, error) {
 	id, err := newID("dest")
 	if err != nil {
@@ -219,6 +223,40 @@ func (s *Service) DeleteDestination(ctx context.Context, destinationID string) e
 	return nil
 }
 
+func (s *Service) TestDestination(ctx context.Context, destinationID string, input TestDestinationInput) (Destination, error) {
+	destination, rawURL, err := s.getDestinationWithSecret(ctx, destinationID)
+	if err != nil {
+		return Destination{}, err
+	}
+	message := strings.TrimSpace(input.Message)
+	if message == "" {
+		message = "Rayboard notification destination test"
+	}
+	if len(message) > 1000 {
+		return Destination{}, fmt.Errorf("%w: test message must be 1000 characters or fewer", ErrValidation)
+	}
+
+	now := s.now().UTC()
+	sender, err := shoutrrr.CreateSender(rawURL)
+	if err != nil {
+		return Destination{}, fmt.Errorf("%w: invalid Shoutrrr service URL", ErrValidation)
+	}
+	if err := firstSendError(sender.Send(message, nil)); err != nil {
+		if updateErr := s.updateDestinationDeliveryStatus(ctx, destinationID, "failed", now, "Shoutrrr delivery failed"); updateErr != nil {
+			return Destination{}, updateErr
+		}
+		return Destination{}, fmt.Errorf("%w: Shoutrrr delivery failed", ErrDelivery)
+	}
+	if err := s.updateDestinationDeliveryStatus(ctx, destinationID, "delivered", now, ""); err != nil {
+		return Destination{}, err
+	}
+	destination, err = s.getDestination(ctx, destinationID)
+	if err != nil {
+		return Destination{}, err
+	}
+	return destination, nil
+}
+
 func (s *Service) getDestination(ctx context.Context, destinationID string) (Destination, error) {
 	destination, err := scanDestination(s.db.QueryRowContext(ctx, `
 		SELECT id, name, scope_type, project_id, dashboard_id, service, shoutrrr_url_secret,
@@ -236,11 +274,36 @@ func (s *Service) getDestination(ctx context.Context, destinationID string) (Des
 	return destination, nil
 }
 
+func (s *Service) getDestinationWithSecret(ctx context.Context, destinationID string) (Destination, string, error) {
+	var secret string
+	destination, err := scanDestinationWithSecret(s.db.QueryRowContext(ctx, `
+		SELECT id, name, scope_type, project_id, dashboard_id, service, shoutrrr_url_secret,
+			enabled, COALESCE(last_delivery_status, ''), last_delivery_at,
+			COALESCE(last_error, ''), created_at, updated_at
+		FROM notification_destinations
+		WHERE id = ? AND deleted_at IS NULL
+	`, destinationID), &secret)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Destination{}, "", ErrNotFound
+		}
+		return Destination{}, "", fmt.Errorf("get notification destination: %w", err)
+	}
+	if secret == "" {
+		return Destination{}, "", fmt.Errorf("%w: destination URL is not configured", ErrValidation)
+	}
+	return destination, secret, nil
+}
+
 func scanDestination(scanner interface{ Scan(...any) error }) (Destination, error) {
+	var secret string
+	return scanDestinationWithSecret(scanner, &secret)
+}
+
+func scanDestinationWithSecret(scanner interface{ Scan(...any) error }, secret *string) (Destination, error) {
 	var destination Destination
 	var projectID sql.NullString
 	var dashboardID sql.NullString
-	var secret string
 	var lastDeliveryAt sql.NullString
 	var createdAt string
 	var updatedAt string
@@ -251,7 +314,7 @@ func scanDestination(scanner interface{ Scan(...any) error }) (Destination, erro
 		&projectID,
 		&dashboardID,
 		&destination.Service,
-		&secret,
+		secret,
 		&destination.Enabled,
 		&destination.LastDeliveryStatus,
 		&lastDeliveryAt,
@@ -263,7 +326,7 @@ func scanDestination(scanner interface{ Scan(...any) error }) (Destination, erro
 	}
 	destination.ProjectID = nullString(projectID)
 	destination.DashboardID = nullString(dashboardID)
-	destination.URLSet = secret != ""
+	destination.URLSet = *secret != ""
 	destination.LastDeliveryAt = parseNullableTime(lastDeliveryAt)
 	created, err := parseTime(createdAt)
 	if err != nil {
@@ -276,6 +339,25 @@ func scanDestination(scanner interface{ Scan(...any) error }) (Destination, erro
 	destination.CreatedAt = created
 	destination.UpdatedAt = updated
 	return destination, nil
+}
+
+func (s *Service) updateDestinationDeliveryStatus(ctx context.Context, destinationID string, status string, at time.Time, message string) error {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notification_destinations
+		SET last_delivery_status = ?, last_delivery_at = ?, last_error = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, status, formatTime(at), nullableString(message), formatTime(at), destinationID)
+	if err != nil {
+		return fmt.Errorf("update notification destination delivery status: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check notification destination delivery status update: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func validateDestination(destination Destination, requireURL bool) error {
@@ -353,4 +435,13 @@ func normalizeDestinationName(name string) string {
 func isUniqueConstraint(err error) bool {
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "unique constraint") || strings.Contains(text, "constraint failed")
+}
+
+func firstSendError(errs []error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

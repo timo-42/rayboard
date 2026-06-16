@@ -37,7 +37,7 @@ Admin, project, and board settings pages are **Planned**. Future settings should
 
 OpenRouter provider configuration is currently API-only at `/api/openrouter-providers` and requires global `ai:manage`. Provider API keys are write-only; responses return `status.api_key_set` instead of the key.
 
-Shoutrrr destination configuration is currently API-only. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only and can be rotated with `PATCH`.
+Shoutrrr destination configuration is currently API-only. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only, can be rotated with `PATCH`, and can be verified with `POST /api/notification-destinations/{destination_id}/test-send`.
 
 Custom CSS is planned as an override layer only. The first implementation should not allow arbitrary template changes.
 
@@ -45,4 +45,4 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 The current notification implementation includes per-user in-app notification listing/read state plus API-only Shoutrrr destination CRUD for global and project scopes.
 
-Destination test-send, notification preferences, notification policies, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+Notification preferences, notification policies, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.

@@ -18,6 +18,7 @@ import (
 var (
 	ErrNotFound   = errors.New("notifications: not found")
 	ErrValidation = errors.New("notifications: validation failed")
+	ErrDelivery   = errors.New("notifications: delivery failed")
 )
 
 type Notification struct {

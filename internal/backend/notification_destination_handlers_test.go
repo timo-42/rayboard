@@ -90,6 +90,25 @@ func TestNotificationDestinationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected updated destination: %#v", updated)
 	}
 
+	testReq := httptest.NewRequest(http.MethodPost, "/api/notification-destinations/"+created.Metadata.ID+"/test-send", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"message": "Rayboard test",
+		},
+	}))
+	addSessionCSRF(testReq, session, csrf)
+	testSend := httptest.NewRecorder()
+	handler.ServeHTTP(testSend, testReq)
+	if testSend.Code != http.StatusOK {
+		t.Fatalf("expected test-send destination status 200, got %d: %s", testSend.Code, testSend.Body.String())
+	}
+	tested := decodeNotificationDestinationResource(t, testSend.Body.Bytes())
+	if tested.Status.LastDeliveryStatus != "delivered" || tested.Status.LastDeliveryAt == "" || tested.Status.URLSet != true {
+		t.Fatalf("unexpected test-send destination: %#v", tested)
+	}
+	if bytes.Contains(testSend.Body.Bytes(), []byte("logger://")) {
+		t.Fatalf("destination test-send response leaked Shoutrrr URL: %s", testSend.Body.String())
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/notification-destinations/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, session, csrf)
 	deleted := httptest.NewRecorder()
@@ -103,7 +122,7 @@ func TestNotificationDestinationEndpoints(t *testing.T) {
 		t.Fatalf("list audit entries: %v", err)
 	}
 	events := auditEvents(entries)
-	for _, eventType := range []string{"notification.destination_created", "notification.destination_updated", "notification.destination_deleted"} {
+	for _, eventType := range []string{"notification.destination_created", "notification.destination_updated", "notification.destination_test_sent", "notification.destination_deleted"} {
 		if events[eventType] == nil {
 			t.Fatalf("expected audit event %s in %#v", eventType, entries)
 		}
@@ -113,6 +132,9 @@ func TestNotificationDestinationEndpoints(t *testing.T) {
 	}
 	if events["notification.destination_updated"].Payload["url_rotated"] != true {
 		t.Fatalf("expected URL rotation audit payload, got %#v", events["notification.destination_updated"].Payload)
+	}
+	if events["notification.destination_test_sent"].Payload["delivery_status"] != "delivered" {
+		t.Fatalf("expected test-send audit payload, got %#v", events["notification.destination_test_sent"].Payload)
 	}
 }
 
@@ -163,7 +185,9 @@ type notificationDestinationResourceBody struct {
 		ShoutrrrURL string `json:"shoutrrr_url"`
 	} `json:"spec"`
 	Status struct {
-		URLSet bool `json:"url_set"`
+		URLSet             bool   `json:"url_set"`
+		LastDeliveryStatus string `json:"last_delivery_status"`
+		LastDeliveryAt     string `json:"last_delivery_at"`
 	} `json:"status"`
 }
 

@@ -22,6 +22,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, operation(http.MethodPost, "/api/projects/{project_id}/notification-destinations", "Notification Destinations", "Create project notification destination", http.StatusCreated), provider.createProjectDestination)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-destinations/{destination_id}", "Notification Destinations", "Get notification destination"), provider.getDestination)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-destinations/{destination_id}", "Notification Destinations", "Update notification destination"), provider.updateDestination)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/notification-destinations/{destination_id}/test-send", "Notification Destinations", "Send notification destination test message"), provider.testDestination)
 	huma.Register(api, operation(http.MethodDelete, "/api/notification-destinations/{destination_id}", "Notification Destinations", "Delete notification destination", http.StatusNoContent), provider.deleteDestination)
 }
 
@@ -205,6 +206,29 @@ func (provider Provider) deleteDestination(ctx context.Context, input *Destinati
 		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) testDestination(ctx context.Context, input *TestDestinationInput) (*DestinationOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetDestination(ctx, input.DestinationID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireDestinationManage(principal, current); err != nil {
+		return nil, err
+	}
+	tested, err := provider.Notifications.TestDestination(ctx, input.DestinationID, input.Body.Spec.testInput())
+	if err != nil {
+		_ = provider.auditDestination(ctx, principal, "notification.destination_test_sent", current, map[string]any{"delivery_status": "failed"})
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.auditDestination(ctx, principal, "notification.destination_test_sent", tested, map[string]any{"delivery_status": "delivered"}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
+	return &DestinationOutput{Body: destinationResource(tested)}, nil
 }
 
 func (provider Provider) requireDestinationManage(principal authz.Principal, destination notifications.Destination) error {

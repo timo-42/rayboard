@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,14 @@ func TestDestinationCRUD(t *testing.T) {
 		t.Fatalf("unexpected destination list: %#v", items)
 	}
 
+	tested, err := service.TestDestination(ctx, created.ID, TestDestinationInput{Message: "Rayboard test"})
+	if err != nil {
+		t.Fatalf("test destination: %v", err)
+	}
+	if tested.LastDeliveryStatus != "delivered" || tested.LastDeliveryAt == nil || tested.LastError != "" {
+		t.Fatalf("unexpected tested destination status: %#v", tested)
+	}
+
 	disabled := false
 	name := "Ops Archive"
 	updated, err := service.UpdateDestination(ctx, created.ID, UpdateDestinationInput{
@@ -50,6 +59,9 @@ func TestDestinationCRUD(t *testing.T) {
 	}
 	if _, err := service.GetDestination(ctx, created.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found after delete, got %v", err)
+	}
+	if _, err := service.TestDestination(ctx, created.ID, TestDestinationInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected not found test after delete, got %v", err)
 	}
 }
 
@@ -91,5 +103,18 @@ func TestDestinationValidation(t *testing.T) {
 		Enabled:     true,
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected duplicate validation error, got %v", err)
+	}
+
+	destination, err := service.CreateDestination(ctx, CreateDestinationInput{
+		Name:        "test-length",
+		ScopeType:   DestinationScopeGlobal,
+		ShoutrrrURL: "logger://",
+		Enabled:     false,
+	})
+	if err != nil {
+		t.Fatalf("create disabled destination: %v", err)
+	}
+	if _, err := service.TestDestination(ctx, destination.ID, TestDestinationInput{Message: strings.Repeat("x", 1001)}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected long message validation error, got %v", err)
 	}
 }
