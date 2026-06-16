@@ -40,17 +40,20 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 		ProjectID: "project-core",
 		Name:      "My Bugs",
 		Query: search.SavedViewQuery{
-			Filter: `assignee_id == currentUser() && status != "Done"`,
+			Filter: `assignee_id == currentUser() && status != "Done" && start_date == "2026-06-16" && due_date != "2026-06-30"`,
 			Text:   "login",
 		},
-		Sort:    []search.SortSpec{{Field: "updated_at", Direction: "desc"}},
-		Columns: []string{"key", "title", "status"},
+		Sort:    []search.SortSpec{{Field: "due_date", Direction: "desc"}, {Field: "start_date", Direction: "asc"}},
+		Columns: []string{"key", "title", "status", "start_date", "due_date"},
 	})
 	if err != nil {
 		t.Fatalf("create personal saved view: %v", err)
 	}
 	if personal.OwnerUserID != "user-member" || personal.ScopeType != search.SavedViewScopeUser {
 		t.Fatalf("unexpected personal view: %#v", personal)
+	}
+	if len(personal.Sort) != 2 || personal.Sort[0].Field != "due_date" || personal.Sort[1].Field != "start_date" {
+		t.Fatalf("expected roadmap date sort fields, got %#v", personal.Sort)
 	}
 	if personal.DisplayMode != search.SavedViewDisplayList || personal.Pinned {
 		t.Fatalf("unexpected personal view display metadata: %#v", personal)
@@ -61,7 +64,7 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	}
 
 	name := "My Open Bugs"
-	columns := []string{"KEY", "updated_at", "key"}
+	columns := []string{"KEY", "updated_at", "START_DATE", "due_date", "key"}
 	updated, err := service.UpdateSavedView(ctx, member, personal.ID, search.UpdateSavedViewInput{
 		Name:    &name,
 		Columns: &columns,
@@ -69,7 +72,7 @@ func TestSavedViewCRUDListAndRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update personal saved view: %v", err)
 	}
-	if updated.Name != name || len(updated.Columns) != 2 || updated.Columns[0] != "key" || updated.Columns[1] != "updated_at" {
+	if updated.Name != name || len(updated.Columns) != 4 || updated.Columns[0] != "key" || updated.Columns[1] != "updated_at" || updated.Columns[2] != "start_date" || updated.Columns[3] != "due_date" {
 		t.Fatalf("expected normalized columns, got %#v", updated.Columns)
 	}
 

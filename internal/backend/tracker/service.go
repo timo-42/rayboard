@@ -513,9 +513,12 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 	componentID := strings.TrimSpace(input.ComponentID)
 	versionID := strings.TrimSpace(input.VersionID)
 	rank := strings.TrimSpace(input.Rank)
+	startDate := strings.TrimSpace(input.StartDate)
+	dueDate := strings.TrimSpace(input.DueDate)
 	if len(rank) > 200 {
 		fields["rank"] = "Must be 200 characters or fewer"
 	}
+	validateTicketDates(fields, startDate, dueDate)
 
 	if len(fields) > 0 {
 		return Ticket{}, validationFailed(fields)
@@ -560,6 +563,8 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		ComponentID:    componentID,
 		VersionID:      versionID,
 		Rank:           rank,
+		StartDate:      startDate,
+		DueDate:        dueDate,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}, nil
@@ -646,6 +651,15 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 		}
 	}
 
+	if input.StartDate != nil {
+		next.StartDate = strings.TrimSpace(*input.StartDate)
+	}
+
+	if input.DueDate != nil {
+		next.DueDate = strings.TrimSpace(*input.DueDate)
+	}
+	validateTicketDates(fields, next.StartDate, next.DueDate)
+
 	if len(fields) > 0 {
 		return Ticket{}, nil, validationFailed(fields)
 	}
@@ -677,8 +691,33 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	addChange(changes, "component_id", current.ComponentID, next.ComponentID)
 	addChange(changes, "version_id", current.VersionID, next.VersionID)
 	addChange(changes, "rank", current.Rank, next.Rank)
+	addChange(changes, "start_date", current.StartDate, next.StartDate)
+	addChange(changes, "due_date", current.DueDate, next.DueDate)
 
 	return next, changes, nil
+}
+
+func validateTicketDates(fields map[string]string, startDate string, dueDate string) {
+	validateTicketDate(fields, "start_date", startDate)
+	validateTicketDate(fields, "due_date", dueDate)
+	if strings.TrimSpace(startDate) == "" || strings.TrimSpace(dueDate) == "" {
+		return
+	}
+	start, startErr := time.Parse(dateOnlyLayout, strings.TrimSpace(startDate))
+	due, dueErr := time.Parse(dateOnlyLayout, strings.TrimSpace(dueDate))
+	if startErr == nil && dueErr == nil && due.Before(start) {
+		fields["due_date"] = "Must be on or after start_date"
+	}
+}
+
+func validateTicketDate(fields map[string]string, field string, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	if _, err := time.Parse(dateOnlyLayout, value); err != nil {
+		fields[field] = "Must use YYYY-MM-DD"
+	}
 }
 
 func (s *Service) requireComponent(ctx context.Context, q sqlRunner, field string, componentID string, projectID string) error {
@@ -756,12 +795,12 @@ func (s *Service) requireParentTicket(ctx context.Context, q sqlRunner, field st
 	if ticketID == currentTicketID {
 		return validationFailed(map[string]string{field: "Ticket cannot be its own parent"})
 	}
-	exists, err := s.repo.ticketExistsInProject(ctx, q, ticketID, projectID)
+	exists, err := s.repo.epicExistsInProject(ctx, q, ticketID, projectID)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return validationFailed(map[string]string{field: "Ticket not found in project"})
+		return validationFailed(map[string]string{field: "Epic not found in project"})
 	}
 	return nil
 }

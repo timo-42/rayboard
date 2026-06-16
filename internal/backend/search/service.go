@@ -31,11 +31,13 @@ var columnPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 var ticketSortFields = map[string]string{
 	"created_at": "t.created_at",
+	"due_date":   "t.due_date",
 	"updated_at": "t.updated_at",
 	"key":        "t.key",
 	"title":      "t.title",
 	"status":     "t.status",
 	"priority":   "t.priority",
+	"start_date": "t.start_date",
 }
 
 var allowedColumns = map[string]struct{}{
@@ -51,6 +53,8 @@ var allowedColumns = map[string]struct{}{
 	"sprint_id":        {},
 	"component_id":     {},
 	"version_id":       {},
+	"start_date":       {},
+	"due_date":         {},
 	"rank":             {},
 	"created_at":       {},
 	"updated_at":       {},

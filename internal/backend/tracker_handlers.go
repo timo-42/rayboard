@@ -32,6 +32,7 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("POST /api/projects/{project_id}/custom-fields", authRoute.requireAuth(route.createCustomField))
 	mux.HandleFunc("GET /api/projects/{project_id}/tickets", authRoute.requireAuth(route.listTickets))
 	mux.HandleFunc("POST /api/projects/{project_id}/tickets", authRoute.requireAuth(route.createTicket))
+	mux.HandleFunc("GET /api/projects/{project_id}/roadmap", authRoute.requireAuth(route.listRoadmap))
 	mux.HandleFunc("GET /api/projects/{project_id}/sprints", authRoute.requireAuth(route.listSprints))
 	mux.HandleFunc("POST /api/projects/{project_id}/sprints", authRoute.requireAuth(route.createSprint))
 	mux.HandleFunc("GET /api/tickets/{ticket_id}", authRoute.requireAuth(route.getTicket))
@@ -341,6 +342,15 @@ func (route trackerRoute) listTicketActivity(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"items": activities})
+}
+
+func (route trackerRoute) listRoadmap(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	items, err := route.tracker.ListRoadmap(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (route trackerRoute) listSprints(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {

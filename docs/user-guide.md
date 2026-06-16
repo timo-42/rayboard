@@ -18,6 +18,7 @@ Implemented API-only user workflows:
 - text and filter search;
 - sprint CRUD, start/complete actions, and ticket sprint assignment/removal;
 - component CRUD, version/release CRUD, and ticket component/version assignment;
+- roadmap data for scheduled project tickets;
 - custom field definition CRUD and typed ticket custom-field values;
 - in-app notification inbox API, including unread filtering and read/unread state;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
@@ -26,7 +27,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, component/version CRUD, ticket component/version assignment, custom fields, and saved-view metadata are currently API-only workflows. Rich backlog planning UI, board UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, custom-field UI/search integration, advanced release planning, workflows, labels, custom create pages, and richer saved-view UI are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
+Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, component/version CRUD, ticket component/version assignment, roadmap data, custom fields, and saved-view metadata are currently API-only workflows. Rich backlog planning UI, board UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, custom-field UI/search integration, advanced release planning, workflows, labels, custom create pages, and richer saved-view UI are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
 
 ## Notifications
 
@@ -36,7 +37,7 @@ Browser inbox and badge UI, user/project notification preferences, external deli
 
 ## Search
 
-Current search supports full-text search over ticket title, description, and comments with SQLite FTS5, plus a constrained filter expression subset. Full CEL-backed queries are **Planned**. See:
+Current search supports full-text search over ticket title, description, and comments with SQLite FTS5, plus a constrained filter expression subset. Roadmap date fields `start_date` and `due_date` are available for search filters, sort specs, and saved-view columns. Full CEL-backed queries are **Planned**. See:
 
 - CEL: https://cel.dev/
 - cel-go: https://github.com/google/cel-go

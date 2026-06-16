@@ -151,6 +151,61 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected backlog: %#v", backlog.Items)
 	}
 
+	createEpicReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
+		"title":      "Roadmap epic",
+		"type":       "Epic",
+		"start_date": "2026-07-01",
+		"due_date":   "2026-07-31",
+		"custom_fields": map[string]any{
+			"severity": "High",
+		},
+	}))
+	addSessionCSRF(createEpicReq, session, csrf)
+	createEpic := httptest.NewRecorder()
+	handler.ServeHTTP(createEpic, createEpicReq)
+	if createEpic.Code != http.StatusCreated {
+		t.Fatalf("expected create epic status 201, got %d: %s", createEpic.Code, createEpic.Body.String())
+	}
+	var epic tracker.Ticket
+	if err := json.Unmarshal(createEpic.Body.Bytes(), &epic); err != nil {
+		t.Fatalf("decode epic: %v", err)
+	}
+	if epic.Type != "epic" || epic.StartDate != "2026-07-01" || epic.DueDate != "2026-07-31" {
+		t.Fatalf("unexpected epic: %#v", epic)
+	}
+
+	roadmapChildReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
+		"title":            "Roadmap child",
+		"status":           "done",
+		"parent_ticket_id": epic.ID,
+		"custom_fields": map[string]any{
+			"severity": "Low",
+		},
+	}))
+	addSessionCSRF(roadmapChildReq, session, csrf)
+	roadmapChild := httptest.NewRecorder()
+	handler.ServeHTTP(roadmapChild, roadmapChildReq)
+	if roadmapChild.Code != http.StatusCreated {
+		t.Fatalf("expected create roadmap child status 201, got %d: %s", roadmapChild.Code, roadmapChild.Body.String())
+	}
+
+	roadmapReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/roadmap", nil)
+	roadmapReq.AddCookie(session)
+	roadmap := httptest.NewRecorder()
+	handler.ServeHTTP(roadmap, roadmapReq)
+	if roadmap.Code != http.StatusOK {
+		t.Fatalf("expected roadmap status 200, got %d: %s", roadmap.Code, roadmap.Body.String())
+	}
+	var roadmapBody struct {
+		Items []tracker.RoadmapItem `json:"items"`
+	}
+	if err := json.Unmarshal(roadmap.Body.Bytes(), &roadmapBody); err != nil {
+		t.Fatalf("decode roadmap: %v", err)
+	}
+	if len(roadmapBody.Items) != 1 || roadmapBody.Items[0].Epic.ID != epic.ID || roadmapBody.Items[0].Progress.Total != 1 || roadmapBody.Items[0].Progress.Done != 1 {
+		t.Fatalf("unexpected roadmap body: %#v", roadmapBody.Items)
+	}
+
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{
 		"name":        "API",
 		"description": "Backend API",

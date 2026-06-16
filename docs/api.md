@@ -126,7 +126,7 @@ Burndown, velocity, burnup, sprint report APIs, and other agile analytics are **
 
 ## Components and Versions
 
-The first components/versions API slice is backend/API-only. It supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. Release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are **Planned**.
+The first components/versions API slice is backend/API-only. It supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. Release reports, roadmap timeline screens, component/version UI screens, and advanced release planning UI are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -152,6 +152,16 @@ Tickets are assigned to components and versions through the ticket API:
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"component_id":"component_...","version_id":"version_..."}` |
 
 Ticket assignment keeps all records in one project. Cross-project component or version assignment is invalid.
+
+## Roadmap
+
+The roadmap slice is backend/API-only. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. Browser roadmap timeline screens and drag/drop planning are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/roadmap` | none |
+
+Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap responses return each epic ticket plus direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
 ## Custom Fields
 
@@ -225,7 +235,9 @@ Search returns:
 }
 ```
 
-Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, and `version_id`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `start_date`, and `due_date`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+
+Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, `priority`, `start_date`, and `due_date`.
 
 Full CEL support is **Planned**. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
 
@@ -241,7 +253,7 @@ Saved views:
 | `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
-Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Only project-scoped views can be pinned.
+Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `start_date` and `due_date`. Only project-scoped views can be pinned.
 
 ## Notifications
 

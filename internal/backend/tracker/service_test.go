@@ -240,6 +240,100 @@ func TestTicketValidationNotFoundAndAuthorization(t *testing.T) {
 	}
 }
 
+func TestRoadmapEpicsDatesAndProgress(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	epic, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID: project.ID,
+		Title:     "Roadmap epic",
+		Type:      "Epic",
+		StartDate: "2026-07-01",
+		DueDate:   "2026-07-31",
+	})
+	if err != nil {
+		t.Fatalf("create epic: %v", err)
+	}
+	if epic.Type != "epic" || epic.StartDate != "2026-07-01" || epic.DueDate != "2026-07-31" {
+		t.Fatalf("unexpected epic fields: %#v", epic)
+	}
+
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID: project.ID,
+		Title:     "Bad date",
+		Type:      "epic",
+		StartDate: "2026/07/01",
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected invalid date validation, got %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID: project.ID,
+		Title:     "Bad range",
+		Type:      "epic",
+		StartDate: "2026-08-01",
+		DueDate:   "2026-07-01",
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected date range validation, got %v", err)
+	}
+
+	childTodo, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:      project.ID,
+		Title:          "Todo child",
+		ParentTicketID: epic.ID,
+	})
+	if err != nil {
+		t.Fatalf("create todo child: %v", err)
+	}
+	_, err = service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:      project.ID,
+		Title:          "Done child",
+		Status:         "done",
+		ParentTicketID: epic.ID,
+	})
+	if err != nil {
+		t.Fatalf("create done child: %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:      project.ID,
+		Title:          "Nested child",
+		ParentTicketID: childTodo.ID,
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected non-epic parent validation, got %v", err)
+	}
+
+	roadmap, err := service.ListRoadmap(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list roadmap: %v", err)
+	}
+	if len(roadmap) != 1 || roadmap[0].Epic.ID != epic.ID {
+		t.Fatalf("unexpected roadmap: %#v", roadmap)
+	}
+	if roadmap[0].Progress.Total != 2 || roadmap[0].Progress.Done != 1 || roadmap[0].Progress.ByStatus["todo"] != 1 || roadmap[0].Progress.ByStatus["done"] != 1 {
+		t.Fatalf("unexpected roadmap progress: %#v", roadmap[0].Progress)
+	}
+
+	newDueDate := "2026-08-15"
+	updated, err := service.UpdateTicket(ctx, admin, epic.ID, tracker.UpdateTicketInput{DueDate: &newDueDate})
+	if err != nil {
+		t.Fatalf("update epic due date: %v", err)
+	}
+	if updated.DueDate != newDueDate {
+		t.Fatalf("expected updated due date, got %#v", updated)
+	}
+}
+
 func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

@@ -237,6 +237,7 @@ func legacyRouteDocs() []routeDoc {
 		{Method: http.MethodPost, Path: "/api/projects/{project_id}/custom-fields", Tags: []string{"Custom Fields"}, Summary: "Create project custom field", RequestBody: true, Status: http.StatusCreated},
 		{Method: http.MethodGet, Path: "/api/projects/{project_id}/tickets", Tags: []string{"Tickets"}, Summary: "List project tickets"},
 		{Method: http.MethodPost, Path: "/api/projects/{project_id}/tickets", Tags: []string{"Tickets"}, Summary: "Create ticket", RequestBody: true, Status: http.StatusCreated},
+		{Method: http.MethodGet, Path: "/api/projects/{project_id}/roadmap", Tags: []string{"Roadmap"}, Summary: "List project roadmap epics with progress"},
 		{Method: http.MethodGet, Path: "/api/tickets/{ticket_id}", Tags: []string{"Tickets"}, Summary: "Get ticket"},
 		{Method: http.MethodPatch, Path: "/api/tickets/{ticket_id}", Tags: []string{"Tickets"}, Summary: "Update ticket", RequestBody: true},
 		{Method: http.MethodGet, Path: "/api/tickets/{ticket_id}/activity", Tags: []string{"Tickets"}, Summary: "List ticket activity"},

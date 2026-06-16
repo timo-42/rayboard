@@ -44,6 +44,8 @@ type Ticket struct {
 	ComponentID    string         `json:"component_id,omitempty"`
 	VersionID      string         `json:"version_id,omitempty"`
 	Rank           string         `json:"rank,omitempty"`
+	StartDate      string         `json:"start_date,omitempty"`
+	DueDate        string         `json:"due_date,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
@@ -64,6 +66,8 @@ type CreateTicketInput struct {
 	ComponentID    string         `json:"component_id"`
 	VersionID      string         `json:"version_id"`
 	Rank           string         `json:"rank"`
+	StartDate      string         `json:"start_date"`
+	DueDate        string         `json:"due_date"`
 	CustomFields   map[string]any `json:"custom_fields"`
 }
 
@@ -90,7 +94,20 @@ type UpdateTicketInput struct {
 	ComponentID    *string         `json:"component_id,omitempty"`
 	VersionID      *string         `json:"version_id,omitempty"`
 	Rank           *string         `json:"rank,omitempty"`
+	StartDate      *string         `json:"start_date,omitempty"`
+	DueDate        *string         `json:"due_date,omitempty"`
 	CustomFields   *map[string]any `json:"custom_fields,omitempty"`
+}
+
+type RoadmapItem struct {
+	Epic     Ticket          `json:"epic"`
+	Progress RoadmapProgress `json:"progress"`
+}
+
+type RoadmapProgress struct {
+	Total    int            `json:"total"`
+	Done     int            `json:"done"`
+	ByStatus map[string]int `json:"by_status"`
 }
 
 type TicketActivity struct {

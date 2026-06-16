@@ -20,9 +20,9 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 - ticket creation;
 - ticket status changes between `todo`, `in_progress`, and `done`.
 
-It does not currently expose all backend endpoints. User/group/RBAC administration, comments, attachments, saved views, saved-view metadata, advanced search, backlog list/reorder endpoints, component CRUD, version/release CRUD, ticket component/version assignment, custom field management, and ticket custom-field values are API-only for now.
+It does not currently expose all backend endpoints. User/group/RBAC administration, comments, attachments, saved views, saved-view metadata, advanced search, backlog list/reorder endpoints, component CRUD, version/release CRUD, ticket component/version assignment, roadmap data, custom field management, and ticket custom-field values are API-only for now.
 
-Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are also API-only for now. Drag/drop UI, board UI beyond the current simple status shell, richer backlog planning, sprint/report screens, release reports, roadmap timeline screens, component/version UI screens, custom-field screens, and advanced release planning are **Planned**.
+Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are also API-only for now. Drag/drop UI, board UI beyond the current simple status shell, richer backlog planning, sprint/report screens, release reports, roadmap timeline UI, component/version UI screens, custom-field screens, and advanced release planning are **Planned**.
 
 ## Asset Policy
 
