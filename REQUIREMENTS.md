@@ -238,6 +238,8 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
   - role list/detail endpoints
   - global and project role binding CRUD endpoints
   - effective-permissions endpoint for the current user and for RBAC admin inspection
+  - generated OpenAPI specification served from the same binary under `/api/openapi.json`
+  - Swagger UI served under `/api/docs` with all Swagger UI static assets embedded into the Go binary; no CDN, Node build, generated runtime file, or external docs server is required.
   - project CRUD
   - project role/member endpoints
   - component CRUD

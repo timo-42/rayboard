@@ -7,49 +7,8 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/swaggest/swgui/v5emb"
 )
-
-const docsHTML = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rayboard API</title>
-  <style>
-    :root { color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: Canvas; color: CanvasText; }
-    main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }
-    h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.1; }
-    p { margin: 0 0 20px; color: color-mix(in srgb, CanvasText 72%, Canvas); }
-    a { color: LinkText; }
-    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
-    .button { border: 1px solid color-mix(in srgb, CanvasText 22%, Canvas); border-radius: 6px; padding: 8px 12px; text-decoration: none; color: CanvasText; }
-    .panel { border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas); border-radius: 8px; overflow: hidden; }
-    .panel h2 { margin: 0; padding: 12px 14px; font-size: 16px; background: color-mix(in srgb, CanvasText 8%, Canvas); }
-    pre { margin: 0; padding: 14px; overflow: auto; font-size: 13px; line-height: 1.45; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Rayboard API</h1>
-    <p>This documentation is served from the Rayboard binary. The generated OpenAPI document is available as JSON or YAML.</p>
-    <nav class="toolbar" aria-label="API documents">
-      <a class="button" href="/api/openapi.json">OpenAPI JSON</a>
-      <a class="button" href="/api/openapi.yaml">OpenAPI YAML</a>
-    </nav>
-    <section class="panel">
-      <h2>OpenAPI Preview</h2>
-      <pre id="spec">Loading /api/openapi.json...</pre>
-    </section>
-  </main>
-  <script>
-    fetch('/api/openapi.json', { credentials: 'same-origin' })
-      .then(function(response) { return response.json(); })
-      .then(function(spec) { document.getElementById('spec').textContent = JSON.stringify(spec, null, 2); })
-      .catch(function(error) { document.getElementById('spec').textContent = 'Could not load OpenAPI document: ' + error; });
-  </script>
-</body>
-</html>`
 
 type healthResponse struct {
 	Body map[string]string
@@ -126,11 +85,9 @@ func registerOpenAPIRoutes(api huma.API) {
 }
 
 func registerAPIDocsRoute(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/docs", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(docsHTML))
-	})
+	handler := v5emb.New("Rayboard API", "/api/openapi.json", "/api/docs")
+	mux.Handle("GET /api/docs", handler)
+	mux.Handle("GET /api/docs/", handler)
 }
 
 func routeOperation(doc routeDoc) *huma.Operation {

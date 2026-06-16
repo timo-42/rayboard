@@ -77,15 +77,34 @@ func TestAPIDocsAreServedLocally(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	if contentType := rec.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-		t.Fatalf("expected HTML content type, got %q", contentType)
+		if contentType != "text/html" {
+			t.Fatalf("expected HTML content type, got %q", contentType)
+		}
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "/api/openapi.json") {
 		t.Fatalf("expected docs page to reference local OpenAPI JSON")
 	}
-	for _, external := range []string{"https://", "http://", "unpkg.com"} {
+	for _, localAsset := range []string{"/api/docs/swagger-ui.css", "/api/docs/swagger-ui-bundle.js", "/api/docs/swagger-ui-standalone-preset.js"} {
+		if !strings.Contains(body, localAsset) {
+			t.Fatalf("expected docs page to reference local Swagger UI asset %s", localAsset)
+		}
+	}
+	for _, external := range []string{`src="https://`, `href="https://`, "unpkg.com"} {
 		if strings.Contains(body, external) {
 			t.Fatalf("docs page must not reference external asset %q", external)
 		}
+	}
+
+	assetReq := httptest.NewRequest(http.MethodGet, "/api/docs/swagger-ui-bundle.js", nil)
+	assetRec := httptest.NewRecorder()
+
+	NewHandler().ServeHTTP(assetRec, assetReq)
+
+	if assetRec.Code != http.StatusOK {
+		t.Fatalf("expected Swagger UI asset status 200, got %d: %s", assetRec.Code, assetRec.Body.String())
+	}
+	if !strings.Contains(assetRec.Body.String(), "SwaggerUIBundle") {
+		t.Fatalf("expected embedded Swagger UI bundle")
 	}
 }
