@@ -88,7 +88,18 @@ internal/backend/httpapi/
   - components group project work by area and may have an owner/default assignee.
   - versions/releases group work for release planning and may have status plus target/release dates.
   - tickets support title, description, status, priority, assignee, reporter, labels, dates, comments, activity history, and optional parent epic.
+  - ticket labels are a string array on ticket create/update/list/get/search payloads; labels are normalized to lowercase slugs, deduplicated, and stored as ticket labels.
+  - label management UI and separate label CRUD endpoints are not required for the first labels slice.
   - statuses drive board columns; tickets can be reordered in backlog and board views.
+- Add durable history and event logging:
+  - keep `ticket_activity` as the user-facing timeline for tickets and epics.
+  - write timeline entries for visible ticket/epic actions such as create, update, status change, assignment, sprint change, comment add/delete, attachment upload/delete, label change, and automation-visible mutations.
+  - add a durable append-only `domain_events` table for backend event/outbox behavior.
+  - domain events include type, actor, project, subject type/id, optional related object type/id, JSON payload, occurrence time, and processing metadata.
+  - use durable domain events for notifications, webhooks, automation triggers, search/FTS refreshes, integrations, and retryable async processing.
+  - the in-memory Go event bus may dispatch events, but it is not the source of truth and must not be the only record of meaningful mutations.
+  - keep `audit_log` separate for security/admin-sensitive actions such as login failures, token creation/revocation, user disablement, RBAC changes, settings changes, webhook token rotation, and OpenRouter key changes.
+  - do not mix internal-only domain events, user-facing ticket timelines, and security audit entries into one table.
 - Add ticket attachments:
   - users with ticket edit/comment permission can attach files to tickets.
   - store attachment metadata in SQLite: ticket, uploader, filename, content type, size, checksum, created time, and deleted time.
