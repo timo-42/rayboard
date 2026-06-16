@@ -31,7 +31,7 @@ Common codes are `unauthenticated`, `forbidden`, `not_found`, `validation_failed
 
 ## Pagination
 
-Project, ticket, user/admin, and saved-view list endpoints currently use optional `limit` and `offset` query parameters where implemented. `POST /api/search` uses `limit` and an opaque `cursor` in the JSON body and returns `next_cursor`.
+Project, ticket, user/admin, saved-view, and notification list endpoints currently use optional `limit` and `offset` query parameters where implemented. `POST /api/search` uses `limit` and an opaque `cursor` in the JSON body and returns `next_cursor`.
 
 ## Health
 
@@ -141,6 +141,41 @@ Saved views:
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
 Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission.
+
+## Notifications
+
+The first notification API slice is in-app only. It lists notifications for the authenticated user and supports read/unread state. It does not send external messages.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/notifications` | Optional `unread=true`, `limit`, `offset`. |
+| `POST` | `/api/notifications/{notification_id}/read` | Marks one of the current user's notifications read. |
+| `POST` | `/api/notifications/{notification_id}/unread` | Marks one of the current user's notifications unread. |
+| `POST` | `/api/notifications/read-all` | Marks all current user's unread notifications read. |
+
+Notification responses use the persisted notification shape:
+
+```json
+{
+  "items": [
+    {
+      "id": "notification_...",
+      "user_id": "user_...",
+      "type": "ticket_assigned",
+      "subject_type": "ticket",
+      "subject_id": "ticket_...",
+      "body": "You were assigned CORE-12",
+      "data": {},
+      "read_at": null,
+      "created_at": "2026-06-16T10:30:00Z"
+    }
+  ]
+}
+```
+
+Read state is owned by the notification row. `read_at: null` means unread; marking read sets `read_at`, and marking unread clears it. Users may only list or mutate their own notifications.
+
+Shoutrrr destinations, notification preferences, global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## Cron Jobs
 

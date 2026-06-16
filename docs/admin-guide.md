@@ -33,3 +33,9 @@ Admin, project, and board settings pages are **Planned**. Future settings should
 - Shoutrrr destination definitions.
 
 Custom CSS is planned as an override layer only. The first implementation should not allow arbitrary template changes.
+
+## Notifications
+
+The current notification implementation is limited to per-user in-app notification listing and read/unread state through the API. There are no admin notification settings in this slice.
+
+Shoutrrr destinations, secret rotation, test-send, notification preferences, notification policies, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.

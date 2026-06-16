@@ -12,6 +12,8 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/events"
+	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -50,11 +52,14 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	group, ctx := newServerGroup(ctx)
 
 	authorizer := authz.NewSQLEvaluator(db.SQL)
+	eventBus := events.NewBus()
 	authService := auth.NewService(db.SQL)
-	trackerService := tracker.NewService(db.SQL, authorizer)
-	attachmentService := attachments.NewService(db.SQL, authorizer)
-	commentService := comments.NewService(db.SQL, authorizer)
+	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus))
+	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus))
+	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus))
 	searchService := search.NewService(db.SQL, authorizer)
+	notificationService := notifications.NewService(db.SQL)
+	notificationService.RegisterEventHandlers(eventBus)
 	runStore := automation.NewRunStore(db.SQL)
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -76,6 +81,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
 		backend.WithCronService(cronService),
+		backend.WithNotificationService(notificationService),
 		backend.WithSearchService(searchService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
@@ -98,11 +104,14 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 
 	group, ctx := newServerGroup(ctx)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
+	eventBus := events.NewBus()
 	authService := auth.NewService(db.SQL)
-	trackerService := tracker.NewService(db.SQL, authorizer)
-	attachmentService := attachments.NewService(db.SQL, authorizer)
-	commentService := comments.NewService(db.SQL, authorizer)
+	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus))
+	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus))
+	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus))
 	searchService := search.NewService(db.SQL, authorizer)
+	notificationService := notifications.NewService(db.SQL)
+	notificationService.RegisterEventHandlers(eventBus)
 	runStore := automation.NewRunStore(db.SQL)
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -124,6 +133,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
 		backend.WithCronService(cronService),
+		backend.WithNotificationService(notificationService),
 		backend.WithSearchService(searchService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)

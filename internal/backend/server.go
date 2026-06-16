@@ -10,6 +10,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
+	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -19,13 +20,14 @@ type Server struct {
 }
 
 type options struct {
-	auth        *auth.Service
-	authorizer  authz.Evaluator
-	tracker     *tracker.Service
-	attachments *attachments.Service
-	comments    *comments.Service
-	cron        *cronjobs.Service
-	search      *search.Service
+	auth          *auth.Service
+	authorizer    authz.Evaluator
+	tracker       *tracker.Service
+	attachments   *attachments.Service
+	comments      *comments.Service
+	cron          *cronjobs.Service
+	notifications *notifications.Service
+	search        *search.Service
 }
 
 type Option func(*options)
@@ -63,6 +65,12 @@ func WithCommentService(service *comments.Service) Option {
 func WithCronService(service *cronjobs.Service) Option {
 	return func(options *options) {
 		options.cron = service
+	}
+}
+
+func WithNotificationService(service *notifications.Service) Option {
+	return func(options *options) {
+		options.notifications = service
 	}
 }
 
@@ -111,6 +119,9 @@ func NewHandler(opts ...Option) http.Handler {
 	}
 	if options.auth != nil && options.cron != nil {
 		registerCronRoutes(mux, options.auth, options.cron)
+	}
+	if options.auth != nil && options.notifications != nil {
+		registerNotificationRoutes(mux, options.auth, options.notifications)
 	}
 	if options.auth != nil && options.search != nil {
 		registerSearchRoutes(mux, options.auth, options.search)

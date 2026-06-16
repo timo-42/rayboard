@@ -16,13 +16,20 @@ Implemented API-only user workflows:
 - attachments on tickets;
 - saved views;
 - text and filter search;
+- in-app notification inbox API, including unread filtering and read/unread state;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
 
 See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog, boards, sprints, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification hooks, and OpenRouter AI automation are also **Planned**.
+Backlog, boards, sprints, roadmaps, custom fields, workflows, components, versions, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
+
+## Notifications
+
+The current notification slice is API-only and in-app only. Authenticated users can list their own notifications, filter to unread notifications, and mark individual notifications read or unread. `read_at` is `null` while a notification is unread.
+
+Browser inbox and badge UI, user/project notification preferences, external delivery, Shoutrrr destination settings, notification policies, delivery queues, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## Search
 
