@@ -74,14 +74,16 @@ Creating a user with an empty password generates a random password and returns i
 | `POST` | `/api/projects` | `{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}` |
 | `GET` | `/api/projects/{project_id}` | none |
 | `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `limit`, `offset`. |
-| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":""}` |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","custom_fields":{}}` |
 | `GET` | `/api/tickets/{ticket_id}` | none |
-| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`. |
+| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
 Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
+
+Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
 ## Backlog
 
@@ -142,6 +144,35 @@ Tickets are assigned to components and versions through the ticket API:
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"component_id":"component_...","version_id":"version_..."}` |
 
 Ticket assignment keeps all records in one project. Cross-project component or version assignment is invalid.
+
+## Custom Fields
+
+The first custom-field API slice is backend/API-only. It supports project-scoped custom field definitions, select options, typed ticket values, and server-side validation during ticket create/update. Browser field management UI, custom-field search/CEL integration, custom create page layouts, and richer field schemas are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/custom-fields` | none |
+| `POST` | `/api/projects/{project_id}/custom-fields` | `{"key":"severity","name":"Severity","field_type":"single_select","required":true,"options":["Low","High"]}` |
+| `GET` | `/api/custom-fields/{field_id}` | none |
+| `PATCH` | `/api/custom-fields/{field_id}` | Any subset of `key`, `name`, `field_type`, `required`, `options`. |
+| `DELETE` | `/api/custom-fields/{field_id}` | none |
+
+Supported field types are `text`, `number`, `boolean`, `date`, `single_select`, `multi_select`, and `user`. `single_select` and `multi_select` fields require configured options. Dates use `YYYY-MM-DD`. User fields store user IDs and validate that the user exists.
+
+Ticket custom-field values use field keys:
+
+```json
+{
+  "custom_fields": {
+    "severity": "High",
+    "estimate": 3,
+    "needs_review": true,
+    "target_date": "2026-07-01",
+    "reviewers": ["Alice", "Bob"],
+    "owner": "user_..."
+  }
+}
+```
 
 ## Comments and Attachments
 

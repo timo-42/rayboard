@@ -217,7 +217,11 @@ func (s *Service) ListTickets(ctx context.Context, principal authz.Principal, in
 	if _, err := s.repo.GetProject(ctx, input.ProjectID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListTickets(ctx, input)
+	tickets, err := s.repo.ListTickets(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachCustomFieldsToTickets(ctx, tickets)
 }
 
 func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
@@ -233,7 +237,7 @@ func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, tick
 	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(ticket.ProjectID)); err != nil {
 		return Ticket{}, err
 	}
-	return ticket, nil
+	return s.attachCustomFields(ctx, ticket)
 }
 
 func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, ticketID string, input UpdateTicketInput) (Ticket, error) {
@@ -269,7 +273,15 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 		if err != nil {
 			return err
 		}
-		if len(changes) == 0 {
+		var customValues map[string]customFieldValue
+		customChanged := input.CustomFields != nil
+		if customChanged {
+			customValues, err = s.validateCustomFieldValues(ctx, tx, current.ProjectID, *input.CustomFields, true)
+			if err != nil {
+				return err
+			}
+		}
+		if len(changes) == 0 && !customChanged {
 			updated = current
 			return nil
 		}
@@ -278,8 +290,17 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 		if err := s.repo.updateTicket(ctx, tx, candidate); err != nil {
 			return err
 		}
+		if customChanged {
+			if err := s.replaceTicketCustomFieldValues(ctx, tx, candidate.ID, customValues, candidate.UpdatedAt); err != nil {
+				return err
+			}
+			candidate.CustomFields = customFieldValueMap(customValues)
+		}
 
 		eventData = map[string]any{"changes": changes}
+		if customChanged {
+			eventData["custom_fields"] = "updated"
+		}
 		activityID, err := newID("activity")
 		if err != nil {
 			return err
@@ -312,7 +333,7 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 		})
 	}
 
-	return updated, nil
+	return s.attachCustomFields(ctx, updated)
 }
 
 func (s *Service) ListTicketActivity(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketActivity, error) {
@@ -404,6 +425,10 @@ func (s *Service) createTicketOnce(ctx context.Context, principal authz.Principa
 		if err != nil {
 			return err
 		}
+		customValues, err := s.validateCustomFieldValues(ctx, tx, project.ID, input.CustomFields, true)
+		if err != nil {
+			return err
+		}
 		key, err := s.repo.nextTicketKey(ctx, tx, project)
 		if err != nil {
 			return err
@@ -413,6 +438,10 @@ func (s *Service) createTicketOnce(ctx context.Context, principal authz.Principa
 		if err := s.repo.insertTicket(ctx, tx, ticket); err != nil {
 			return err
 		}
+		if err := s.replaceTicketCustomFieldValues(ctx, tx, ticket.ID, customValues, ticket.CreatedAt); err != nil {
+			return err
+		}
+		ticket.CustomFields = customFieldValueMap(customValues)
 
 		eventData = map[string]any{
 			"key":    ticket.Key,

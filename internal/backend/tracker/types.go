@@ -29,40 +29,42 @@ type ListProjectsInput struct {
 }
 
 type Ticket struct {
-	ID             string     `json:"id"`
-	ProjectID      string     `json:"project_id"`
-	Key            string     `json:"key"`
-	Title          string     `json:"title"`
-	Description    string     `json:"description"`
-	Status         string     `json:"status"`
-	Priority       string     `json:"priority,omitempty"`
-	Type           string     `json:"type,omitempty"`
-	ReporterID     string     `json:"reporter_id,omitempty"`
-	AssigneeID     string     `json:"assignee_id,omitempty"`
-	ParentTicketID string     `json:"parent_ticket_id,omitempty"`
-	SprintID       string     `json:"sprint_id,omitempty"`
-	ComponentID    string     `json:"component_id,omitempty"`
-	VersionID      string     `json:"version_id,omitempty"`
-	Rank           string     `json:"rank,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	DeletedAt      *time.Time `json:"deleted_at,omitempty"`
+	ID             string         `json:"id"`
+	ProjectID      string         `json:"project_id"`
+	Key            string         `json:"key"`
+	Title          string         `json:"title"`
+	Description    string         `json:"description"`
+	Status         string         `json:"status"`
+	Priority       string         `json:"priority,omitempty"`
+	Type           string         `json:"type,omitempty"`
+	ReporterID     string         `json:"reporter_id,omitempty"`
+	AssigneeID     string         `json:"assignee_id,omitempty"`
+	ParentTicketID string         `json:"parent_ticket_id,omitempty"`
+	SprintID       string         `json:"sprint_id,omitempty"`
+	ComponentID    string         `json:"component_id,omitempty"`
+	VersionID      string         `json:"version_id,omitempty"`
+	Rank           string         `json:"rank,omitempty"`
+	CustomFields   map[string]any `json:"custom_fields,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      *time.Time     `json:"deleted_at,omitempty"`
 }
 
 type CreateTicketInput struct {
-	ProjectID      string `json:"project_id"`
-	Title          string `json:"title"`
-	Description    string `json:"description"`
-	Status         string `json:"status"`
-	Priority       string `json:"priority"`
-	Type           string `json:"type"`
-	ReporterID     string `json:"reporter_id"`
-	AssigneeID     string `json:"assignee_id"`
-	ParentTicketID string `json:"parent_ticket_id"`
-	SprintID       string `json:"sprint_id"`
-	ComponentID    string `json:"component_id"`
-	VersionID      string `json:"version_id"`
-	Rank           string `json:"rank"`
+	ProjectID      string         `json:"project_id"`
+	Title          string         `json:"title"`
+	Description    string         `json:"description"`
+	Status         string         `json:"status"`
+	Priority       string         `json:"priority"`
+	Type           string         `json:"type"`
+	ReporterID     string         `json:"reporter_id"`
+	AssigneeID     string         `json:"assignee_id"`
+	ParentTicketID string         `json:"parent_ticket_id"`
+	SprintID       string         `json:"sprint_id"`
+	ComponentID    string         `json:"component_id"`
+	VersionID      string         `json:"version_id"`
+	Rank           string         `json:"rank"`
+	CustomFields   map[string]any `json:"custom_fields"`
 }
 
 type ListTicketsInput struct {
@@ -77,17 +79,18 @@ type ListTicketsInput struct {
 }
 
 type UpdateTicketInput struct {
-	Title          *string `json:"title,omitempty"`
-	Description    *string `json:"description,omitempty"`
-	Status         *string `json:"status,omitempty"`
-	Priority       *string `json:"priority,omitempty"`
-	Type           *string `json:"type,omitempty"`
-	AssigneeID     *string `json:"assignee_id,omitempty"`
-	ParentTicketID *string `json:"parent_ticket_id,omitempty"`
-	SprintID       *string `json:"sprint_id,omitempty"`
-	ComponentID    *string `json:"component_id,omitempty"`
-	VersionID      *string `json:"version_id,omitempty"`
-	Rank           *string `json:"rank,omitempty"`
+	Title          *string         `json:"title,omitempty"`
+	Description    *string         `json:"description,omitempty"`
+	Status         *string         `json:"status,omitempty"`
+	Priority       *string         `json:"priority,omitempty"`
+	Type           *string         `json:"type,omitempty"`
+	AssigneeID     *string         `json:"assignee_id,omitempty"`
+	ParentTicketID *string         `json:"parent_ticket_id,omitempty"`
+	SprintID       *string         `json:"sprint_id,omitempty"`
+	ComponentID    *string         `json:"component_id,omitempty"`
+	VersionID      *string         `json:"version_id,omitempty"`
+	Rank           *string         `json:"rank,omitempty"`
+	CustomFields   *map[string]any `json:"custom_fields,omitempty"`
 }
 
 type TicketActivity struct {
@@ -166,6 +169,53 @@ type UpdateVersionInput struct {
 	Status      *string `json:"status,omitempty"`
 	TargetDate  *string `json:"target_date,omitempty"`
 	ReleaseDate *string `json:"release_date,omitempty"`
+}
+
+const (
+	CustomFieldTypeText         = "text"
+	CustomFieldTypeNumber       = "number"
+	CustomFieldTypeBoolean      = "boolean"
+	CustomFieldTypeDate         = "date"
+	CustomFieldTypeSingleSelect = "single_select"
+	CustomFieldTypeMultiSelect  = "multi_select"
+	CustomFieldTypeUser         = "user"
+)
+
+type CustomFieldDefinition struct {
+	ID        string              `json:"id"`
+	ProjectID string              `json:"project_id"`
+	Key       string              `json:"key"`
+	Name      string              `json:"name"`
+	FieldType string              `json:"field_type"`
+	Required  bool                `json:"required"`
+	Options   []CustomFieldOption `json:"options,omitempty"`
+	CreatedAt time.Time           `json:"created_at"`
+	UpdatedAt time.Time           `json:"updated_at"`
+}
+
+type CustomFieldOption struct {
+	ID        string    `json:"id"`
+	FieldID   string    `json:"field_id"`
+	Value     string    `json:"value"`
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CreateCustomFieldInput struct {
+	ProjectID string   `json:"project_id"`
+	Key       string   `json:"key"`
+	Name      string   `json:"name"`
+	FieldType string   `json:"field_type"`
+	Required  bool     `json:"required"`
+	Options   []string `json:"options"`
+}
+
+type UpdateCustomFieldInput struct {
+	Key       *string   `json:"key,omitempty"`
+	Name      *string   `json:"name,omitempty"`
+	FieldType *string   `json:"field_type,omitempty"`
+	Required  *bool     `json:"required,omitempty"`
+	Options   *[]string `json:"options,omitempty"`
 }
 
 type CreateSprintInput struct {

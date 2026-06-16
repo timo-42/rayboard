@@ -44,6 +44,35 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected project: %#v", project)
 	}
 
+	createCustomFieldReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/custom-fields", mustJSON(t, map[string]any{
+		"key":        "severity",
+		"name":       "Severity",
+		"field_type": "single_select",
+		"required":   true,
+		"options":    []string{"Low", "High"},
+	}))
+	addSessionCSRF(createCustomFieldReq, session, csrf)
+	createCustomField := httptest.NewRecorder()
+	handler.ServeHTTP(createCustomField, createCustomFieldReq)
+	if createCustomField.Code != http.StatusCreated {
+		t.Fatalf("expected create custom field status 201, got %d: %s", createCustomField.Code, createCustomField.Body.String())
+	}
+	var customField tracker.CustomFieldDefinition
+	if err := json.Unmarshal(createCustomField.Body.Bytes(), &customField); err != nil {
+		t.Fatalf("decode custom field: %v", err)
+	}
+	if customField.ID == "" || len(customField.Options) != 2 {
+		t.Fatalf("unexpected custom field: %#v", customField)
+	}
+
+	listCustomFieldsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/custom-fields", nil)
+	listCustomFieldsReq.AddCookie(session)
+	listCustomFields := httptest.NewRecorder()
+	handler.ServeHTTP(listCustomFields, listCustomFieldsReq)
+	if listCustomFields.Code != http.StatusOK {
+		t.Fatalf("expected list custom fields status 200, got %d: %s", listCustomFields.Code, listCustomFields.Body.String())
+	}
+
 	listProjectsReq := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
 	listProjectsReq.AddCookie(session)
 	listProjects := httptest.NewRecorder()
@@ -57,6 +86,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		"description": "Created through HTTP",
 		"priority":    "High",
 		"type":        "Bug",
+		"custom_fields": map[string]any{
+			"severity": "High",
+		},
 	}))
 	addSessionCSRF(createTicketReq, session, csrf)
 	createTicket := httptest.NewRecorder()
@@ -71,9 +103,15 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if ticket.ID == "" || ticket.Key != "CORE-1" || ticket.Status != "todo" {
 		t.Fatalf("unexpected ticket: %#v", ticket)
 	}
+	if ticket.CustomFields["severity"] != "High" {
+		t.Fatalf("unexpected ticket custom fields: %#v", ticket.CustomFields)
+	}
 
 	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
 		"title": "Second API ticket",
+		"custom_fields": map[string]any{
+			"severity": "Low",
+		},
 	}))
 	addSessionCSRF(createSecondReq, session, csrf)
 	createSecond := httptest.NewRecorder()

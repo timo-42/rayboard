@@ -60,9 +60,10 @@ Read first:
    - assign tickets through `component_id` and `version_id` fields on ticket create/update
    - release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are planned follow-up work
 8. Custom fields:
-   - definitions/options per project
-   - typed values
-   - required validation
+   - first backend API slice: definitions/options per project under `/api/projects/{project_id}/custom-fields` and `/api/custom-fields/{field_id}`
+   - typed values through the `custom_fields` object on ticket create/update
+   - required validation on ticket create and custom-field replacement
+   - UI screens, CEL custom-field filtering, and advanced field layouts can follow later
 9. Attachments:
    - upload/download/delete/list
    - checksum/size/content-type enforcement

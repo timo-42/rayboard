@@ -78,6 +78,10 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		if !ok {
 			return pushLuaError(L, sandbox, "rayboard.create_ticket expects a table")
 		}
+		customFields, ok := customFieldsValue(input)
+		if !ok {
+			return pushLuaError(L, sandbox, "custom_fields must be a table")
+		}
 		ticket, err := s.tracker.CreateTicket(ctx, cronPrincipal(job), tracker.CreateTicketInput{
 			ProjectID:      stringValue(input, "project_id"),
 			Title:          stringValue(input, "title"),
@@ -92,6 +96,7 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			ComponentID:    stringValue(input, "component_id"),
 			VersionID:      stringValue(input, "version_id"),
 			Rank:           stringValue(input, "rank"),
+			CustomFields:   customFields,
 		})
 		return pushLuaResult(L, sandbox, ticket, err)
 	}
@@ -106,7 +111,11 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		if !ok {
 			return pushLuaError(L, sandbox, "rayboard.update_ticket expects a table")
 		}
-		ticket, err := s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketIDValue(input), tracker.UpdateTicketInput{
+		customFields, hasCustomFields, ok := optionalCustomFieldsValue(input)
+		if !ok {
+			return pushLuaError(L, sandbox, "custom_fields must be a table")
+		}
+		update := tracker.UpdateTicketInput{
 			Title:          optionalString(input, "title"),
 			Description:    optionalString(input, "description"),
 			Status:         optionalString(input, "status"),
@@ -118,7 +127,11 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			ComponentID:    optionalString(input, "component_id"),
 			VersionID:      optionalString(input, "version_id"),
 			Rank:           optionalString(input, "rank"),
-		})
+		}
+		if hasCustomFields {
+			update.CustomFields = &customFields
+		}
+		ticket, err := s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketIDValue(input), update)
 		return pushLuaResult(L, sandbox, ticket, err)
 	}
 }
@@ -215,6 +228,23 @@ func ticketIDValue(input map[string]any) string {
 		return ticketID
 	}
 	return stringValue(input, "id")
+}
+
+func customFieldsValue(input map[string]any) (map[string]any, bool) {
+	customFields, hasCustomFields, ok := optionalCustomFieldsValue(input)
+	if !ok || !hasCustomFields {
+		return nil, ok
+	}
+	return customFields, true
+}
+
+func optionalCustomFieldsValue(input map[string]any) (map[string]any, bool, bool) {
+	value, ok := input["custom_fields"]
+	if !ok || value == nil {
+		return nil, false, true
+	}
+	customFields, ok := value.(map[string]any)
+	return customFields, true, ok
 }
 
 func optionalString(input map[string]any, key string) *string {

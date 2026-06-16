@@ -496,6 +496,100 @@ func TestComponentsVersionsAndTicketAssignment(t *testing.T) {
 	}
 }
 
+func TestCustomFieldsAndTicketValues(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-owner")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CUST", Name: "Custom Fields"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	severity, err := service.CreateCustomField(ctx, admin, tracker.CreateCustomFieldInput{
+		ProjectID: project.ID,
+		Key:       "severity",
+		Name:      "Severity",
+		FieldType: tracker.CustomFieldTypeSingleSelect,
+		Required:  true,
+		Options:   []string{"Low", "High"},
+	})
+	if err != nil {
+		t.Fatalf("create custom field: %v", err)
+	}
+	if severity.ID == "" || len(severity.Options) != 2 {
+		t.Fatalf("unexpected severity field: %#v", severity)
+	}
+
+	_, err = service.CreateCustomField(ctx, admin, tracker.CreateCustomFieldInput{
+		ProjectID: project.ID,
+		Key:       "estimate",
+		Name:      "Estimate",
+		FieldType: tracker.CustomFieldTypeNumber,
+	})
+	if err != nil {
+		t.Fatalf("create number custom field: %v", err)
+	}
+
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID: project.ID,
+		Title:     "Missing required field",
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected missing required field validation, got %v", err)
+	}
+
+	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID: project.ID,
+		Title:     "Custom field ticket",
+		CustomFields: map[string]any{
+			"severity": "High",
+			"estimate": float64(3),
+		},
+	})
+	if err != nil {
+		t.Fatalf("create ticket with custom fields: %v", err)
+	}
+	if ticket.CustomFields["severity"] != "High" || ticket.CustomFields["estimate"] != float64(3) {
+		t.Fatalf("unexpected ticket custom fields: %#v", ticket.CustomFields)
+	}
+
+	fetched, err := service.GetTicket(ctx, admin, ticket.ID)
+	if err != nil {
+		t.Fatalf("get ticket: %v", err)
+	}
+	if fetched.CustomFields["severity"] != "High" {
+		t.Fatalf("expected persisted custom field, got %#v", fetched.CustomFields)
+	}
+
+	low := map[string]any{"severity": "Low"}
+	updated, err := service.UpdateTicket(ctx, admin, ticket.ID, tracker.UpdateTicketInput{CustomFields: &low})
+	if err != nil {
+		t.Fatalf("update ticket custom fields: %v", err)
+	}
+	if updated.CustomFields["severity"] != "Low" {
+		t.Fatalf("expected updated severity, got %#v", updated.CustomFields)
+	}
+
+	fields, err := service.ListCustomFields(ctx, admin, project.ID)
+	if err != nil {
+		t.Fatalf("list custom fields: %v", err)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("expected two custom fields, got %#v", fields)
+	}
+
+	if err := service.DeleteCustomField(ctx, admin, severity.ID); err != nil {
+		t.Fatalf("delete custom field: %v", err)
+	}
+}
+
 func openMigratedDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 

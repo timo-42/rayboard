@@ -28,6 +28,8 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("POST /api/projects/{project_id}/components", authRoute.requireAuth(route.createComponent))
 	mux.HandleFunc("GET /api/projects/{project_id}/versions", authRoute.requireAuth(route.listVersions))
 	mux.HandleFunc("POST /api/projects/{project_id}/versions", authRoute.requireAuth(route.createVersion))
+	mux.HandleFunc("GET /api/projects/{project_id}/custom-fields", authRoute.requireAuth(route.listCustomFields))
+	mux.HandleFunc("POST /api/projects/{project_id}/custom-fields", authRoute.requireAuth(route.createCustomField))
 	mux.HandleFunc("GET /api/projects/{project_id}/tickets", authRoute.requireAuth(route.listTickets))
 	mux.HandleFunc("POST /api/projects/{project_id}/tickets", authRoute.requireAuth(route.createTicket))
 	mux.HandleFunc("GET /api/projects/{project_id}/sprints", authRoute.requireAuth(route.listSprints))
@@ -49,6 +51,9 @@ func registerTrackerRoutes(mux *http.ServeMux, authService *auth.Service, tracke
 	mux.HandleFunc("GET /api/versions/{version_id}", authRoute.requireAuth(route.getVersion))
 	mux.HandleFunc("PATCH /api/versions/{version_id}", authRoute.requireAuth(route.updateVersion))
 	mux.HandleFunc("DELETE /api/versions/{version_id}", authRoute.requireAuth(route.deleteVersion))
+	mux.HandleFunc("GET /api/custom-fields/{field_id}", authRoute.requireAuth(route.getCustomField))
+	mux.HandleFunc("PATCH /api/custom-fields/{field_id}", authRoute.requireAuth(route.updateCustomField))
+	mux.HandleFunc("DELETE /api/custom-fields/{field_id}", authRoute.requireAuth(route.deleteCustomField))
 }
 
 func (route trackerRoute) listProjects(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
@@ -212,6 +217,59 @@ func (route trackerRoute) updateVersion(w http.ResponseWriter, r *http.Request, 
 
 func (route trackerRoute) deleteVersion(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
 	if err := route.tracker.DeleteVersion(r.Context(), principal, r.PathValue("version_id")); err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (route trackerRoute) listCustomFields(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	fields, err := route.tracker.ListCustomFields(r.Context(), principal, r.PathValue("project_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": fields})
+}
+
+func (route trackerRoute) createCustomField(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.CreateCustomFieldInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	request.ProjectID = r.PathValue("project_id")
+	field, err := route.tracker.CreateCustomField(r.Context(), principal, request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, field)
+}
+
+func (route trackerRoute) getCustomField(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	field, err := route.tracker.GetCustomField(r.Context(), principal, r.PathValue("field_id"))
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, field)
+}
+
+func (route trackerRoute) updateCustomField(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	var request tracker.UpdateCustomFieldInput
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	field, err := route.tracker.UpdateCustomField(r.Context(), principal, r.PathValue("field_id"), request)
+	if err != nil {
+		writeTrackerError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, field)
+}
+
+func (route trackerRoute) deleteCustomField(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if err := route.tracker.DeleteCustomField(r.Context(), principal, r.PathValue("field_id")); err != nil {
 		writeTrackerError(w, err)
 		return
 	}

@@ -22,6 +22,8 @@ GET    /api/projects/{project_id}/components
 POST   /api/projects/{project_id}/components
 GET    /api/projects/{project_id}/versions
 POST   /api/projects/{project_id}/versions
+GET    /api/projects/{project_id}/custom-fields
+POST   /api/projects/{project_id}/custom-fields
 GET    /api/tickets/{ticket_id}
 PATCH  /api/tickets/{ticket_id}
 PUT    /api/tickets/{ticket_id}/sprint
@@ -32,6 +34,9 @@ DELETE /api/components/{component_id}
 GET    /api/versions/{version_id}
 PATCH  /api/versions/{version_id}
 DELETE /api/versions/{version_id}
+GET    /api/custom-fields/{field_id}
+PATCH  /api/custom-fields/{field_id}
+DELETE /api/custom-fields/{field_id}
 ```
 
 Use `POST` for actions that are not simple CRUD:
@@ -75,6 +80,24 @@ PATCH  /api/tickets/{ticket_id}
 Components and versions are project-scoped resources. Nested project collection routes make create/list authorization explicit; item routes resolve the owning project before checking permissions. Ticket component/version assignment uses `component_id` and `version_id` fields on ticket create/update and must reject cross-project assignment.
 
 Release reports, roadmap timeline screens, component/version UI screens, and advanced release planning are planned work outside this first backend/API slice.
+
+## Custom Fields
+
+The first custom-field route shape is:
+
+```text
+GET    /api/projects/{project_id}/custom-fields
+POST   /api/projects/{project_id}/custom-fields
+GET    /api/custom-fields/{field_id}
+PATCH  /api/custom-fields/{field_id}
+DELETE /api/custom-fields/{field_id}
+POST   /api/projects/{project_id}/tickets
+PATCH  /api/tickets/{ticket_id}
+```
+
+Custom fields are project-scoped resources. Definitions support `text`, `number`, `boolean`, `date`, `single_select`, `multi_select`, and `user`. Ticket values are submitted as a `custom_fields` object keyed by custom-field key. Create validates all required fields. Update treats an omitted `custom_fields` object as no change, and a provided `custom_fields` object as a full replacement.
+
+Custom-field CEL filtering, UI field management screens, custom create page integration, and advanced field layouts are planned follow-up work.
 
 ## JSON
 

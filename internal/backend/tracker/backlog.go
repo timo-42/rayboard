@@ -52,7 +52,7 @@ func (s *Service) ListBacklog(ctx context.Context, principal authz.Principal, pr
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate backlog: %w", err)
 	}
-	return tickets, nil
+	return s.attachCustomFieldsToTickets(ctx, tickets)
 }
 
 func (s *Service) ReorderBacklog(ctx context.Context, principal authz.Principal, projectID string, input ReorderBacklogInput) ([]Ticket, error) {

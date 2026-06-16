@@ -18,6 +18,7 @@ Implemented API-only user workflows:
 - text and filter search;
 - sprint CRUD, start/complete actions, and ticket sprint assignment/removal;
 - component CRUD, version/release CRUD, and ticket component/version assignment;
+- custom field definition CRUD and typed ticket custom-field values;
 - in-app notification inbox API, including unread filtering and read/unread state;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
 
@@ -25,7 +26,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, component/version CRUD, and ticket component/version assignment are currently API-only workflows. Rich backlog planning UI, board UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, advanced release planning, custom fields, workflows, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
+Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, component/version CRUD, ticket component/version assignment, and custom fields are currently API-only workflows. Rich backlog planning UI, board UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, custom-field UI/search integration, advanced release planning, workflows, labels, custom create pages, and richer saved views are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification preferences, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
 
 ## Notifications
 
