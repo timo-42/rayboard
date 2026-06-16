@@ -185,6 +185,9 @@ func runNotificationProcessor(ctx context.Context, service *notifications.Servic
 		if _, err := service.ProcessPendingDomainEvents(ctx, 100); err != nil {
 			fmt.Fprintf(stderr, "notification processor error: %v\n", err)
 		}
+		if _, err := service.ProcessPendingDeliveries(ctx, notifications.ProcessDeliveriesInput{Limit: 100}); err != nil {
+			fmt.Fprintf(stderr, "notification delivery processor error: %v\n", err)
+		}
 	}
 	process()
 

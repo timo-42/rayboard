@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestDeliveryEnqueueListAndIdempotency(t *testing.T) {
@@ -111,6 +112,112 @@ func TestDeliveryRetry(t *testing.T) {
 	}
 	if retried.Status != DeliveryStatusQueued || retried.LastError != "" || retried.NextAttemptAt == nil {
 		t.Fatalf("unexpected retried delivery: %#v", retried)
+	}
+}
+
+func TestProcessPendingDeliveriesDeliversWithShoutrrr(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	now := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	service := NewService(db.SQL, WithNow(func() time.Time { return now }))
+	destination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
+		Name:        "ops",
+		ScopeType:   DestinationScopeGlobal,
+		ShoutrrrURL: "logger://",
+		Enabled:     true,
+	})
+	policy := mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
+		Name:           "ops",
+		ScopeType:      PolicyScopeGlobal,
+		EventTypes:     []string{"ticket_assigned"},
+		DestinationIDs: []string{destination.ID},
+		Enabled:        true,
+	})
+	delivery, err := service.EnqueueDelivery(ctx, EnqueueDeliveryInput{
+		PolicyID:      policy.ID,
+		DestinationID: destination.ID,
+		EventType:     "ticket_assigned",
+		Message:       "Assigned CORE-1",
+	})
+	if err != nil {
+		t.Fatalf("enqueue delivery: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("process deliveries: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("expected one processed delivery, got %d", processed)
+	}
+	delivered, err := service.GetDelivery(ctx, delivery.ID)
+	if err != nil {
+		t.Fatalf("get delivered delivery: %v", err)
+	}
+	if delivered.Status != DeliveryStatusDelivered || delivered.AttemptCount != 1 || delivered.DeliveredAt == nil || delivered.LastError != "" {
+		t.Fatalf("unexpected delivered delivery: %#v", delivered)
+	}
+	updatedDestination, err := service.GetDestination(ctx, destination.ID)
+	if err != nil {
+		t.Fatalf("get destination: %v", err)
+	}
+	if updatedDestination.LastDeliveryStatus != DeliveryStatusDelivered || updatedDestination.LastDeliveryAt == nil || updatedDestination.LastError != "" {
+		t.Fatalf("unexpected destination delivery status: %#v", updatedDestination)
+	}
+}
+
+func TestProcessPendingDeliveriesFailsDisabledDestination(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	now := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	service := NewService(db.SQL, WithNow(func() time.Time { return now }))
+	destination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
+		Name:        "ops",
+		ScopeType:   DestinationScopeGlobal,
+		ShoutrrrURL: "logger://",
+		Enabled:     true,
+	})
+	policy := mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
+		Name:           "ops",
+		ScopeType:      PolicyScopeGlobal,
+		EventTypes:     []string{"ticket_assigned"},
+		DestinationIDs: []string{destination.ID},
+		Enabled:        true,
+	})
+	delivery, err := service.EnqueueDelivery(ctx, EnqueueDeliveryInput{
+		PolicyID:      policy.ID,
+		DestinationID: destination.ID,
+		EventType:     "ticket_assigned",
+		Message:       "Assigned CORE-1",
+	})
+	if err != nil {
+		t.Fatalf("enqueue delivery: %v", err)
+	}
+	disabled := false
+	if _, err := service.UpdateDestination(ctx, destination.ID, UpdateDestinationInput{Enabled: &disabled}); err != nil {
+		t.Fatalf("disable destination: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if !errors.Is(err, ErrDelivery) {
+		t.Fatalf("expected delivery error, got %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("expected one processed delivery, got %d", processed)
+	}
+	failed, err := service.GetDelivery(ctx, delivery.ID)
+	if err != nil {
+		t.Fatalf("get failed delivery: %v", err)
+	}
+	if failed.Status != DeliveryStatusFailed || failed.AttemptCount != 1 || failed.NextAttemptAt != nil || failed.LastError != "destination is disabled" {
+		t.Fatalf("unexpected failed delivery: %#v", failed)
+	}
+	updatedDestination, err := service.GetDestination(ctx, destination.ID)
+	if err != nil {
+		t.Fatalf("get destination: %v", err)
+	}
+	if updatedDestination.LastDeliveryStatus != DeliveryStatusFailed || updatedDestination.LastError != "destination is disabled" {
+		t.Fatalf("unexpected destination failure status: %#v", updatedDestination)
 	}
 }
 

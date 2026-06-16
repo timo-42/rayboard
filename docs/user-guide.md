@@ -32,13 +32,13 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, workflow status APIs, board definition CRUD, board ticket listing, component/version CRUD, ticket component/version assignment, roadmap data, ticket labels, custom fields, and saved-view metadata are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, label management UI, custom-field UI/search integration, advanced release planning, custom create pages, and richer saved-view UI are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, Shoutrrr/external notification delivery, notification policies, notification hooks, and OpenRouter AI automation are also **Planned**.
+Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, workflow status APIs, board definition CRUD, board ticket listing, component/version CRUD, ticket component/version assignment, roadmap data, ticket labels, custom fields, saved-view metadata, notification policies, and Shoutrrr/external notification delivery are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, label management UI, custom-field UI/search integration, advanced release planning, custom create pages, and richer saved-view UI are **Planned**. Custom create pages should return structured form definitions and options, not raw HTML. Ticket hooks, webhooks, notification hooks, and OpenRouter AI automation are also **Planned**.
 
 ## Notifications
 
-The current notification slice is API-only. Authenticated users can list their own notifications, filter to unread notifications, mark individual notifications read or unread, and update their notification preferences. Project notification managers can set project notification defaults and inspect delivery history. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
+The current notification slice is API-only. Authenticated users can list their own notifications, filter to unread notifications, mark individual notifications read or unread, and update their notification preferences. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser inbox and badge UI, the external delivery worker, webhooks, and AI/Lua notification hooks are **Planned**.
+Browser inbox and badge UI, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## Search
 

@@ -308,7 +308,7 @@ Saved-view responses use `metadata`, `spec`, and `status`. The view ID and times
 
 ## Notifications
 
-The first notification API slice lists in-app notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. External Shoutrrr destinations, policies, and delivery history are API-only; the background external delivery worker is still planned.
+The first notification API slice lists in-app notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. External Shoutrrr destinations, policies, delivery history, and the background delivery worker are API/backend-only.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -397,7 +397,7 @@ Supported policy event types are `ticket_assigned`, `comment_added`, `ticket_sta
 
 ## Notification Deliveries
 
-Notification deliveries are the durable queue/history foundation for external notification sending. They snapshot policy and destination names/service at queue time, keep delivery state in `status`, and never expose raw Shoutrrr URLs. Manual retry requeues failed or canceled deliveries for immediate processing. The external background worker that drains this queue is still planned.
+Notification deliveries are the durable queue/history foundation for external notification sending. They snapshot policy and destination names/service at queue time, keep delivery state in `status`, and never expose raw Shoutrrr URLs. The background notification worker sends queued deliveries, resolves the destination secret at processing time, retries transient Shoutrrr failures with backoff, and marks permanent destination errors as failed. Manual retry requeues failed or canceled deliveries for immediate processing.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -408,7 +408,7 @@ Notification deliveries are the durable queue/history foundation for external no
 
 Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error.
 
-Dashboard/view notification policies, recipient rules, notification hooks, the external delivery worker, webhooks, and AI/Lua notification hooks are **Planned**.
+Dashboard/view notification policies, recipient rules, notification hooks, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

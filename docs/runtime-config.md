@@ -35,7 +35,7 @@ The backend uses `modernc.org/sqlite`. Foreign keys are enabled on every connect
 
 Migrations are embedded under `internal/backend/migrations`. The schema includes users, sessions, API tokens, groups, group memberships, roles, role permissions, role bindings, projects, tickets, ticket labels, comments, activity, attachments, saved views, automation run records, notifications, notification preferences, notification destinations, notification policies, notification deliveries, domain events, and SQLite FTS5 virtual tables for ticket text, comment text, and attachment metadata.
 
-In `combined` and `backend` modes, a lightweight notification worker processes pending `domain_events` for comment and ticket-update notifications. Successful rows are marked `processed`; rows that cannot be handled are marked `failed` with `last_error` and an incremented attempt count.
+In `combined` and `backend` modes, a lightweight notification worker processes pending `domain_events` for comment and ticket-update notifications and drains due external notification deliveries. Successful domain-event rows are marked `processed`; rows that cannot be handled are marked `failed` with `last_error` and an incremented attempt count. Successful delivery rows are marked `delivered`; failed deliveries are retried with backoff until their retry budget is exhausted or a permanent destination error marks them `failed`.
 
 ## Admin Bootstrap
 

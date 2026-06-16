@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/containrrr/shoutrrr"
 )
 
 const (
@@ -66,6 +68,10 @@ type ListDeliveriesInput struct {
 	DestinationID string
 	Limit         int
 	Offset        int
+}
+
+type ProcessDeliveriesInput struct {
+	Limit int
 }
 
 func (s *Service) EnqueueDelivery(ctx context.Context, input EnqueueDeliveryInput) (Delivery, error) {
@@ -268,6 +274,186 @@ func (s *Service) RetryDelivery(ctx context.Context, deliveryID string) (Deliver
 		return Delivery{}, ErrNotFound
 	}
 	return s.GetDelivery(ctx, deliveryID)
+}
+
+func (s *Service) ProcessPendingDeliveries(ctx context.Context, input ProcessDeliveriesInput) (int, error) {
+	if s == nil {
+		return 0, nil
+	}
+	limit := input.Limit
+	if limit == 0 {
+		limit = 25
+	}
+	if limit < 0 || limit > 100 {
+		return 0, fmt.Errorf("%w: delivery process limit must be between 1 and 100", ErrValidation)
+	}
+	now := s.now().UTC()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id
+		FROM notification_deliveries
+		WHERE status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+		ORDER BY next_attempt_at ASC, created_at ASC, id ASC
+		LIMIT ?
+	`, DeliveryStatusQueued, formatTime(now), limit)
+	if err != nil {
+		return 0, fmt.Errorf("list pending notification deliveries: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return 0, fmt.Errorf("scan pending notification delivery: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close pending notification deliveries: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate pending notification deliveries: %w", err)
+	}
+
+	processed := 0
+	var firstErr error
+	for _, id := range ids {
+		ok, err := s.claimDelivery(ctx, id)
+		if err != nil {
+			return processed, err
+		}
+		if !ok {
+			continue
+		}
+		if err := s.processDelivery(ctx, id); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+		processed++
+	}
+	return processed, firstErr
+}
+
+func (s *Service) claimDelivery(ctx context.Context, deliveryID string) (bool, error) {
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notification_deliveries
+		SET status = ?, updated_at = ?
+		WHERE id = ? AND status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+	`, DeliveryStatusSending, formatTime(now), deliveryID, DeliveryStatusQueued, formatTime(now))
+	if err != nil {
+		return false, fmt.Errorf("claim notification delivery: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("check notification delivery claim: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (s *Service) processDelivery(ctx context.Context, deliveryID string) error {
+	delivery, err := s.GetDelivery(ctx, deliveryID)
+	if err != nil {
+		return err
+	}
+	destination, rawURL, err := s.getDestinationWithSecret(ctx, delivery.DestinationID)
+	if err != nil {
+		failure := fmt.Errorf("destination is not available")
+		if markErr := s.markDeliveryFailed(ctx, delivery, failure, true); markErr != nil {
+			return markErr
+		}
+		return fmt.Errorf("%w: %v", ErrDelivery, failure)
+	}
+	if !destination.Enabled {
+		failure := fmt.Errorf("destination is disabled")
+		if markErr := s.markDeliveryFailed(ctx, delivery, failure, true); markErr != nil {
+			return markErr
+		}
+		return fmt.Errorf("%w: %v", ErrDelivery, failure)
+	}
+	sender, err := shoutrrr.CreateSender(rawURL)
+	if err != nil {
+		failure := fmt.Errorf("invalid Shoutrrr service URL")
+		if markErr := s.markDeliveryFailed(ctx, delivery, failure, true); markErr != nil {
+			return markErr
+		}
+		return fmt.Errorf("%w: %v", ErrDelivery, failure)
+	}
+	if err := firstSendError(sender.Send(delivery.Message, nil)); err != nil {
+		failure := fmt.Errorf("Shoutrrr delivery failed")
+		if markErr := s.markDeliveryFailed(ctx, delivery, failure, false); markErr != nil {
+			return markErr
+		}
+		return fmt.Errorf("%w: %v", ErrDelivery, failure)
+	}
+	return s.markDeliveryDelivered(ctx, delivery)
+}
+
+func (s *Service) markDeliveryDelivered(ctx context.Context, delivery Delivery) error {
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notification_deliveries
+		SET status = ?, attempt_count = attempt_count + 1, last_attempt_at = ?,
+			delivered_at = ?, next_attempt_at = NULL, last_error = NULL, updated_at = ?
+		WHERE id = ?
+	`, DeliveryStatusDelivered, formatTime(now), formatTime(now), formatTime(now), delivery.ID)
+	if err != nil {
+		return fmt.Errorf("mark notification delivery delivered: %w", err)
+	}
+	if err := requireRowsAffected(result, "notification delivery delivered"); err != nil {
+		return err
+	}
+	return s.updateDestinationDeliveryStatus(ctx, delivery.DestinationID, DeliveryStatusDelivered, now, "")
+}
+
+func (s *Service) markDeliveryFailed(ctx context.Context, delivery Delivery, failure error, final bool) error {
+	now := s.now().UTC()
+	attemptCount := delivery.AttemptCount + 1
+	status := DeliveryStatusQueued
+	var nextAttemptAt any = formatTime(nextDeliveryAttemptAt(now, attemptCount))
+	if final || attemptCount >= delivery.MaxAttempts {
+		status = DeliveryStatusFailed
+		nextAttemptAt = nil
+	}
+	message := failure.Error()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notification_deliveries
+		SET status = ?, attempt_count = ?, last_attempt_at = ?, next_attempt_at = ?,
+			last_error = ?, updated_at = ?
+		WHERE id = ?
+	`, status, attemptCount, formatTime(now), nextAttemptAt, message, formatTime(now), delivery.ID)
+	if err != nil {
+		return fmt.Errorf("mark notification delivery failed: %w", err)
+	}
+	if err := requireRowsAffected(result, "notification delivery failed"); err != nil {
+		return err
+	}
+	if status == DeliveryStatusFailed {
+		return s.updateDestinationDeliveryStatus(ctx, delivery.DestinationID, DeliveryStatusFailed, now, message)
+	}
+	return s.updateDestinationDeliveryStatus(ctx, delivery.DestinationID, "retrying", now, message)
+}
+
+func nextDeliveryAttemptAt(now time.Time, attemptCount int) time.Time {
+	switch {
+	case attemptCount <= 1:
+		return now.Add(1 * time.Minute)
+	case attemptCount == 2:
+		return now.Add(5 * time.Minute)
+	default:
+		return now.Add(15 * time.Minute)
+	}
+}
+
+func requireRowsAffected(result sql.Result, action string) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check %s update: %w", action, err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func validateDelivery(delivery Delivery) error {
