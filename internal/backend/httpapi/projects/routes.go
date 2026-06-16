@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
+	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -82,7 +83,7 @@ func (provider Provider) listBacklog(ctx context.Context, input *ProjectIDInput)
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[tracker.Ticket]{Items: items}}, nil
+	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) reorderBacklog(ctx context.Context, input *ReorderBacklogInput) (*ListTicketsOutput, error) {
@@ -94,7 +95,7 @@ func (provider Provider) reorderBacklog(ctx context.Context, input *ReorderBackl
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[tracker.Ticket]{Items: items}}, nil
+	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) listStatuses(ctx context.Context, input *ProjectIDInput) (*ListStatusesOutput, error) {
@@ -244,7 +245,7 @@ func (provider Provider) listTickets(ctx context.Context, input *ListTicketsInpu
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &ListTicketsOutput{Body: shared.ItemList[tracker.Ticket]{Items: items}}, nil
+	return &ListTicketsOutput{Body: shared.ItemList[ticketapi.TicketResource]{Items: ticketapi.ResourcesFromTracker(items)}}, nil
 }
 
 func (provider Provider) createTicket(ctx context.Context, input *CreateTicketInput) (*CreateTicketOutput, error) {
@@ -252,13 +253,11 @@ func (provider Provider) createTicket(ctx context.Context, input *CreateTicketIn
 	if err != nil {
 		return nil, err
 	}
-	body := input.Body
-	body.ProjectID = input.ProjectID
-	ticket, err := provider.Tracker.CreateTicket(ctx, principal, body)
+	ticket, err := provider.Tracker.CreateTicket(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &CreateTicketOutput{Body: ticket}, nil
+	return &CreateTicketOutput{Body: ticketapi.ResourceFromTracker(ticket)}, nil
 }
 
 func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput) (*ListRoadmapOutput, error) {

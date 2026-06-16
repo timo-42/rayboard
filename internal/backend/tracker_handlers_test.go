@@ -133,13 +133,15 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	createTicketReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
-		"title":       "First API ticket",
-		"description": "Created through HTTP",
-		"priority":    "High",
-		"type":        "Bug",
-		"labels":      []string{"backend", "API", "backend"},
-		"custom_fields": map[string]any{
-			"severity": "High",
+		"spec": map[string]any{
+			"title":       "First API ticket",
+			"description": "Created through HTTP",
+			"priority":    "High",
+			"type":        "Bug",
+			"labels":      []string{"backend", "API", "backend"},
+			"custom_fields": map[string]any{
+				"severity": "High",
+			},
 		},
 	}))
 	addSessionCSRF(createTicketReq, session, csrf)
@@ -148,10 +150,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createTicket.Code != http.StatusCreated {
 		t.Fatalf("expected create ticket status 201, got %d: %s", createTicket.Code, createTicket.Body.String())
 	}
-	var ticket tracker.Ticket
-	if err := json.Unmarshal(createTicket.Body.Bytes(), &ticket); err != nil {
-		t.Fatalf("decode ticket: %v", err)
-	}
+	ticket := decodeTicketResourceAsTracker(t, createTicket.Body.Bytes())
 	if ticket.ID == "" || ticket.Key != "CORE-1" || ticket.Status != "todo" {
 		t.Fatalf("unexpected ticket: %#v", ticket)
 	}
@@ -169,10 +168,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if getTicket.Code != http.StatusOK {
 		t.Fatalf("expected get ticket status 200, got %d: %s", getTicket.Code, getTicket.Body.String())
 	}
-	var fetchedTicket tracker.Ticket
-	if err := json.Unmarshal(getTicket.Body.Bytes(), &fetchedTicket); err != nil {
-		t.Fatalf("decode fetched ticket: %v", err)
-	}
+	fetchedTicket := decodeTicketResourceAsTracker(t, getTicket.Body.Bytes())
 	if !slices.Equal(fetchedTicket.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected fetched ticket labels: %#v", fetchedTicket.Labels)
 	}
@@ -196,10 +192,12 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	createSecondReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
-		"title":  "Second API ticket",
-		"labels": []string{"docs"},
-		"custom_fields": map[string]any{
-			"severity": "Low",
+		"spec": map[string]any{
+			"title":  "Second API ticket",
+			"labels": []string{"docs"},
+			"custom_fields": map[string]any{
+				"severity": "Low",
+			},
 		},
 	}))
 	addSessionCSRF(createSecondReq, session, csrf)
@@ -208,10 +206,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createSecond.Code != http.StatusCreated {
 		t.Fatalf("expected create second ticket status 201, got %d: %s", createSecond.Code, createSecond.Body.String())
 	}
-	var second tracker.Ticket
-	if err := json.Unmarshal(createSecond.Body.Bytes(), &second); err != nil {
-		t.Fatalf("decode second ticket: %v", err)
-	}
+	second := decodeTicketResourceAsTracker(t, createSecond.Body.Bytes())
 	if !slices.Equal(second.Labels, []string{"docs"}) {
 		t.Fatalf("unexpected second ticket labels: %#v", second.Labels)
 	}
@@ -224,12 +219,12 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list by label status 200, got %d: %s", listByLabel.Code, listByLabel.Body.String())
 	}
 	var labelList struct {
-		Items []tracker.Ticket `json:"items"`
+		Items []ticketResourceBody `json:"items"`
 	}
 	if err := json.Unmarshal(listByLabel.Body.Bytes(), &labelList); err != nil {
 		t.Fatalf("decode label ticket list: %v", err)
 	}
-	if len(labelList.Items) != 1 || labelList.Items[0].ID != ticket.ID || !slices.Equal(labelList.Items[0].Labels, []string{"api", "backend"}) {
+	if len(labelList.Items) != 1 || labelList.Items[0].Metadata.ID != ticket.ID || !slices.Equal(labelList.Items[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected label ticket list: %#v", labelList.Items)
 	}
 
@@ -251,26 +246,28 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected list backlog status 200, got %d: %s", listBacklog.Code, listBacklog.Body.String())
 	}
 	var backlog struct {
-		Items []tracker.Ticket `json:"items"`
+		Items []ticketResourceBody `json:"items"`
 	}
 	if err := json.Unmarshal(listBacklog.Body.Bytes(), &backlog); err != nil {
 		t.Fatalf("decode backlog: %v", err)
 	}
-	if len(backlog.Items) != 2 || backlog.Items[0].ID != second.ID || backlog.Items[0].Rank != "000001" {
+	if len(backlog.Items) != 2 || backlog.Items[0].Metadata.ID != second.ID || backlog.Items[0].Spec.Rank != "000001" {
 		t.Fatalf("unexpected backlog: %#v", backlog.Items)
 	}
-	if !slices.Equal(backlog.Items[0].Labels, []string{"docs"}) {
-		t.Fatalf("unexpected backlog labels: %#v", backlog.Items[0].Labels)
+	if !slices.Equal(backlog.Items[0].Spec.Labels, []string{"docs"}) {
+		t.Fatalf("unexpected backlog labels: %#v", backlog.Items[0].Spec.Labels)
 	}
 
 	createEpicReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
-		"title":      "Roadmap epic",
-		"type":       "Epic",
-		"start_date": "2026-07-01",
-		"due_date":   "2026-07-31",
-		"labels":     []string{"roadmap"},
-		"custom_fields": map[string]any{
-			"severity": "High",
+		"spec": map[string]any{
+			"title":      "Roadmap epic",
+			"type":       "Epic",
+			"start_date": "2026-07-01",
+			"due_date":   "2026-07-31",
+			"labels":     []string{"roadmap"},
+			"custom_fields": map[string]any{
+				"severity": "High",
+			},
 		},
 	}))
 	addSessionCSRF(createEpicReq, session, csrf)
@@ -279,20 +276,19 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if createEpic.Code != http.StatusCreated {
 		t.Fatalf("expected create epic status 201, got %d: %s", createEpic.Code, createEpic.Body.String())
 	}
-	var epic tracker.Ticket
-	if err := json.Unmarshal(createEpic.Body.Bytes(), &epic); err != nil {
-		t.Fatalf("decode epic: %v", err)
-	}
+	epic := decodeTicketResourceAsTracker(t, createEpic.Body.Bytes())
 	if epic.Type != "epic" || epic.StartDate != "2026-07-01" || epic.DueDate != "2026-07-31" {
 		t.Fatalf("unexpected epic: %#v", epic)
 	}
 
 	roadmapChildReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/tickets", mustJSON(t, map[string]any{
-		"title":            "Roadmap child",
-		"status":           "done",
-		"parent_ticket_id": epic.ID,
-		"custom_fields": map[string]any{
-			"severity": "Low",
+		"spec": map[string]any{
+			"title":            "Roadmap child",
+			"status":           "done",
+			"parent_ticket_id": epic.ID,
+			"custom_fields": map[string]any{
+				"severity": "Low",
+			},
 		},
 	}))
 	addSessionCSRF(roadmapChildReq, session, csrf)
@@ -360,8 +356,10 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 
 	componentVersionUpdateReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+second.ID, mustJSON(t, map[string]any{
-		"component_id": component.ID,
-		"version_id":   version.ID,
+		"spec": map[string]any{
+			"component_id": component.ID,
+			"version_id":   version.ID,
+		},
 	}))
 	addSessionCSRF(componentVersionUpdateReq, session, csrf)
 	componentVersionUpdate := httptest.NewRecorder()
@@ -369,10 +367,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if componentVersionUpdate.Code != http.StatusOK {
 		t.Fatalf("expected component/version ticket update status 200, got %d: %s", componentVersionUpdate.Code, componentVersionUpdate.Body.String())
 	}
-	var componentVersionTicket tracker.Ticket
-	if err := json.Unmarshal(componentVersionUpdate.Body.Bytes(), &componentVersionTicket); err != nil {
-		t.Fatalf("decode component/version ticket: %v", err)
-	}
+	componentVersionTicket := decodeTicketResourceAsTracker(t, componentVersionUpdate.Body.Bytes())
 	if componentVersionTicket.ComponentID != component.ID || componentVersionTicket.VersionID != version.ID {
 		t.Fatalf("unexpected component/version ticket: %#v", componentVersionTicket)
 	}
@@ -408,10 +403,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if assignSprint.Code != http.StatusOK {
 		t.Fatalf("expected assign sprint status 200, got %d: %s", assignSprint.Code, assignSprint.Body.String())
 	}
-	var sprintTicket tracker.Ticket
-	if err := json.Unmarshal(assignSprint.Body.Bytes(), &sprintTicket); err != nil {
-		t.Fatalf("decode sprint ticket: %v", err)
-	}
+	sprintTicket := decodeTicketResourceAsTracker(t, assignSprint.Body.Bytes())
 	if sprintTicket.SprintID != sprint.Metadata.ID {
 		t.Fatalf("expected ticket sprint %s, got %#v", sprint.Metadata.ID, sprintTicket)
 	}
@@ -434,7 +426,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 
 	status := "In_Progress"
 	updateTicketReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+ticket.ID, mustJSON(t, map[string]any{
-		"status": status,
+		"spec": map[string]any{
+			"status": status,
+		},
 	}))
 	addSessionCSRF(updateTicketReq, session, csrf)
 	updateTicket := httptest.NewRecorder()
@@ -516,6 +510,34 @@ type projectResourceBody struct {
 	} `json:"spec"`
 }
 
+type ticketResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Title          string         `json:"title"`
+		Description    string         `json:"description"`
+		Status         string         `json:"status"`
+		Priority       string         `json:"priority"`
+		Type           string         `json:"type"`
+		AssigneeID     string         `json:"assignee_id"`
+		ParentTicketID string         `json:"parent_ticket_id"`
+		SprintID       string         `json:"sprint_id"`
+		ComponentID    string         `json:"component_id"`
+		VersionID      string         `json:"version_id"`
+		Rank           string         `json:"rank"`
+		StartDate      string         `json:"start_date"`
+		DueDate        string         `json:"due_date"`
+		Labels         []string       `json:"labels"`
+		CustomFields   map[string]any `json:"custom_fields"`
+	} `json:"spec"`
+	Status struct {
+		Key        string `json:"key"`
+		ReporterID string `json:"reporter_id"`
+	} `json:"status"`
+}
+
 func decodeProjectResourceAsTracker(t *testing.T, data []byte) tracker.Project {
 	t.Helper()
 
@@ -530,5 +552,35 @@ func decodeProjectResourceAsTracker(t *testing.T, data []byte) tracker.Project {
 		Description: body.Spec.Description,
 		LeadUserID:  body.Spec.LeadUserID,
 		CreatedBy:   body.Metadata.CreatedBy,
+	}
+}
+
+func decodeTicketResourceAsTracker(t *testing.T, data []byte) tracker.Ticket {
+	t.Helper()
+
+	var body ticketResourceBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode ticket resource: %v", err)
+	}
+	return tracker.Ticket{
+		ID:             body.Metadata.ID,
+		ProjectID:      body.Metadata.ProjectID,
+		Key:            body.Status.Key,
+		Title:          body.Spec.Title,
+		Description:    body.Spec.Description,
+		Status:         body.Spec.Status,
+		Priority:       body.Spec.Priority,
+		Type:           body.Spec.Type,
+		ReporterID:     body.Status.ReporterID,
+		AssigneeID:     body.Spec.AssigneeID,
+		ParentTicketID: body.Spec.ParentTicketID,
+		SprintID:       body.Spec.SprintID,
+		ComponentID:    body.Spec.ComponentID,
+		VersionID:      body.Spec.VersionID,
+		Rank:           body.Spec.Rank,
+		StartDate:      body.Spec.StartDate,
+		DueDate:        body.Spec.DueDate,
+		Labels:         body.Spec.Labels,
+		CustomFields:   body.Spec.CustomFields,
 	}
 }

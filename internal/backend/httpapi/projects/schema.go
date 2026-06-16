@@ -5,6 +5,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	sprintapi "github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
+	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -53,7 +54,7 @@ type ListTicketsInput struct {
 type CreateTicketInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
-	Body      tracker.CreateTicketInput
+	Body      shared.ResourceInput[ticketapi.TicketSpec]
 }
 
 type CreateBoardInput struct {
@@ -124,8 +125,8 @@ type CreateProjectOutput = shared.CreatedOutput[ProjectResource]
 type ProjectOutput struct {
 	Body ProjectResource
 }
-type ListTicketsOutput = shared.ListOutput[tracker.Ticket]
-type CreateTicketOutput = shared.CreatedOutput[tracker.Ticket]
+type ListTicketsOutput = shared.ListOutput[ticketapi.TicketResource]
+type CreateTicketOutput = shared.CreatedOutput[ticketapi.TicketResource]
 type ListStatusesOutput = shared.ListOutput[tracker.ProjectStatus]
 type ListBoardsOutput = shared.ListOutput[tracker.Board]
 type CreateBoardOutput = shared.CreatedOutput[tracker.Board]

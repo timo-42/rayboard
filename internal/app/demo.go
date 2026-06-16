@@ -98,6 +98,22 @@ type demoProjectResource struct {
 	} `json:"spec"`
 }
 
+type demoTicketResource struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Title    string `json:"title"`
+		Priority string `json:"priority"`
+		Type     string `json:"type"`
+		Status   string `json:"status"`
+	} `json:"spec"`
+	Status struct {
+		Key string `json:"key"`
+	} `json:"status"`
+}
+
 func newDemoSeeder(rawBackendURL string, stdout io.Writer) (*demoSeeder, error) {
 	parsed, err := url.Parse(strings.TrimRight(rawBackendURL, "/"))
 	if err != nil {
@@ -282,15 +298,16 @@ func (s *demoSeeder) createTickets(ctx context.Context, projectID string) error 
 		},
 	}
 	for index, ticket := range tickets {
-		var created tracker.Ticket
-		if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/tickets", ticket, &created); err != nil {
+		var created demoTicketResource
+		if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/tickets", map[string]tracker.CreateTicketInput{"spec": ticket}, &created); err != nil {
 			return fmt.Errorf("create demo ticket %d: %w", index+1, err)
 		}
-		fmt.Fprintf(s.stdout, "demo ticket: key=%s title=%q\n", created.Key, created.Title)
+		fmt.Fprintf(s.stdout, "demo ticket: key=%s title=%q\n", created.Status.Key, created.Spec.Title)
 		if index == 1 {
 			status := "in_progress"
-			if err := s.apiJSON(ctx, http.MethodPatch, "/api/tickets/"+created.ID, tracker.UpdateTicketInput{Status: &status}, nil); err != nil {
-				return fmt.Errorf("update demo ticket %s: %w", created.Key, err)
+			update := tracker.UpdateTicketInput{Status: &status}
+			if err := s.apiJSON(ctx, http.MethodPatch, "/api/tickets/"+created.Metadata.ID, map[string]tracker.UpdateTicketInput{"spec": update}, nil); err != nil {
+				return fmt.Errorf("update demo ticket %s: %w", created.Status.Key, err)
 			}
 		}
 	}

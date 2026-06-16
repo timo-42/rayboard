@@ -27,7 +27,7 @@ func (provider Provider) getTicket(ctx context.Context, input *TicketIDInput) (*
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &TicketOutput{Body: ticket}, nil
+	return &TicketOutput{Body: ResourceFromTracker(ticket)}, nil
 }
 
 func (provider Provider) updateTicket(ctx context.Context, input *UpdateTicketInput) (*TicketOutput, error) {
@@ -35,11 +35,11 @@ func (provider Provider) updateTicket(ctx context.Context, input *UpdateTicketIn
 	if err != nil {
 		return nil, err
 	}
-	ticket, err := provider.Tracker.UpdateTicket(ctx, principal, input.TicketID, input.Body)
+	ticket, err := provider.Tracker.UpdateTicket(ctx, principal, input.TicketID, input.Body.Spec.ToUpdateInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &TicketOutput{Body: ticket}, nil
+	return &TicketOutput{Body: ResourceFromTracker(ticket)}, nil
 }
 
 func (provider Provider) listActivity(ctx context.Context, input *TicketIDInput) (*ActivityOutput, error) {
@@ -63,7 +63,7 @@ func (provider Provider) assignSprint(ctx context.Context, input *AssignSprintIn
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}
-	return &TicketOutput{Body: ticket}, nil
+	return &TicketOutput{Body: ResourceFromTracker(ticket)}, nil
 }
 
 func (provider Provider) removeSprint(ctx context.Context, input *TicketIDInput) (*shared.EmptyOutput, error) {

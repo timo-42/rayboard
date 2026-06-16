@@ -85,14 +85,16 @@ Creating a user with an empty password generates a random password and returns i
 | `POST` | `/api/projects` | `{"spec":{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}}` |
 | `GET` | `/api/projects/{project_id}` | none |
 | `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `label`, `limit`, `offset`. |
-| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}` |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"spec":{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}}` |
 | `GET` | `/api/tickets/{ticket_id}` | none |
-| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
+| `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 
 Ticket statuses are stored as strings. Workflow status APIs define the ordered project-scoped status slugs available to a project.
 
 Project responses use `metadata`, `spec`, and `status`. Project IDs are returned as `metadata.id`; project key, name, description, and lead user are returned in `spec`; archive/delete lifecycle fields are returned in `status`.
+
+Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, and delete state are returned in `status`.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
@@ -175,7 +177,7 @@ Tickets are assigned to components and versions through the ticket API:
 
 | Method | Path | Body |
 | --- | --- | --- |
-| `PATCH` | `/api/tickets/{ticket_id}` | `{"component_id":"component_...","version_id":"version_..."}` |
+| `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{"component_id":"component_...","version_id":"version_..."}}` |
 
 Ticket assignment keeps all records in one project. Cross-project component or version assignment is invalid.
 

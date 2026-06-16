@@ -126,8 +126,10 @@ func createSearchTestTicket(t *testing.T, handler http.Handler, session *http.Co
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/tickets", mustJSON(t, map[string]any{
-		"title":       "Login search ticket",
-		"description": "Find this login issue",
+		"spec": map[string]any{
+			"title":       "Login search ticket",
+			"description": "Find this login issue",
+		},
 	}))
 	addSessionCSRF(req, session, csrf)
 	rec := httptest.NewRecorder()
@@ -135,9 +137,5 @@ func createSearchTestTicket(t *testing.T, handler http.Handler, session *http.Co
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected create ticket status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var ticket tracker.Ticket
-	if err := json.Unmarshal(rec.Body.Bytes(), &ticket); err != nil {
-		t.Fatalf("decode ticket: %v", err)
-	}
-	return ticket
+	return decodeTicketResourceAsTracker(t, rec.Body.Bytes())
 }

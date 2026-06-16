@@ -64,7 +64,7 @@ function bindEvents() {
     }
     const data = formData(event.currentTarget);
     await runAction(async () => {
-      await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: data });
+      await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       event.currentTarget.reset();
       await loadTickets();
     }, "Ticket created");
@@ -78,7 +78,7 @@ function bindEvents() {
     await runAction(async () => {
       await api(`/api/tickets/${button.dataset.ticketId}`, {
         method: "PATCH",
-        body: { status: button.dataset.ticketStatus }
+        body: { spec: { status: button.dataset.ticketStatus } }
       });
       await loadTickets();
     }, "Ticket updated");
@@ -121,7 +121,7 @@ async function loadTickets() {
     return;
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
-  state.tickets = data.items || [];
+  state.tickets = (data.items || []).map(normalizeTicket);
   render();
 }
 
@@ -292,6 +292,34 @@ function normalizeProject(project) {
     };
   }
   return project;
+}
+
+function normalizeTicket(ticket) {
+  if (!ticket) {
+    return null;
+  }
+  if (ticket.metadata && ticket.spec && ticket.status) {
+    return {
+      id: ticket.metadata.id,
+      project_id: ticket.metadata.project_id,
+      key: ticket.status.key,
+      title: ticket.spec.title,
+      description: ticket.spec.description || "",
+      status: ticket.spec.status,
+      priority: ticket.spec.priority || "",
+      type: ticket.spec.type || "",
+      reporter_id: ticket.status.reporter_id || "",
+      assignee_id: ticket.spec.assignee_id || "",
+      parent_ticket_id: ticket.spec.parent_ticket_id || "",
+      sprint_id: ticket.spec.sprint_id || "",
+      component_id: ticket.spec.component_id || "",
+      version_id: ticket.spec.version_id || "",
+      rank: ticket.spec.rank || "",
+      labels: ticket.spec.labels || [],
+      custom_fields: ticket.spec.custom_fields || {}
+    };
+  }
+  return ticket;
 }
 
 function cookieValue(name) {

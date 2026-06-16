@@ -103,7 +103,9 @@ func createAttachmentTestTicket(t *testing.T, handler http.Handler, session *htt
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/tickets", mustJSON(t, map[string]any{
-		"title": "Attachment target",
+		"spec": map[string]any{
+			"title": "Attachment target",
+		},
 	}))
 	addSessionCSRF(req, session, csrf)
 	rec := httptest.NewRecorder()
@@ -111,11 +113,7 @@ func createAttachmentTestTicket(t *testing.T, handler http.Handler, session *htt
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected create ticket status 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var ticket tracker.Ticket
-	if err := json.Unmarshal(rec.Body.Bytes(), &ticket); err != nil {
-		t.Fatalf("decode ticket: %v", err)
-	}
-	return ticket
+	return decodeTicketResourceAsTracker(t, rec.Body.Bytes())
 }
 
 func multipartUploadRequest(t *testing.T, path string, field string, fileName string, contentType string, data []byte) *http.Request {
