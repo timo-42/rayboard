@@ -10,6 +10,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/config"
@@ -51,6 +52,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	trackerService := tracker.NewService(db.SQL, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer)
 	commentService := comments.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
 	backendServer := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
@@ -58,6 +60,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithSearchService(searchService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
@@ -83,6 +86,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	trackerService := tracker.NewService(db.SQL, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer)
 	commentService := comments.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
 	server := backend.NewServer(
 		cfg.BackendAddr,
 		backend.WithAuthService(authService),
@@ -90,6 +94,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithSearchService(searchService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)

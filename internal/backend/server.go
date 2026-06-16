@@ -9,6 +9,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
+	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -22,6 +23,7 @@ type options struct {
 	tracker     *tracker.Service
 	attachments *attachments.Service
 	comments    *comments.Service
+	search      *search.Service
 }
 
 type Option func(*options)
@@ -53,6 +55,12 @@ func WithAttachmentService(service *attachments.Service) Option {
 func WithCommentService(service *comments.Service) Option {
 	return func(options *options) {
 		options.comments = service
+	}
+}
+
+func WithSearchService(service *search.Service) Option {
+	return func(options *options) {
+		options.search = service
 	}
 }
 
@@ -92,6 +100,9 @@ func NewHandler(opts ...Option) http.Handler {
 	}
 	if options.auth != nil && options.comments != nil {
 		registerCommentRoutes(mux, options.auth, options.comments)
+	}
+	if options.auth != nil && options.search != nil {
+		registerSearchRoutes(mux, options.auth, options.search)
 	}
 	return mux
 }
