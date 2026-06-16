@@ -60,7 +60,11 @@ func (s *Service) luaGetTicket(ctx context.Context, sandbox *luasandbox.Sandbox,
 		if s.tracker == nil {
 			return pushLuaError(L, sandbox, "rayboard.get_ticket is not configured")
 		}
-		ticket, err := s.tracker.GetTicket(ctx, cronPrincipal(job), L.CheckString(1))
+		input, ok := tableArg(L, sandbox, 1)
+		if !ok {
+			return pushLuaError(L, sandbox, "rayboard.get_ticket expects a table")
+		}
+		ticket, err := s.tracker.GetTicket(ctx, cronPrincipal(job), ticketIDValue(input))
 		return pushLuaResult(L, sandbox, ticket, err)
 	}
 }
@@ -98,12 +102,11 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 		if s.tracker == nil {
 			return pushLuaError(L, sandbox, "rayboard.update_ticket is not configured")
 		}
-		ticketID := L.CheckString(1)
-		input, ok := tableArg(L, sandbox, 2)
+		input, ok := tableArg(L, sandbox, 1)
 		if !ok {
-			return pushLuaError(L, sandbox, "rayboard.update_ticket expects an id and table")
+			return pushLuaError(L, sandbox, "rayboard.update_ticket expects a table")
 		}
-		ticket, err := s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketID, tracker.UpdateTicketInput{
+		ticket, err := s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketIDValue(input), tracker.UpdateTicketInput{
 			Title:          optionalString(input, "title"),
 			Description:    optionalString(input, "description"),
 			Status:         optionalString(input, "status"),
@@ -205,6 +208,13 @@ func stringValue(input map[string]any, key string) string {
 		return ""
 	}
 	return text
+}
+
+func ticketIDValue(input map[string]any) string {
+	if ticketID := stringValue(input, "ticket_id"); ticketID != "" {
+		return ticketID
+	}
+	return stringValue(input, "id")
 }
 
 func optionalString(input map[string]any, key string) *string {

@@ -167,7 +167,13 @@ local comment, comment_err = rayboard.comment({
 })
 if comment_err then error(comment_err.message) end
 
-local fetched, get_err = rayboard.get_ticket(ticket.id)
+local updated, update_err = rayboard.update_ticket({
+  ticket_id = ticket.id,
+  priority = "High"
+})
+if update_err then error(update_err.message) end
+
+local fetched, get_err = rayboard.get_ticket({ ticket_id = updated.id })
 if get_err then error(get_err.message) end
 
 local results, search_err = rayboard.search({

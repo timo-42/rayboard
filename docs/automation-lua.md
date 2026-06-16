@@ -24,7 +24,7 @@ Lua-capable surfaces:
 - outgoing webhooks: **Planned**;
 - notification hooks: **Planned**.
 
-Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist.
+Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
 
 ## JSON Module
 
@@ -58,7 +58,7 @@ Encode rules:
 - Functions, userdata, threads, raw Go pointers, and unsupported values are rejected.
 - Non-finite numbers are rejected.
 
-Go-backed Rayboard functions exposed to Lua should accept and return plain Lua tables using these same rules:
+Go-backed Rayboard functions exposed to Lua accept plain Lua tables and return plain Lua tables plus an error value using these same rules:
 
 ```lua
 local ticket, err = rayboard.create_ticket({
@@ -72,6 +72,17 @@ if err then
 end
 ```
 
+Helper calls use the same result convention everywhere:
+
+```lua
+local value, err = rayboard.action({ id = "..." })
+if err ~= nil then
+  return { error = err.message }
+end
+```
+
+Validation and limit failures return or raise messages such as `JSON input exceeds 1048576 bytes`, `encoded JSON exceeds 1048576 bytes`, `JSON depth exceeds 64`, `mixed string and array keys`, `sparse array`, `recursive table`, or `use json.null for JSON null`.
+
 ## Cron Jobs
 
 Cron jobs use robfig cron for schedules and GopherLua for execution. The first public API/scheduler slice supports cron job CRUD, manual runs, and run history. Jobs act as their owner user, inherit the owner's current RBAC permissions at run time, and should not overlap by default.
@@ -84,9 +95,9 @@ Implemented cron Lua helpers:
 
 - `rayboard.log(message)`
 - `rayboard.search({ project_id, filter, text, sort, limit, cursor })`
-- `rayboard.get_ticket(ticket_id)`
-- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, rank })`
-- `rayboard.update_ticket(ticket_id, { title, description, status, priority, type, assignee_id, parent_ticket_id, rank })`
+- `rayboard.get_ticket({ ticket_id })`
+- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank })`
+- `rayboard.update_ticket({ ticket_id, title, description, status, priority, type, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank })`
 - `rayboard.comment({ ticket_id, body })`
 
 These helpers return `value, nil` on success and `nil, { message = "..." }` on failure. Each helper goes through the normal backend service and RBAC path using the cron job owner as an `AuthKindCron` principal.
@@ -101,7 +112,9 @@ local tickets, err = rayboard.search({
 if err then return { error = err.message } end
 
 for _, ticket in ipairs(tickets.items) do
-  rayboard.log(ticket.key .. ": " .. ticket.title)
+  local fetched, get_err = rayboard.get_ticket({ ticket_id = ticket.id })
+  if get_err then return { error = get_err.message } end
+  rayboard.log(fetched.key .. ": " .. fetched.title)
 end
 ```
 
