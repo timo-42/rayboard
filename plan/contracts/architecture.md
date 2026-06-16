@@ -28,6 +28,7 @@ internal/frontend/
 internal/frontend/templates/
 internal/frontend/static/
 internal/shared/
+docs/
 ```
 
 Use more domain packages under `internal/backend/service/` and `internal/backend/store/` as the implementation grows.
@@ -90,3 +91,12 @@ Service methods that mutate domain data should emit internal events for:
 - audit/run history where needed
 
 Events are internal Go values, not external queue contracts in v1.
+
+## Documentation Boundary
+
+User-facing behavior is documented under `/docs`.
+
+- `/docs/README.md` is the documentation index.
+- Feature docs must describe implemented behavior accurately and mark planned behavior clearly.
+- API, CLI, config, auth/RBAC, Lua/AI automation, frontend, operations, and development docs are separate audience-focused documents.
+- Code changes that add user-facing behavior should include docs updates or a tracked Agent 09 follow-up.

@@ -2,7 +2,7 @@
 
 ## Mission
 
-Implement system/project/user settings, demo seeding, audit/operational glue, documentation checks, and release verification.
+Implement system/project/user settings, demo seeding, audit/operational glue, documentation verification, and release verification.
 
 Read first:
 
@@ -17,7 +17,7 @@ Read first:
 - demo seed command
 - demo reset endpoint
 - audit log
-- docs link checks
+- docs build/link checks
 - release/build verification
 
 ## Package Tasks
@@ -64,6 +64,8 @@ Read first:
    - cross-build for mac arm and linux amd64
    - verify embedded static assets exist
    - docs link static check
+   - verify `/docs/README.md` indexes required docs
+   - verify user-facing endpoints/features added by other agents have matching docs updates or tracked docs follow-ups
 
 ## Integration Points
 
@@ -71,6 +73,7 @@ Read first:
 - Every feature agent exposes APIs that demo seed uses.
 - Agent 05 exposes settings UI.
 - Agent 02 RBAC protects settings/demo reset.
+- Agent 09 owns documentation content; Agent 08 owns release-time documentation checks.
 
 ## Tests
 
@@ -82,9 +85,11 @@ Read first:
 - audit entries for sensitive changes.
 - cross-build commands complete.
 - docs links present.
+- docs index covers user, admin, API, automation, development, and operations docs.
 
 ## Acceptance Criteria
 
 - Demo seed can populate a fresh running instance end to end.
 - No demo path bypasses backend authorization or validation.
 - Release verification can be run from a clean checkout.
+- Release checks fail when required documentation is missing.

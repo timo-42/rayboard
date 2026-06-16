@@ -54,12 +54,58 @@ Do not expose:
 
 Expose only surface-specific helpers.
 
+All Lua-capable surfaces must reuse one shared sandbox package:
+
+- one GopherLua state setup path per run
+- one Go<->Lua conversion layer
+- one JSON module implementation
+- one limit/error model for JSON/table conversion
+
+The shared JSON module is available as both:
+
+```lua
+json.encode(value)
+json.decode(text)
+rayboard.json.encode(value)
+rayboard.json.decode(text)
+```
+
+JSON decode rules:
+
+- objects become Lua tables with string keys
+- arrays become 1-indexed Lua array tables
+- strings, booleans, and numbers map directly
+- JSON null becomes a stable `json.null` sentinel
+
+JSON encode rules:
+
+- Lua array tables become JSON arrays
+- Lua string-key tables become JSON objects
+- `json.null` becomes JSON null
+- mixed string/numeric-key tables are rejected
+- sparse array tables are rejected
+- recursive tables are rejected
+- functions, userdata, threads, raw Go pointers, and unsupported values are rejected
+- non-finite numbers are rejected
+
+Go-backed Rayboard helper functions exposed to Lua must accept and return plain Lua tables using the same conversion rules. Example:
+
+```lua
+local ticket, err = rayboard.create_ticket({
+  title = "Bug",
+  assignee_id = json.null
+})
+```
+
 All Lua surfaces must enforce:
 
 - timeout
 - max script size
 - max log size
 - max input/output size
+- max JSON input bytes
+- max JSON output bytes
+- max table/JSON nesting depth
 - max action count where actions exist
 
 ## AI Rules

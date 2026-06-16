@@ -29,10 +29,12 @@ Read first:
    - stable endpoint
    - actor user
    - Lua/AI validation/action mapping
+   - shared Lua `json`/table conversion from Agent 06 for request payloads
 2. Outgoing webhooks:
    - event subscriptions
    - queued delivery
    - Lua/AI request shaping
+   - shared Lua `json`/table conversion from Agent 06 for outbound payloads
    - destination allowlist
    - timeout/max payload
    - retry/backoff/manual redelivery
@@ -55,13 +57,14 @@ Read first:
    - global/project/dashboard scopes
 6. Notification hooks:
    - Lua/AI plan transformation
+   - shared Lua `json`/table conversion from Agent 06 for notification plans
    - route to named destinations only
    - no raw Shoutrrr URL or secret exposure
 
 ## Integration Points
 
 - Agent 03 emits events.
-- Agent 06 provides automation engine wrappers.
+- Agent 06 provides automation engine wrappers and the shared Lua JSON/table conversion layer.
 - Agent 02 provides RBAC and actor principals.
 - Agent 05 builds destination/policy/history UI.
 

@@ -35,6 +35,7 @@ plan/
     06-automation-lua-ai.md
     07-notifications-webhooks.md
     08-admin-demo-ops.md
+    09-documentation.md
 ```
 
 ## Agent Assignments
@@ -48,6 +49,7 @@ plan/
 - Agent 06: automation engine, Lua, OpenRouter AI, cron, hooks, custom create pages.
 - Agent 07: notifications, Shoutrrr, webhooks, delivery queues.
 - Agent 08: admin settings, demo seed, audit/ops glue, release/build verification.
+- Agent 09: `/docs` documentation, examples, API docs, automation docs, and docs checks.
 
 ## Dependency Order
 
@@ -58,7 +60,8 @@ Work can start in parallel, but integration should follow this order:
 3. Agent 03 lands core project/ticket APIs and events.
 4. Agents 04, 06, and 07 integrate against core tickets/events.
 5. Agent 05 builds UI pages once API shapes are stable enough.
-6. Agent 08 ties settings, demo data, docs checks, and release verification together.
+6. Agent 09 documents each stable user-facing surface as it lands.
+7. Agent 08 ties settings, demo data, documentation checks, and release verification together.
 
 ## Shared Contracts
 
@@ -79,6 +82,7 @@ A workstream is complete when:
 - It updates frontend or leaves explicit UI stubs for Agent 05.
 - It emits activity/audit events where applicable.
 - It does not introduce direct DB access from frontend, Lua, AI, cron, or demo seed.
+- It updates `/docs` or leaves a tracked documentation follow-up in Agent 09 when behavior is user-facing.
 - `go test ./...` passes.
 
 ## Milestones
@@ -115,11 +119,13 @@ A workstream is complete when:
 - Incoming/outgoing webhooks.
 - OpenRouter AI alternative engine.
 - Shoutrrr notifications and notification hooks.
+- Shared Lua JSON module and Go<->Lua table conversion layer.
 
 ### Milestone 5: Demo And Operations
 
 - Admin/project/user settings.
 - Demo seed command.
 - Run history, delivery history, logs.
+- Proper `/docs` tree with user/admin/API/automation/development/operations docs.
 - Docs links and example snippets.
 - Release/build verification.
