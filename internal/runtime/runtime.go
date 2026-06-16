@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/timo-42/rayboard/internal/backend"
+	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/frontend"
 )
@@ -32,6 +33,12 @@ func Run(ctx context.Context, mode Mode, cfg config.Config, stdout, stderr io.Wr
 }
 
 func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Writer) error {
+	db, err := openAndMigrate(ctx, cfg, stdout)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
 	group, ctx := newServerGroup(ctx)
 
 	backendServer := backend.NewServer(cfg.BackendAddr)
@@ -47,11 +54,30 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 }
 
 func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer) error {
+	db, err := openAndMigrate(ctx, cfg, stdout)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
 	group, ctx := newServerGroup(ctx)
 	server := backend.NewServer(cfg.BackendAddr)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
 	return group.wait(ctx, stderr)
+}
+
+func openAndMigrate(ctx context.Context, cfg config.Config, stdout io.Writer) (*store.DB, error) {
+	db, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Migrate(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	fmt.Fprintf(stdout, "database ready at %s\n", cfg.DBPath)
+	return db, nil
 }
 
 func runFrontend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer) error {
