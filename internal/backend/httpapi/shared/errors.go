@@ -13,6 +13,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
 
 func AuthServiceError(err error) error {
@@ -147,6 +148,19 @@ func NotificationError(err error) error {
 		return huma.Error403Forbidden("Permission denied")
 	case errors.Is(err, notifications.ErrDelivery):
 		return huma.Error502BadGateway("Notification delivery failed")
+	default:
+		return huma.Error500InternalServerError("Request failed")
+	}
+}
+
+func WebhookError(err error) error {
+	switch {
+	case errors.Is(err, webhooks.ErrValidation):
+		return huma.Error400BadRequest("Validation failed")
+	case errors.Is(err, webhooks.ErrNotFound):
+		return huma.Error404NotFound("Resource was not found")
+	case errors.Is(err, authz.ErrForbidden):
+		return huma.Error403Forbidden("Permission denied")
 	default:
 		return huma.Error500InternalServerError("Request failed")
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
 
 type Server struct {
@@ -32,6 +33,7 @@ type options struct {
 	notifications *notifications.Service
 	openrouter    *openrouter.Service
 	search        *search.Service
+	webhooks      *webhooks.Service
 }
 
 type Option func(*options)
@@ -96,6 +98,12 @@ func WithSearchService(service *search.Service) Option {
 	}
 }
 
+func WithWebhookService(service *webhooks.Service) Option {
+	return func(options *options) {
+		options.webhooks = service
+	}
+}
+
 func NewServer(addr string, opts ...Option) *Server {
 	return &Server{
 		http: &http.Server{
@@ -130,5 +138,6 @@ func NewHandler(opts ...Option) http.Handler {
 		Notifications: options.notifications,
 		OpenRouter:    options.openrouter,
 		Search:        options.search,
+		Webhooks:      options.webhooks,
 	})
 }

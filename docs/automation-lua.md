@@ -179,9 +179,9 @@ return {
 }
 ```
 
-## Planned Webhooks
+## Webhooks
 
-Incoming webhooks authenticate first, then Lua maps request data to allowed Rayboard actions using a configured actor user. Outgoing webhooks shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
+Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, and the stable `POST /api/webhooks/incoming/{id}` endpoint are implemented. The current receiver authenticates the bearer token and accepts a structured `spec` payload; Lua validation/action execution is still **Planned**. Incoming webhook Lua will map request data to allowed Rayboard actions using a configured actor user. Outgoing webhooks are **Planned** and will shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
 
 Incoming example shape:
 

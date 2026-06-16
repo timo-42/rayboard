@@ -29,10 +29,12 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/versions"
+	webhooksapi "github.com/timo-42/rayboard/internal/backend/httpapi/webhooks"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
 
 type Options struct {
@@ -46,6 +48,7 @@ type Options struct {
 	Notifications *notifications.Service
 	OpenRouter    *openrouter.Service
 	Search        *search.Service
+	Webhooks      *webhooks.Service
 }
 
 type healthResponse struct {
@@ -87,6 +90,7 @@ func NewHandler(options Options) http.Handler {
 	cronapi.Register(api, cronapi.Provider{Cron: options.Cron, Authenticator: authenticator})
 	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Audit: options.Audit, Authenticator: authenticator})
 	openrouterapi.Register(api, openrouterapi.Provider{OpenRouter: options.OpenRouter, Audit: options.Audit, Authenticator: authenticator})
+	webhooksapi.Register(api, webhooksapi.Provider{Webhooks: options.Webhooks, Authenticator: authenticator})
 	return mux
 }
 

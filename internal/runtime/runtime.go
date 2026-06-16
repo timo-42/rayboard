@@ -20,6 +20,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/frontend"
 )
@@ -64,6 +65,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	openRouterService := openrouter.NewService(db.SQL)
+	webhookService := webhooks.NewService(db.SQL, authorizer)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)
@@ -93,6 +95,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithWebhookService(webhookService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
@@ -123,6 +126,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	openRouterService := openrouter.NewService(db.SQL)
+	webhookService := webhooks.NewService(db.SQL, authorizer)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)
@@ -152,6 +156,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithWebhookService(webhookService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
