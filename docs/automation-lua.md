@@ -1,0 +1,169 @@
+# Automation and Lua
+
+Automation public surfaces are mostly **Planned**. The current implementation already includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, and automation run history persistence in `internal/backend/automation`. There are no implemented public cron, Lua hook, webhook, notification hook, or OpenRouter AI automation endpoints yet.
+
+Planned upstream dependencies:
+
+- GopherLua: https://github.com/yuin/gopher-lua
+- robfig cron: https://pkg.go.dev/github.com/robfig/cron/v3
+- robfig cron source: https://github.com/robfig/cron
+- OpenRouter docs: https://openrouter.ai/docs
+- Shoutrrr: https://github.com/containrrr/shoutrrr
+- Shoutrrr docs: https://containrrr.dev/shoutrrr/
+
+## Lua Sandbox Foundation
+
+Lua surfaces use one shared sandbox runtime package and one shared Go/Lua conversion layer. Sandboxes must not expose filesystem access, shell execution, raw sockets, unrestricted HTTP, direct SQLite handles, raw Go pointers, backend store/service handles, Shoutrrr secrets, or OpenRouter keys.
+
+Planned Lua-capable surfaces:
+
+- cron jobs;
+- ticket hooks;
+- custom ticket create pages;
+- incoming webhooks;
+- outgoing webhooks;
+- notification hooks.
+
+Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist.
+
+## JSON Module
+
+Every Lua surface exposes the same sandboxed JSON API:
+
+```lua
+local value = json.decode('{"title":"Bug","assignee_id":null}')
+value.assignee_id = json.null
+local encoded = json.encode(value)
+
+local same = rayboard.json.decode(encoded)
+```
+
+`json.encode`, `json.decode`, `rayboard.json.encode`, and `rayboard.json.decode` are aliases for the same implementation. `json.null` is a stable sentinel for JSON null.
+
+Decode rules:
+
+- JSON objects become Lua tables with string keys.
+- JSON arrays become 1-indexed Lua array tables.
+- Strings, booleans, and numbers map directly.
+- JSON null becomes `json.null`.
+
+Encode rules:
+
+- Lua array tables become JSON arrays.
+- Lua string-key tables become JSON objects.
+- `json.null` becomes JSON null.
+- Mixed string/numeric-key tables are rejected.
+- Sparse array tables are rejected.
+- Recursive tables are rejected.
+- Functions, userdata, threads, raw Go pointers, and unsupported values are rejected.
+- Non-finite numbers are rejected.
+
+Go-backed Rayboard functions exposed to Lua should accept and return plain Lua tables using these same rules:
+
+```lua
+local ticket, err = rayboard.create_ticket({
+  project_id = "project_...",
+  title = "Investigate import failure",
+  assignee_id = json.null
+})
+
+if err then
+  rayboard.log("create failed: " .. err.message)
+end
+```
+
+## Planned Cron Jobs
+
+Cron jobs will use robfig cron for schedules and GopherLua for execution. Jobs act as their owner user, inherit the owner's current RBAC permissions at run time, and should not overlap by default.
+
+Example shape:
+
+```lua
+local tickets, err = rayboard.search({
+  filter = 'status == "todo" && assignee_id == currentUser()',
+  limit = 10
+})
+if err then return { error = err.message } end
+
+for _, ticket in ipairs(tickets.items) do
+  rayboard.log(ticket.key .. ": " .. ticket.title)
+end
+```
+
+## Planned Ticket Hooks
+
+Ticket hooks are project-scoped. `before` hooks may validate or transform pending payloads; `after` hooks may inspect and log but cannot alter committed data.
+
+Example validation shape:
+
+```lua
+if ticket.priority == "High" and ticket.description == "" then
+  return {
+    reject = {
+      message = "High priority tickets need a description",
+      fields = { description = "Required" }
+    }
+  }
+end
+
+return { ticket = ticket }
+```
+
+## Planned Custom Create Pages
+
+Custom create pages return validated form schema/defaults/options. Lua must never return raw HTML.
+
+```lua
+return {
+  sections = {
+    {
+      title = "Request",
+      fields = {
+        { name = "title", type = "text", required = true },
+        { name = "priority", type = "single_select", options = {"Low", "Medium", "High"} }
+      }
+    }
+  }
+}
+```
+
+## Planned Webhooks
+
+Incoming webhooks authenticate first, then Lua maps request data to allowed Rayboard actions using a configured actor user. Outgoing webhooks shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
+
+Incoming example shape:
+
+```lua
+local body = json.decode(request.body)
+if body.title == nil then
+  return { reject = { status = 400, message = "title is required" } }
+end
+
+return {
+  actions = {
+    { type = "create_ticket", input = { title = body.title, project_id = context.project_id } }
+  }
+}
+```
+
+## Planned Notifications and Shoutrrr
+
+External notifications will use named Shoutrrr destinations. Hooks may filter, suppress, transform, enrich, and route notification plans by destination name, but must never receive raw Shoutrrr URLs or secrets.
+
+Example route shape:
+
+```lua
+if event.type == "ticket.assigned" then
+  return {
+    deliveries = {
+      { destination = "team-chat", title = message.title, body = message.body }
+    }
+  }
+end
+
+return { suppress = true }
+```
+
+## Planned OpenRouter AI Automation
+
+AI automation will use OpenRouter only. Global admins configure the API key, default model, allowed models, timeout, and limits. Project users select only allowed models. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.

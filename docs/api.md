@@ -1,0 +1,144 @@
+# API Guide
+
+Backend API routes live under `/api`. Requests and responses are JSON unless uploading or downloading attachments. JSON uses `snake_case`, UTC RFC3339 timestamps, and opaque string IDs.
+
+## Authentication
+
+Protected routes accept either:
+
+- browser session cookie plus CSRF header for mutating methods; or
+- `Authorization: Bearer <api_token>`.
+
+Unauthenticated API requests return `401`.
+
+## Errors
+
+All API errors use:
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "Human readable message",
+    "fields": {
+      "title": "Required"
+    }
+  }
+}
+```
+
+Common codes are `unauthenticated`, `forbidden`, `not_found`, `validation_failed`, `conflict`, and `internal_error`.
+
+## Pagination
+
+Project, ticket, user/admin, and saved-view list endpoints currently use optional `limit` and `offset` query parameters where implemented. `POST /api/search` uses `limit` and an opaque `cursor` in the JSON body and returns `next_cursor`.
+
+## Health
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | No | Returns backend health. |
+
+## Auth, Users, Groups, Roles
+
+| Method | Path | Body |
+| --- | --- | --- |
+| `POST` | `/api/login` | `{"username":"admin","password":"..."}` |
+| `POST` | `/api/logout` | none |
+| `GET` | `/api/me` | none |
+| `GET` | `/api/tokens` | none |
+| `POST` | `/api/tokens` | `{"name":"local-script"}` |
+| `DELETE` | `/api/tokens/{token_id}` | none |
+| `GET` | `/api/users` | none |
+| `POST` | `/api/users` | `{"username":"alice","display_name":"Alice","password":"","disabled":false}` |
+| `GET` | `/api/users/{user_id}` | none |
+| `PATCH` | `/api/users/{user_id}` | `{"disabled":true}` |
+| `DELETE` | `/api/users/{user_id}` | none |
+| `GET` | `/api/groups` | none |
+| `POST` | `/api/groups` | `{"name":"engineering","display_name":"Engineering"}` |
+| `GET` | `/api/groups/{group_id}/members` | none |
+| `POST` | `/api/groups/{group_id}/members/{user_id}` | none |
+| `DELETE` | `/api/groups/{group_id}/members/{user_id}` | none |
+| `GET` | `/api/roles` | none |
+| `GET` | `/api/role-bindings` | none |
+| `POST` | `/api/role-bindings` | `{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}` |
+| `DELETE` | `/api/role-bindings/{binding_id}` | none |
+
+Creating a user with an empty password generates a random password and returns it once in the response.
+
+## Projects and Tickets
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects` | Optional `include_archived=true`, `limit`, `offset`. |
+| `POST` | `/api/projects` | `{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}` |
+| `GET` | `/api/projects/{project_id}` | none |
+| `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `limit`, `offset`. |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":""}` |
+| `GET` | `/api/tickets/{ticket_id}` | none |
+| `PATCH` | `/api/tickets/{ticket_id}` | Any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `parent_ticket_id`, `rank`. |
+| `GET` | `/api/tickets/{ticket_id}/activity` | none |
+
+Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
+
+## Comments and Attachments
+
+| Method | Path | Body |
+| --- | --- | --- |
+| `GET` | `/api/tickets/{ticket_id}/comments` | none |
+| `POST` | `/api/tickets/{ticket_id}/comments` | `{"body":"Looks reproducible."}` |
+| `DELETE` | `/api/comments/{comment_id}` | none |
+| `GET` | `/api/tickets/{ticket_id}/attachments` | none |
+| `POST` | `/api/tickets/{ticket_id}/attachments` | multipart form field `file`. |
+| `GET` | `/api/attachments/{attachment_id}/download` | binary download. |
+| `DELETE` | `/api/attachments/{attachment_id}` | none |
+
+Attachment bytes are stored in SQLite. The current maximum upload size is 10 MiB. Downloads set `Content-Type` from stored metadata and `Content-Disposition: attachment`.
+
+## Search and Saved Views
+
+Search endpoint:
+
+```http
+POST /api/search
+Content-Type: application/json
+```
+
+```json
+{
+  "project_id": "project_...",
+  "filter": "status == \"todo\" && assignee_id == currentUser()",
+  "text": "login error",
+  "sort": [{"field": "updated_at", "direction": "desc"}],
+  "limit": 50,
+  "cursor": ""
+}
+```
+
+Search returns:
+
+```json
+{
+  "items": [],
+  "next_cursor": ""
+}
+```
+
+Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, and `parent_ticket_id`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+
+Full CEL support is **Planned**. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
+
+Full-text search uses SQLite FTS5 virtual tables for ticket title/description and comments. See https://www.sqlite.org/fts5.html. Current text input is tokenized into quoted FTS terms; it is not raw FTS syntax.
+
+Saved views:
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/saved-views` | Optional `project_id`, `limit`, `offset`. |
+| `POST` | `/api/saved-views` | `{"scope_type":"user","project_id":"","name":"My bugs","query":{"filter":"assignee_id == currentUser()","text":"bug"},"sort":[{"field":"updated_at","direction":"desc"}],"columns":["key","title","status"]}` |
+| `GET` | `/api/saved-views/{view_id}` | none |
+| `PATCH` | `/api/saved-views/{view_id}` | Any subset of `name`, `query`, `sort`, `columns`. |
+| `DELETE` | `/api/saved-views/{view_id}` | none |
+
+Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission.
+
