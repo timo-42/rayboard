@@ -375,7 +375,23 @@ Admins and project notification managers can configure named Shoutrrr destinatio
 
 Destination responses use `metadata`, `spec`, and `status`. Scope identity and timestamps are in `metadata`; name, Shoutrrr service type, and enabled state are in `spec`; URL presence, last delivery state, and last error are in `status`. Test-send updates `status.last_delivery_status`, `status.last_delivery_at`, and `status.last_error`. CRUD and test-send write security audit entries without storing the URL in audit payloads.
 
-Global/project/dashboard notification policies, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
+## Notification Policies
+
+Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice; it stores and validates policy intent but does not enqueue external deliveries yet.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/notification-policies` | List global policies; requires global `notifications:manage`. |
+| `POST` | `/api/notification-policies` | `{"spec":{"name":"ops","event_types":["ticket_assigned"],"destination_ids":["dest_..."],"enabled":true}}` |
+| `GET` | `/api/projects/{project_id}/notification-policies` | List project policies; requires project `notifications:manage`. |
+| `POST` | `/api/projects/{project_id}/notification-policies` | `{"spec":{"name":"team","event_types":["comment_added"],"destination_ids":["dest_..."],"enabled":true}}` |
+| `GET` | `/api/notification-policies/{policy_id}` | none |
+| `PATCH` | `/api/notification-policies/{policy_id}` | `{"spec":{"enabled":false}}` or any subset of name, event types, destination IDs, and enabled state. |
+| `DELETE` | `/api/notification-policies/{policy_id}` | soft-deletes and disables the policy. |
+
+Supported policy event types are `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, `release_changed`, and `automation_failed`. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
+
+Dashboard/view notification policies, recipient rules, notification hooks, external delivery queues, delivery history/retry, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## OpenRouter Providers
 

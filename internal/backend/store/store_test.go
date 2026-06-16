@@ -66,6 +66,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"notifications",
 		"notification_destinations",
 		"notification_preferences",
+		"notification_policies",
 		"audit_log",
 		"openrouter_providers",
 	} {

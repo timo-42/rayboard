@@ -43,6 +43,37 @@ type UpdateProjectPreferencesInput struct {
 	Body      shared.ResourceInput[UpdatePreferencesSpec]
 }
 
+type ListPoliciesInput struct {
+	shared.AuthInput
+}
+
+type CreatePolicyInput struct {
+	shared.AuthInput
+	Body shared.ResourceInput[CreatePolicySpec]
+}
+
+type ProjectPoliciesInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+}
+
+type CreateProjectPolicyInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+	Body      shared.ResourceInput[CreatePolicySpec]
+}
+
+type PolicyIDInput struct {
+	shared.AuthInput
+	PolicyID string `path:"policy_id" doc:"Notification policy ID."`
+}
+
+type UpdatePolicyInput struct {
+	shared.AuthInput
+	PolicyID string `path:"policy_id" doc:"Notification policy ID."`
+	Body     shared.ResourceInput[UpdatePolicySpec]
+}
+
 type ListDestinationsInput struct {
 	shared.AuthInput
 }
@@ -88,8 +119,14 @@ type ListNotificationsOutput = shared.ListOutput[NotificationResource]
 type PreferencesOutput struct {
 	Body PreferencesResource
 }
+type ListPoliciesOutput = shared.ListOutput[PolicyResource]
+type CreatePolicyOutput = shared.CreatedOutput[PolicyResource]
 type ListDestinationsOutput = shared.ListOutput[DestinationResource]
 type CreateDestinationOutput = shared.CreatedOutput[DestinationResource]
+
+type PolicyOutput struct {
+	Body PolicyResource
+}
 
 type DestinationOutput struct {
 	Body DestinationResource
@@ -151,6 +188,41 @@ type PreferencesStatus struct {
 }
 
 type PreferencesResource = shared.Resource[PreferencesMetadata, PreferencesSpec, PreferencesStatus]
+
+type PolicyMetadata struct {
+	ID        string    `json:"id"`
+	ScopeType string    `json:"scope_type"`
+	ProjectID string    `json:"project_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type PolicySpec struct {
+	Name           string   `json:"name,omitempty"`
+	EventTypes     []string `json:"event_types,omitempty"`
+	DestinationIDs []string `json:"destination_ids,omitempty"`
+	Enabled        bool     `json:"enabled,omitempty"`
+}
+
+type CreatePolicySpec struct {
+	Name           string   `json:"name,omitempty"`
+	EventTypes     []string `json:"event_types,omitempty"`
+	DestinationIDs []string `json:"destination_ids,omitempty"`
+	Enabled        *bool    `json:"enabled,omitempty"`
+}
+
+type UpdatePolicySpec struct {
+	Name           *string   `json:"name,omitempty"`
+	EventTypes     *[]string `json:"event_types,omitempty"`
+	DestinationIDs *[]string `json:"destination_ids,omitempty"`
+	Enabled        *bool     `json:"enabled,omitempty"`
+}
+
+type PolicyStatus struct {
+	Deleted bool `json:"deleted"`
+}
+
+type PolicyResource = shared.Resource[PolicyMetadata, PolicySpec, PolicyStatus]
 
 type DestinationMetadata struct {
 	ID          string    `json:"id"`
@@ -258,6 +330,59 @@ func preferencesResource(preferences notifications.Preferences) PreferencesResou
 			Customized: preferences.Customized,
 		},
 	}
+}
+
+func (spec CreatePolicySpec) createInput(scopeType string, projectID string) notifications.CreatePolicyInput {
+	enabled := true
+	if spec.Enabled != nil {
+		enabled = *spec.Enabled
+	}
+	return notifications.CreatePolicyInput{
+		Name:           spec.Name,
+		ScopeType:      scopeType,
+		ProjectID:      projectID,
+		EventTypes:     spec.EventTypes,
+		DestinationIDs: spec.DestinationIDs,
+		Enabled:        enabled,
+	}
+}
+
+func (spec UpdatePolicySpec) updateInput() notifications.UpdatePolicyInput {
+	return notifications.UpdatePolicyInput{
+		Name:           spec.Name,
+		EventTypes:     spec.EventTypes,
+		DestinationIDs: spec.DestinationIDs,
+		Enabled:        spec.Enabled,
+	}
+}
+
+func policyResource(policy notifications.Policy) PolicyResource {
+	return PolicyResource{
+		Metadata: PolicyMetadata{
+			ID:        policy.ID,
+			ScopeType: policy.ScopeType,
+			ProjectID: policy.ProjectID,
+			CreatedAt: policy.CreatedAt,
+			UpdatedAt: policy.UpdatedAt,
+		},
+		Spec: PolicySpec{
+			Name:           policy.Name,
+			EventTypes:     policy.EventTypes,
+			DestinationIDs: policy.DestinationIDs,
+			Enabled:        policy.Enabled,
+		},
+		Status: PolicyStatus{
+			Deleted: false,
+		},
+	}
+}
+
+func policyResources(policies []notifications.Policy) []PolicyResource {
+	resources := make([]PolicyResource, 0, len(policies))
+	for _, policy := range policies {
+		resources = append(resources, policyResource(policy))
+	}
+	return resources
 }
 
 func optionalTime(value time.Time) *time.Time {

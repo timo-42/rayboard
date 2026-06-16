@@ -25,6 +25,7 @@ Implemented API-only user workflows:
 - custom field definition CRUD and typed ticket custom-field values;
 - in-app notification inbox API, including unread filtering and read/unread state;
 - current-user notification preferences and project notification defaults;
+- global/project notification policy CRUD;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
 
 See [API Guide](api.md) for endpoint details.
@@ -37,7 +38,7 @@ Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignme
 
 The current notification slice is API-only and in-app only. Authenticated users can list their own notifications, filter to unread notifications, mark individual notifications read or unread, and update their notification preferences. Project notification managers can set project notification defaults. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser inbox and badge UI, external delivery, notification policies, delivery queues, webhooks, and AI/Lua notification hooks are **Planned**.
+Browser inbox and badge UI, external delivery, delivery queues, webhooks, and AI/Lua notification hooks are **Planned**.
 
 ## Search
 

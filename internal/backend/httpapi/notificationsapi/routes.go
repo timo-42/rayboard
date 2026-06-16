@@ -20,6 +20,13 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/me/notification-preferences", "Notification Preferences", "Update current user notification preferences"), provider.updateMyPreferences)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-preferences", "Notification Preferences", "Get project notification defaults"), provider.getProjectPreferences)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/notification-preferences", "Notification Preferences", "Update project notification defaults"), provider.updateProjectPreferences)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-policies", "Notification Policies", "List global notification policies"), provider.listGlobalPolicies)
+	huma.Register(api, operation(http.MethodPost, "/api/notification-policies", "Notification Policies", "Create global notification policy", http.StatusCreated), provider.createGlobalPolicy)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-policies", "Notification Policies", "List project notification policies"), provider.listProjectPolicies)
+	huma.Register(api, operation(http.MethodPost, "/api/projects/{project_id}/notification-policies", "Notification Policies", "Create project notification policy", http.StatusCreated), provider.createProjectPolicy)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-policies/{policy_id}", "Notification Policies", "Get notification policy"), provider.getPolicy)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-policies/{policy_id}", "Notification Policies", "Update notification policy"), provider.updatePolicy)
+	huma.Register(api, operation(http.MethodDelete, "/api/notification-policies/{policy_id}", "Notification Policies", "Delete notification policy", http.StatusNoContent), provider.deletePolicy)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-destinations", "Notification Destinations", "List global notification destinations"), provider.listGlobalDestinations)
 	huma.Register(api, operation(http.MethodPost, "/api/notification-destinations", "Notification Destinations", "Create global notification destination", http.StatusCreated), provider.createGlobalDestination)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-destinations", "Notification Destinations", "List project notification destinations"), provider.listProjectDestinations)
@@ -133,6 +140,121 @@ func (provider Provider) updateProjectPreferences(ctx context.Context, input *Up
 		return nil, shared.NotificationError(err)
 	}
 	return &PreferencesOutput{Body: preferencesResource(preferences)}, nil
+}
+
+func (provider Provider) listGlobalPolicies(ctx context.Context, input *ListPoliciesInput) (*ListPoliciesOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	items, err := provider.Notifications.ListPolicies(ctx, notifications.ListPoliciesInput{ScopeType: notifications.PolicyScopeGlobal})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListPoliciesOutput{Body: shared.ItemList[PolicyResource]{Items: policyResources(items)}}, nil
+}
+
+func (provider Provider) createGlobalPolicy(ctx context.Context, input *CreatePolicyInput) (*CreatePolicyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	policy, err := provider.Notifications.CreatePolicy(ctx, input.Body.Spec.createInput(notifications.PolicyScopeGlobal, ""))
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &CreatePolicyOutput{Body: policyResource(policy)}, nil
+}
+
+func (provider Provider) listProjectPolicies(ctx context.Context, input *ProjectPoliciesInput) (*ListPoliciesOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	items, err := provider.Notifications.ListPolicies(ctx, notifications.ListPoliciesInput{
+		ScopeType: notifications.PolicyScopeProject,
+		ProjectID: input.ProjectID,
+	})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListPoliciesOutput{Body: shared.ItemList[PolicyResource]{Items: policyResources(items)}}, nil
+}
+
+func (provider Provider) createProjectPolicy(ctx context.Context, input *CreateProjectPolicyInput) (*CreatePolicyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	policy, err := provider.Notifications.CreatePolicy(ctx, input.Body.Spec.createInput(notifications.PolicyScopeProject, input.ProjectID))
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &CreatePolicyOutput{Body: policyResource(policy)}, nil
+}
+
+func (provider Provider) getPolicy(ctx context.Context, input *PolicyIDInput) (*PolicyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := provider.Notifications.GetPolicy(ctx, input.PolicyID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requirePolicyManage(principal, policy); err != nil {
+		return nil, err
+	}
+	return &PolicyOutput{Body: policyResource(policy)}, nil
+}
+
+func (provider Provider) updatePolicy(ctx context.Context, input *UpdatePolicyInput) (*PolicyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetPolicy(ctx, input.PolicyID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requirePolicyManage(principal, current); err != nil {
+		return nil, err
+	}
+	updated, err := provider.Notifications.UpdatePolicy(ctx, input.PolicyID, input.Body.Spec.updateInput())
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &PolicyOutput{Body: policyResource(updated)}, nil
+}
+
+func (provider Provider) deletePolicy(ctx context.Context, input *PolicyIDInput) (*shared.EmptyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetPolicy(ctx, input.PolicyID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requirePolicyManage(principal, current); err != nil {
+		return nil, err
+	}
+	if err := provider.Notifications.DeletePolicy(ctx, input.PolicyID); err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &shared.EmptyOutput{}, nil
 }
 
 func (provider Provider) listGlobalDestinations(ctx context.Context, input *ListDestinationsInput) (*ListDestinationsOutput, error) {
@@ -293,6 +415,14 @@ func (provider Provider) requireDestinationManage(principal authz.Principal, des
 	scope := authz.GlobalScope()
 	if destination.ScopeType == notifications.DestinationScopeProject || destination.ScopeType == notifications.DestinationScopeDashboard {
 		scope = authz.ProjectScope(destination.ProjectID)
+	}
+	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
+}
+
+func (provider Provider) requirePolicyManage(principal authz.Principal, policy notifications.Policy) error {
+	scope := authz.GlobalScope()
+	if policy.ScopeType == notifications.PolicyScopeProject {
+		scope = authz.ProjectScope(policy.ProjectID)
 	}
 	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
 }

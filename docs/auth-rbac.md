@@ -92,7 +92,7 @@ Global `ai:manage` is required to manage OpenRouter provider references because 
 
 Personal notification preferences require authentication but no RBAC permission because users can only access their own preference resource.
 
-`notifications:manage` is required to manage project notification defaults and Shoutrrr notification destinations. Global destination CRUD requires the permission at global scope; project preference/default and destination CRUD require it at the destination or preference project scope.
+`notifications:manage` is required to manage project notification defaults, notification policies, and Shoutrrr notification destinations. Global policy and destination CRUD require the permission at global scope; project preference/default, policy, and destination CRUD require it at the target project scope.
 
 ## Current Limitations
 
