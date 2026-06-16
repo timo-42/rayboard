@@ -202,7 +202,7 @@ return {
 
 The first notification API slice lets users list their own notifications and mark them read or unread. In-app notification generation for comments and ticket updates is driven by durable `domain_events`, with processed/failed state stored on the event row. External notification delivery uses named Shoutrrr destinations, durable delivery rows, and the backend notification worker.
 
-Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Notification hooks are **Planned** and may filter, suppress, transform, enrich, and route notification plans by destination name, but must never receive raw Shoutrrr URLs or secrets.
+Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Enabled matching global and project policies enqueue delivery rows when durable notification events are processed. Notification hooks are **Planned** and may filter, suppress, transform, enrich, and route notification plans by destination name, but must never receive raw Shoutrrr URLs or secrets.
 
 Webhooks and AI/Lua notification hooks are **Planned**. AI notification hooks must use the same validated notification-plan shape as Lua hooks and must not bypass RBAC, user preferences, destination visibility, or backend validation.
 

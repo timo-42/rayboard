@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -253,6 +254,15 @@ func (s *Service) ProcessPendingDomainEvents(ctx context.Context, limit int) (in
 			}
 			continue
 		}
+		if err := s.enqueuePolicyDeliveriesForEvent(ctx, stored.ID, event); err != nil {
+			if markErr := s.eventStore.MarkFailed(ctx, stored.ID, err); markErr != nil {
+				return processed, markErr
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
 		if err := s.eventStore.MarkProcessed(ctx, stored.ID); err != nil {
 			return processed, err
 		}
@@ -270,6 +280,138 @@ func (s *Service) handleDomainEvent(ctx context.Context, event events.Event) err
 	default:
 		return nil
 	}
+}
+
+func (s *Service) enqueuePolicyDeliveriesForEvent(ctx context.Context, domainEventID string, event events.Event) error {
+	plans, err := s.externalNotificationPlans(ctx, event)
+	if err != nil {
+		return err
+	}
+	for _, plan := range plans {
+		policies, err := s.matchingPolicies(ctx, plan.EventType, plan.ProjectID)
+		if err != nil {
+			return err
+		}
+		for _, policy := range policies {
+			for _, destinationID := range policy.DestinationIDs {
+				if _, err := s.EnqueueDelivery(ctx, EnqueueDeliveryInput{
+					DomainEventID:  domainEventID,
+					IdempotencyKey: deliveryIdempotencyKey(domainEventID, policy.ID, destinationID, plan.EventType),
+					PolicyID:       policy.ID,
+					DestinationID:  destinationID,
+					EventType:      plan.EventType,
+					SubjectType:    plan.SubjectType,
+					SubjectID:      plan.SubjectID,
+					Message:        plan.Message,
+					Payload:        plan.Payload,
+				}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type externalNotificationPlan struct {
+	EventType   string
+	ProjectID   string
+	SubjectType string
+	SubjectID   string
+	Message     string
+	Payload     map[string]any
+}
+
+func (s *Service) externalNotificationPlans(ctx context.Context, event events.Event) ([]externalNotificationPlan, error) {
+	switch event.Type {
+	case "comment.created":
+		ticketID, _ := event.Data["ticket_id"].(string)
+		if ticketID == "" {
+			return nil, nil
+		}
+		ticket, err := s.ticket(ctx, ticketID)
+		if err != nil {
+			return nil, err
+		}
+		return []externalNotificationPlan{{
+			EventType:   "comment_added",
+			ProjectID:   eventProjectID(event, ticket.ProjectID),
+			SubjectType: "ticket",
+			SubjectID:   ticket.ID,
+			Message:     fmt.Sprintf("New comment on %s", ticket.Key),
+			Payload: map[string]any{
+				"ticket_id":  ticket.ID,
+				"ticket_key": ticket.Key,
+				"comment_id": event.ObjectID,
+			},
+		}}, nil
+	case "ticket.updated":
+		ticket, err := s.ticket(ctx, event.ObjectID)
+		if err != nil {
+			return nil, err
+		}
+		projectID := eventProjectID(event, ticket.ProjectID)
+		plans := []externalNotificationPlan{}
+		if newAssignee := changeNew(event.Data, "assignee_id"); newAssignee != "" {
+			plans = append(plans, externalNotificationPlan{
+				EventType:   "ticket_assigned",
+				ProjectID:   projectID,
+				SubjectType: "ticket",
+				SubjectID:   ticket.ID,
+				Message:     fmt.Sprintf("Assigned to %s", ticket.Key),
+				Payload: map[string]any{
+					"ticket_id":     ticket.ID,
+					"ticket_key":    ticket.Key,
+					"assignee_id":   newAssignee,
+					"actor_user_id": event.ActorID,
+				},
+			})
+		}
+		if status := changeNew(event.Data, "status"); status != "" {
+			plans = append(plans, externalNotificationPlan{
+				EventType:   "ticket_status_changed",
+				ProjectID:   projectID,
+				SubjectType: "ticket",
+				SubjectID:   ticket.ID,
+				Message:     fmt.Sprintf("%s moved to %s", ticket.Key, status),
+				Payload: map[string]any{
+					"ticket_id":     ticket.ID,
+					"ticket_key":    ticket.Key,
+					"status":        status,
+					"actor_user_id": event.ActorID,
+				},
+			})
+		}
+		return plans, nil
+	default:
+		return nil, nil
+	}
+}
+
+func (s *Service) matchingPolicies(ctx context.Context, eventType string, projectID string) ([]Policy, error) {
+	var matched []Policy
+	globalPolicies, err := s.ListPolicies(ctx, ListPoliciesInput{ScopeType: PolicyScopeGlobal})
+	if err != nil {
+		return nil, err
+	}
+	matched = appendMatchingPolicies(matched, globalPolicies, eventType)
+	if projectID != "" {
+		projectPolicies, err := s.ListPolicies(ctx, ListPoliciesInput{ScopeType: PolicyScopeProject, ProjectID: projectID})
+		if err != nil {
+			return nil, err
+		}
+		matched = appendMatchingPolicies(matched, projectPolicies, eventType)
+	}
+	return matched, nil
+}
+
+func appendMatchingPolicies(result []Policy, policies []Policy, eventType string) []Policy {
+	for _, policy := range policies {
+		if policy.Enabled && slices.Contains(policy.EventTypes, eventType) {
+			result = append(result, policy)
+		}
+	}
+	return result
 }
 
 func (s *Service) handleCommentCreated(ctx context.Context, event events.Event) error {
@@ -345,6 +487,7 @@ func (s *Service) handleTicketUpdated(ctx context.Context, event events.Event) e
 
 type eventTicket struct {
 	ID         string
+	ProjectID  string
 	Key        string
 	ReporterID string
 	AssigneeID string
@@ -353,16 +496,27 @@ type eventTicket struct {
 func (s *Service) ticket(ctx context.Context, ticketID string) (eventTicket, error) {
 	var ticket eventTicket
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT id, key, COALESCE(reporter_id, ''), COALESCE(assignee_id, '')
+		SELECT id, project_id, key, COALESCE(reporter_id, ''), COALESCE(assignee_id, '')
 		FROM tickets
 		WHERE id = ? AND deleted_at IS NULL
-	`, ticketID).Scan(&ticket.ID, &ticket.Key, &ticket.ReporterID, &ticket.AssigneeID); err != nil {
+	`, ticketID).Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.ReporterID, &ticket.AssigneeID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return eventTicket{}, ErrNotFound
 		}
 		return eventTicket{}, fmt.Errorf("get notification ticket: %w", err)
 	}
 	return ticket, nil
+}
+
+func eventProjectID(event events.Event, fallback string) string {
+	if strings.TrimSpace(event.ProjectID) != "" {
+		return strings.TrimSpace(event.ProjectID)
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func deliveryIdempotencyKey(domainEventID string, policyID string, destinationID string, eventType string) string {
+	return strings.Join([]string{domainEventID, policyID, destinationID, eventType}, ":")
 }
 
 func (s *Service) getForUser(ctx context.Context, userID string, notificationID string) (Notification, error) {

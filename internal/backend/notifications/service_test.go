@@ -192,6 +192,115 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	}
 }
 
+func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	seedNotificationUser(t, ctx, db, "actor")
+	seedNotificationUser(t, ctx, db, "reporter")
+	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
+
+	eventStore := events.NewStore(db.SQL)
+	service := NewService(db.SQL, WithEventStore(eventStore))
+	globalDestination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
+		Name:        "global",
+		ScopeType:   DestinationScopeGlobal,
+		ShoutrrrURL: "logger://",
+		Enabled:     true,
+	})
+	projectDestination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
+		Name:        "project",
+		ScopeType:   DestinationScopeProject,
+		ProjectID:   "project-1",
+		ShoutrrrURL: "logger://",
+		Enabled:     true,
+	})
+	mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
+		Name:           "global comments",
+		ScopeType:      PolicyScopeGlobal,
+		EventTypes:     []string{"comment_added"},
+		DestinationIDs: []string{globalDestination.ID},
+		Enabled:        true,
+	})
+	mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
+		Name:           "project ticket updates",
+		ScopeType:      PolicyScopeProject,
+		ProjectID:      "project-1",
+		EventTypes:     []string{"ticket_assigned", "ticket_status_changed"},
+		DestinationIDs: []string{globalDestination.ID, projectDestination.ID},
+		Enabled:        true,
+	})
+	mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
+		Name:           "disabled",
+		ScopeType:      PolicyScopeGlobal,
+		EventTypes:     []string{"ticket_assigned"},
+		DestinationIDs: []string{globalDestination.ID},
+		Enabled:        false,
+	})
+
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "comment.created",
+		ActorID:  "actor",
+		ObjectID: "comment-1",
+		Data:     map[string]any{"ticket_id": "ticket-1"},
+	}); err != nil {
+		t.Fatalf("append comment event: %v", err)
+	}
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   "actor",
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data: map[string]any{
+			"changes": map[string]any{
+				"status":      map[string]string{"old": "todo", "new": "done"},
+				"assignee_id": map[string]string{"old": "", "new": "assignee"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("append ticket event: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDomainEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("process pending domain events: %v", err)
+	}
+	if processed != 2 {
+		t.Fatalf("expected 2 processed events, got %d", processed)
+	}
+	if got := countDeliveries(t, ctx, db, "comment_added"); got != 1 {
+		t.Fatalf("expected 1 comment delivery, got %d", got)
+	}
+	if got := countDeliveries(t, ctx, db, "ticket_status_changed"); got != 2 {
+		t.Fatalf("expected 2 status deliveries, got %d", got)
+	}
+	if got := countDeliveries(t, ctx, db, "ticket_assigned"); got != 2 {
+		t.Fatalf("expected 2 assignment deliveries, got %d", got)
+	}
+	var keyCount int
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM notification_deliveries
+		WHERE idempotency_key IS NOT NULL AND domain_event_id IS NOT NULL
+	`).Scan(&keyCount); err != nil {
+		t.Fatalf("count idempotent deliveries: %v", err)
+	}
+	if keyCount != 5 {
+		t.Fatalf("expected all deliveries to have idempotency keys and domain events, got %d", keyCount)
+	}
+
+	processed, err = service.ProcessPendingDomainEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("process pending domain events again: %v", err)
+	}
+	if processed != 0 {
+		t.Fatalf("expected no processed events on rerun, got %d", processed)
+	}
+	if got := totalDeliveries(t, ctx, db); got != 5 {
+		t.Fatalf("expected no duplicate deliveries, got %d", got)
+	}
+}
+
 func TestProcessPendingDomainEventsMarksFailures(t *testing.T) {
 	ctx := context.Background()
 	db := openNotificationTestDB(t, ctx)
@@ -294,6 +403,26 @@ func totalNotifications(t *testing.T, ctx context.Context, db *store.DB) int {
 	var count int
 	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notifications").Scan(&count); err != nil {
 		t.Fatalf("count all notifications: %v", err)
+	}
+	return count
+}
+
+func countDeliveries(t *testing.T, ctx context.Context, db *store.DB, eventType string) int {
+	t.Helper()
+
+	var count int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notification_deliveries WHERE event_type = ?", eventType).Scan(&count); err != nil {
+		t.Fatalf("count deliveries: %v", err)
+	}
+	return count
+}
+
+func totalDeliveries(t *testing.T, ctx context.Context, db *store.DB) int {
+	t.Helper()
+
+	var count int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notification_deliveries").Scan(&count); err != nil {
+		t.Fatalf("count all deliveries: %v", err)
 	}
 	return count
 }

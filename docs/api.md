@@ -381,7 +381,7 @@ Destination responses use `metadata`, `spec`, and `status`. Scope identity and t
 
 ## Notification Policies
 
-Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice; it stores and validates policy intent. Delivery queue rows are represented separately so workers can process or retry them without exposing destination secrets.
+Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice. When the durable notification processor handles supported domain events, enabled matching global and project policies enqueue idempotent delivery rows for their destinations. Delivery queue rows are represented separately so workers can process or retry them without exposing destination secrets.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -397,7 +397,7 @@ Supported policy event types are `ticket_assigned`, `comment_added`, `ticket_sta
 
 ## Notification Deliveries
 
-Notification deliveries are the durable queue/history foundation for external notification sending. They snapshot policy and destination names/service at queue time, keep delivery state in `status`, and never expose raw Shoutrrr URLs. The background notification worker sends queued deliveries, resolves the destination secret at processing time, retries transient Shoutrrr failures with backoff, and marks permanent destination errors as failed. Manual retry requeues failed or canceled deliveries for immediate processing.
+Notification deliveries are the durable queue/history foundation for external notification sending. They are enqueued from enabled notification policies while processing durable domain events. They snapshot policy and destination names/service at queue time, keep delivery state in `status`, and never expose raw Shoutrrr URLs. The background notification worker sends queued deliveries, resolves the destination secret at processing time, retries transient Shoutrrr failures with backoff, and marks permanent destination errors as failed. Manual retry requeues failed or canceled deliveries for immediate processing.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
