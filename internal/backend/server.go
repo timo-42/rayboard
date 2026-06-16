@@ -7,6 +7,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
+	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
 type Server struct {
@@ -16,6 +17,7 @@ type Server struct {
 type options struct {
 	auth       *auth.Service
 	authorizer authz.Evaluator
+	tracker    *tracker.Service
 }
 
 type Option func(*options)
@@ -29,6 +31,12 @@ func WithAuthService(service *auth.Service) Option {
 func WithAuthorizer(authorizer authz.Evaluator) Option {
 	return func(options *options) {
 		options.authorizer = authorizer
+	}
+}
+
+func WithTrackerService(service *tracker.Service) Option {
+	return func(options *options) {
+		options.tracker = service
 	}
 }
 
@@ -59,6 +67,9 @@ func NewHandler(opts ...Option) http.Handler {
 	mux.HandleFunc("GET /api/health", health)
 	if options.auth != nil {
 		registerAuthRoutes(mux, options.auth, options.authorizer)
+	}
+	if options.auth != nil && options.tracker != nil {
+		registerTrackerRoutes(mux, options.auth, options.tracker)
 	}
 	return mux
 }

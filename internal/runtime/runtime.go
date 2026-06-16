@@ -9,6 +9,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/store"
+	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/frontend"
 )
@@ -43,10 +44,14 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 
 	group, ctx := newServerGroup(ctx)
 
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	authService := auth.NewService(db.SQL)
+	trackerService := tracker.NewService(db.SQL, authorizer)
 	backendServer := backend.NewServer(
 		cfg.BackendAddr,
-		backend.WithAuthService(auth.NewService(db.SQL)),
-		backend.WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+		backend.WithAuthService(authService),
+		backend.WithAuthorizer(authorizer),
+		backend.WithTrackerService(trackerService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
@@ -67,10 +72,14 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	defer db.Close()
 
 	group, ctx := newServerGroup(ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	authService := auth.NewService(db.SQL)
+	trackerService := tracker.NewService(db.SQL, authorizer)
 	server := backend.NewServer(
 		cfg.BackendAddr,
-		backend.WithAuthService(auth.NewService(db.SQL)),
-		backend.WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+		backend.WithAuthService(authService),
+		backend.WithAuthorizer(authorizer),
+		backend.WithTrackerService(trackerService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
