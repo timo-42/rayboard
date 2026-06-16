@@ -82,7 +82,7 @@ A workstream is complete when:
 - It has repository/service/API layers for its domain.
 - It has backend tests for success, auth failure, validation failure, and RBAC denial.
 - It updates frontend or leaves explicit UI stubs for Agent 05.
-- It emits activity/audit events where applicable.
+- It records durable domain events, user-facing activity rows, and security audit entries where applicable.
 - It does not introduce direct DB access from frontend, Lua, AI, cron, or demo seed.
 - It updates `/docs` or leaves a tracked documentation follow-up in Agent 09 when behavior is user-facing.
 - It updates automation docs and examples when adding or changing any Lua helper, JSON conversion rule, AI prompt schema, or automation surface.

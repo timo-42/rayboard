@@ -46,7 +46,7 @@ Read first:
 
 ## Integration Points
 
-- Agent 03 emits indexable events or calls index service.
+- Agent 03 writes durable domain events that can trigger index refreshes, or calls the index service directly where appropriate.
 - Agent 05 search UI and saved view UI use these endpoints.
 - Agent 06 Lua/AI cron and webhooks can call search through controlled APIs.
 

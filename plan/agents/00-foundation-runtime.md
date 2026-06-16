@@ -24,6 +24,9 @@ Read first:
 ## Package Tasks
 
 1. Create module and base package layout.
+   - include `internal/backend/httpapi/` for resource route providers.
+   - keep the top-level backend router as assembly only.
+   - keep raw DB work out of HTTP route packages.
 2. Implement config struct:
    - frontend addr
    - backend addr
@@ -41,6 +44,10 @@ Read first:
 8. Add cross-build targets:
    - `darwin/arm64`
    - `linux/amd64`
+9. Establish the initial HTTP API package conventions:
+   - `routes.go` for route registration and high-level handlers.
+   - `schema.go` for Huma/OpenAPI DTOs with `Input` and `Output` suffixes.
+   - `provider.go` for dependency wiring and package-local helpers.
 
 ## Integration Points
 

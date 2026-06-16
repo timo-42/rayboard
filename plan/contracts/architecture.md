@@ -33,6 +33,37 @@ docs/
 
 Use more domain packages under `internal/backend/service/` and `internal/backend/store/` as the implementation grows.
 
+Backend HTTP API packages should stay resource-focused as the route surface grows:
+
+```text
+internal/backend/httpapi/
+  router.go
+  shared/
+  projects/
+    routes.go
+    schema.go
+    provider.go
+  tickets/
+    routes.go
+    schema.go
+    provider.go
+  boards/
+    routes.go
+    schema.go
+    provider.go
+```
+
+- `router.go` assembles resource route providers and shared middleware only.
+- `routes.go` registers routes and contains thin HTTP handlers.
+- `schema.go` contains Huma/OpenAPI-facing DTOs; request DTOs use `Input`, response DTOs use `Output`.
+- `provider.go` wires dependencies and local route helpers.
+- HTTP packages decode/auth/call services/encode; domain services and repositories own validation, transactions, and SQLite access.
+- Do not put raw DB CRUD in HTTP route packages.
+- Put `/api/projects` and closely project-scoped settings under the project route package.
+- Give top-level resources such as `/api/tickets/{ticket_id}`, `/api/boards/{board_id}`, and `/api/sprints/{sprint_id}` their own route packages.
+- Avoid deeply recursive package trees unless a subresource becomes large enough to justify one.
+- Migrate incrementally; existing domain services can remain while handlers move.
+
 ## Runtime Modes
 
 ### `rayboard combined`
@@ -80,9 +111,9 @@ GOOS=darwin GOARCH=arm64 go build -o dist/rayboard-darwin-arm64 ./cmd/rayboard
 GOOS=linux GOARCH=amd64 go build -o dist/rayboard-linux-amd64 ./cmd/rayboard
 ```
 
-## Event Boundary
+## Event And History Boundary
 
-Service methods that mutate domain data should emit internal events for:
+Service methods that mutate domain data should record durable domain events for:
 
 - activity history
 - notifications
@@ -90,7 +121,13 @@ Service methods that mutate domain data should emit internal events for:
 - FTS updates where needed
 - audit/run history where needed
 
-Events are internal Go values, not external queue contracts in v1.
+Use three separate records:
+
+- `ticket_activity` is the user-facing timeline for tickets and epics.
+- `domain_events` is the durable append-only backend event/outbox stream for notifications, webhooks, automations, search refreshes, integrations, and retryable async processing.
+- `audit_log` is the security/admin history for sensitive operational actions.
+
+The in-memory Go event bus may dispatch after durable writes, but it is not the source of truth and must not be the only record of meaningful mutations.
 
 ## Documentation Boundary
 

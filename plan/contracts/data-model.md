@@ -39,6 +39,7 @@ Foundation:
 
 - migrations
 - system_settings
+- domain_events
 - audit_log
 
 Auth/RBAC:
@@ -74,6 +75,14 @@ Tickets:
 - ticket_attachments
 - ticket_custom_field_values
 - ticket_links/dependencies if needed later
+
+`ticket_labels` stores normalized lowercase slug labels per ticket. Ticket create/update/list/get/search payloads expose labels as a string array. Updating labels replaces the ticket's label set. Label CRUD endpoints and label management UI are not required for the first labels slice.
+
+`ticket_activity` is the user-facing timeline for tickets and epics. It should include visible actions such as create, update, status change, assignment, sprint change, comment add/delete, attachment upload/delete, label change, and automation-visible mutations.
+
+`domain_events` is a durable append-only event/outbox table for backend processing. It records event type, actor, project, subject type/id, optional related object type/id, JSON payload, occurrence time, and processing metadata. Notifications, webhooks, automation triggers, search/FTS refreshes, integrations, and retryable async processors consume this stream.
+
+`audit_log` remains separate from both `ticket_activity` and `domain_events`. It records security/admin-sensitive actions such as login failures, token creation/revocation, user disablement, RBAC changes, settings changes, webhook token rotation, OpenRouter key changes, and demo reset actions.
 
 Custom fields:
 

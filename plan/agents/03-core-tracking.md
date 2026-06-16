@@ -15,6 +15,7 @@ Read first:
 - project CRUD and settings domain
 - tickets CRUD
 - comments/activity history
+- durable domain events for ticket/epic mutations
 - workflow/statuses
 - boards and backlog ordering
 - sprints
@@ -36,9 +37,12 @@ Read first:
 3. Tickets:
    - key generation per project
    - title/description/status/priority/assignee/reporter
-   - labels, dates, parent epic
+   - labels as normalized lowercase slug arrays on create/update/list/get/search payloads
+   - label updates replace the ticket label set
+   - dates, parent epic
    - comments
-   - activity log
+   - user-facing activity log backed by `ticket_activity`
+   - durable domain event rows for create/update/status/assignment/sprint/comment/attachment/label changes
 4. Boards/backlog:
    - list by project
    - first backend backlog API slice: `GET /api/projects/{project_id}/backlog` and `PATCH /api/projects/{project_id}/backlog`
@@ -73,13 +77,15 @@ Read first:
 
 - Agent 04 indexes tickets/comments for FTS and search.
 - Agent 06 ticket hooks run before/after ticket create/update.
-- Agent 07 listens to ticket/project events for notifications/webhooks.
+- Agent 07 consumes durable domain events for notifications/webhooks.
 - Agent 05 builds UI on top of these APIs.
+- Agent 08 keeps admin/security audit separate from ticket activity and domain events.
 
 ## Tests
 
 - project create with owner binding.
 - ticket create/update/delete/list.
+- label create/update/list/get/search behavior through ticket payloads.
 - status transition and activity entry.
 - comment create and mention event.
 - board/backlog ordering.
@@ -92,6 +98,6 @@ Read first:
 
 ## Acceptance Criteria
 
-- Mutations emit domain events.
+- Mutations write durable domain events and, where user-visible, ticket activity rows.
 - All project-scoped objects resolve authorization through project scope.
 - Ticket create/update path is single and reusable by UI, API, demo seed, cron, hooks, and webhooks.

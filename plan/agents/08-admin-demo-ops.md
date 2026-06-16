@@ -54,9 +54,13 @@ Read first:
    - notification examples
    - AI examples only when OpenRouter configured
 4. Audit log:
+   - keep audit entries separate from `ticket_activity` and `domain_events`
+   - login failures
    - user/group/role changes
    - token/session revocation
    - settings changes
+   - webhook token rotation
+   - OpenRouter key changes
    - automation/webhook/notification configuration changes
    - demo reset
 5. Release:
@@ -84,6 +88,7 @@ Read first:
 - demo passwords logged and stored hashed.
 - repeated fresh reset produces clean dataset.
 - audit entries for sensitive changes.
+- audit entries are not used as the ticket timeline or durable event outbox.
 - cross-build commands complete.
 - docs links present.
 - docs index covers user, admin, API, automation, development, and operations docs.
