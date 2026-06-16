@@ -14,15 +14,19 @@ GET    /api/projects
 POST   /api/projects
 GET    /api/projects/{project_id}
 POST   /api/projects/{project_id}/tickets
+GET    /api/projects/{project_id}/sprints
+POST   /api/projects/{project_id}/sprints
 GET    /api/tickets/{ticket_id}
 PATCH  /api/tickets/{ticket_id}
+PUT    /api/tickets/{ticket_id}/sprint
+DELETE /api/tickets/{ticket_id}/sprint
 ```
 
 Use `POST` for actions that are not simple CRUD:
 
 ```text
-POST /api/sprints/{id}/start
-POST /api/sprints/{id}/complete
+POST /api/sprints/{sprint_id}/start
+POST /api/sprints/{sprint_id}/complete
 POST /api/cron-jobs/{id}/run
 POST /api/webhooks/{id}/test
 ```

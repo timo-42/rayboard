@@ -218,10 +218,10 @@ func (r *Repository) insertTicket(ctx context.Context, q sqlRunner, ticket Ticke
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO tickets (
 			id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, rank, created_at, updated_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, rank, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.ReporterID), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.Rank), formatTime(ticket.CreatedAt), formatTime(ticket.UpdatedAt))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.ReporterID), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.Rank), formatTime(ticket.CreatedAt), formatTime(ticket.UpdatedAt))
 	if err != nil {
 		if isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_UNIQUE) || isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY) {
 			return conflict("ticket", "key", ticket.Key)
@@ -234,7 +234,7 @@ func (r *Repository) insertTicket(ctx context.Context, q sqlRunner, ticket Ticke
 func (r *Repository) getTicket(ctx context.Context, q sqlRunner, ticketID string) (Ticket, error) {
 	ticket, err := scanTicket(q.QueryRowContext(ctx, `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, rank, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, rank, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE id = ? AND deleted_at IS NULL
 	`, ticketID))
@@ -251,7 +251,7 @@ func (r *Repository) listTickets(ctx context.Context, q sqlRunner, input ListTic
 	limit, offset := normalizeListWindow(input.Limit, input.Offset)
 	query := `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, rank, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, rank, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE project_id = ? AND deleted_at IS NULL`
 	args := []any{input.ProjectID}
@@ -262,6 +262,10 @@ func (r *Repository) listTickets(ctx context.Context, q sqlRunner, input ListTic
 	if input.AssigneeID != "" {
 		query += " AND assignee_id = ?"
 		args = append(args, input.AssigneeID)
+	}
+	if input.SprintID != "" {
+		query += " AND sprint_id = ?"
+		args = append(args, input.SprintID)
 	}
 	query += " ORDER BY created_at DESC, key DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
@@ -296,10 +300,11 @@ func (r *Repository) updateTicket(ctx context.Context, q sqlRunner, ticket Ticke
 			type = ?,
 			assignee_id = ?,
 			parent_ticket_id = ?,
+			sprint_id = ?,
 			rank = ?,
 			updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
-	`, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.Rank), formatTime(ticket.UpdatedAt), ticket.ID)
+	`, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.Rank), formatTime(ticket.UpdatedAt), ticket.ID)
 	if err != nil {
 		return fmt.Errorf("update ticket: %w", err)
 	}
@@ -422,12 +427,13 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	var reporterID sql.NullString
 	var assigneeID sql.NullString
 	var parentTicketID sql.NullString
+	var sprintID sql.NullString
 	var rank sql.NullString
 	var createdAt string
 	var updatedAt string
 	var deletedAt sql.NullString
 
-	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &rank, &createdAt, &updatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &sprintID, &rank, &createdAt, &updatedAt, &deletedAt); err != nil {
 		return Ticket{}, err
 	}
 
@@ -438,6 +444,7 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	ticket.ReporterID = nullString(reporterID)
 	ticket.AssigneeID = nullString(assigneeID)
 	ticket.ParentTicketID = nullString(parentTicketID)
+	ticket.SprintID = nullString(sprintID)
 	ticket.Rank = nullString(rank)
 	ticket.CreatedAt, err = parseTime(createdAt)
 	if err != nil {

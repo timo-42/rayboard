@@ -30,6 +30,7 @@ var ticketFilterFields = map[string]string{
 	"reporter_id":      "t.reporter_id",
 	"assignee_id":      "t.assignee_id",
 	"parent_ticket_id": "t.parent_ticket_id",
+	"sprint_id":        "t.sprint_id",
 }
 
 func compileTicketFilter(input string, principal authz.Principal) (compiledFilter, error) {

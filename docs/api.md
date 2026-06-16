@@ -81,6 +81,26 @@ Creating a user with an empty password generates a random password and returns i
 
 Statuses are stored as strings. The current frontend uses `todo`, `in_progress`, and `done`.
 
+## Sprints
+
+The first sprint API slice is backend/API-only. It supports sprint CRUD within a project, starting and completing sprints, and assigning or removing a ticket from a sprint. Browser backlog planning, board drag/drop, and sprint report screens are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/sprints` | Optional `state`. |
+| `POST` | `/api/projects/{project_id}/sprints` | `{"name":"Sprint 1","goal":"Ship auth fixes","start_date":"2026-06-16","end_date":"2026-06-30"}` |
+| `GET` | `/api/sprints/{sprint_id}` | none |
+| `PATCH` | `/api/sprints/{sprint_id}` | Any subset of `name`, `goal`, `start_date`, `end_date`. |
+| `DELETE` | `/api/sprints/{sprint_id}` | none |
+| `POST` | `/api/sprints/{sprint_id}/start` | Starts a planned sprint. |
+| `POST` | `/api/sprints/{sprint_id}/complete` | Completes an active sprint. |
+| `PUT` | `/api/tickets/{ticket_id}/sprint` | `{"sprint_id":"sprint_..."}` |
+| `DELETE` | `/api/tickets/{ticket_id}/sprint` | Removes the ticket from its sprint. |
+
+Sprint states are `planned`, `active`, and `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
+
+Burndown, velocity, burnup, sprint report APIs, and other agile analytics are **Planned**.
+
 ## Comments and Attachments
 
 | Method | Path | Body |

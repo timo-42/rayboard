@@ -72,6 +72,59 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected ticket: %#v", ticket)
 	}
 
+	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
+		"name":       "Sprint 1",
+		"goal":       "Exercise sprint API",
+		"start_date": "2026-06-16",
+		"end_date":   "2026-06-30",
+	}))
+	addSessionCSRF(createSprintReq, session, csrf)
+	createSprint := httptest.NewRecorder()
+	handler.ServeHTTP(createSprint, createSprintReq)
+	if createSprint.Code != http.StatusCreated {
+		t.Fatalf("expected create sprint status 201, got %d: %s", createSprint.Code, createSprint.Body.String())
+	}
+	var sprint tracker.Sprint
+	if err := json.Unmarshal(createSprint.Body.Bytes(), &sprint); err != nil {
+		t.Fatalf("decode sprint: %v", err)
+	}
+	if sprint.ID == "" || sprint.State != tracker.SprintStatePlanned {
+		t.Fatalf("unexpected sprint: %#v", sprint)
+	}
+
+	assignSprintReq := httptest.NewRequest(http.MethodPut, "/api/tickets/"+ticket.ID+"/sprint", mustJSON(t, map[string]any{
+		"sprint_id": sprint.ID,
+	}))
+	addSessionCSRF(assignSprintReq, session, csrf)
+	assignSprint := httptest.NewRecorder()
+	handler.ServeHTTP(assignSprint, assignSprintReq)
+	if assignSprint.Code != http.StatusOK {
+		t.Fatalf("expected assign sprint status 200, got %d: %s", assignSprint.Code, assignSprint.Body.String())
+	}
+	var sprintTicket tracker.Ticket
+	if err := json.Unmarshal(assignSprint.Body.Bytes(), &sprintTicket); err != nil {
+		t.Fatalf("decode sprint ticket: %v", err)
+	}
+	if sprintTicket.SprintID != sprint.ID {
+		t.Fatalf("expected ticket sprint %s, got %#v", sprint.ID, sprintTicket)
+	}
+
+	startSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.ID+"/start", nil)
+	addSessionCSRF(startSprintReq, session, csrf)
+	startSprint := httptest.NewRecorder()
+	handler.ServeHTTP(startSprint, startSprintReq)
+	if startSprint.Code != http.StatusOK {
+		t.Fatalf("expected start sprint status 200, got %d: %s", startSprint.Code, startSprint.Body.String())
+	}
+
+	completeSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.ID+"/complete", nil)
+	addSessionCSRF(completeSprintReq, session, csrf)
+	completeSprint := httptest.NewRecorder()
+	handler.ServeHTTP(completeSprint, completeSprintReq)
+	if completeSprint.Code != http.StatusOK {
+		t.Fatalf("expected complete sprint status 200, got %d: %s", completeSprint.Code, completeSprint.Body.String())
+	}
+
 	status := "In_Progress"
 	updateTicketReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+ticket.ID, mustJSON(t, map[string]any{
 		"status": status,

@@ -22,6 +22,8 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 
 It does not currently expose all backend endpoints. User/group/RBAC administration, comments, attachments, saved views, and advanced search are API-only for now.
 
+Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are also API-only for now. Rich backlog planning, board drag/drop, and sprint report screens are **Planned**.
+
 ## Asset Policy
 
 Current assets are plain HTML, CSS, and vanilla JavaScript. There is no Node/npm build step.
@@ -37,4 +39,3 @@ These libraries are not currently vendored or used. When added, they should be e
 ## CSS Extension Points
 
 Custom CSS editing is **Planned** and intentionally not implemented yet. Current CSS is the only active stylesheet system. Future project/board CSS customization should use stable wrapper classes, predictable data attributes, and CSS variables where practical.
-

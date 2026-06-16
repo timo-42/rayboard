@@ -43,6 +43,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"role_bindings",
 		"projects",
 		"tickets",
+		"sprints",
 		"ticket_comments",
 		"ticket_activity",
 		"ticket_attachments",

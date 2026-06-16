@@ -40,6 +40,7 @@ type Ticket struct {
 	ReporterID     string     `json:"reporter_id,omitempty"`
 	AssigneeID     string     `json:"assignee_id,omitempty"`
 	ParentTicketID string     `json:"parent_ticket_id,omitempty"`
+	SprintID       string     `json:"sprint_id,omitempty"`
 	Rank           string     `json:"rank,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
@@ -56,6 +57,7 @@ type CreateTicketInput struct {
 	ReporterID     string `json:"reporter_id"`
 	AssigneeID     string `json:"assignee_id"`
 	ParentTicketID string `json:"parent_ticket_id"`
+	SprintID       string `json:"sprint_id"`
 	Rank           string `json:"rank"`
 }
 
@@ -63,6 +65,7 @@ type ListTicketsInput struct {
 	ProjectID  string `json:"project_id"`
 	Status     string `json:"status"`
 	AssigneeID string `json:"assignee_id"`
+	SprintID   string `json:"sprint_id"`
 	Limit      int    `json:"limit"`
 	Offset     int    `json:"offset"`
 }
@@ -75,6 +78,7 @@ type UpdateTicketInput struct {
 	Type           *string `json:"type,omitempty"`
 	AssigneeID     *string `json:"assignee_id,omitempty"`
 	ParentTicketID *string `json:"parent_ticket_id,omitempty"`
+	SprintID       *string `json:"sprint_id,omitempty"`
 	Rank           *string `json:"rank,omitempty"`
 }
 
@@ -85,4 +89,33 @@ type TicketActivity struct {
 	ActivityType string         `json:"activity_type"`
 	Data         map[string]any `json:"data"`
 	CreatedAt    time.Time      `json:"created_at"`
+}
+
+type Sprint struct {
+	ID          string     `json:"id"`
+	ProjectID   string     `json:"project_id"`
+	Name        string     `json:"name"`
+	Goal        string     `json:"goal,omitempty"`
+	State       string     `json:"state"`
+	StartDate   string     `json:"start_date,omitempty"`
+	EndDate     string     `json:"end_date,omitempty"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type CreateSprintInput struct {
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"`
+	Goal      string `json:"goal"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+type UpdateSprintInput struct {
+	Name      *string `json:"name,omitempty"`
+	Goal      *string `json:"goal,omitempty"`
+	StartDate *string `json:"start_date,omitempty"`
+	EndDate   *string `json:"end_date,omitempty"`
 }

@@ -190,13 +190,23 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list updated activity: %v", err)
 	}
-	if len(activities) != 2 || activities[1].ActivityType != "ticket.updated" {
+	updatedActivity := ticketActivityByType(activities, "ticket.updated")
+	if len(activities) != 2 || updatedActivity == nil {
 		t.Fatalf("unexpected activity after update: %#v", activities)
 	}
-	changes, ok := activities[1].Data["changes"].(map[string]any)
+	changes, ok := updatedActivity.Data["changes"].(map[string]any)
 	if !ok || changes["status"] == nil || changes["assignee_id"] == nil {
-		t.Fatalf("expected status and assignee changes, got %#v", activities[1].Data)
+		t.Fatalf("expected status and assignee changes, got %#v", updatedActivity.Data)
 	}
+}
+
+func ticketActivityByType(activities []tracker.TicketActivity, activityType string) *tracker.TicketActivity {
+	for index := range activities {
+		if activities[index].ActivityType == activityType {
+			return &activities[index]
+		}
+	}
+	return nil
 }
 
 func TestTicketValidationNotFoundAndAuthorization(t *testing.T) {
@@ -227,6 +237,94 @@ func TestTicketValidationNotFoundAndAuthorization(t *testing.T) {
 	viewer := principal("user-viewer")
 	if _, err := service.CreateTicket(ctx, viewer, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Denied"}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Sprint ticket"})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+
+	sprint, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{
+		ProjectID: project.ID,
+		Name:      "Sprint 1",
+		Goal:      "Ship sprint support",
+		StartDate: "2026-06-17",
+		EndDate:   "2026-06-30",
+	})
+	if err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+	if sprint.ID == "" || sprint.State != tracker.SprintStatePlanned {
+		t.Fatalf("unexpected sprint: %#v", sprint)
+	}
+
+	listed, err := service.ListSprints(ctx, admin, project.ID, "")
+	if err != nil {
+		t.Fatalf("list sprints: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != sprint.ID {
+		t.Fatalf("unexpected sprint list: %#v", listed)
+	}
+
+	assigned, err := service.SetTicketSprint(ctx, admin, ticket.ID, sprint.ID)
+	if err != nil {
+		t.Fatalf("assign ticket sprint: %v", err)
+	}
+	if assigned.SprintID != sprint.ID {
+		t.Fatalf("expected sprint assignment, got %#v", assigned)
+	}
+	tickets, err := service.ListTickets(ctx, admin, tracker.ListTicketsInput{ProjectID: project.ID, SprintID: sprint.ID})
+	if err != nil {
+		t.Fatalf("list sprint tickets: %v", err)
+	}
+	if len(tickets) != 1 || tickets[0].ID != ticket.ID {
+		t.Fatalf("unexpected sprint tickets: %#v", tickets)
+	}
+
+	started, err := service.StartSprint(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("start sprint: %v", err)
+	}
+	if started.State != tracker.SprintStateActive || started.StartedAt == nil {
+		t.Fatalf("unexpected started sprint: %#v", started)
+	}
+	other, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{ProjectID: project.ID, Name: "Sprint 2"})
+	if err != nil {
+		t.Fatalf("create other sprint: %v", err)
+	}
+	if _, err := service.StartSprint(ctx, admin, other.ID); !errors.Is(err, tracker.ErrConflict) {
+		t.Fatalf("expected active sprint conflict, got %v", err)
+	}
+
+	completed, err := service.CompleteSprint(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("complete sprint: %v", err)
+	}
+	if completed.State != tracker.SprintStateCompleted || completed.CompletedAt == nil {
+		t.Fatalf("unexpected completed sprint: %#v", completed)
+	}
+	removed, err := service.SetTicketSprint(ctx, admin, ticket.ID, "")
+	if err != nil {
+		t.Fatalf("remove ticket sprint: %v", err)
+	}
+	if removed.SprintID != "" {
+		t.Fatalf("expected sprint removal, got %#v", removed)
 	}
 }
 

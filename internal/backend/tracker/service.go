@@ -480,6 +480,7 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 
 	assigneeID := strings.TrimSpace(input.AssigneeID)
 	parentTicketID := strings.TrimSpace(input.ParentTicketID)
+	sprintID := strings.TrimSpace(input.SprintID)
 	rank := strings.TrimSpace(input.Rank)
 	if len(rank) > 200 {
 		fields["rank"] = "Must be 200 characters or fewer"
@@ -496,6 +497,9 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		return Ticket{}, err
 	}
 	if err := s.requireParentTicket(ctx, tx, "parent_ticket_id", parentTicketID, project.ID, ""); err != nil {
+		return Ticket{}, err
+	}
+	if err := s.requireSprint(ctx, tx, "sprint_id", sprintID, project.ID); err != nil {
 		return Ticket{}, err
 	}
 
@@ -515,6 +519,7 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		ReporterID:     reporterID,
 		AssigneeID:     assigneeID,
 		ParentTicketID: parentTicketID,
+		SprintID:       sprintID,
 		Rank:           rank,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -581,6 +586,10 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 		next.ParentTicketID = strings.TrimSpace(*input.ParentTicketID)
 	}
 
+	if input.SprintID != nil {
+		next.SprintID = strings.TrimSpace(*input.SprintID)
+	}
+
 	if input.Rank != nil {
 		rank := strings.TrimSpace(*input.Rank)
 		if len(rank) > 200 {
@@ -600,6 +609,9 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	if err := s.requireParentTicket(ctx, tx, "parent_ticket_id", next.ParentTicketID, current.ProjectID, current.ID); err != nil {
 		return Ticket{}, nil, err
 	}
+	if err := s.requireSprint(ctx, tx, "sprint_id", next.SprintID, current.ProjectID); err != nil {
+		return Ticket{}, nil, err
+	}
 
 	addChange(changes, "title", current.Title, next.Title)
 	addChange(changes, "description", current.Description, next.Description)
@@ -608,9 +620,28 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	addChange(changes, "type", current.Type, next.Type)
 	addChange(changes, "assignee_id", current.AssigneeID, next.AssigneeID)
 	addChange(changes, "parent_ticket_id", current.ParentTicketID, next.ParentTicketID)
+	addChange(changes, "sprint_id", current.SprintID, next.SprintID)
 	addChange(changes, "rank", current.Rank, next.Rank)
 
 	return next, changes, nil
+}
+
+func (s *Service) requireSprint(ctx context.Context, q sqlRunner, field string, sprintID string, projectID string) error {
+	if strings.TrimSpace(sprintID) == "" {
+		return nil
+	}
+	var exists int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM sprints
+		WHERE id = ? AND project_id = ?
+	`, sprintID, projectID).Scan(&exists); err != nil {
+		return fmt.Errorf("check sprint: %w", err)
+	}
+	if exists != 1 {
+		return validationFailed(map[string]string{field: "Sprint not found in project"})
+	}
+	return nil
 }
 
 func (s *Service) requireUser(ctx context.Context, q sqlRunner, field string, userID string) error {
