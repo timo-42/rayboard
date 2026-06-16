@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/timo-42/rayboard/internal/backend"
+	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/frontend"
@@ -76,7 +77,13 @@ func openAndMigrate(ctx context.Context, cfg config.Config, stdout io.Writer) (*
 		_ = db.Close()
 		return nil, err
 	}
+	admin, err := auth.BootstrapAdmin(ctx, db.SQL)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	fmt.Fprintf(stdout, "database ready at %s\n", cfg.DBPath)
+	fmt.Fprintf(stdout, "POC admin credentials: username=%s password=%s\n", admin.Username, admin.Password)
 	return db, nil
 }
 
