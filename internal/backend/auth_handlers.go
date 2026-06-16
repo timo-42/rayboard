@@ -25,17 +25,23 @@ const (
 )
 
 type authRoute struct {
-	auth *auth.Service
+	auth       *auth.Service
+	authorizer authz.Evaluator
 }
 
-func registerAuthRoutes(mux *http.ServeMux, authService *auth.Service) {
-	route := authRoute{auth: authService}
+func registerAuthRoutes(mux *http.ServeMux, authService *auth.Service, authorizer authz.Evaluator) {
+	route := authRoute{auth: authService, authorizer: authorizer}
 	mux.HandleFunc("POST /api/login", route.login)
 	mux.HandleFunc("POST /api/logout", route.logout)
 	mux.HandleFunc("GET /api/me", route.requireAuth(route.me))
 	mux.HandleFunc("GET /api/tokens", route.requireAuth(route.listTokens))
 	mux.HandleFunc("POST /api/tokens", route.requireAuth(route.createToken))
 	mux.HandleFunc("DELETE /api/tokens/{token_id}", route.requireAuth(route.revokeToken))
+	mux.HandleFunc("GET /api/users", route.requireAuth(route.listUsers))
+	mux.HandleFunc("POST /api/users", route.requireAuth(route.createUser))
+	mux.HandleFunc("GET /api/users/{user_id}", route.requireAuth(route.getUser))
+	mux.HandleFunc("PATCH /api/users/{user_id}", route.requireAuth(route.updateUser))
+	mux.HandleFunc("DELETE /api/users/{user_id}", route.requireAuth(route.deleteUser))
 }
 
 type loginRequest struct {
@@ -54,6 +60,17 @@ type meResponse struct {
 
 type createTokenRequest struct {
 	Name string `json:"name"`
+}
+
+type createUserRequest struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Password    string `json:"password"`
+	Disabled    bool   `json:"disabled"`
+}
+
+type updateUserRequest struct {
+	Disabled *bool `json:"disabled"`
 }
 
 func (route authRoute) login(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +136,87 @@ func (route authRoute) listTokens(w http.ResponseWriter, r *http.Request, princi
 		return
 	}
 	httpjson.Write(w, http.StatusOK, map[string]any{"items": tokens})
+}
+
+func (route authRoute) listUsers(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionUsersRead, authz.GlobalScope()) {
+		return
+	}
+	users, err := route.auth.ListUsers(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, map[string]any{"items": users})
+}
+
+func (route authRoute) createUser(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionUsersWrite, authz.GlobalScope()) {
+		return
+	}
+
+	var request createUserRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	user, err := route.auth.CreateUser(r.Context(), auth.CreateUserInput{
+		Username:    request.Username,
+		DisplayName: request.DisplayName,
+		Password:    request.Password,
+		Disabled:    request.Disabled,
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusCreated, user)
+}
+
+func (route authRoute) getUser(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionUsersRead, authz.GlobalScope()) {
+		return
+	}
+	user, err := route.auth.GetUser(r.Context(), r.PathValue("user_id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, user)
+}
+
+func (route authRoute) updateUser(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionUsersWrite, authz.GlobalScope()) {
+		return
+	}
+
+	var request updateUserRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if request.Disabled == nil {
+		writeServiceError(w, &auth.ValidationError{
+			Message: "Invalid user update",
+			Fields:  map[string]string{"disabled": "Required"},
+		})
+		return
+	}
+	user, err := route.auth.SetUserDisabled(r.Context(), r.PathValue("user_id"), *request.Disabled)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpjson.Write(w, http.StatusOK, user)
+}
+
+func (route authRoute) deleteUser(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
+	if !route.requirePermission(w, principal, authz.PermissionUsersWrite, authz.GlobalScope()) {
+		return
+	}
+	if err := route.auth.DeleteUser(r.Context(), r.PathValue("user_id")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (route authRoute) createToken(w http.ResponseWriter, r *http.Request, principal authz.Principal, _ auth.User) {
@@ -196,6 +294,18 @@ func (route authRoute) validCSRF(r *http.Request) bool {
 	return header != "" && header == cookie.Value
 }
 
+func (route authRoute) requirePermission(w http.ResponseWriter, principal authz.Principal, permission authz.Permission, scope authz.Scope) bool {
+	if route.authorizer == nil {
+		httpjson.Error(w, http.StatusForbidden, "forbidden", "Permission denied", nil)
+		return false
+	}
+	if err := route.authorizer.Require(principal, permission, scope); err != nil {
+		httpjson.Error(w, http.StatusForbidden, "forbidden", "Permission denied", nil)
+		return false
+	}
+	return true
+}
+
 func PrincipalFromContext(ctx context.Context) (authz.Principal, bool) {
 	principal, ok := ctx.Value(principalContextKey).(authz.Principal)
 	return principal, ok
@@ -225,6 +335,24 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		httpjson.Error(w, http.StatusForbidden, "forbidden", "User is disabled", nil)
 	default:
 		httpjson.Error(w, http.StatusInternalServerError, "internal_error", "Authentication failed", nil)
+	}
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+	var validation *auth.ValidationError
+	switch {
+	case errors.As(err, &validation):
+		httpjson.Error(w, http.StatusBadRequest, "validation_failed", validation.Message, validation.Fields)
+	case errors.Is(err, auth.ErrValidation):
+		httpjson.Error(w, http.StatusBadRequest, "validation_failed", "Validation failed", nil)
+	case errors.Is(err, auth.ErrNotFound):
+		httpjson.Error(w, http.StatusNotFound, "not_found", "Resource was not found", nil)
+	case errors.Is(err, auth.ErrConflict):
+		httpjson.Error(w, http.StatusConflict, "conflict", "Resource already exists", nil)
+	case errors.Is(err, authz.ErrForbidden):
+		httpjson.Error(w, http.StatusForbidden, "forbidden", "Permission denied", nil)
+	default:
+		httpjson.Error(w, http.StatusInternalServerError, "internal_error", "Request failed", nil)
 	}
 }
 

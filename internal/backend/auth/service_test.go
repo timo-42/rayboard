@@ -120,3 +120,78 @@ func TestAPITokenLifecycle(t *testing.T) {
 		t.Fatalf("expected unauthenticated, got %v", err)
 	}
 }
+
+func TestCreateListDisableAndDeleteUsers(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	service := NewService(db.SQL)
+
+	created, err := service.CreateUser(ctx, CreateUserInput{
+		Username:    " Alice ",
+		DisplayName: "Alice Example",
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if created.Username != "alice" || created.Password == "" {
+		t.Fatalf("unexpected created user: %#v", created)
+	}
+
+	var storedHash string
+	if err := db.SQL.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = ?", created.ID).Scan(&storedHash); err != nil {
+		t.Fatalf("query created user hash: %v", err)
+	}
+	if !VerifyPassword(storedHash, created.Password) {
+		t.Fatal("expected returned password to verify against stored hash")
+	}
+
+	if _, err := service.CreateUser(ctx, CreateUserInput{Username: "alice"}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected duplicate username conflict, got %v", err)
+	}
+
+	users, err := service.ListUsers(ctx)
+	if err != nil {
+		t.Fatalf("list users: %v", err)
+	}
+	if len(users) != 1 || users[0].ID != created.ID {
+		t.Fatalf("unexpected users: %#v", users)
+	}
+
+	session, err := service.Login(ctx, created.Username, created.Password)
+	if err != nil {
+		t.Fatalf("login created user: %v", err)
+	}
+	token, err := service.CreateAPIToken(ctx, created.ID, "demo")
+	if err != nil {
+		t.Fatalf("create API token: %v", err)
+	}
+
+	disabled, err := service.SetUserDisabled(ctx, created.ID, true)
+	if err != nil {
+		t.Fatalf("disable user: %v", err)
+	}
+	if !disabled.Disabled {
+		t.Fatalf("expected disabled user, got %#v", disabled)
+	}
+	if _, _, err := service.AuthenticateSession(ctx, session.Secret); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("expected disabled session to be revoked, got %v", err)
+	}
+	if _, _, err := service.AuthenticateBearer(ctx, token.Token); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("expected disabled API token to be revoked, got %v", err)
+	}
+
+	if err := service.DeleteUser(ctx, created.ID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	if _, err := service.GetUser(ctx, created.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected deleted user not found, got %v", err)
+	}
+
+	recreated, err := service.CreateUser(ctx, CreateUserInput{Username: "alice"})
+	if err != nil {
+		t.Fatalf("recreate deleted username: %v", err)
+	}
+	if recreated.ID == created.ID {
+		t.Fatal("expected recreated user to have a different ID")
+	}
+}

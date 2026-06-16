@@ -120,6 +120,9 @@ func scopeFromResource(resourceType sql.NullString, resourceID sql.NullString) S
 	if !resourceType.Valid || resourceType.String == "" {
 		return GlobalScope()
 	}
+	if resourceType.String == string(ScopeKindGlobal) {
+		return GlobalScope()
+	}
 	if resourceType.String == string(ScopeKindProject) && resourceID.Valid && resourceID.String != "" {
 		return ProjectScope(resourceID.String)
 	}

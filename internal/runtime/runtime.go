@@ -7,6 +7,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend"
 	"github.com/timo-42/rayboard/internal/backend/auth"
+	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/frontend"
@@ -42,7 +43,11 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 
 	group, ctx := newServerGroup(ctx)
 
-	backendServer := backend.NewServer(cfg.BackendAddr, backend.WithAuthService(auth.NewService(db.SQL)))
+	backendServer := backend.NewServer(
+		cfg.BackendAddr,
+		backend.WithAuthService(auth.NewService(db.SQL)),
+		backend.WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
 
 	group.start("backend", backendServer.ListenAndServe, backendServer.Shutdown)
@@ -62,7 +67,11 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	defer db.Close()
 
 	group, ctx := newServerGroup(ctx)
-	server := backend.NewServer(cfg.BackendAddr, backend.WithAuthService(auth.NewService(db.SQL)))
+	server := backend.NewServer(
+		cfg.BackendAddr,
+		backend.WithAuthService(auth.NewService(db.SQL)),
+		backend.WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)
 	fmt.Fprintf(stdout, "backend listening on http://%s\n", cfg.BackendAddr)
 	return group.wait(ctx, stderr)

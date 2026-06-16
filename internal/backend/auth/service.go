@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
@@ -19,7 +20,26 @@ var (
 	ErrInvalidCredentials = errors.New("auth: invalid credentials")
 	ErrUnauthenticated    = errors.New("auth: unauthenticated")
 	ErrDisabledUser       = errors.New("auth: disabled user")
+	ErrNotFound           = errors.New("auth: not found")
+	ErrValidation         = errors.New("auth: validation failed")
+	ErrConflict           = errors.New("auth: conflict")
 )
+
+type ValidationError struct {
+	Message string
+	Fields  map[string]string
+}
+
+func (e *ValidationError) Error() string {
+	if e == nil || e.Message == "" {
+		return ErrValidation.Error()
+	}
+	return fmt.Sprintf("%s: %s", ErrValidation, e.Message)
+}
+
+func (e *ValidationError) Is(target error) bool {
+	return target == ErrValidation
+}
 
 type Service struct {
 	db         *sql.DB
@@ -58,6 +78,18 @@ type User struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	Disabled    bool   `json:"disabled"`
+}
+
+type CreatedUser struct {
+	User
+	Password string `json:"password"`
+}
+
+type CreateUserInput struct {
+	Username    string
+	DisplayName string
+	Password    string
+	Disabled    bool
 }
 
 type Session struct {
@@ -118,6 +150,178 @@ func (s *Service) Login(ctx context.Context, username string, password string) (
 		return Session{}, fmt.Errorf("insert session: %w", err)
 	}
 	return session, nil
+}
+
+func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (CreatedUser, error) {
+	input.Username = normalizeUsername(input.Username)
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	if input.DisplayName == "" {
+		input.DisplayName = input.Username
+	}
+
+	fields := make(map[string]string)
+	if input.Username == "" {
+		fields["username"] = "Required"
+	}
+	if input.DisplayName == "" {
+		fields["display_name"] = "Required"
+	}
+	if len(fields) > 0 {
+		return CreatedUser{}, &ValidationError{Message: "Invalid user", Fields: fields}
+	}
+
+	exists, err := s.usernameExists(ctx, input.Username)
+	if err != nil {
+		return CreatedUser{}, err
+	}
+	if exists {
+		return CreatedUser{}, fmt.Errorf("%w: username already exists", ErrConflict)
+	}
+
+	password := input.Password
+	if password == "" {
+		password, err = randomSecret()
+		if err != nil {
+			return CreatedUser{}, err
+		}
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return CreatedUser{}, err
+	}
+
+	user := CreatedUser{
+		User: User{
+			ID:          newID("user"),
+			Username:    input.Username,
+			DisplayName: input.DisplayName,
+			Disabled:    input.Disabled,
+		},
+		Password: password,
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO users (id, username, display_name, password_hash, is_disabled, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, user.ID, user.Username, user.DisplayName, hash, user.Disabled, formatTime(s.now())); err != nil {
+		return CreatedUser{}, fmt.Errorf("insert user: %w", err)
+	}
+	return user, nil
+}
+
+func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, username, display_name, is_disabled
+		FROM users
+		WHERE deleted_at IS NULL
+		ORDER BY username ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Username, &user.DisplayName, &user.Disabled); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate users: %w", err)
+	}
+	return users, nil
+}
+
+func (s *Service) GetUser(ctx context.Context, userID string) (User, error) {
+	var user User
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT id, username, display_name, is_disabled
+		FROM users
+		WHERE id = ? AND deleted_at IS NULL
+	`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.Disabled); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, ErrNotFound
+		}
+		return User{}, fmt.Errorf("get user: %w", err)
+	}
+	return user, nil
+}
+
+func (s *Service) SetUserDisabled(ctx context.Context, userID string, disabled bool) (User, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE users
+		SET is_disabled = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, disabled, formatTime(s.now()), userID)
+	if err != nil {
+		return User{}, fmt.Errorf("disable user: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return User{}, fmt.Errorf("check disabled user update: %w", err)
+	}
+	if affected == 0 {
+		return User{}, ErrNotFound
+	}
+	if disabled {
+		if err := s.revokeUserCredentials(ctx, userID); err != nil {
+			return User{}, err
+		}
+	}
+	return s.GetUser(ctx, userID)
+}
+
+func (s *Service) DeleteUser(ctx context.Context, userID string) error {
+	now := formatTime(s.now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete user: %w", err)
+	}
+	defer tx.Rollback()
+
+	var username string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT username
+		FROM users
+		WHERE id = ? AND deleted_at IS NULL
+	`, userID).Scan(&username); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("query deleted user: %w", err)
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE users
+		SET username = ?, is_disabled = 1, deleted_at = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, username+":deleted:"+userID, now, now, userID)
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check delete user: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
+	`, now, userID); err != nil {
+		return fmt.Errorf("revoke deleted user sessions: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
+	`, now, userID); err != nil {
+		return fmt.Errorf("revoke deleted user API tokens: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete user: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) AuthenticateSession(ctx context.Context, secret string) (authz.Principal, User, error) {
@@ -264,6 +468,35 @@ func (s *Service) RevokeAPIToken(ctx context.Context, userID string, tokenID str
 		WHERE id = ? AND user_id = ? AND revoked_at IS NULL
 	`, formatTime(s.now()), tokenID, userID)
 	return err
+}
+
+func (s *Service) usernameExists(ctx context.Context, username string) (bool, error) {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM users WHERE username = ?)
+	`, username).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check username: %w", err)
+	}
+	return exists, nil
+}
+
+func (s *Service) revokeUserCredentials(ctx context.Context, userID string) error {
+	now := formatTime(s.now())
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
+	`, now, userID); err != nil {
+		return fmt.Errorf("revoke user sessions: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
+	`, now, userID); err != nil {
+		return fmt.Errorf("revoke user API tokens: %w", err)
+	}
+	return nil
+}
+
+func normalizeUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
 }
 
 func randomSecret() (string, error) {

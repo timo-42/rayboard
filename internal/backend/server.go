@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
+	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/httpjson"
 )
 
@@ -13,7 +14,8 @@ type Server struct {
 }
 
 type options struct {
-	auth *auth.Service
+	auth       *auth.Service
+	authorizer authz.Evaluator
 }
 
 type Option func(*options)
@@ -21,6 +23,12 @@ type Option func(*options)
 func WithAuthService(service *auth.Service) Option {
 	return func(options *options) {
 		options.auth = service
+	}
+}
+
+func WithAuthorizer(authorizer authz.Evaluator) Option {
+	return func(options *options) {
+		options.authorizer = authorizer
 	}
 }
 
@@ -50,7 +58,7 @@ func NewHandler(opts ...Option) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", health)
 	if options.auth != nil {
-		registerAuthRoutes(mux, options.auth)
+		registerAuthRoutes(mux, options.auth, options.authorizer)
 	}
 	return mux
 }

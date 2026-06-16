@@ -18,7 +18,7 @@ func TestSQLEvaluatorGlobalAndProjectBindings(t *testing.T) {
 	if _, err := db.SQL.ExecContext(ctx, `
 		INSERT INTO role_bindings (id, role_id, subject_type, subject_id, resource_type, resource_id)
 		VALUES
-			('binding-global-admin', 'role_global_admin', 'user', 'user-admin', NULL, NULL),
+			('binding-global-admin', 'role_global_admin', 'user', 'user-admin', 'global', NULL),
 			('binding-project-viewer', 'role_project_viewer', 'user', 'user-project', 'project', 'project-1')
 	`); err != nil {
 		t.Fatalf("seed role bindings: %v", err)

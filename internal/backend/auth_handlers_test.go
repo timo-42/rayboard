@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
+	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/store"
 )
 
@@ -119,6 +120,86 @@ func TestAuthEndpointsAPITokensAndBearerAuth(t *testing.T) {
 	}
 }
 
+func TestUserAdminEndpointsRequireRBAC(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
+	)
+
+	adminLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	adminSession := responseCookie(t, adminLogin.Result(), auth.SessionCookieName)
+	adminCSRF := responseCookie(t, adminLogin.Result(), csrfCookieName)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
+		"username":     "demo-user",
+		"display_name": "Demo User",
+	}))
+	addSessionCSRF(createReq, adminSession, adminCSRF)
+	create := httptest.NewRecorder()
+	handler.ServeHTTP(create, createReq)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("expected create user status 201, got %d: %s", create.Code, create.Body.String())
+	}
+
+	var created auth.CreatedUser
+	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created user: %v", err)
+	}
+	if created.ID == "" || created.Password == "" || created.Username != "demo-user" {
+		t.Fatalf("unexpected created user: %#v", created)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	listReq.AddCookie(adminSession)
+	list := httptest.NewRecorder()
+	handler.ServeHTTP(list, listReq)
+	if list.Code != http.StatusOK {
+		t.Fatalf("expected list users status 200, got %d: %s", list.Code, list.Body.String())
+	}
+
+	userLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": created.Username,
+		"password": created.Password,
+	}, nil)
+	userSession := responseCookie(t, userLogin.Result(), auth.SessionCookieName)
+	deniedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	deniedReq.AddCookie(userSession)
+	denied := httptest.NewRecorder()
+	handler.ServeHTTP(denied, deniedReq)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("expected list users without permission status 403, got %d: %s", denied.Code, denied.Body.String())
+	}
+
+	disableReq := httptest.NewRequest(http.MethodPatch, "/api/users/"+created.ID, mustJSON(t, map[string]bool{"disabled": true}))
+	addSessionCSRF(disableReq, adminSession, adminCSRF)
+	disable := httptest.NewRecorder()
+	handler.ServeHTTP(disable, disableReq)
+	if disable.Code != http.StatusOK {
+		t.Fatalf("expected disable user status 200, got %d: %s", disable.Code, disable.Body.String())
+	}
+
+	disabledLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": created.Username,
+		"password": created.Password,
+	}, nil)
+	if disabledLogin.Code != http.StatusForbidden {
+		t.Fatalf("expected disabled login status 403, got %d: %s", disabledLogin.Code, disabledLogin.Body.String())
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/users/"+created.ID, nil)
+	addSessionCSRF(deleteReq, adminSession, adminCSRF)
+	deleted := httptest.NewRecorder()
+	handler.ServeHTTP(deleted, deleteReq)
+	if deleted.Code != http.StatusNoContent {
+		t.Fatalf("expected delete user status 204, got %d: %s", deleted.Code, deleted.Body.String())
+	}
+}
+
 func openBackendTestDB(t *testing.T, ctx context.Context) (*store.DB, auth.BootstrapAdminResult) {
 	t.Helper()
 
@@ -174,4 +255,11 @@ func responseCookie(t *testing.T, response *http.Response, name string) *http.Co
 	}
 	t.Fatalf("missing response cookie %q", name)
 	return nil
+}
+
+func addSessionCSRF(request *http.Request, session *http.Cookie, csrf *http.Cookie) {
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", csrf.Value)
+	request.AddCookie(session)
+	request.AddCookie(csrf)
 }
