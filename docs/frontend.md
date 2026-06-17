@@ -28,7 +28,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - project pages under `/projects` and `/projects/{project_id}` for project-scoped tickets, sprints, components, versions, roadmap epics, and custom fields;
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
-- an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, and creating/deleting role bindings when the signed-in user has permission;
+- an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, creating/deleting role bindings, and inspecting effective permissions by user/scope when the signed-in user has permission;
 - a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, project notification defaults, notification delivery history/manual retry, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;

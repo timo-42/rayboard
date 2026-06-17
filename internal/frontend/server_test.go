@@ -35,6 +35,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="rbac-group-form"`) ||
 		!strings.Contains(body, `id="rbac-member-form"`) ||
 		!strings.Contains(body, `id="rbac-binding-form"`) ||
+		!strings.Contains(body, `id="rbac-permission-form"`) ||
+		!strings.Contains(body, `id="rbac-permissions"`) ||
 		!strings.Contains(body, `id="settings-panel"`) ||
 		!strings.Contains(body, `id="audit-form"`) ||
 		!strings.Contains(body, `id="audit-log"`) ||
@@ -182,7 +184,12 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"rbacGroupForm",
 		"rbacMemberForm",
 		"rbacBindingForm",
+		"rbacPermissionForm",
+		"loadRBACEffectivePermissions",
+		"renderRBACPermissions",
+		"normalizeEffectivePermissions",
 		"/api/users",
+		"/api/users/${data.user_id}/effective-permissions?${params.toString()}",
 		"/api/groups/${data.group_id}/members/${data.user_id}",
 		"data-rbac-user-disabled",
 		"data-remove-group-member",
@@ -250,6 +257,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".admin-form",
 		".admin-actions",
 		".member-list",
+		".permission-list",
+		".permission-chip",
 		".settings-panel",
 		".settings-grid",
 		".audit-form",

@@ -535,6 +535,34 @@ p {
   margin-top: 4px;
 }
 
+.permission-list {
+  display: grid;
+  gap: 8px;
+}
+
+.permission-summary {
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.permission-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.permission-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .member-list span {
   display: inline-flex;
   align-items: center;

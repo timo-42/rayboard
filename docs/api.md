@@ -83,6 +83,8 @@ Health response uses `metadata.id`, `spec.service`, and `status.state`.
 
 Login and `/api/me` responses use `metadata.user_id`, `spec.username`, `spec.display_name`, and session/auth state under `status`. Effective-permission responses use `metadata.user_id`, requested scope under `spec`, and `status.permissions`. Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
 
+Effective-permission requests default to global scope when `scope` is omitted. `scope=global` rejects `project_id`; `scope=project` requires `project_id`. The embedded `/rbac` page can inspect user effective permissions with the admin endpoint when the signed-in user has global `roles:read`.
+
 ## Projects and Tickets
 
 | Method | Path | Body or Query |

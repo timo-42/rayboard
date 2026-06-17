@@ -22,7 +22,7 @@ Implemented browser workflows:
 - custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - workflow status replacement, board create/select/delete, and board-backed ticket columns for the selected project;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
-- RBAC page for users, groups, roles, and role-binding summaries when permitted;
+- RBAC page for users, groups, roles, role-binding summaries, and effective-permission inspection when permitted;
 - Settings page for global settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, notification hook CRUD/preview/run inspection, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
 - text/CEL search plus saved-view list, create, edit, apply, and delete, including query, sort, columns, display mode, grouping, and pin state;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;

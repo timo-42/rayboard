@@ -11,7 +11,8 @@ Admin workflows currently available through the API:
 - create groups;
 - add and remove group members;
 - list roles;
-- create and delete role bindings.
+- create and delete role bindings;
+- inspect effective permissions for users and scopes.
 - create, update, disable, and delete OpenRouter provider references for AI automation.
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.

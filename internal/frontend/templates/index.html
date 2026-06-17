@@ -500,6 +500,19 @@
             <div id="rbac-roles" class="admin-list"></div>
           </section>
           <section>
+            <h3>Effective Permissions</h3>
+            <form id="rbac-permission-form" class="admin-form">
+              <select name="user_id" required></select>
+              <select name="scope">
+                <option value="global">Global</option>
+                <option value="project">Project</option>
+              </select>
+              <select name="project_id"></select>
+              <button type="submit">Inspect</button>
+            </form>
+            <div id="rbac-permissions" class="permission-list"></div>
+          </section>
+          <section>
             <h3>Role Bindings</h3>
             <form id="rbac-binding-form" class="admin-form">
               <select name="role_name" required></select>

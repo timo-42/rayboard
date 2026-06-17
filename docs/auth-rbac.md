@@ -59,7 +59,7 @@ curl -H "Authorization: Bearer $RAYBOARD_TOKEN" \
   'http://127.0.0.1:8081/api/users/user_.../effective-permissions?scope=global'
 ```
 
-Responses use the standard envelope. The requested scope is in `spec`; computed grants are in `status.permissions`.
+Responses use the standard envelope. The requested scope is in `spec`; computed grants are in `status.permissions`. Omitting `scope` defaults to global. `scope=global` must not include `project_id`; `scope=project` must include `project_id`. The browser `/rbac` page exposes the admin inspection endpoint when the signed-in user has permission.
 
 ## Disabled and Deleted Users
 

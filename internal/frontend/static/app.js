@@ -29,7 +29,7 @@ const state = {
   lastSearchSpec: { text: "", filter: "" },
   tokens: [],
   createdToken: null,
-  rbac: { users: [], groups: [], roles: [], bindings: [], members: {} },
+  rbac: { users: [], groups: [], roles: [], bindings: [], members: {}, effectivePermissions: null, effectivePermissionsError: "" },
   settings: null,
   notificationPreferences: null,
   projectNotificationPreferences: null,
@@ -119,10 +119,12 @@ const els = {
   rbacGroupForm: document.querySelector("#rbac-group-form"),
   rbacMemberForm: document.querySelector("#rbac-member-form"),
   rbacBindingForm: document.querySelector("#rbac-binding-form"),
+  rbacPermissionForm: document.querySelector("#rbac-permission-form"),
   rbacUsers: document.querySelector("#rbac-users"),
   rbacGroups: document.querySelector("#rbac-groups"),
   rbacRoles: document.querySelector("#rbac-roles"),
   rbacBindings: document.querySelector("#rbac-bindings"),
+  rbacPermissions: document.querySelector("#rbac-permissions"),
   settingsPanel: document.querySelector("#settings-panel"),
   settingsRefresh: document.querySelector("#settings-refresh"),
   settingsForm: document.querySelector("#settings-form"),
@@ -274,7 +276,7 @@ function bindEvents() {
       state.lastSearchSpec = { text: "", filter: "" };
       state.tokens = [];
       state.createdToken = null;
-      state.rbac = { users: [], groups: [], roles: [], bindings: [], members: {} };
+      state.rbac = { users: [], groups: [], roles: [], bindings: [], members: {}, effectivePermissions: null, effectivePermissionsError: "" };
       state.settings = null;
       state.notificationPreferences = null;
       state.projectNotificationPreferences = null;
@@ -1121,8 +1123,19 @@ function bindEvents() {
     }, "Role bound");
   });
 
+  els.rbacPermissionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runAction(async () => {
+      await loadRBACEffectivePermissions();
+    }, "Effective permissions loaded");
+  });
+
   els.rbacBindingForm.elements.subject_type.addEventListener("change", () => {
     renderBindingSubjectOptions();
+  });
+
+  els.rbacPermissionForm.elements.scope.addEventListener("change", () => {
+    renderRBACFormOptions();
   });
 
   els.rbacPanel.addEventListener("click", async (event) => {
@@ -2226,14 +2239,55 @@ async function loadRBAC() {
     groups: listItems(groups).map(normalizeGroup),
     roles: listItems(roles).map(normalizeRole),
     bindings: listItems(bindings).map(normalizeRoleBinding),
-    members: {}
+    members: {},
+    effectivePermissions: state.rbac.effectivePermissions,
+    effectivePermissionsError: state.rbac.effectivePermissionsError
   };
   const memberEntries = await Promise.all(state.rbac.groups.map(async (group) => {
     const members = await api(`/api/groups/${group.id}/members`).catch(() => null);
     return [group.id, listItems(members).map(normalizeUser)];
   }));
   state.rbac.members = Object.fromEntries(memberEntries);
+  if (state.rbac.effectivePermissions && state.rbac.users.some((user) => user.id === state.rbac.effectivePermissions.user_id)) {
+    await loadRBACEffectivePermissions({ render: false });
+  }
   renderRBAC();
+}
+
+async function loadRBACEffectivePermissions(options = {}) {
+  const form = els.rbacPermissionForm;
+  if (!form) {
+    return;
+  }
+  const data = formData(form);
+  if (!data.user_id) {
+    state.rbac.effectivePermissions = null;
+    state.rbac.effectivePermissionsError = "Choose a user";
+    renderRBACPermissions();
+    return;
+  }
+  const params = new URLSearchParams();
+  const scope = data.scope || "global";
+  params.set("scope", scope);
+  if (scope === "project") {
+    if (!data.project_id) {
+      state.rbac.effectivePermissions = null;
+      state.rbac.effectivePermissionsError = "Choose a project scope";
+      renderRBACPermissions();
+      return;
+    }
+    params.set("project_id", data.project_id);
+  }
+  try {
+    state.rbac.effectivePermissions = normalizeEffectivePermissions(await api(`/api/users/${data.user_id}/effective-permissions?${params.toString()}`));
+    state.rbac.effectivePermissionsError = "";
+  } catch (error) {
+    state.rbac.effectivePermissions = null;
+    state.rbac.effectivePermissionsError = error.message || "Effective permissions are not available";
+  }
+  if (options.render !== false) {
+    renderRBACPermissions();
+  }
 }
 
 async function loadSettingsPage() {
@@ -3419,7 +3473,7 @@ function tokenNode(token) {
 }
 
 function renderRBAC() {
-  if (!els.rbacUsers) {
+  if (!els.rbacUsers || !els.rbacPermissionForm || !els.rbacPermissions) {
     return;
   }
   renderRBACFormOptions();
@@ -3484,6 +3538,7 @@ function renderRBAC() {
     row.append(actions);
     return row;
   });
+  renderRBACPermissions();
 }
 
 function renderRBACFormOptions() {
@@ -3492,6 +3547,10 @@ function renderRBACFormOptions() {
   replaceSelectOptions(els.rbacBindingForm.elements.role_name, "Role", state.rbac.roles.map((role) => ({ id: role.name, name: role.name })), (role) => role.name);
   renderBindingSubjectOptions();
   replaceSelectOptions(els.rbacBindingForm.elements.project_id, "Global scope", state.projects, (project) => `${project.key} ${project.name}`);
+  replaceSelectOptions(els.rbacPermissionForm.elements.user_id, "User", state.rbac.users, (user) => user.username || user.id);
+  replaceSelectOptions(els.rbacPermissionForm.elements.project_id, "Global scope", state.projects, (project) => `${project.key} ${project.name}`);
+  const projectScoped = els.rbacPermissionForm.elements.scope.value === "project";
+  els.rbacPermissionForm.elements.project_id.disabled = !projectScoped;
 }
 
 function renderBindingSubjectOptions() {
@@ -3503,6 +3562,51 @@ function renderBindingSubjectOptions() {
     items,
     (item) => type === "group" ? (item.display_name || item.name || item.id) : (item.username || item.id)
   );
+}
+
+function renderRBACPermissions() {
+  if (!els.rbacPermissions) {
+    return;
+  }
+  els.rbacPermissions.replaceChildren();
+  if (state.rbac.effectivePermissionsError) {
+    const error = document.createElement("p");
+    error.className = "muted";
+    error.textContent = state.rbac.effectivePermissionsError;
+    els.rbacPermissions.append(error);
+    return;
+  }
+  const effective = state.rbac.effectivePermissions;
+  if (!effective) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Choose a user and scope to inspect permissions";
+    els.rbacPermissions.append(empty);
+    return;
+  }
+  const summary = document.createElement("p");
+  summary.className = "permission-summary";
+  summary.textContent = [
+    userLabel(effective.user_id),
+    effective.scope === "project" ? `project ${projectLabel(effective.project_id)}` : "global"
+  ].filter(Boolean).join(" / ");
+  els.rbacPermissions.append(summary);
+  if (!effective.permissions.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No permissions granted";
+    els.rbacPermissions.append(empty);
+    return;
+  }
+  const chips = document.createElement("div");
+  chips.className = "permission-chip-list";
+  for (const permission of effective.permissions) {
+    const chip = document.createElement("span");
+    chip.className = "permission-chip";
+    chip.textContent = permission;
+    chips.append(chip);
+  }
+  els.rbacPermissions.append(chips);
 }
 
 function renderSettings() {
@@ -4086,6 +4190,11 @@ function notificationHookRunListNode(runs) {
 function projectLabel(projectID) {
   const project = state.projects.find((item) => item.id === projectID);
   return project ? `${project.key} ${project.name}` : projectID;
+}
+
+function userLabel(userID) {
+  const user = state.rbac.users.find((item) => item.id === userID);
+  return user ? (user.username || user.display_name || user.id) : userID;
 }
 
 function destinationLabel(destinationID) {
@@ -6499,6 +6608,21 @@ function normalizeRoleBinding(binding) {
     };
   }
   return binding;
+}
+
+function normalizeEffectivePermissions(effective) {
+  if (!effective) {
+    return null;
+  }
+  if (effective.metadata && effective.spec && effective.status) {
+    return {
+      user_id: effective.metadata.user_id || "",
+      scope: effective.spec.scope || "global",
+      project_id: effective.spec.project_id || "",
+      permissions: effective.status.permissions || []
+    };
+  }
+  return effective;
 }
 
 function normalizeSettings(settings) {
