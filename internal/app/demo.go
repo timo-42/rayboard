@@ -236,6 +236,9 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err != nil {
 		return err
 	}
+	if err := s.bindGlobalAccess(ctx, groups); err != nil {
+		return err
+	}
 	project, err := s.createProject(ctx, users["lead"].id())
 	if err != nil {
 		return err
@@ -415,6 +418,21 @@ func (s *demoSeeder) createProject(ctx context.Context, leadUserID string) (trac
 		Description: project.Spec.Description,
 		LeadUserID:  project.Spec.LeadUserID,
 	}, nil
+}
+
+func (s *demoSeeder) bindGlobalAccess(ctx context.Context, groups map[string]demoGroup) error {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleGlobalUserManager,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groups["managers"].id(),
+			Scope:       authz.ScopeKindGlobal,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo global user managers: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo global role binding: managers=global_user_manager")
+	return nil
 }
 
 func (s *demoSeeder) bindProjectAccess(ctx context.Context, groups map[string]demoGroup, projectID string) error {

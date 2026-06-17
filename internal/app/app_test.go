@@ -105,6 +105,7 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		!strings.Contains(output, "demo user: role=manager") ||
 		!strings.Contains(output, "demo group: role=product") ||
 		!strings.Contains(output, "demo group: role=automation") ||
+		!strings.Contains(output, "demo global role binding:") ||
 		!strings.Contains(output, "demo project:") ||
 		!strings.Contains(output, "demo ticket:") ||
 		!strings.Contains(output, "demo workflow:") ||
@@ -176,6 +177,20 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	}
 	if projectBindingCount != 7 {
 		t.Fatalf("expected seven project role bindings, got %d", projectBindingCount)
+	}
+	var globalUserManagerBindingCount int
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM role_bindings rb
+		JOIN roles r ON r.id = rb.role_id
+		WHERE rb.resource_type = 'global'
+			AND rb.subject_type = 'group'
+			AND r.name = ?
+	`, authz.RoleGlobalUserManager).Scan(&globalUserManagerBindingCount); err != nil {
+		t.Fatalf("count global user manager role bindings: %v", err)
+	}
+	if globalUserManagerBindingCount != 1 {
+		t.Fatalf("expected one global user manager group binding, got %d", globalUserManagerBindingCount)
 	}
 }
 

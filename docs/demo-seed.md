@@ -21,6 +21,7 @@ The command:
 - creates eight demo users with generated passwords;
 - creates six demo groups: Product, Engineering, QA, Viewers, Automation, and Managers;
 - adds demo users to those groups;
+- binds Managers globally as `global_user_manager`;
 - creates one demo project;
 - binds a demo lead as `project_owner`, Product as `project_admin`, Engineering and QA as `project_member`, Viewers as `project_viewer`, Automation as `automation_manager`, and Managers as `notification_manager` for that project;
 - replaces project workflow statuses and creates a delivery board;
@@ -44,4 +45,4 @@ The command exercises normal backend validation, permissions, and activity behav
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset` and global role bindings.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`.
