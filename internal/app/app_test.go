@@ -9,14 +9,17 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
+	"github.com/timo-42/rayboard/internal/backend/audit"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
 
 func TestMainUnknownCommand(t *testing.T) {
@@ -87,16 +90,27 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	commentService := comments.NewService(db.SQL, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer)
 	searchService := search.NewService(db.SQL, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	webhookService := webhooks.NewService(
+		db.SQL,
+		authorizer,
+		webhooks.WithRunStore(runStore),
+		webhooks.WithTrackerService(trackerService),
+		webhooks.WithSearchService(searchService),
+		webhooks.WithCommentService(commentService),
+	)
+	notificationService := notifications.NewService(db.SQL)
 	cronService := cronjobs.NewService(
 		db.SQL,
 		authorizer,
-		automation.NewRunStore(db.SQL),
+		runStore,
 		cronjobs.WithTrackerService(trackerService),
 		cronjobs.WithSearchService(searchService),
 		cronjobs.WithCommentService(commentService),
 	)
 	server := httptest.NewServer(backend.NewHandler(
 		backend.WithAuthService(auth.NewService(db.SQL)),
+		backend.WithAuditStore(audit.NewStore(db.SQL)),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
 		backend.WithTicketHookService(hooks),
@@ -105,6 +119,8 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		backend.WithAttachmentService(attachmentService),
 		backend.WithSearchService(searchService),
 		backend.WithCronService(cronService),
+		backend.WithWebhookService(webhookService),
+		backend.WithNotificationService(notificationService),
 	))
 	t.Cleanup(server.Close)
 
@@ -135,8 +151,16 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		!strings.Contains(output, "demo attachment:") ||
 		!strings.Contains(output, "demo saved view:") ||
 		!strings.Contains(output, "demo search:") ||
-		!strings.Contains(output, "demo cron job:") {
+		!strings.Contains(output, "demo cron job:") ||
+		!strings.Contains(output, "demo incoming webhook:") ||
+		!strings.Contains(output, "demo outgoing webhook:") ||
+		!strings.Contains(output, "demo notification destination:") ||
+		!strings.Contains(output, "demo notification policy:") ||
+		!strings.Contains(output, "demo notification hook:") {
 		t.Fatalf("unexpected demo output: %s", output)
+	}
+	if !strings.Contains(output, "token=wh_") {
+		t.Fatalf("expected incoming webhook token in demo output: %s", output)
 	}
 	var createPageCount int
 	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM ticket_create_pages").Scan(&createPageCount); err != nil {
@@ -157,12 +181,16 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		t.Fatalf("expected one intake submission ticket label, got %d", intakeSubmissionCount)
 	}
 	for table, want := range map[string]int{
-		"ticket_comments":     1,
-		"ticket_attachments":  1,
-		"saved_views":         1,
-		"cron_jobs":           1,
-		"automation_runs":     0,
-		"ticket_create_pages": 1,
+		"ticket_comments":           1,
+		"ticket_attachments":        1,
+		"saved_views":               1,
+		"cron_jobs":                 1,
+		"automation_runs":           0,
+		"ticket_create_pages":       1,
+		"webhooks":                  2,
+		"notification_destinations": 1,
+		"notification_policies":     1,
+		"notification_hooks":        1,
 	} {
 		var got int
 		if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&got); err != nil {

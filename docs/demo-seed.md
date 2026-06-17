@@ -33,10 +33,13 @@ The command:
 - creates a pinned project saved view with a CEL label filter and FTS text query;
 - runs one search request using the same CEL/FTS pattern;
 - creates a disabled Lua cron job owned by the demo lead so the automation editor has realistic content without scheduling background work;
+- creates one incoming Lua webhook and prints its one-time demo token;
+- creates one disabled outgoing Lua webhook for ticket update events;
+- creates a project Shoutrrr `logger://` notification destination plus disabled policy and hook examples;
 - prints generated demo usernames/passwords and seeded object summaries.
 
 The command exercises normal backend validation, permissions, and activity behavior because it calls public API endpoints rather than writing directly to SQLite.
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, incoming/outgoing webhooks, notification examples, and AI-backed automation examples when OpenRouter is configured.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, and AI-backed automation examples when OpenRouter is configured.

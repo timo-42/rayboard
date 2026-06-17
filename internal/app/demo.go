@@ -18,8 +18,10 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
+	"github.com/timo-42/rayboard/internal/backend/webhooks"
 	"github.com/timo-42/rayboard/internal/config"
 )
 
@@ -155,6 +157,19 @@ func (resource demoIDResource) id() string {
 	return resource.Metadata.ID
 }
 
+type demoCreatedWebhookResource struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Status struct {
+		Token string `json:"token"`
+	} `json:"status"`
+}
+
+func (resource demoCreatedWebhookResource) id() string {
+	return resource.Metadata.ID
+}
+
 func newDemoSeeder(rawBackendURL string, stdout io.Writer) (*demoSeeder, error) {
 	parsed, err := url.Parse(strings.TrimRight(rawBackendURL, "/"))
 	if err != nil {
@@ -226,6 +241,9 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 		return err
 	}
 	if err := s.createCronJob(ctx, project.ID, users["lead"].id()); err != nil {
+		return err
+	}
+	if err := s.createIntegrationExamples(ctx, project.ID, users["lead"].id()); err != nil {
 		return err
 	}
 
@@ -695,6 +713,113 @@ return { checked = true, ticket_count = #(results.items or {}) }
 		return fmt.Errorf("create demo cron job: %w", err)
 	}
 	fmt.Fprintf(s.stdout, "demo cron job: name=%q id=%s enabled=false\n", "Demo stale ticket scan", job.id())
+	return nil
+}
+
+func (s *demoSeeder) createIntegrationExamples(ctx context.Context, projectID string, actorUserID string) error {
+	if err := s.createWebhookExamples(ctx, projectID, actorUserID); err != nil {
+		return err
+	}
+	if err := s.createNotificationExamples(ctx, projectID, actorUserID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *demoSeeder) createWebhookExamples(ctx context.Context, projectID string, actorUserID string) error {
+	var incoming demoCreatedWebhookResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/webhooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo incoming triage",
+			"direction":     webhooks.DirectionIncoming,
+			"enabled":       true,
+			"actor_user_id": actorUserID,
+			"engine": map[string]any{
+				"type": webhooks.EngineTypeLua,
+				"script": `
+rayboard.log("demo incoming webhook accepted")
+return { ok = true, actions = {} }
+`,
+			},
+		},
+	}, &incoming); err != nil {
+		return fmt.Errorf("create demo incoming webhook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo incoming webhook: id=%s token=%s\n", incoming.id(), incoming.Status.Token)
+
+	var outgoing demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/webhooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo outgoing ticket update",
+			"direction":     webhooks.DirectionOutgoing,
+			"enabled":       false,
+			"actor_user_id": actorUserID,
+			"event_types":   []string{"ticket.updated"},
+			"engine": map[string]any{
+				"type": webhooks.EngineTypeLua,
+				"script": `
+return {
+  method = "POST",
+  path = "/demo/events",
+  headers = { ["X-Rayboard-Demo"] = "true" },
+  body = { event_type = event.type, subject_id = event.subject_id }
+}
+`,
+			},
+		},
+	}, &outgoing); err != nil {
+		return fmt.Errorf("create demo outgoing webhook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo outgoing webhook: id=%s enabled=false\n", outgoing.id())
+	return nil
+}
+
+func (s *demoSeeder) createNotificationExamples(ctx context.Context, projectID string, actorUserID string) error {
+	var destination demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/notification-destinations", map[string]any{
+		"spec": map[string]any{
+			"name":         "Demo logger destination",
+			"shoutrrr_url": "logger://",
+			"enabled":      true,
+		},
+	}, &destination); err != nil {
+		return fmt.Errorf("create demo notification destination: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo notification destination: id=%s type=logger\n", destination.id())
+
+	disabled := false
+	var policy demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/notification-policies", map[string]any{
+		"spec": map[string]any{
+			"name":            "Demo comment notifications",
+			"event_types":     []string{"comment_added"},
+			"destination_ids": []string{destination.id()},
+			"enabled":         disabled,
+		},
+	}, &policy); err != nil {
+		return fmt.Errorf("create demo notification policy: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo notification policy: id=%s enabled=false\n", policy.id())
+
+	var hook demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/notification-hooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo notification annotator",
+			"actor_user_id": actorUserID,
+			"event_types":   []string{"comment_added"},
+			"enabled":       disabled,
+			"engine": map[string]any{
+				"type": notifications.HookEngineLua,
+				"script": `
+notification.plan.message = "[demo] " .. notification.plan.message
+return { message = notification.plan.message, payload = notification.plan.payload }
+`,
+			},
+		},
+	}, &hook); err != nil {
+		return fmt.Errorf("create demo notification hook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo notification hook: id=%s enabled=false\n", hook.id())
 	return nil
 }
 
