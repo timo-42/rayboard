@@ -188,9 +188,10 @@ internal/backend/httpapi/
   - provide Lua examples for JSON encode/decode, `json.null`, API function calls, validation errors, and safe payload transformation.
 - Add an automation engine test/workbench endpoint:
   - expose a backend-owned endpoint under `POST /api/engines/test` for testing shared engine definitions before attaching them to cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, or notification hooks.
-  - expose the endpoint as the canonical way to try out engines interactively from the UI and programmatically from API clients.
+  - expose the endpoint as the canonical way to test out automation engines interactively from the UI and programmatically from API clients.
   - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
   - support `engine.type=lua`, `engine.type=ai`, and initial `engine.type=wasm` workbench tests.
+  - allow users to paste or edit an engine definition, context JSON, and input JSON, then run it without first saving it to a cron job, hook, webhook, notification hook, or custom create page.
   - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`.
   - `spec.surface` selects the target automation contract, such as `scratch`, `cron`, `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook`.
   - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and wasm modules without choosing a real automation surface.
@@ -202,7 +203,7 @@ internal/backend/httpapi/
   - only authorized global admins or project automation managers can test engines, and project-scoped users can test only against projects/resources where they have automation-management permission.
   - the frontend workbench must call this endpoint directly and let users test Lua, OpenRouter AI, and wasm engines with editable input JSON before saving the engine onto an automation surface.
   - the frontend workbench must show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.
-  - the endpoint must be exposed in Huma/OpenAPI, Swagger UI, Redoc, and the embedded `/docs` HTML documentation with examples for Lua and OpenRouter AI.
+  - the endpoint must be exposed in Huma/OpenAPI, Swagger UI, Redoc, and the embedded `/docs` HTML documentation with examples for Lua, OpenRouter AI, and WASM.
 - Add Lua ticket hook plugins:
   - use the existing GopherLua stack for project-scoped ticket hooks.
   - hooks are managed by project owners/admins.
@@ -610,7 +611,7 @@ Rules:
 - Notification delivery tests verify queued delivery, retry/backoff, failure history, and named destination resolution at queue processing time.
 - OpenRouter config tests verify only global admins can configure the API key/model allowlist and secrets are not exposed.
 - Automation engine selection tests verify each Lua-capable surface can use the shared nested `engine` object with `engine.type` set to `lua` or `ai`.
-- Generic engine endpoint tests verify `POST /api/engines/test` can dry-run Lua and AI engine definitions with supplied JSON input, supports scratch mode, returns Kubernetes-style `metadata`/`spec`/`status`, validates generic and surface-specific output schemas, enforces RBAC and sandbox limits, and does not persist mutations.
+- Generic engine endpoint tests verify `POST /api/engines/test` can dry-run Lua, AI, and WASM engine definitions with supplied JSON input, supports scratch mode, returns Kubernetes-style `metadata`/`spec`/`status`, validates generic and surface-specific output schemas, enforces RBAC and sandbox limits, and does not persist mutations.
 - AI schema tests verify valid structured output is accepted and invalid/free-text output is rejected.
 - AI surface tests verify AI cron jobs, ticket hooks, custom create pages, incoming webhooks, and outgoing webhooks follow the same authorization and validation paths as Lua.
 - AI limit tests verify timeout, payload limits, action-count limits, and missing/disabled OpenRouter config behavior.

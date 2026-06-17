@@ -16,6 +16,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/engines"
 	attachmentapi "github.com/timo-42/rayboard/internal/backend/httpapi/attachments"
+	auditapi "github.com/timo-42/rayboard/internal/backend/httpapi/auditapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/authapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/boards"
 	commentapi "github.com/timo-42/rayboard/internal/backend/httpapi/comments"
@@ -87,6 +88,7 @@ func NewHandler(options Options) http.Handler {
 
 	authenticator := shared.Authenticator{Auth: options.Auth, Authorizer: options.Authorizer}
 	authapi.Register(api, authapi.Provider{Auth: options.Auth, Audit: options.Audit, Authenticator: authenticator})
+	auditapi.Register(api, auditapi.Provider{Audit: options.Audit, Authenticator: authenticator})
 	projects.Register(api, projects.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	tickets.Register(api, tickets.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	boards.Register(api, boards.Provider{Tracker: options.Tracker, Authenticator: authenticator})

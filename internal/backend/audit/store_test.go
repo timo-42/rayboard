@@ -56,6 +56,46 @@ func TestStoreRecordAndList(t *testing.T) {
 	}
 }
 
+func TestStoreListEntriesFilters(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, t.TempDir()+"/rayboard.sqlite")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	auditStore := audit.NewStore(db.SQL)
+	records := []audit.RecordInput{
+		{EventType: "auth.session_created", ActorID: "user_admin", SubjectType: "session", SubjectID: "session_1"},
+		{EventType: "settings.updated", ActorID: "user_admin", SubjectType: "settings", SubjectID: "global"},
+		{EventType: "auth.login_failed", ActorID: "user_viewer", SubjectType: "user", SubjectID: "user_viewer", Outcome: audit.OutcomeFailure},
+	}
+	for _, record := range records {
+		if _, err := auditStore.Record(ctx, record); err != nil {
+			t.Fatalf("record audit entry: %v", err)
+		}
+	}
+
+	entries, err := auditStore.ListEntries(ctx, audit.ListInput{EventType: "settings.updated"})
+	if err != nil {
+		t.Fatalf("list filtered audit entries: %v", err)
+	}
+	if len(entries) != 1 || entries[0].SubjectType != "settings" {
+		t.Fatalf("unexpected event type filter result: %#v", entries)
+	}
+
+	entries, err = auditStore.ListEntries(ctx, audit.ListInput{ActorID: "user_viewer", Outcome: audit.OutcomeFailure})
+	if err != nil {
+		t.Fatalf("list actor/outcome filtered audit entries: %v", err)
+	}
+	if len(entries) != 1 || entries[0].EventType != "auth.login_failed" {
+		t.Fatalf("unexpected actor/outcome filter result: %#v", entries)
+	}
+}
+
 func TestStoreValidation(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, t.TempDir()+"/rayboard.sqlite")

@@ -69,7 +69,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	if body.OpenAPI == "" || body.Info.Title != "Rayboard API" {
 		t.Fatalf("unexpected OpenAPI metadata: %#v", body)
 	}
-	for _, path := range []string{"/api/health", "/api/login", "/api/projects/{project_id}/tickets", "/api/cron-jobs"} {
+	for _, path := range []string{"/api/health", "/api/login", "/api/audit-log", "/api/projects/{project_id}/tickets", "/api/cron-jobs"} {
 		if _, ok := body.Paths[path]; !ok {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
@@ -82,6 +82,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
 	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})
 	assertResponseBodyFields(t, spec, "/api/me/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})
+	assertResponseBodyFields(t, spec, "/api/audit-log", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "metadata", "occurred_at"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "event_type"}, []string{"status", "items", "spec", "payload"}, []string{"status", "items", "status"}, []string{"status", "items", "status", "security_event"})
 	assertRequestBodyFields(t, spec, "/api/tokens", http.MethodPost, []string{"spec"}, []string{"spec", "name"})
 	assertResponseBodyFields(t, spec, "/api/tokens", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"status"}, []string{"status", "token"})
 	assertRequestBodyFields(t, spec, "/api/users", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "display_name"}, []string{"spec", "disabled"})

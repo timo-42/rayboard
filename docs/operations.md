@@ -31,7 +31,7 @@ OpenRouter keys, Shoutrrr destination URLs, webhook secrets, and generated token
 
 Rayboard stores security/admin-sensitive events in the SQLite `audit_log` table, separate from user-facing ticket activity and durable domain events. The current audit slice records password login failures, session creation/logout, API token creation/revocation, user creation/disable/enable/delete, group creation, group membership changes, role binding changes, OpenRouter provider changes, Shoutrrr destination changes, and global settings changes.
 
-Audit payloads are JSON metadata for operations and must not include plaintext API tokens, generated passwords, password hashes, session secrets, Shoutrrr URLs, webhook tokens, or OpenRouter keys. There is no audit log browser/API view yet; inspect the SQLite table directly for operational debugging in this POC.
+Audit payloads are JSON metadata for operations and must not include plaintext API tokens, generated passwords, password hashes, session secrets, Shoutrrr URLs, webhook tokens, or OpenRouter keys. Global admins can inspect recent entries with `GET /api/audit-log`; the endpoint supports `limit`, `event_type`, `actor_user_id`, `subject_type`, `subject_id`, and `outcome` query filters.
 
 ## Upgrades
 

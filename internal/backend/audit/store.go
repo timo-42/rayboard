@@ -49,6 +49,15 @@ type RecordInput struct {
 	OccurredAt  time.Time
 }
 
+type ListInput struct {
+	Limit       int
+	EventType   string
+	ActorID     string
+	SubjectType string
+	SubjectID   string
+	Outcome     string
+}
+
 func NewStore(db *sql.DB, options ...Option) *Store {
 	store := &Store{
 		db:  db,
@@ -127,22 +136,43 @@ func (s *Store) Record(ctx context.Context, input RecordInput) (Entry, error) {
 }
 
 func (s *Store) List(ctx context.Context, limit int) ([]Entry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	return s.ListEntries(ctx, ListInput{Limit: limit})
+}
+
+func (s *Store) ListEntries(ctx context.Context, input ListInput) ([]Entry, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("audit: database is required")
 	}
+	limit := input.Limit
 	if limit <= 0 {
 		limit = 50
 	}
 	if limit > 500 {
 		limit = 500
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	query := `
 		SELECT id, event_type, actor_id, auth_kind, subject_type, subject_id,
 			outcome, payload_json, occurred_at
 		FROM audit_log
+		WHERE (? = '' OR event_type = ?)
+			AND (? = '' OR actor_id = ?)
+			AND (? = '' OR subject_type = ?)
+			AND (? = '' OR subject_id = ?)
+			AND (? = '' OR outcome = ?)
 		ORDER BY occurred_at DESC, created_at DESC, id DESC
 		LIMIT ?
-	`, limit)
+	`
+	rows, err := s.db.QueryContext(ctx, query,
+		strings.TrimSpace(input.EventType), strings.TrimSpace(input.EventType),
+		strings.TrimSpace(input.ActorID), strings.TrimSpace(input.ActorID),
+		strings.TrimSpace(input.SubjectType), strings.TrimSpace(input.SubjectType),
+		strings.TrimSpace(input.SubjectID), strings.TrimSpace(input.SubjectID),
+		strings.TrimSpace(input.Outcome), strings.TrimSpace(input.Outcome),
+		limit,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list audit entries: %w", err)
 	}

@@ -14,10 +14,11 @@ Admin workflows currently available through the API:
 - create and delete role bindings.
 - create, update, disable, and delete OpenRouter provider references for AI automation.
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
+- inspect recent security audit log entries.
 
 The current browser UI does not expose admin screens yet.
 
-Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets.
+Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 
 ## RBAC
 

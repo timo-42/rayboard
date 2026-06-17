@@ -529,6 +529,16 @@ Responses use `metadata`, `spec`, and `status`. `metadata` contains the global s
 
 Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_content_types`. An empty content-type list permits all content types. Outgoing webhook delivery enforces `webhook_allowed_base_urls` when the list is non-empty; if no process-level outgoing webhook base URL is configured, the first allowed base URL is used. Allowed webhook base URLs must be absolute `http` or `https` URLs without credentials, query strings, or fragments. Settings updates write `settings.updated` audit entries with changed field names only.
 
+## Audit Log
+
+Security audit log listing is API-only and requires global `settings:manage`.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/audit-log` | optional query: `limit`, `event_type`, `actor_user_id`, `subject_type`, `subject_id`, `outcome` |
+
+Responses use `metadata`, `spec`, and `status`. The list metadata contains the returned entry count. Each item includes `metadata.id` and `metadata.occurred_at`; `spec` includes event type, actor user ID, auth kind, subject type/ID, outcome, and payload metadata; `status.security_event` is true for these entries. Payloads must not contain plaintext generated passwords, API tokens, password hashes, session secrets, Shoutrrr URLs, webhook tokens, or OpenRouter keys.
+
 ## Engine Test
 
 The generic engine test endpoint executes an inline Lua, OpenRouter AI, or initial WASI WebAssembly engine against supplied JSON input before attaching that engine to cron jobs, hooks, webhooks, notification hooks, or custom create pages. Use `surface: "scratch"` for a generic playground run that is not tied to a real automation surface.
