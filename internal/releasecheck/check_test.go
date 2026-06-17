@@ -29,6 +29,18 @@ func TestCheckReportsMissingWorkflowArtifact(t *testing.T) {
 	}
 }
 
+func TestCheckReportsMissingWorkflowReleaseVerify(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "Makefile", strings.Join(requiredMakefileSnippets, "\n"))
+	writeFile(t, root, workflowPath, strings.ReplaceAll(strings.Join(requiredWorkflowSnippets, "\n"), "make verify-release", "make verify-docs"))
+
+	report := Check(root)
+
+	if !containsError(report.Errors, workflowPath+" missing required release wiring \"make verify-release\"") {
+		t.Fatalf("expected missing verify-release error, got %v", report.Errors)
+	}
+}
+
 func writeFile(t *testing.T, root string, name string, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))

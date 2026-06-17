@@ -16,6 +16,7 @@ var requiredWorkflowSnippets = []string{
 	"name: Cross Build",
 	"go test ./...",
 	"make verify-docs",
+	"make verify-release",
 	"make build-cross",
 	"actions/upload-artifact@v4",
 	"name: rayboard-mac-arm64-${{ github.sha }}",
