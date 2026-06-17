@@ -3,6 +3,7 @@ package notificationsapi
 import (
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 )
@@ -66,6 +67,37 @@ type CreateProjectPolicyInput struct {
 type PolicyIDInput struct {
 	shared.AuthInput
 	PolicyID string `path:"policy_id" doc:"Notification policy ID."`
+}
+
+type ListHooksInput struct {
+	shared.AuthInput
+}
+
+type CreateHookInput struct {
+	shared.AuthInput
+	Body shared.ResourceInput[CreateNotificationHookSpec]
+}
+
+type ProjectHooksInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+}
+
+type CreateProjectHookInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id" doc:"Project ID."`
+	Body      shared.ResourceInput[CreateNotificationHookSpec]
+}
+
+type HookIDInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Notification hook ID."`
+}
+
+type UpdateHookInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Notification hook ID."`
+	Body   shared.ResourceInput[UpdateNotificationHookSpec]
 }
 
 type UpdatePolicyInput struct {
@@ -145,12 +177,18 @@ type PreferencesOutput struct {
 }
 type ListPoliciesOutput = shared.ListOutput[PolicyResource]
 type CreatePolicyOutput = shared.CreatedOutput[PolicyResource]
+type ListHooksOutput = shared.ListOutput[NotificationHookResource]
+type CreateHookOutput = shared.CreatedOutput[NotificationHookResource]
 type ListDeliveriesOutput = shared.ListOutput[DeliveryResource]
 type ListDestinationsOutput = shared.ListOutput[DestinationResource]
 type CreateDestinationOutput = shared.CreatedOutput[DestinationResource]
 
 type PolicyOutput struct {
 	Body PolicyResource
+}
+
+type HookOutput struct {
+	Body NotificationHookResource
 }
 
 type DeliveryOutput struct {
@@ -252,6 +290,68 @@ type PolicyStatus struct {
 }
 
 type PolicyResource = shared.Resource[PolicyMetadata, PolicySpec, PolicyStatus]
+
+type NotificationHookMetadata struct {
+	ID        string    `json:"id"`
+	ScopeType string    `json:"scope_type"`
+	ProjectID string    `json:"project_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type NotificationHookEngineSpec struct {
+	Type       string `json:"type"`
+	Script     string `json:"script,omitempty"`
+	Prompt     string `json:"prompt,omitempty"`
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+func (NotificationHookEngineSpec) Schema(_ huma.Registry) *huma.Schema {
+	return &huma.Schema{
+		OneOf: []*huma.Schema{
+			engineVariantSchema("lua", []string{"type", "script"}, map[string]*huma.Schema{
+				"type":   {Type: huma.TypeString, Enum: []any{"lua"}},
+				"script": {Type: huma.TypeString, Description: "Lua script source."},
+			}),
+			engineVariantSchema("ai", []string{"type", "prompt", "provider_id"}, map[string]*huma.Schema{
+				"type":        {Type: huma.TypeString, Enum: []any{"ai"}},
+				"prompt":      {Type: huma.TypeString, Description: "AI prompt sent to the selected OpenRouter provider."},
+				"provider_id": {Type: huma.TypeString, Description: "Admin-managed OpenRouter provider configuration ID."},
+			}),
+		},
+		Discriminator: &huma.Discriminator{PropertyName: "type"},
+	}
+}
+
+type NotificationHookSpec struct {
+	Name        string                     `json:"name,omitempty"`
+	ActorUserID string                     `json:"actor_user_id,omitempty"`
+	EventTypes  []string                   `json:"event_types,omitempty"`
+	Enabled     bool                       `json:"enabled,omitempty"`
+	Engine      NotificationHookEngineSpec `json:"engine"`
+}
+
+type CreateNotificationHookSpec struct {
+	Name        string                     `json:"name,omitempty"`
+	ActorUserID string                     `json:"actor_user_id,omitempty"`
+	EventTypes  []string                   `json:"event_types,omitempty"`
+	Enabled     *bool                      `json:"enabled,omitempty"`
+	Engine      NotificationHookEngineSpec `json:"engine"`
+}
+
+type UpdateNotificationHookSpec struct {
+	Name        *string                     `json:"name,omitempty"`
+	ActorUserID *string                     `json:"actor_user_id,omitempty"`
+	EventTypes  *[]string                   `json:"event_types,omitempty"`
+	Enabled     *bool                       `json:"enabled,omitempty"`
+	Engine      *NotificationHookEngineSpec `json:"engine,omitempty"`
+}
+
+type NotificationHookStatus struct {
+	LastError string `json:"last_error,omitempty"`
+}
+
+type NotificationHookResource = shared.Resource[NotificationHookMetadata, NotificationHookSpec, NotificationHookStatus]
 
 type DeliveryMetadata struct {
 	ID                 string    `json:"id"`
@@ -449,6 +549,85 @@ func policyResources(policies []notifications.Policy) []PolicyResource {
 	return resources
 }
 
+func (spec CreateNotificationHookSpec) createInput(scopeType string, projectID string) notifications.CreateHookInput {
+	enabled := true
+	if spec.Enabled != nil {
+		enabled = *spec.Enabled
+	}
+	return notifications.CreateHookInput{
+		Name:        spec.Name,
+		ScopeType:   scopeType,
+		ProjectID:   projectID,
+		ActorUserID: spec.ActorUserID,
+		EventTypes:  spec.EventTypes,
+		Enabled:     enabled,
+		Engine:      spec.Engine.toService(),
+	}
+}
+
+func (spec UpdateNotificationHookSpec) updateInput() notifications.UpdateHookInput {
+	var engine *notifications.HookEngine
+	if spec.Engine != nil {
+		value := spec.Engine.toService()
+		engine = &value
+	}
+	return notifications.UpdateHookInput{
+		Name:        spec.Name,
+		ActorUserID: spec.ActorUserID,
+		EventTypes:  spec.EventTypes,
+		Enabled:     spec.Enabled,
+		Engine:      engine,
+	}
+}
+
+func (spec NotificationHookEngineSpec) toService() notifications.HookEngine {
+	return notifications.HookEngine{
+		Type:       spec.Type,
+		Script:     spec.Script,
+		Prompt:     spec.Prompt,
+		ProviderID: spec.ProviderID,
+	}
+}
+
+func hookEngineFromService(engine notifications.HookEngine) NotificationHookEngineSpec {
+	return NotificationHookEngineSpec{
+		Type:       engine.Type,
+		Script:     engine.Script,
+		Prompt:     engine.Prompt,
+		ProviderID: engine.ProviderID,
+	}
+}
+
+func hookResource(hook notifications.Hook) NotificationHookResource {
+	return NotificationHookResource{
+		Metadata: NotificationHookMetadata{
+			ID:        hook.ID,
+			ScopeType: hook.ScopeType,
+			ProjectID: hook.ProjectID,
+			CreatedAt: hook.CreatedAt,
+			UpdatedAt: hook.UpdatedAt,
+		},
+		Spec: NotificationHookSpec{
+			Name:        hook.Name,
+			ActorUserID: hook.ActorUserID,
+			EventTypes:  hook.EventTypes,
+			Enabled:     hook.Enabled,
+			Engine:      hookEngineFromService(hook.Engine),
+		},
+		Status: NotificationHookStatus{
+			LastError: hook.LastError,
+		},
+	}
+}
+
+func hookResources(hooks []notifications.Hook) []NotificationHookResource {
+	resources := make([]NotificationHookResource, 0, len(hooks))
+	for _, hook := range hooks {
+		resources = append(resources, hookResource(hook))
+	}
+	return resources
+}
+
 func deliveryResource(delivery notifications.Delivery) DeliveryResource {
 	return DeliveryResource{
 		Metadata: DeliveryMetadata{
@@ -556,4 +735,14 @@ func destinationResources(items []notifications.Destination) []DestinationResour
 		resources = append(resources, destinationResource(item))
 	}
 	return resources
+}
+
+func engineVariantSchema(title string, required []string, properties map[string]*huma.Schema) *huma.Schema {
+	return &huma.Schema{
+		Type:                 huma.TypeObject,
+		Title:                title,
+		Required:             required,
+		Properties:           properties,
+		AdditionalProperties: false,
+	}
 }

@@ -27,6 +27,13 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-policies/{policy_id}", "Notification Policies", "Get notification policy"), provider.getPolicy)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-policies/{policy_id}", "Notification Policies", "Update notification policy"), provider.updatePolicy)
 	huma.Register(api, operation(http.MethodDelete, "/api/notification-policies/{policy_id}", "Notification Policies", "Delete notification policy", http.StatusNoContent), provider.deletePolicy)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-hooks", "Notification Hooks", "List global notification hooks"), provider.listGlobalHooks)
+	huma.Register(api, operation(http.MethodPost, "/api/notification-hooks", "Notification Hooks", "Create global notification hook", http.StatusCreated), provider.createGlobalHook)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-hooks", "Notification Hooks", "List project notification hooks"), provider.listProjectHooks)
+	huma.Register(api, operation(http.MethodPost, "/api/projects/{project_id}/notification-hooks", "Notification Hooks", "Create project notification hook", http.StatusCreated), provider.createProjectHook)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Get notification hook"), provider.getHook)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Update notification hook"), provider.updateHook)
+	huma.Register(api, operation(http.MethodDelete, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Delete notification hook", http.StatusNoContent), provider.deleteHook)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-deliveries", "Notification Deliveries", "List global notification deliveries"), provider.listGlobalDeliveries)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-deliveries", "Notification Deliveries", "List project notification deliveries"), provider.listProjectDeliveries)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-deliveries/{delivery_id}", "Notification Deliveries", "Get notification delivery"), provider.getDelivery)
@@ -256,6 +263,118 @@ func (provider Provider) deletePolicy(ctx context.Context, input *PolicyIDInput)
 		return nil, err
 	}
 	if err := provider.Notifications.DeletePolicy(ctx, input.PolicyID); err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) listGlobalHooks(ctx context.Context, input *ListHooksInput) (*ListHooksOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	hooks, err := provider.Notifications.ListHooks(ctx, notifications.ListHooksInput{ScopeType: notifications.PolicyScopeGlobal})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListHooksOutput{Body: shared.NewListResource[NotificationHookResource](hookResources(hooks))}, nil
+}
+
+func (provider Provider) createGlobalHook(ctx context.Context, input *CreateHookInput) (*CreateHookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	hook, err := provider.Notifications.CreateHook(ctx, input.Body.Spec.createInput(notifications.PolicyScopeGlobal, ""))
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &CreateHookOutput{Body: hookResource(hook)}, nil
+}
+
+func (provider Provider) listProjectHooks(ctx context.Context, input *ProjectHooksInput) (*ListHooksOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	hooks, err := provider.Notifications.ListHooks(ctx, notifications.ListHooksInput{ScopeType: notifications.PolicyScopeProject, ProjectID: input.ProjectID})
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListHooksOutput{Body: shared.NewListResource[NotificationHookResource](hookResources(hooks))}, nil
+}
+
+func (provider Provider) createProjectHook(ctx context.Context, input *CreateProjectHookInput) (*CreateHookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	hook, err := provider.Notifications.CreateHook(ctx, input.Body.Spec.createInput(notifications.PolicyScopeProject, input.ProjectID))
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &CreateHookOutput{Body: hookResource(hook)}, nil
+}
+
+func (provider Provider) getHook(ctx context.Context, input *HookIDInput) (*HookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	hook, err := provider.Notifications.GetHook(ctx, input.HookID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireHookManage(principal, hook); err != nil {
+		return nil, err
+	}
+	return &HookOutput{Body: hookResource(hook)}, nil
+}
+
+func (provider Provider) updateHook(ctx context.Context, input *UpdateHookInput) (*HookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetHook(ctx, input.HookID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireHookManage(principal, current); err != nil {
+		return nil, err
+	}
+	updated, err := provider.Notifications.UpdateHook(ctx, input.HookID, input.Body.Spec.updateInput())
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &HookOutput{Body: hookResource(updated)}, nil
+}
+
+func (provider Provider) deleteHook(ctx context.Context, input *HookIDInput) (*shared.EmptyOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	current, err := provider.Notifications.GetHook(ctx, input.HookID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireHookManage(principal, current); err != nil {
+		return nil, err
+	}
+	if err := provider.Notifications.DeleteHook(ctx, input.HookID); err != nil {
 		return nil, shared.NotificationError(err)
 	}
 	return &shared.EmptyOutput{}, nil
@@ -506,6 +625,14 @@ func (provider Provider) requirePolicyManage(principal authz.Principal, policy n
 	scope := authz.GlobalScope()
 	if policy.ScopeType == notifications.PolicyScopeProject {
 		scope = authz.ProjectScope(policy.ProjectID)
+	}
+	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
+}
+
+func (provider Provider) requireHookManage(principal authz.Principal, hook notifications.Hook) error {
+	scope := authz.GlobalScope()
+	if hook.ScopeType == notifications.PolicyScopeProject {
+		scope = authz.ProjectScope(hook.ProjectID)
 	}
 	return provider.Authenticator.Require(principal, authz.PermissionNotificationsManage, scope)
 }

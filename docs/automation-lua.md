@@ -23,7 +23,7 @@ Lua-capable surfaces:
 - custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
-- notification hooks: **Planned**.
+- notification hooks: API-only Lua/AI suppress/transform/route slice implemented; preview, run history, UI, and richer routing are **Planned**.
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
 
@@ -234,18 +234,18 @@ return {
 
 The first notification API slice lets users list their own notifications and mark them read or unread. In-app notification generation for comments and ticket updates is driven by durable `domain_events`, with processed/failed state stored on the event row. External notification delivery uses named Shoutrrr destinations, durable delivery rows, and the backend notification worker.
 
-Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Enabled matching global and project policies enqueue delivery rows when durable notification events are processed. Notification hooks are **Planned** and may filter, suppress, transform, enrich, and route notification plans by destination name, but must never receive raw Shoutrrr URLs or secrets.
+Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Enabled matching global and project policies enqueue delivery rows when durable notification events are processed. Notification hooks can run before delivery rows are created. They may suppress a policy plan, replace the outbound message, replace the payload, or reduce `destination_ids` to a subset of the policy's already-allowed destinations. Hooks never receive raw Shoutrrr URLs or secrets.
 
-Webhooks and AI/Lua notification hooks are **Planned**. AI notification hooks must use the same validated notification-plan shape as Lua hooks and must not bypass RBAC, user preferences, destination visibility, or backend validation.
+Lua notification hooks receive a `notification` table with `context`, `policy`, `plan`, and `instructions`. AI notification hooks receive the same context in the prompt and must return the same validated JSON object. Hook output must not bypass RBAC, user preferences, destination visibility, or backend validation.
 
 Example route shape:
 
 ```lua
-if event.type == "ticket.assigned" then
+if notification.plan.event_type == "ticket_assigned" then
   return {
-    deliveries = {
-      { destination = "team-chat", title = message.title, body = message.body }
-    }
+    message = "Assigned: " .. notification.plan.message,
+    destination_ids = { notification.policy.destination_ids[1] },
+    payload = notification.plan.payload
   }
 end
 
@@ -258,7 +258,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
-AI execution is implemented for cron jobs, ticket hooks, incoming webhooks, and outgoing webhook request shaping as validated JSON-object output. AI cron action execution, custom create pages, and notification hooks are still **Planned**.
+AI execution is implemented for cron jobs, ticket hooks, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron action execution, custom create pages, notification hook preview, and notification hook run history are still **Planned**.
 
 ## Future WebAssembly Engine
 

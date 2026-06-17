@@ -49,6 +49,6 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 ## Notifications
 
-The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, API-only notification policy CRUD, API-only Shoutrrr destination CRUD for global and project scopes, delivery history/manual retry, and a backend worker that sends due queued deliveries.
+The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, API-only notification policy CRUD, API-only Shoutrrr destination CRUD for global and project scopes, delivery history/manual retry, Lua/AI notification hooks, and a backend worker that sends due queued deliveries.
 
-AI/Lua notification hooks are **Planned**.
+Notification hook preview, run history, and browser management screens are **Planned**.

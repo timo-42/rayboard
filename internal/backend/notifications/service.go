@@ -14,6 +14,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/events"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 )
 
 var (
@@ -53,6 +54,7 @@ type Service struct {
 	db         *sql.DB
 	now        func() time.Time
 	eventStore *events.Store
+	openrouter *openrouter.Service
 }
 
 type Option func(*Service)
@@ -79,6 +81,12 @@ func WithNow(now func() time.Time) Option {
 func WithEventStore(store *events.Store) Option {
 	return func(service *Service) {
 		service.eventStore = store
+	}
+}
+
+func WithOpenRouterService(openRouterService *openrouter.Service) Option {
+	return func(service *Service) {
+		service.openrouter = openRouterService
 	}
 }
 
@@ -293,17 +301,30 @@ func (s *Service) enqueuePolicyDeliveriesForEvent(ctx context.Context, domainEve
 			return err
 		}
 		for _, policy := range policies {
-			for _, destinationID := range policy.DestinationIDs {
+			hooked, err := s.applyNotificationHooks(ctx, policy, plan)
+			if err != nil {
+				return err
+			}
+			if hooked.Suppressed {
+				continue
+			}
+			if strings.TrimSpace(hooked.Message) == "" || len(hooked.Message) > 4000 {
+				return fmt.Errorf("%w: invalid hooked notification message", ErrValidation)
+			}
+			if err := s.validatePolicyDestinations(ctx, policy.ScopeType, policy.ProjectID, hooked.DestinationIDs); err != nil {
+				return err
+			}
+			for _, destinationID := range hooked.DestinationIDs {
 				if _, err := s.EnqueueDelivery(ctx, EnqueueDeliveryInput{
 					DomainEventID:  domainEventID,
-					IdempotencyKey: deliveryIdempotencyKey(domainEventID, policy.ID, destinationID, plan.EventType),
+					IdempotencyKey: deliveryIdempotencyKey(domainEventID, policy.ID, destinationID, hooked.EventType),
 					PolicyID:       policy.ID,
 					DestinationID:  destinationID,
-					EventType:      plan.EventType,
-					SubjectType:    plan.SubjectType,
-					SubjectID:      plan.SubjectID,
-					Message:        plan.Message,
-					Payload:        plan.Payload,
+					EventType:      hooked.EventType,
+					SubjectType:    hooked.SubjectType,
+					SubjectID:      hooked.SubjectID,
+					Message:        hooked.Message,
+					Payload:        hooked.Payload,
 				}); err != nil {
 					return err
 				}

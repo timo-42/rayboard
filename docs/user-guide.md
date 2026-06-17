@@ -25,7 +25,7 @@ Implemented API-only user workflows:
 - custom field definition CRUD and typed ticket custom-field values;
 - in-app notification inbox API, including unread filtering and read/unread state;
 - current-user notification preferences and project notification defaults;
-- global/project notification policy CRUD and delivery history/manual retry;
+- global/project notification policy CRUD, Lua/AI notification hook CRUD, and delivery history/manual retry;
 - incoming/outgoing webhook definition APIs, incoming execution, outgoing delivery history, and outgoing delivery retry;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging.
 - custom ticket create-page definition, schema resolution, and submission APIs.
@@ -34,13 +34,13 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, workflow status APIs, board definition CRUD, board ticket listing, component/version CRUD, ticket component/version assignment, roadmap data, ticket labels, custom fields, saved-view metadata, notification policies, Shoutrrr/external notification delivery, incoming/outgoing webhook workflows, ticket-hook management/preview, and custom create pages are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, label management UI, custom-field UI/search integration, advanced release planning, custom create-page rendering/settings screens, ticket-hook management screens, and richer saved-view UI are **Planned**. Dynamic custom create pages should return structured form definitions and options, not raw HTML. Notification hooks, remaining OpenRouter AI surfaces, and future WebAssembly automation are also **Planned**.
+Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignment, workflow status APIs, board definition CRUD, board ticket listing, component/version CRUD, ticket component/version assignment, roadmap data, ticket labels, custom fields, saved-view metadata, notification policies/hooks, Shoutrrr/external notification delivery, incoming/outgoing webhook workflows, ticket-hook management/preview, and custom create pages are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, roadmap timeline screens, component/version UI screens, label management UI, custom-field UI/search integration, advanced release planning, custom create-page rendering/settings screens, ticket-hook management screens, notification hook preview/run history screens, and richer saved-view UI are **Planned**. Dynamic custom create pages should return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and future WebAssembly automation are also **Planned**.
 
 ## Notifications
 
 The current notification slice is API-only. Authenticated users can list their own notifications, filter to unread notifications, mark individual notifications read or unread, and update their notification preferences. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser inbox and badge UI, and AI/Lua notification hooks are **Planned**.
+Browser inbox and badge UI, notification hook preview/run history, and richer hook routing controls are **Planned**.
 
 ## Search
 

@@ -424,7 +424,21 @@ Notification deliveries are the durable queue/history foundation for external no
 
 Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error.
 
-Dashboard/view notification policies, recipient rules, notification hooks, and AI/Lua notification hooks are **Planned**.
+## Notification Hooks
+
+Notification hooks are API-only global/project automation rules that run after a notification policy matches and before external Shoutrrr delivery rows are enqueued. Hooks use the shared `engine` object with Lua or OpenRouter AI. They receive notification plan context without raw Shoutrrr URLs or secrets, and may return `suppress`, `message`, `payload`, and `destination_ids`. `destination_ids` is constrained to the current policy's already-allowed destination IDs.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/notification-hooks` | Lists global notification hooks; requires global `notifications:manage`. |
+| `POST` | `/api/notification-hooks` | Creates a global notification hook. |
+| `GET` | `/api/projects/{project_id}/notification-hooks` | Lists project notification hooks; requires project `notifications:manage`. |
+| `POST` | `/api/projects/{project_id}/notification-hooks` | Creates a project notification hook. |
+| `GET` | `/api/notification-hooks/{hook_id}` | Gets one notification hook. |
+| `PATCH` | `/api/notification-hooks/{hook_id}` | Updates a notification hook. |
+| `DELETE` | `/api/notification-hooks/{hook_id}` | Soft-deletes and disables a notification hook. |
+
+Dashboard/view notification policies, recipient rules, hook preview/run-history endpoints, and richer destination-name routing are **Planned**.
 
 ## Webhooks
 
@@ -528,4 +542,4 @@ AI cron jobs use the same `engine` object with an OpenRouter provider reference:
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. Outgoing webhook Lua/AI shapes controlled outbound HTTP requests from domain-event context. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. Outgoing webhook Lua/AI shapes controlled outbound HTTP requests from domain-event context. Notification hooks use Lua/AI to suppress, transform, or narrow destination routing for notification plans before delivery rows are enqueued. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, notification hook preview, and notification hook run history are **Planned**.
