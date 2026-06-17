@@ -9,12 +9,12 @@ Implemented browser workflows:
 - ticket list for the selected project;
 - ticket creation;
 - ticket status changes;
+- ticket attachment list, upload, download, and delete from each ticket card;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines.
 
 Implemented API-only user workflows:
 
 - comments on tickets;
-- attachments on tickets;
 - saved views with display mode, grouping, and pinned project-view metadata;
 - text and filter search;
 - sprint CRUD, start/complete actions, and ticket sprint assignment/removal;

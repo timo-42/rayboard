@@ -3,6 +3,7 @@ const state = {
   projects: [],
   selectedProject: null,
   tickets: [],
+  attachments: {},
   engineResult: null
 };
 
@@ -49,6 +50,7 @@ function bindEvents() {
       state.projects = [];
       state.selectedProject = null;
       state.tickets = [];
+      state.attachments = {};
       render();
     }, "Signed out");
   });
@@ -91,6 +93,15 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
+    const deleteAttachment = event.target.closest("[data-delete-attachment-id]");
+    if (deleteAttachment) {
+      await runAction(async () => {
+        await api(`/api/attachments/${deleteAttachment.dataset.deleteAttachmentId}`, { method: "DELETE" });
+        await loadAttachments(deleteAttachment.dataset.ticketId);
+      }, "Attachment deleted");
+      return;
+    }
+
     const button = event.target.closest("[data-ticket-status]");
     if (!button) {
       return;
@@ -102,6 +113,27 @@ function bindEvents() {
       });
       await loadTickets();
     }, "Ticket updated");
+  });
+
+  els.ticketColumns.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-attachment-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    const ticketID = form.dataset.ticketId;
+    const fileInput = form.querySelector('input[type="file"]');
+    if (!ticketID || !fileInput || !fileInput.files.length) {
+      setNotice("Choose a file to attach");
+      return;
+    }
+    await runAction(async () => {
+      const body = new FormData();
+      body.append("file", fileInput.files[0]);
+      await api(`/api/tickets/${ticketID}/attachments`, { method: "POST", body });
+      form.reset();
+      await loadAttachments(ticketID);
+    }, "Attachment uploaded");
   });
 }
 
@@ -122,7 +154,7 @@ async function refreshSession() {
 
 async function loadProjects(selectedID = "") {
   const data = await api("/api/projects");
-  state.projects = (data.items || []).map(normalizeProject);
+  state.projects = listItems(data).map(normalizeProject);
   if (selectedID) {
     state.selectedProject = state.projects.find((project) => project.id === selectedID) || null;
   } else if (!state.selectedProject && state.projects.length > 0) {
@@ -134,6 +166,7 @@ async function loadProjects(selectedID = "") {
     await loadTickets();
   } else {
     state.tickets = [];
+    state.attachments = {};
   }
   render();
 }
@@ -145,8 +178,18 @@ async function loadTickets() {
     return;
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
-  state.tickets = (data.items || []).map(normalizeTicket);
+  state.tickets = listItems(data).map(normalizeTicket);
+  state.attachments = {};
+  await Promise.all(state.tickets.map((ticket) => loadAttachments(ticket.id, { renderAfter: false })));
   render();
+}
+
+async function loadAttachments(ticketID, options = {}) {
+  const data = await api(`/api/tickets/${ticketID}/attachments`);
+  state.attachments[ticketID] = listItems(data).map(normalizeAttachment);
+  if (options.renderAfter !== false) {
+    renderTickets();
+  }
 }
 
 async function api(path, options = {}) {
@@ -158,8 +201,12 @@ async function api(path, options = {}) {
     }
   };
   if (options.body !== undefined && options.body !== null) {
-    request.body = JSON.stringify(options.body);
-    request.headers["Content-Type"] = "application/json";
+    if (options.body instanceof FormData) {
+      request.body = options.body;
+    } else {
+      request.body = JSON.stringify(options.body);
+      request.headers["Content-Type"] = "application/json";
+    }
   }
   if (mutates(request.method)) {
     const csrf = cookieValue("rayboard_csrf");
@@ -349,8 +396,70 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, actions);
+  article.append(key, title, meta, attachmentNode(ticket), actions);
   return article;
+}
+
+function attachmentNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-attachments";
+  section.setAttribute("aria-label", `${ticket.key} attachments`);
+
+  const attachments = state.attachments[ticket.id] || [];
+  const heading = document.createElement("p");
+  heading.className = "attachment-heading";
+  heading.textContent = `Attachments (${attachments.length})`;
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "attachment-list";
+  if (!attachments.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No files";
+    list.append(empty);
+  } else {
+    for (const attachment of attachments) {
+      const row = document.createElement("div");
+      row.className = "attachment-item";
+
+      const link = document.createElement("a");
+      link.href = `/api/attachments/${attachment.id}/download`;
+      link.textContent = attachment.file_name;
+
+      const size = document.createElement("span");
+      size.textContent = formatBytes(attachment.size_bytes);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.deleteAttachmentId = attachment.id;
+      remove.dataset.ticketId = ticket.id;
+      remove.setAttribute("aria-label", `Delete ${attachment.file_name}`);
+      remove.textContent = "Delete";
+
+      row.append(link, size, remove);
+      list.append(row);
+    }
+  }
+  section.append(list);
+
+  const form = document.createElement("form");
+  form.className = "attachment-form";
+  form.dataset.attachmentForm = "true";
+  form.dataset.ticketId = ticket.id;
+
+  const input = document.createElement("input");
+  input.type = "file";
+  input.name = "file";
+  input.required = true;
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Attach";
+
+  form.append(input, submit);
+  section.append(form);
+  return section;
 }
 
 function statusActions(status) {
@@ -368,6 +477,19 @@ function statusActions(status) {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function listItems(data) {
+  if (!data) {
+    return [];
+  }
+  if (Array.isArray(data.items)) {
+    return data.items;
+  }
+  if (data.status && Array.isArray(data.status.items)) {
+    return data.status.items;
+  }
+  return [];
 }
 
 function normalizeProject(project) {
@@ -412,6 +534,35 @@ function normalizeTicket(ticket) {
     };
   }
   return ticket;
+}
+
+function normalizeAttachment(attachment) {
+  if (!attachment) {
+    return null;
+  }
+  if (attachment.metadata && attachment.spec && attachment.status) {
+    return {
+      id: attachment.metadata.id,
+      ticket_id: attachment.metadata.ticket_id,
+      created_at: attachment.metadata.created_at,
+      file_name: attachment.spec.file_name,
+      content_type: attachment.spec.content_type,
+      size_bytes: attachment.status.size_bytes || 0,
+      uploader_id: attachment.status.uploader_id || ""
+    };
+  }
+  return attachment;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function cookieValue(name) {

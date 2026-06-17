@@ -26,9 +26,44 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
 		!strings.Contains(body, "Engine Workbench") ||
 		!strings.Contains(body, `id="engine-form"`) ||
+		!strings.Contains(body, `id="ticket-columns"`) ||
 		!strings.Contains(body, `href="/1"`) ||
 		!strings.Contains(body, `href="/5"`) {
 		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestEmbeddedAppSupportsAttachments(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadAttachments",
+		"normalizeAttachment",
+		"/api/tickets/${ticketID}/attachments",
+		"/api/attachments/${attachment.id}/download",
+		"data-delete-attachment-id",
+		"new FormData()",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".ticket-attachments",
+		".attachment-item",
+		".attachment-form",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
 	}
 }
 

@@ -81,6 +81,36 @@ func TestAttachmentEndpointsLifecycle(t *testing.T) {
 	}
 }
 
+func TestAttachmentUploadRequiresCSRFForSession(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authorizer),
+		WithTrackerService(tracker.NewService(db.SQL, authorizer)),
+		WithAttachmentService(attachments.NewService(db.SQL, authorizer)),
+	)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	project := createAttachmentTestProject(t, handler, session, csrf)
+	ticket := createAttachmentTestTicket(t, handler, session, csrf, project.ID)
+
+	req := multipartUploadRequest(t, "/api/tickets/"+ticket.ID+"/attachments", "file", "notes.txt", "text/plain", []byte("hello attachment"))
+	req.AddCookie(session)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF upload status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 type attachmentResourceBody struct {
 	Metadata struct {
 		ID       string `json:"id"`
