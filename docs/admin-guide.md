@@ -12,7 +12,7 @@ Admin workflows currently available through the API:
 - add and remove group members;
 - list roles;
 - create and delete role bindings.
-- create, update, disable, and delete OpenRouter provider references for future AI automation.
+- create, update, disable, and delete OpenRouter provider references for AI automation.
 
 The current browser UI does not expose admin screens yet.
 

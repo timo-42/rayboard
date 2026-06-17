@@ -28,6 +28,22 @@ func TestIndex(t *testing.T) {
 	}
 }
 
+func TestDesignVariantRoute(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/3", nil)
+	rec := httptest.NewRecorder()
+
+	NewHandler("http://backend.test").ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `href="/3" aria-current="page"`) ||
+		!strings.Contains(body, `href="/1"`) ||
+		!strings.Contains(body, `href="/5"`) {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestAPIProxy(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/health" {

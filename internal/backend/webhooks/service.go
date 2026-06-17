@@ -16,6 +16,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	lua "github.com/yuin/gopher-lua"
@@ -41,6 +42,7 @@ type Service struct {
 	tracker    *tracker.Service
 	search     *search.Service
 	comments   *comments.Service
+	openrouter *openrouter.Service
 	now        func() time.Time
 }
 
@@ -87,6 +89,12 @@ func WithSearchService(searchService *search.Service) Option {
 func WithCommentService(commentService *comments.Service) Option {
 	return func(service *Service) {
 		service.comments = commentService
+	}
+}
+
+func WithOpenRouterService(openRouterService *openrouter.Service) Option {
+	return func(service *Service) {
+		service.openrouter = openRouterService
 	}
 }
 
@@ -473,7 +481,7 @@ func (s *Service) executeIncoming(ctx context.Context, hook Webhook, input Incom
 	case EngineTypeLua:
 		return s.executeIncomingLua(ctx, hook, input)
 	case EngineTypeAI:
-		return map[string]any{}, nil, fmt.Errorf("%w: AI incoming webhooks are not implemented yet", ErrValidation)
+		return s.executeIncomingAI(ctx, hook, input)
 	default:
 		return map[string]any{}, nil, fmt.Errorf("%w: unsupported engine", ErrValidation)
 	}
@@ -520,6 +528,201 @@ func (s *Service) executeIncomingLua(ctx context.Context, hook Webhook, input In
 		return output, logs, fmt.Errorf("%w: %s", ErrValidation, message)
 	}
 	return output, logs, nil
+}
+
+func (s *Service) executeIncomingAI(ctx context.Context, hook Webhook, input IncomingInput) (map[string]any, []string, error) {
+	if s.openrouter == nil {
+		return map[string]any{}, nil, fmt.Errorf("%w: OpenRouter service is not configured", ErrValidation)
+	}
+	prompt, err := incomingAIPrompt(hook, input)
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
+	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
+		ProviderID: hook.Engine.ProviderID,
+		Prompt:     prompt,
+	})
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
+	output := result.Output
+	if output == nil {
+		output = map[string]any{}
+	}
+	if message := rejectMessage(output); message != "" {
+		return output, nil, fmt.Errorf("%w: %s", ErrValidation, message)
+	}
+	actionResults, err := s.executeIncomingAIActions(ctx, hook, output["actions"])
+	if err != nil {
+		return output, nil, err
+	}
+	if len(actionResults) > 0 {
+		output["action_results"] = actionResults
+	}
+	output["provider_id"] = result.ProviderID
+	output["model"] = result.Model
+	if result.ResponseID != "" {
+		output["response_id"] = result.ResponseID
+	}
+	if len(result.Usage) > 0 {
+		output["usage"] = result.Usage
+	}
+	return output, nil, nil
+}
+
+func incomingAIPrompt(hook Webhook, input IncomingInput) (string, error) {
+	payload := map[string]any{
+		"context": map[string]any{
+			"direction":  hook.Direction,
+			"project_id": hook.ProjectID,
+			"webhook_id": hook.ID,
+			"user_id":    hook.ActorUserID,
+		},
+		"request": incomingRequestMap(input),
+		"instructions": []string{
+			"Return only a JSON object.",
+			"Return {\"reject\":{\"message\":\"...\"}} to reject the webhook.",
+			"Return {\"actions\":[{\"type\":\"create_ticket\",\"input\":{...}}]} to perform allowed Rayboard actions.",
+			"Allowed action types are search, get_ticket, create_ticket, update_ticket, and comment.",
+		},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode incoming webhook AI input: %w", err)
+	}
+	return strings.TrimSpace(hook.Engine.Prompt) + "\n\nRayboard incoming webhook input:\n" + string(data), nil
+}
+
+func (s *Service) executeIncomingAIActions(ctx context.Context, hook Webhook, value any) ([]map[string]any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	actions, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: actions must be an array", ErrValidation)
+	}
+	if len(actions) > 20 {
+		return nil, fmt.Errorf("%w: actions must contain 20 or fewer items", ErrValidation)
+	}
+	results := make([]map[string]any, 0, len(actions))
+	for index, item := range actions {
+		action, ok := item.(map[string]any)
+		if !ok {
+			return results, fmt.Errorf("%w: action %d must be an object", ErrValidation, index+1)
+		}
+		actionType := stringValue(action, "type")
+		input, _ := action["input"].(map[string]any)
+		if input == nil {
+			input = map[string]any{}
+		}
+		result, err := s.executeIncomingAIAction(ctx, hook, actionType, input)
+		entry := map[string]any{"type": actionType}
+		if err != nil {
+			entry["error"] = err.Error()
+			results = append(results, entry)
+			return results, err
+		}
+		entry["result"] = result
+		results = append(results, entry)
+	}
+	return results, nil
+}
+
+func (s *Service) executeIncomingAIAction(ctx context.Context, hook Webhook, actionType string, input map[string]any) (any, error) {
+	switch actionType {
+	case "search":
+		if s.search == nil {
+			return nil, fmt.Errorf("%w: rayboard.search is not configured", ErrValidation)
+		}
+		return s.search.SearchTickets(ctx, webhookPrincipal(hook), search.SearchTicketsInput{
+			ProjectID: stringValue(input, "project_id"),
+			Filter:    stringValue(input, "filter"),
+			Text:      stringValue(input, "text"),
+			Sort:      sortSpecs(input["sort"]),
+			Limit:     intValue(input, "limit"),
+			Cursor:    stringValue(input, "cursor"),
+		})
+	case "get_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.get_ticket is not configured", ErrValidation)
+		}
+		return s.tracker.GetTicket(ctx, webhookPrincipal(hook), ticketIDValue(input))
+	case "create_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.create_ticket is not configured", ErrValidation)
+		}
+		customFields, ok := customFieldsValue(input)
+		if !ok {
+			return nil, fmt.Errorf("%w: custom_fields must be an object", ErrValidation)
+		}
+		labels, ok := stringSliceValue(input, "labels")
+		if !ok {
+			return nil, fmt.Errorf("%w: labels must be an array of strings", ErrValidation)
+		}
+		return s.tracker.CreateTicket(ctx, webhookPrincipal(hook), tracker.CreateTicketInput{
+			ProjectID:      stringValue(input, "project_id"),
+			Title:          stringValue(input, "title"),
+			Description:    stringValue(input, "description"),
+			Status:         stringValue(input, "status"),
+			Priority:       stringValue(input, "priority"),
+			Type:           stringValue(input, "type"),
+			ReporterID:     stringValue(input, "reporter_id"),
+			AssigneeID:     stringValue(input, "assignee_id"),
+			ParentTicketID: stringValue(input, "parent_ticket_id"),
+			SprintID:       stringValue(input, "sprint_id"),
+			ComponentID:    stringValue(input, "component_id"),
+			VersionID:      stringValue(input, "version_id"),
+			Rank:           stringValue(input, "rank"),
+			StartDate:      stringValue(input, "start_date"),
+			DueDate:        stringValue(input, "due_date"),
+			Labels:         labels,
+			CustomFields:   customFields,
+		})
+	case "update_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.update_ticket is not configured", ErrValidation)
+		}
+		customFields, hasCustomFields, ok := optionalCustomFieldsValue(input)
+		if !ok {
+			return nil, fmt.Errorf("%w: custom_fields must be an object", ErrValidation)
+		}
+		labels, hasLabels, ok := optionalStringSliceValue(input, "labels")
+		if !ok {
+			return nil, fmt.Errorf("%w: labels must be an array of strings", ErrValidation)
+		}
+		update := tracker.UpdateTicketInput{
+			Title:          optionalString(input, "title"),
+			Description:    optionalString(input, "description"),
+			Status:         optionalString(input, "status"),
+			Priority:       optionalString(input, "priority"),
+			Type:           optionalString(input, "type"),
+			AssigneeID:     optionalString(input, "assignee_id"),
+			ParentTicketID: optionalString(input, "parent_ticket_id"),
+			SprintID:       optionalString(input, "sprint_id"),
+			ComponentID:    optionalString(input, "component_id"),
+			VersionID:      optionalString(input, "version_id"),
+			Rank:           optionalString(input, "rank"),
+			StartDate:      optionalString(input, "start_date"),
+			DueDate:        optionalString(input, "due_date"),
+		}
+		if hasCustomFields {
+			update.CustomFields = &customFields
+		}
+		if hasLabels {
+			update.Labels = &labels
+		}
+		return s.tracker.UpdateTicket(ctx, webhookPrincipal(hook), ticketIDValue(input), update)
+	case "comment":
+		if s.comments == nil {
+			return nil, fmt.Errorf("%w: rayboard.comment is not configured", ErrValidation)
+		}
+		return s.comments.Create(ctx, webhookPrincipal(hook), comments.CreateInput{
+			TicketID: stringValue(input, "ticket_id"),
+			Body:     stringValue(input, "body"),
+		})
+	default:
+		return nil, fmt.Errorf("%w: unsupported AI action %q", ErrValidation, actionType)
+	}
 }
 
 func incomingRequestMap(input IncomingInput) map[string]any {
@@ -583,7 +786,7 @@ func (s *Service) validateWebhook(ctx context.Context, hook Webhook, _ bool) err
 	} else if err := s.requireUser(ctx, hook.ActorUserID); err != nil {
 		return err
 	}
-	if err := validateEngine(hook.Engine); err != nil {
+	if err := s.validateEngine(ctx, hook.Engine); err != nil {
 		fields["engine"] = err.Error()
 	}
 	if hook.Direction == DirectionOutgoing && len(hook.EventTypes) == 0 {
@@ -595,7 +798,7 @@ func (s *Service) validateWebhook(ctx context.Context, hook Webhook, _ bool) err
 	return nil
 }
 
-func validateEngine(engine EngineSpec) error {
+func (s *Service) validateEngine(ctx context.Context, engine EngineSpec) error {
 	switch engine.Type {
 	case EngineTypeLua:
 		if strings.TrimSpace(engine.Script) == "" {
@@ -605,8 +808,37 @@ func validateEngine(engine EngineSpec) error {
 		if strings.TrimSpace(engine.Prompt) == "" || strings.TrimSpace(engine.ProviderID) == "" {
 			return errors.New("ai engine requires prompt and provider_id")
 		}
+		if err := s.validateAIProvider(ctx, engine.ProviderID); err != nil {
+			return err
+		}
 	default:
 		return errors.New("engine type must be lua or ai")
+	}
+	return nil
+}
+
+func (s *Service) validateAIProvider(ctx context.Context, providerID string) error {
+	if s.openrouter == nil {
+		return errors.New("OpenRouter service is not configured")
+	}
+	provider, err := s.openrouter.GetExecutionProvider(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	if !provider.Enabled {
+		return errors.New("OpenRouter provider is disabled")
+	}
+	if strings.TrimSpace(provider.APIKey) == "" {
+		return errors.New("OpenRouter provider API key is not configured")
+	}
+	if strings.TrimSpace(provider.DefaultModel) == "" {
+		return errors.New("OpenRouter provider default model is required")
+	}
+	if provider.DefaultTimeoutSeconds <= 0 {
+		return errors.New("OpenRouter provider timeout must be greater than zero")
+	}
+	if provider.MaxOutputTokens <= 0 {
+		return errors.New("OpenRouter provider max output tokens must be greater than zero")
 	}
 	return nil
 }

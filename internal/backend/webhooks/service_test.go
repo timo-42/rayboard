@@ -2,8 +2,12 @@ package webhooks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +15,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/events"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -531,6 +536,118 @@ return { ticket_id = fetched.id, key = fetched.key, comments = 1 }
 	}
 	if reporterID != "actor" {
 		t.Fatalf("expected actor reporter, got %q", reporterID)
+	}
+}
+
+func TestIncomingWebhookAIRayboardActionsActAsActor(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	var receivedAuth string
+	var receivedPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode OpenRouter request: %v", err)
+		}
+		if len(body.Messages) > 1 {
+			receivedPrompt = body.Messages[1].Content
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "gen_webhook",
+			"choices": []map[string]any{{
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": `{"accepted":true,"actions":[{"type":"create_ticket","input":{"project_id":"project-1","title":"AI-created ticket","description":"Created from incoming AI webhook","labels":["ai","webhook"]}}]}`,
+				},
+			}},
+			"usage": map[string]any{"prompt_tokens": 11, "completion_tokens": 7},
+		})
+	}))
+	defer server.Close()
+
+	authorizer := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")),
+		authz.UserBinding("actor", authz.RoleProjectMember, authz.ProjectScope("project-1")),
+	))
+	trackerService := tracker.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
+	commentService := comments.NewService(db.SQL, authorizer)
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:         "Default",
+		DefaultModel: "openai/gpt-4.1-mini",
+		APIKey:       "sk-or-secret",
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+	service := NewService(
+		db.SQL,
+		authorizer,
+		WithRunStore(automation.NewRunStore(db.SQL)),
+		WithTrackerService(trackerService),
+		WithSearchService(searchService),
+		WithCommentService(commentService),
+		WithOpenRouterService(openRouterService),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+
+	created, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "ai receiver",
+		Direction:   DirectionIncoming,
+		Enabled:     true,
+		ActorUserID: "actor",
+		Engine: EngineSpec{
+			Type:       EngineTypeAI,
+			Prompt:     "Create a ticket from the incoming payload.",
+			ProviderID: provider.ID,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create AI webhook: %v", err)
+	}
+
+	result, err := service.ReceiveIncoming(ctx, created.ID, created.Token, IncomingInput{Payload: map[string]any{"title": "from request"}})
+	if err != nil {
+		t.Fatalf("receive AI webhook: %v", err)
+	}
+	if result.Run.Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected AI run: %#v", result.Run)
+	}
+	if receivedAuth != "Bearer sk-or-secret" {
+		t.Fatalf("unexpected OpenRouter auth header: %q", receivedAuth)
+	}
+	if !strings.Contains(receivedPrompt, "Create a ticket from the incoming payload.") || !strings.Contains(receivedPrompt, `"request"`) {
+		t.Fatalf("unexpected AI prompt: %s", receivedPrompt)
+	}
+	if strings.Contains(receivedPrompt, "sk-or-secret") {
+		t.Fatalf("AI prompt leaked OpenRouter secret: %s", receivedPrompt)
+	}
+	if countWebhookRows(t, ctx, db, "tickets") != 1 {
+		t.Fatalf("expected one AI-created ticket")
+	}
+	output, ok := result.Run.Output["output"].(map[string]any)
+	if !ok || output["accepted"] != true || output["action_results"] == nil || output["provider_id"] != provider.ID {
+		t.Fatalf("unexpected AI output: %#v", result.Run.Output)
+	}
+	encoded, err := json.Marshal(result.Run)
+	if err != nil {
+		t.Fatalf("marshal run: %v", err)
+	}
+	if strings.Contains(string(encoded), "sk-or-secret") || strings.Contains(string(encoded), "Create a ticket from the incoming payload") {
+		t.Fatalf("run history leaked secret or prompt: %s", string(encoded))
 	}
 }
 

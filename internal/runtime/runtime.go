@@ -75,6 +75,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		webhooks.WithTrackerService(trackerService),
 		webhooks.WithSearchService(searchService),
 		webhooks.WithCommentService(commentService),
+		webhooks.WithOpenRouterService(openRouterService),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
@@ -148,6 +149,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		webhooks.WithTrackerService(trackerService),
 		webhooks.WithSearchService(searchService),
 		webhooks.WithCommentService(commentService),
+		webhooks.WithOpenRouterService(openRouterService),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {

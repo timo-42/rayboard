@@ -17,6 +17,17 @@ type Server struct {
 	http *http.Server
 }
 
+type indexData struct {
+	BackendURL string
+	Designs    []designOption
+}
+
+type designOption struct {
+	Path   string
+	Label  string
+	Active bool
+}
+
 func NewServer(addr string, backendURL string) *Server {
 	return &Server{
 		http: &http.Server{
@@ -53,13 +64,37 @@ func NewHandler(backendURL string) http.Handler {
 		})
 	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
+		if r.URL.Path == "/" {
+			index(w, backendURL, "")
 			return
 		}
-		index(w, backendURL)
+		if isDesignVariantPath(r.URL.Path) {
+			index(w, backendURL, r.URL.Path)
+			return
+		}
+		http.NotFound(w, r)
 	})
 	return mux
+}
+
+func isDesignVariantPath(path string) bool {
+	if len(path) != 2 || path[0] != '/' {
+		return false
+	}
+	return path[1] >= '1' && path[1] <= '5'
+}
+
+func designOptions(selectedPath string) []designOption {
+	designs := make([]designOption, 0, 5)
+	for _, label := range []string{"1", "2", "3", "4", "5"} {
+		path := "/" + label
+		designs = append(designs, designOption{
+			Path:   path,
+			Label:  label,
+			Active: path == selectedPath,
+		})
+	}
+	return designs
 }
 
 func backendProxy(backendURL string) http.Handler {
@@ -72,14 +107,15 @@ func backendProxy(backendURL string) http.Handler {
 	return httputil.NewSingleHostReverseProxy(target)
 }
 
-func index(w http.ResponseWriter, backendURL string) {
+func index(w http.ResponseWriter, backendURL string, selectedDesign string) {
 	tpl, err := template.ParseFS(assets, "templates/index.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = tpl.Execute(w, map[string]string{
-		"BackendURL": backendURL,
+	_ = tpl.Execute(w, indexData{
+		BackendURL: backendURL,
+		Designs:    designOptions(selectedDesign),
 	})
 }

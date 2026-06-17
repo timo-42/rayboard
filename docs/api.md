@@ -428,7 +428,7 @@ Dashboard/view notification policies, recipient rules, notification hooks, outgo
 
 ## Webhooks
 
-The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Queued outgoing delivery history can be inspected through the API. Lua request shaping, outbound HTTP sending, retries, and manual redelivery are planned follow-up work.
+The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua or AI execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Queued outgoing delivery history can be inspected through the API. Outgoing Lua/AI request shaping, outbound HTTP sending, retries, and manual redelivery are planned follow-up work.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -447,7 +447,7 @@ Webhook definition responses use `metadata` for IDs/timestamps, `spec` for direc
 
 Outgoing delivery responses use `metadata` for delivery ID, webhook snapshot, domain event ID, idempotency key, project ID, and timestamps; `spec` for event type, subject, payload, and max attempts; and `status` for queue state, attempt count, attempt timestamps, delivery timestamp, and last error. Delivery inspection requires project `webhooks:manage` through the owning webhook.
 
-Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the webhook's configured actor user. Disabled or deleted actor users cause incoming execution to fail before the script runs. Outgoing webhook Lua execution and outbound delivery sending are not wired yet.
+Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. AI incoming webhooks use the same actor/RBAC path through a JSON `actions` array with action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; AI can also return `reject` to fail the webhook before actions are applied. Disabled or deleted actor users cause incoming execution to fail before Lua or AI runs. Outgoing webhook Lua/AI execution and outbound delivery sending are not wired yet.
 
 ## Ticket Hooks
 
@@ -466,7 +466,7 @@ Ticket hook responses use `metadata` for IDs/project/timestamps, `spec` for even
 
 ## OpenRouter Providers
 
-Global admins configure OpenRouter provider references for future AI automation. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.
+Global admins configure OpenRouter provider references for AI automation. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

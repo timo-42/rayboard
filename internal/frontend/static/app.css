@@ -159,6 +159,12 @@ p {
   color: #1c6b5a;
 }
 
+.design-selector a[aria-current="page"] {
+  border-color: #237967;
+  background: #e7f3ef;
+  color: #1c6b5a;
+}
+
 .workspace {
   min-width: 0;
   display: grid;
