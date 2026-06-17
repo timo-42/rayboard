@@ -10,6 +10,10 @@ test:
 verify-docs:
 	go run $(CMD) verify docs
 
+.PHONY: verify-release
+verify-release:
+	go run $(CMD) verify release
+
 .PHONY: build
 build:
 	mkdir -p $(DIST)

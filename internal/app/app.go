@@ -11,6 +11,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/config"
 	"github.com/timo-42/rayboard/internal/docscheck"
+	"github.com/timo-42/rayboard/internal/releasecheck"
 	"github.com/timo-42/rayboard/internal/runtime"
 )
 
@@ -72,7 +73,7 @@ func runDemo(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 func runVerify(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: rayboard verify docs")
+		fmt.Fprintln(stderr, "usage: rayboard verify <docs|release>")
 		return 2
 	}
 	switch args[0] {
@@ -86,12 +87,22 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "docs check passed: files=%d local_links=%d\n", report.FilesChecked, report.LinksChecked)
 		return 0
+	case "release":
+		report := releasecheck.Check(".")
+		if len(report.Errors) != 0 {
+			for _, err := range report.Errors {
+				fmt.Fprintf(stderr, "release check: %s\n", err)
+			}
+			return 1
+		}
+		fmt.Fprintf(stdout, "release check passed: docs_files=%d docs_links=%d repo_files=%d\n", report.DocsFilesChecked, report.DocsLinksChecked, report.FilesChecked)
+		return 0
 	case "-h", "--help", "help":
-		fmt.Fprintln(stdout, "usage: rayboard verify docs")
+		fmt.Fprintln(stdout, "usage: rayboard verify <docs|release>")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "unknown verify command %q\n\n", args[0])
-		fmt.Fprintln(stderr, "usage: rayboard verify docs")
+		fmt.Fprintln(stderr, "usage: rayboard verify <docs|release>")
 		return 2
 	}
 }
@@ -105,5 +116,7 @@ commands:
   frontend   run only the frontend server
   demo seed  populate a running backend with demo data
   verify docs
-             check embedded documentation links and required references`)
+             check embedded documentation links and required references
+  verify release
+             check docs plus release workflow and cross-build artifact wiring`)
 }
