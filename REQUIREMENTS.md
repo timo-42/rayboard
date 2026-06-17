@@ -196,13 +196,16 @@ internal/backend/httpapi/
   - implement this endpoint in `internal/backend/httpapi/engines` with `routes.go`, `schema.go`, and `provider.go`, using Huma schemas so OpenAPI shows the exact engine discriminator and request/response body.
   - expose the endpoint as the canonical way to test out automation engines interactively from the UI and programmatically from API clients.
   - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
+  - every supported automation engine must be runnable through this endpoint before it can be attached to a real automation surface.
   - support `engine.type=lua`, `engine.type=ai`, and initial `engine.type=wasm` workbench tests.
   - allow users to paste or edit an engine definition, context JSON, and input JSON, then run it without first saving it to a cron job, hook, webhook, notification hook, or custom create page.
-  - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`.
+  - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, `spec.dry_run`, and `spec.validate_only`.
   - `spec.surface` selects the target automation contract, such as `scratch`, `cron`, `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook`.
   - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and wasm modules without choosing a real automation surface.
   - `spec.context` supplies the project, ticket, webhook, cron job, notification, actor, or other resource context needed to evaluate RBAC and surface-specific output schemas.
+  - `spec.context.actor_user_id` may select the effective actor for authorized admins/managers, so tests can preview how RBAC and helper functions behave for the eventual owner.
   - `spec.input` is arbitrary JSON passed to the engine using the same JSON/table conversion and validation rules used by real automation runs.
+  - `spec.validate_only=true` validates engine shape, OpenAPI discriminator requirements, permissions, provider/runtime availability, and surface compatibility without executing Lua, AI, or WASM code.
   - example Lua request shape:
 
 ```json
@@ -215,7 +218,8 @@ internal/backend/httpapi/
     "surface": "scratch",
     "context": {},
     "input": { "title": "Example ticket" },
-    "dry_run": true
+    "dry_run": true,
+    "validate_only": false
   }
 }
 ```
@@ -233,7 +237,8 @@ internal/backend/httpapi/
     "surface": "scratch",
     "context": {},
     "input": { "title": "Example ticket" },
-    "dry_run": true
+    "dry_run": true,
+    "validate_only": false
   }
 }
 ```
@@ -250,14 +255,17 @@ internal/backend/httpapi/
     "surface": "scratch",
     "context": {},
     "input": { "title": "Example ticket" },
-    "dry_run": true
+    "dry_run": true,
+    "validate_only": false
   }
 }
 ```
 
   - return a resource-like output with `metadata`, the normalized request `spec`, and `status` containing validated output, action previews, logs, duration, engine metadata, validation errors, runtime errors, limit errors, and redacted provider/runtime diagnostics.
+  - include `status.mode` with values such as `validated`, `executed`, or `previewed` so clients can distinguish validate-only checks, real scratch executions, and dry-run action previews.
   - execute tests with the same sandbox, owner/actor principal, RBAC checks, timeout, memory/log/payload limits, JSON/table conversion, output-schema validation, secret redaction, and run-history/audit behavior as the corresponding real automation surface.
   - test runs must never persist ticket/project mutations by default; mutation-capable previews require explicit dry-run/action-plan behavior that reports intended actions without committing them.
+  - persist engine test run metadata and redacted logs in run history when requested, but never persist raw secrets, OpenRouter keys, bearer tokens, or uploaded one-off WASM/module contents unless the user explicitly saves an engine/artifact.
   - only authorized global admins or project automation managers can test engines, and project-scoped users can test only against projects/resources where they have automation-management permission.
   - the frontend workbench must call this endpoint directly and let users test Lua, OpenRouter AI, and wasm engines with editable input JSON before saving the engine onto an automation surface.
   - the frontend workbench must show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.

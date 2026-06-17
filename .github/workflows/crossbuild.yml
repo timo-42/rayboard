@@ -1,0 +1,44 @@
+name: Cross Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crossbuild:
+    name: Cross-build binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify
+        run: |
+          go test ./...
+          make verify-docs
+
+      - name: Cross-build
+        run: make build-cross
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rayboard-crossbuild-${{ github.sha }}
+          path: |
+            dist/rayboard-darwin-arm64
+            dist/rayboard-linux-amd64
+          if-no-files-found: error
+          retention-days: 14
