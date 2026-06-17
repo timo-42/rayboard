@@ -289,6 +289,26 @@ p {
   text-decoration: none;
 }
 
+.app-nav a {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nav-badge {
+  min-width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #ffffff;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .app-nav a:hover,
 .app-nav a[aria-current="page"],
 .text-link:hover {

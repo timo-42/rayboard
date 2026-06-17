@@ -32,6 +32,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, project notification defaults, notification delivery history/manual retry, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
+- an unread notification badge in the persistent Dashboard nav item;
 - project listing and project creation;
 - ticket listing per selected project;
 - ticket creation;

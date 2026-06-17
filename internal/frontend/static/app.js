@@ -164,6 +164,7 @@ const els = {
   notificationDeliveries: document.querySelector("#notification-deliveries"),
   notificationInbox: document.querySelector("#notification-inbox"),
   notificationCount: document.querySelector("#notification-count"),
+  navUnreadCount: document.querySelector("#nav-unread-count"),
   notificationUnreadOnly: document.querySelector("#notifications-unread-only"),
   notificationRefresh: document.querySelector("#notifications-refresh"),
   notificationReadAll: document.querySelector("#notifications-read-all"),
@@ -1870,12 +1871,16 @@ async function refreshSession() {
 async function loadNotifications() {
   if (!state.user) {
     state.notifications = [];
+    renderNotificationBadge();
+    renderDashboard();
     renderNotifications();
     return;
   }
   const query = state.unreadNotificationsOnly ? "?unread=true&limit=20" : "?limit=20";
   const data = await api(`/api/notifications${query}`);
   state.notifications = listItems(data).map(normalizeNotification);
+  renderNotificationBadge();
+  renderDashboard();
   renderNotifications();
 }
 
@@ -2677,6 +2682,17 @@ function renderNavigation(route) {
       link.removeAttribute("aria-current");
     }
   });
+  renderNotificationBadge();
+}
+
+function renderNotificationBadge() {
+  if (!els.navUnreadCount) {
+    return;
+  }
+  const unreadCount = unreadNotificationCount();
+  els.navUnreadCount.hidden = unreadCount === 0;
+  els.navUnreadCount.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+  els.navUnreadCount.setAttribute("aria-label", `${unreadCount} unread notifications`);
 }
 
 function renderDashboard() {
@@ -2691,7 +2707,7 @@ function renderDashboard() {
   els.metricProjects.textContent = String(state.projects.length);
   els.metricOpenTickets.textContent = String(totals.open);
   els.metricDoneTickets.textContent = String(totals.done);
-  els.metricUnread.textContent = String(state.notifications.filter((notification) => !notification.read_at).length);
+  els.metricUnread.textContent = String(unreadNotificationCount());
 
   renderSummaryList(els.recentTickets, state.recentTickets, (ticket) => ticketSummaryNode(ticket));
   renderSummaryList(
@@ -2759,7 +2775,7 @@ function renderNotifications() {
   if (!els.notifications) {
     return;
   }
-  const unreadCount = state.notifications.filter((notification) => !notification.read_at).length;
+  const unreadCount = unreadNotificationCount();
   els.notificationCount.textContent = String(unreadCount);
   if (els.notificationUnreadOnly) {
     els.notificationUnreadOnly.checked = state.unreadNotificationsOnly;
@@ -2775,6 +2791,10 @@ function renderNotifications() {
   for (const notification of state.notifications) {
     els.notifications.append(notificationNode(notification));
   }
+}
+
+function unreadNotificationCount() {
+  return state.notifications.filter((notification) => !notification.read_at).length;
 }
 
 function notificationNode(notification) {

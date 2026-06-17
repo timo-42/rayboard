@@ -64,6 +64,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="create-page-form"`) ||
 		!strings.Contains(body, `id="create-pages"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
+		!strings.Contains(body, `id="nav-unread-count"`) ||
 		!strings.Contains(body, `id="backlog-panel"`) ||
 		!strings.Contains(body, `id="backlog"`) ||
 		!strings.Contains(body, `id="workflow-panel"`) ||
@@ -166,6 +167,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderAuditLog",
 		"renderProjectNotificationPreferences",
 		"renderNotificationDeliveries",
+		"renderNotificationBadge",
+		"unreadNotificationCount",
 		"renderBacklog",
 		"renderWorkflowPanel",
 		"renderTicketHooks",
@@ -281,6 +284,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 	cssText := string(css)
 	for _, expected := range []string{
 		".app-nav",
+		".nav-badge",
 		".dashboard-view",
 		".metric-grid",
 		".issue-view",

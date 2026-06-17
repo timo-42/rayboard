@@ -15,7 +15,7 @@ Implemented browser workflows:
 - ticket label entry, display, and update from ticket cards;
 - ticket comment list, creation, and deletion from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
-- notification inbox listing with unread filter, read/unread toggle, refresh, and mark-all-read;
+- notification inbox listing with a persistent unread badge, unread filter, read/unread toggle, refresh, and mark-all-read;
 - sprint list, create, start, complete, delete, and ticket sprint assignment/removal for the selected project;
 - component and version list/create/delete, version release/archive state changes, and ticket component/version assignment;
 - roadmap epic list with schedule dates and child-ticket progress, plus ticket form fields for epics, parent epics, and roadmap dates;
@@ -52,7 +52,7 @@ Saved-view pagination is currently an API-only workflow. Rich backlog planning b
 
 The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries in `/settings` or through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser badge UI and richer hook routing controls are **Planned**.
+Richer hook routing controls are **Planned**.
 
 ## Search
 
