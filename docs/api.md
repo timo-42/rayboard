@@ -521,7 +521,7 @@ Global settings are API-only and require global `settings:manage`.
 
 Responses use `metadata`, `spec`, and `status`. `metadata` contains the global settings ID, update time, and last updater when set. `spec` contains attachment policy, webhook allowlist metadata, demo warning, backup flag, and health note. `status` reports whether attachment policy, webhook allowlist, demo warning, and backup availability are active.
 
-Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_content_types`. An empty content-type list permits all content types. Settings updates write `settings.updated` audit entries with changed field names only.
+Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_content_types`. An empty content-type list permits all content types. Outgoing webhook delivery enforces `webhook_allowed_base_urls` when the list is non-empty; if no process-level outgoing webhook base URL is configured, the first allowed base URL is used. Allowed webhook base URLs must be absolute `http` or `https` URLs without credentials, query strings, or fragments. Settings updates write `settings.updated` audit entries with changed field names only.
 
 ## Engine Test
 

@@ -434,6 +434,113 @@ return {
 	}
 }
 
+func TestProcessPendingOutgoingWebhookDeliveriesUsesAllowedBaseURLProvider(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.String()
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+		WithOutgoingBaseURLProvider(staticOutgoingBaseURLProvider{values: []string{server.URL + "/"}}),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+	hook, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "settings-base",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST", path = "/settings-base", body = event }`},
+	})
+	if err != nil {
+		t.Fatalf("create outgoing webhook: %v", err)
+	}
+	deliveryID := enqueueTestOutgoingDelivery(t, ctx, db, service, hook.ID)
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("process outgoing delivery: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("expected one processed delivery, got %d", processed)
+	}
+	delivery, err := service.GetOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		t.Fatalf("get delivery: %v", err)
+	}
+	if delivery.Status != OutgoingDeliveryStatusDelivered || gotPath != "/settings-base" {
+		t.Fatalf("unexpected provider-backed delivery: delivery=%#v path=%s", delivery, gotPath)
+	}
+}
+
+func TestProcessPendingOutgoingWebhookDeliveriesRejectsBaseOutsideAllowlist(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	hitCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hitCount++
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+	allowed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer allowed.Close()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+		WithOutgoingBaseURL(server.URL),
+		WithOutgoingBaseURLProvider(staticOutgoingBaseURLProvider{values: []string{allowed.URL}}),
+		WithNow(func() time.Time { return now }),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+	hook, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "denied-base",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST", path = "/denied", body = event }`},
+	})
+	if err != nil {
+		t.Fatalf("create outgoing webhook: %v", err)
+	}
+	deliveryID := enqueueTestOutgoingDelivery(t, ctx, db, service, hook.ID)
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if processed != 1 || !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected one validation failure, got processed=%d err=%v", processed, err)
+	}
+	if hitCount != 0 {
+		t.Fatalf("disallowed outgoing base should not receive request, got %d hits", hitCount)
+	}
+	delivery, err := service.GetOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		t.Fatalf("get delivery: %v", err)
+	}
+	if delivery.Status != OutgoingDeliveryStatusQueued || delivery.AttemptCount != 1 || !strings.Contains(delivery.LastError, "not allowed") {
+		t.Fatalf("unexpected denied-base delivery state: %#v", delivery)
+	}
+}
+
 func TestProcessPendingOutgoingWebhookDeliveriesRetriesAndCanBeManuallyQueued(t *testing.T) {
 	ctx := context.Background()
 	db := openWebhookTestDB(t, ctx)
@@ -878,6 +985,52 @@ func TestIncomingWebhookDisabledActorCannotExecute(t *testing.T) {
 	if result.Run.Status != automation.StatusFailed || result.Webhook.LastError == "" {
 		t.Fatalf("expected failed run and last error, got %#v", result)
 	}
+}
+
+type staticOutgoingBaseURLProvider struct {
+	values []string
+	err    error
+}
+
+func (provider staticOutgoingBaseURLProvider) OutgoingWebhookBaseURLs(context.Context) ([]string, error) {
+	if provider.err != nil {
+		return nil, provider.err
+	}
+	return append([]string(nil), provider.values...), nil
+}
+
+func enqueueTestOutgoingDelivery(t *testing.T, ctx context.Context, db *store.DB, service *Service, webhookID string) string {
+	t.Helper()
+
+	eventStore := events.NewStore(db.SQL)
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   "actor",
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data:      map[string]any{"status": "done"},
+	}); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	pending, err := eventStore.ListPending(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if len(pending) == 0 {
+		t.Fatal("expected pending event")
+	}
+	if _, err := service.EnqueueOutgoingDeliveriesForEvent(ctx, pending[0]); err != nil {
+		t.Fatalf("enqueue outgoing delivery: %v", err)
+	}
+	var deliveryID string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT id
+		FROM outgoing_webhook_deliveries
+		WHERE webhook_id = ?
+	`, webhookID).Scan(&deliveryID); err != nil {
+		t.Fatalf("get enqueued outgoing delivery: %v", err)
+	}
+	return deliveryID
 }
 
 func openWebhookTestDB(t *testing.T, ctx context.Context) *store.DB {

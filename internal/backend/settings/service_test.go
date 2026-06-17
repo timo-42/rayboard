@@ -60,6 +60,21 @@ func TestGlobalSettingsDefaultsUpdateAndAttachmentPolicy(t *testing.T) {
 	if policy.MaxSizeBytes != maxSize || !slices.Equal(policy.AllowedContentTypes, []string{"application/json", "text/plain"}) {
 		t.Fatalf("unexpected attachment policy: %#v", policy)
 	}
+	baseURLs, err := service.OutgoingWebhookBaseURLs(ctx)
+	if err != nil {
+		t.Fatalf("get outgoing webhook base URLs: %v", err)
+	}
+	if !slices.Equal(baseURLs, []string{"https://example.com/hooks"}) {
+		t.Fatalf("unexpected outgoing webhook base URLs: %#v", baseURLs)
+	}
+	baseURLs[0] = "https://mutated.example.com"
+	again, err := service.OutgoingWebhookBaseURLs(ctx)
+	if err != nil {
+		t.Fatalf("get outgoing webhook base URLs again: %v", err)
+	}
+	if !slices.Equal(again, []string{"https://example.com/hooks"}) {
+		t.Fatalf("outgoing webhook base URLs should be cloned, got %#v", again)
+	}
 }
 
 func TestGlobalSettingsValidation(t *testing.T) {
@@ -75,9 +90,15 @@ func TestGlobalSettingsValidation(t *testing.T) {
 	if _, err := service.UpdateGlobal(ctx, settings.UpdateGlobalInput{AttachmentAllowedContentTypes: &badTypes}); !errors.Is(err, settings.ErrValidation) {
 		t.Fatalf("expected content type validation, got %v", err)
 	}
-	badURLs := []string{"ftp://example.com"}
-	if _, err := service.UpdateGlobal(ctx, settings.UpdateGlobalInput{WebhookAllowedBaseURLs: &badURLs}); !errors.Is(err, settings.ErrValidation) {
-		t.Fatalf("expected URL validation, got %v", err)
+	for _, badURLs := range [][]string{
+		{"ftp://example.com"},
+		{"https://user@example.com/hooks"},
+		{"https://example.com/hooks?token=secret"},
+		{"https://example.com/hooks#fragment"},
+	} {
+		if _, err := service.UpdateGlobal(ctx, settings.UpdateGlobalInput{WebhookAllowedBaseURLs: &badURLs}); !errors.Is(err, settings.ErrValidation) {
+			t.Fatalf("expected URL validation for %#v, got %v", badURLs, err)
+		}
 	}
 }
 

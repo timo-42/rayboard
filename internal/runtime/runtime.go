@@ -81,6 +81,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		webhooks.WithCommentService(commentService),
 		webhooks.WithOpenRouterService(openRouterService),
 		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
+		webhooks.WithOutgoingBaseURLProvider(settingsService),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithOpenRouterService(openRouterService))
 	group.startWorker("automation-deliveries", func() error {
@@ -160,6 +161,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		webhooks.WithCommentService(commentService),
 		webhooks.WithOpenRouterService(openRouterService),
 		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
+		webhooks.WithOutgoingBaseURLProvider(settingsService),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithOpenRouterService(openRouterService))
 	group.startWorker("automation-deliveries", func() error {

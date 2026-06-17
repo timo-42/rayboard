@@ -47,11 +47,16 @@ type Service struct {
 	openrouter      *openrouter.Service
 	httpClient      httpClient
 	outgoingBaseURL string
+	outgoingBases   OutgoingBaseURLProvider
 	now             func() time.Time
 }
 
 type httpClient interface {
 	Do(*http.Request) (*http.Response, error)
+}
+
+type OutgoingBaseURLProvider interface {
+	OutgoingWebhookBaseURLs(context.Context) ([]string, error)
 }
 
 type Option func(*Service)
@@ -118,6 +123,12 @@ func WithHTTPClient(client httpClient) Option {
 func WithOutgoingBaseURL(baseURL string) Option {
 	return func(service *Service) {
 		service.outgoingBaseURL = strings.TrimSpace(baseURL)
+	}
+}
+
+func WithOutgoingBaseURLProvider(provider OutgoingBaseURLProvider) Option {
+	return func(service *Service) {
+		service.outgoingBases = provider
 	}
 }
 

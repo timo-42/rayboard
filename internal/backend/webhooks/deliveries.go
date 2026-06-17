@@ -416,12 +416,9 @@ func outgoingRequestFromMap(input map[string]any) (outgoingRequest, error) {
 }
 
 func (s *Service) sendOutgoingRequest(ctx context.Context, shaped outgoingRequest) error {
-	base, err := url.Parse(strings.TrimSpace(s.outgoingBaseURL))
-	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil {
-		return fmt.Errorf("%w: outgoing webhook base URL is not configured", ErrValidation)
-	}
-	if base.Scheme != "http" && base.Scheme != "https" {
-		return fmt.Errorf("%w: outgoing webhook base URL must use http or https", ErrValidation)
+	base, err := s.outgoingDeliveryBaseURL(ctx)
+	if err != nil {
+		return err
 	}
 	relative, err := url.Parse(shaped.Path)
 	if err != nil {
@@ -465,6 +462,77 @@ func (s *Service) sendOutgoingRequest(ctx context.Context, shaped outgoingReques
 		return fmt.Errorf("%w: outgoing webhook returned HTTP %d", ErrDelivery, resp.StatusCode)
 	}
 	return nil
+}
+
+func (s *Service) outgoingDeliveryBaseURL(ctx context.Context) (*url.URL, error) {
+	configured := strings.TrimRight(strings.TrimSpace(s.outgoingBaseURL), "/")
+	allowed, err := s.allowedOutgoingBaseURLs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if configured == "" && len(allowed) > 0 {
+		configured = allowed[0]
+	}
+	if configured == "" {
+		return nil, fmt.Errorf("%w: outgoing webhook base URL is not configured", ErrValidation)
+	}
+	base, err := parseOutgoingBaseURL(configured)
+	if err != nil {
+		return nil, err
+	}
+	if len(allowed) > 0 && !containsBaseURL(allowed, base.String()) {
+		return nil, fmt.Errorf("%w: outgoing webhook base URL is not allowed by settings", ErrValidation)
+	}
+	return base, nil
+}
+
+func (s *Service) allowedOutgoingBaseURLs(ctx context.Context) ([]string, error) {
+	if s.outgoingBases == nil {
+		return nil, nil
+	}
+	values, err := s.outgoingBases.OutgoingWebhookBaseURLs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load outgoing webhook allowed base URLs: %w", err)
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimRight(strings.TrimSpace(value), "/")
+		if value == "" {
+			continue
+		}
+		parsed, err := parseOutgoingBaseURL(value)
+		if err != nil {
+			return nil, err
+		}
+		if !containsBaseURL(normalized, parsed.String()) {
+			normalized = append(normalized, parsed.String())
+		}
+	}
+	return normalized, nil
+}
+
+func parseOutgoingBaseURL(value string) (*url.URL, error) {
+	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(value), "/"))
+	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil {
+		return nil, fmt.Errorf("%w: outgoing webhook base URL is not configured", ErrValidation)
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return nil, fmt.Errorf("%w: outgoing webhook base URL must use http or https", ErrValidation)
+	}
+	base.Path = strings.TrimRight(base.Path, "/")
+	base.RawQuery = ""
+	base.Fragment = ""
+	return base, nil
+}
+
+func containsBaseURL(values []string, value string) bool {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	for _, candidate := range values {
+		if strings.TrimRight(strings.TrimSpace(candidate), "/") == value {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) markOutgoingDeliveryDelivered(ctx context.Context, delivery OutgoingDelivery) error {

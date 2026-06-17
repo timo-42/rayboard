@@ -145,6 +145,14 @@ func (s *Service) AttachmentPolicy(ctx context.Context) (attachments.AttachmentP
 	}, nil
 }
 
+func (s *Service) OutgoingWebhookBaseURLs(ctx context.Context) ([]string, error) {
+	global, err := s.GetGlobal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cloneStrings(global.WebhookAllowedBaseURLs), nil
+}
+
 func (s *Service) getGlobal(ctx context.Context) (GlobalSettings, error) {
 	var valueJSON string
 	var updatedBy sql.NullString
@@ -229,8 +237,8 @@ func validateGlobal(input GlobalSettings) error {
 			continue
 		}
 		parsed, err := url.Parse(rawURL)
-		if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-			fields["webhook_allowed_base_urls"] = "Must contain absolute http or https URLs"
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			fields["webhook_allowed_base_urls"] = "Must contain absolute http or https URLs without credentials, query, or fragment"
 			break
 		}
 	}

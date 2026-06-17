@@ -32,11 +32,11 @@ Browser admin, project, and board settings pages are **Planned**.
 Global settings are currently API-only at `/api/settings` and require global `settings:manage`. The implemented global settings cover:
 
 - attachment maximum size and allowed attachment content types;
-- webhook allowed base URL metadata for future allowlist-driven delivery;
+- webhook allowed base URLs for outgoing webhook delivery;
 - demo warning visibility;
 - backup availability flag and system health note.
 
-Attachment uploads enforce the configured max size and content-type allowlist. An empty content-type allowlist permits all content types.
+Attachment uploads enforce the configured max size and content-type allowlist. An empty content-type allowlist permits all content types. When `webhook_allowed_base_urls` is non-empty, outgoing webhook delivery can only use a configured base URL from that list. If the process has no outgoing webhook base URL configured, Rayboard uses the first allowed base URL. Entries must be absolute `http` or `https` URLs without credentials, query strings, or fragments.
 
 Future settings should cover:
 
