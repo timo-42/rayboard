@@ -20,7 +20,7 @@ Protected routes accept either:
 - browser session cookie plus CSRF header for mutating methods; or
 - `Authorization: Bearer <api_token>`.
 
-Swagger UI exposes bearer token and session cookie authorization. CSRF is intentionally hidden from the OpenAPI authorization controls because it is only a browser-session safeguard, not an API-token credential. Bearer-token requests do not need CSRF, even if browser cookies are also present.
+Swagger UI and the OpenAPI security schemes model bearer tokens as sufficient by themselves. Cookie-authenticated mutating requests are modeled as a separate `sessionCookie` plus `csrfToken` alternative. Bearer-token requests do not need CSRF, even if browser cookies are also present.
 
 Unauthenticated API requests return `401`.
 

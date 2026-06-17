@@ -21,9 +21,9 @@ const (
 )
 
 type AuthInput struct {
-	Authorization string `header:"Authorization" doc:"Bearer API token."`
-	CookieHeader  string `header:"Cookie" doc:"Raw Cookie header fallback."`
-	SessionCookie string `cookie:"rayboard_session" doc:"Browser session cookie."`
+	Authorization string `header:"Authorization" hidden:"true"`
+	CookieHeader  string `header:"Cookie" hidden:"true"`
+	SessionCookie string `cookie:"rayboard_session" hidden:"true"`
 	CSRFCookie    string `cookie:"rayboard_csrf" hidden:"true"`
 	CSRFToken     string `header:"X-CSRF-Token" hidden:"true"`
 }

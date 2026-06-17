@@ -14,6 +14,7 @@ func Operation(method string, path string, tag string, summary string) huma.Oper
 		Path:        path,
 		Tags:        []string{tag},
 		Summary:     summary,
+		Security:    SecurityForMethod(method),
 		Responses: map[string]*huma.Response{
 			"default": {
 				Description: "Error response",
@@ -22,6 +23,19 @@ func Operation(method string, path string, tag string, summary string) huma.Oper
 				},
 			},
 		},
+	}
+}
+
+func SecurityForMethod(method string) []map[string][]string {
+	if Mutating(method) {
+		return []map[string][]string{
+			{"bearerToken": {}},
+			{"sessionCookie": {}, "csrfToken": {}},
+		}
+	}
+	return []map[string][]string{
+		{"bearerToken": {}},
+		{"sessionCookie": {}},
 	}
 }
 

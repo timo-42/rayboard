@@ -74,17 +74,12 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
 	}
-	for _, scheme := range []string{"bearerToken", "sessionCookie"} {
+	for _, scheme := range []string{"bearerToken", "sessionCookie", "csrfToken"} {
 		if _, ok := body.Components.SecuritySchemes[scheme]; !ok {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
 	}
-	if _, ok := body.Components.SecuritySchemes["csrfToken"]; ok {
-		t.Fatal("did not expect CSRF to be advertised as a Swagger authorization scheme")
-	}
-	if strings.Contains(rec.Body.String(), "X-CSRF-Token") || strings.Contains(rec.Body.String(), "rayboard_csrf") {
-		t.Fatal("did not expect CSRF inputs to be advertised in the OpenAPI document")
-	}
+	assertOpenAPISecurity(t, spec)
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
 	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})
 	assertResponseBodyFields(t, spec, "/api/me/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})
@@ -424,6 +419,119 @@ func assertOpenAPIUsesResourceConvention(t *testing.T, spec map[string]any) {
 				}
 			}
 		}
+	}
+}
+
+func assertOpenAPISecurity(t *testing.T, spec map[string]any) {
+	t.Helper()
+
+	paths := mapField(t, spec, "paths")
+	for path, pathValue := range paths {
+		pathItem, ok := pathValue.(map[string]any)
+		if !ok {
+			continue
+		}
+		for method, operationValue := range pathItem {
+			operation, ok := operationValue.(map[string]any)
+			if !ok {
+				continue
+			}
+			assertNoAuthParameters(t, path, method, operation)
+			if path == "/api/health" || path == "/api/login" || path == "/api/logout" || path == "/api/webhooks/incoming/{webhook_id}" {
+				assertPublicOperation(t, path, method, operation)
+				continue
+			}
+			assertOperationSecurity(t, path, method, operation)
+		}
+	}
+}
+
+func assertNoAuthParameters(t *testing.T, path string, method string, operation map[string]any) {
+	t.Helper()
+
+	parameters, _ := operation["parameters"].([]any)
+	for _, parameterValue := range parameters {
+		parameter, ok := parameterValue.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := parameter["name"].(string)
+		in, _ := parameter["in"].(string)
+		if path == "/api/webhooks/incoming/{webhook_id}" && in == "header" && name == "Authorization" {
+			continue
+		}
+		if in == "header" && (name == "Authorization" || name == "Cookie" || name == "X-CSRF-Token") {
+			t.Fatalf("expected %s %s auth header %q to be modeled as security, not parameter", strings.ToUpper(method), path, name)
+		}
+		if in == "cookie" && (name == "rayboard_session" || name == "rayboard_csrf") {
+			t.Fatalf("expected %s %s auth cookie %q to be modeled as security, not parameter", strings.ToUpper(method), path, name)
+		}
+	}
+}
+
+func assertPublicOperation(t *testing.T, path string, method string, operation map[string]any) {
+	t.Helper()
+
+	security, ok := operation["security"].([]any)
+	if ok && len(security) > 0 {
+		t.Fatalf("expected %s %s to be public, got security %#v", strings.ToUpper(method), path, security)
+	}
+}
+
+func assertOperationSecurity(t *testing.T, path string, method string, operation map[string]any) {
+	t.Helper()
+
+	security, ok := operation["security"].([]any)
+	if !ok || len(security) == 0 {
+		t.Fatalf("expected %s %s to declare auth security", strings.ToUpper(method), path)
+	}
+	hasBearerOnly := false
+	hasSessionOnly := false
+	hasSessionCSRF := false
+	for _, item := range security {
+		requirement, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		_, hasBearer := requirement["bearerToken"]
+		_, hasSession := requirement["sessionCookie"]
+		_, hasCSRF := requirement["csrfToken"]
+		if hasBearer && hasCSRF {
+			t.Fatalf("expected %s %s bearer auth not to require CSRF: %#v", strings.ToUpper(method), path, security)
+		}
+		if hasBearer && !hasSession && !hasCSRF {
+			hasBearerOnly = true
+		}
+		if hasSession && !hasBearer && !hasCSRF {
+			hasSessionOnly = true
+		}
+		if hasSession && hasCSRF && !hasBearer {
+			hasSessionCSRF = true
+		}
+	}
+	if !hasBearerOnly {
+		t.Fatalf("expected %s %s to allow bearer-token auth without CSRF: %#v", strings.ToUpper(method), path, security)
+	}
+	if isMutatingMethod(method) {
+		if !hasSessionCSRF {
+			t.Fatalf("expected %s %s mutating session auth to require CSRF: %#v", strings.ToUpper(method), path, security)
+		}
+		if hasSessionOnly {
+			t.Fatalf("expected %s %s not to allow mutating session auth without CSRF: %#v", strings.ToUpper(method), path, security)
+		}
+		return
+	}
+	if !hasSessionOnly {
+		t.Fatalf("expected %s %s read session auth not to require CSRF: %#v", strings.ToUpper(method), path, security)
+	}
+}
+
+func isMutatingMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	default:
+		return true
 	}
 }
 

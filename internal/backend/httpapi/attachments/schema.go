@@ -124,18 +124,6 @@ func uploadAttachmentParameters() []*huma.Param {
 			Required:    true,
 			Schema:      &huma.Schema{Type: "string"},
 		},
-		{
-			Name:        "Authorization",
-			In:          "header",
-			Description: "Bearer API token.",
-			Schema:      &huma.Schema{Type: "string"},
-		},
-		{
-			Name:        "rayboard_session",
-			In:          "cookie",
-			Description: "Browser session cookie.",
-			Schema:      &huma.Schema{Type: "string"},
-		},
 	}
 }
 
