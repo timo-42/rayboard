@@ -5,6 +5,7 @@ The current frontend is embedded in the Go binary with `embed.FS` and served by 
 Implemented routes:
 
 - `GET /`: renders `templates/index.html`.
+- `GET /docs` and `GET /docs/{page}`: render embedded markdown documentation as HTML.
 - `GET /health`: returns frontend health JSON.
 - `GET /static/*`: serves embedded static assets.
 - `/api/*` for `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`: reverse-proxies to `--backend-url`.
@@ -26,7 +27,7 @@ Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are al
 
 ## Asset Policy
 
-Current assets are plain HTML, CSS, and vanilla JavaScript. There is no Node/npm build step.
+Current assets are plain HTML, CSS, vanilla JavaScript, and the markdown files under `/docs`, all embedded into the Go binary. There is no Node/npm build step.
 
 Planned frontend dependencies:
 

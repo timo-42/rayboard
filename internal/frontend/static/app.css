@@ -166,6 +166,31 @@ p {
   overflow-wrap: anywhere;
 }
 
+.topbar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.topbar-links a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c9d1dc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #293446;
+  padding: 0 10px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.topbar-links a:hover {
+  border-color: #237967;
+  color: #1c6b5a;
+}
+
 .empty-state {
   display: grid;
   align-content: center;

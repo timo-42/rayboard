@@ -41,6 +41,8 @@ func NewHandler(backendURL string) http.Handler {
 	mux.Handle("PUT /api/", backendProxy(backendURL))
 	mux.Handle("PATCH /api/", backendProxy(backendURL))
 	mux.Handle("DELETE /api/", backendProxy(backendURL))
+	mux.Handle("GET /docs", docsHandler())
+	mux.Handle("GET /docs/", docsHandler())
 	mux.Handle("GET /static/", http.FileServerFS(assets))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

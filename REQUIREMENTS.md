@@ -370,6 +370,8 @@ internal/backend/httpapi/
 - Documentation:
   - create and maintain proper project documentation under `/docs`.
   - `/docs/README.md` is the documentation index and links to all user, admin, API, automation, development, and operations docs.
+  - the same `/docs` documentation is embedded into the Go binary and served as HTML by the frontend under `/docs`.
+  - `/docs` serves the documentation index; `/docs/{page}` serves individual documentation pages without requiring markdown files on disk at runtime.
   - document runtime modes, configuration flags/env vars, database behavior, admin bootstrap behavior, demo seed behavior, and split frontend/backend deployment.
   - document authentication flows for browser sessions, CSRF, API bearer tokens, incoming webhook tokens, disabled users, and password/admin bootstrap caveats.
   - document RBAC concepts: users, groups, roles, permissions, global/project scopes, role bindings, built-in roles, and effective permission inspection.
