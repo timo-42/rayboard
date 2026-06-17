@@ -18,11 +18,11 @@ The command:
 
 - logs in through `POST /api/login`;
 - uses the returned session cookies and CSRF token;
-- creates three demo users with generated passwords;
-- creates two demo groups;
+- creates eight demo users with generated passwords;
+- creates six demo groups: Product, Engineering, QA, Viewers, Automation, and Managers;
 - adds demo users to those groups;
 - creates one demo project;
-- binds a demo lead as `project_owner`, the demo engineers group as `project_member`, and the demo stakeholders group as `project_viewer` for that project;
+- binds a demo lead as `project_owner`, Product as `project_admin`, Engineering and QA as `project_member`, Viewers as `project_viewer`, Automation as `automation_manager`, and Managers as `notification_manager` for that project;
 - replaces project workflow statuses and creates a delivery board;
 - creates a component, version/release target, required custom field, sprint, Lua ticket hook, and custom ticket create page;
 - submits one ticket through the custom ticket create page;
@@ -44,4 +44,4 @@ The command exercises normal backend validation, permissions, and activity behav
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, and global role bindings.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset` and global role bindings.

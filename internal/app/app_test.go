@@ -102,6 +102,9 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	}
 	output := stdout.String()
 	if !strings.Contains(output, "demo user: role=lead") ||
+		!strings.Contains(output, "demo user: role=manager") ||
+		!strings.Contains(output, "demo group: role=product") ||
+		!strings.Contains(output, "demo group: role=automation") ||
 		!strings.Contains(output, "demo project:") ||
 		!strings.Contains(output, "demo ticket:") ||
 		!strings.Contains(output, "demo workflow:") ||
@@ -145,6 +148,9 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		t.Fatalf("expected one intake submission ticket label, got %d", intakeSubmissionCount)
 	}
 	for table, want := range map[string]int{
+		"users":                     9,
+		"groups":                    6,
+		"group_memberships":         11,
 		"ticket_comments":           1,
 		"ticket_attachments":        1,
 		"saved_views":               1,
@@ -163,6 +169,13 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		if got != want {
 			t.Fatalf("expected %d rows in %s, got %d", want, table, got)
 		}
+	}
+	var projectBindingCount int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM role_bindings WHERE resource_type = 'project'").Scan(&projectBindingCount); err != nil {
+		t.Fatalf("count project role bindings: %v", err)
+	}
+	if projectBindingCount != 7 {
+		t.Fatalf("expected seven project role bindings, got %d", projectBindingCount)
 	}
 }
 

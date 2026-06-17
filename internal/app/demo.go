@@ -240,7 +240,7 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err != nil {
 		return err
 	}
-	if err := s.bindProjectAccess(ctx, groups["engineers"].id(), groups["stakeholders"].id(), users["lead"].id(), project.ID); err != nil {
+	if err := s.bindProjectAccess(ctx, groups, project.ID); err != nil {
 		return err
 	}
 	assets, err := s.createProjectPlanning(ctx, project.ID, users)
@@ -303,9 +303,29 @@ func (s *demoSeeder) createUsers(ctx context.Context) (map[string]demoCreatedUse
 			"username":     "demo_engineer_" + strings.ToLower(s.suffix),
 			"display_name": "Demo Engineer " + s.suffix,
 		},
+		"product": {
+			"username":     "demo_product_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Product " + s.suffix,
+		},
+		"qa": {
+			"username":     "demo_qa_" + strings.ToLower(s.suffix),
+			"display_name": "Demo QA " + s.suffix,
+		},
 		"reporter": {
 			"username":     "demo_reporter_" + strings.ToLower(s.suffix),
 			"display_name": "Demo Reporter " + s.suffix,
+		},
+		"viewer": {
+			"username":     "demo_viewer_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Viewer " + s.suffix,
+		},
+		"automation": {
+			"username":     "demo_automation_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Automation " + s.suffix,
+		},
+		"manager": {
+			"username":     "demo_manager_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Manager " + s.suffix,
 		},
 	}
 
@@ -323,13 +343,29 @@ func (s *demoSeeder) createUsers(ctx context.Context) (map[string]demoCreatedUse
 
 func (s *demoSeeder) createGroups(ctx context.Context, users map[string]demoCreatedUser) (map[string]demoGroup, error) {
 	inputs := map[string]map[string]any{
+		"product": {
+			"name":         "demo_product_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Product " + s.suffix,
+		},
 		"engineers": {
 			"name":         "demo_engineers_" + strings.ToLower(s.suffix),
 			"display_name": "Demo Engineers " + s.suffix,
 		},
-		"stakeholders": {
-			"name":         "demo_stakeholders_" + strings.ToLower(s.suffix),
-			"display_name": "Demo Stakeholders " + s.suffix,
+		"qa": {
+			"name":         "demo_qa_" + strings.ToLower(s.suffix),
+			"display_name": "Demo QA " + s.suffix,
+		},
+		"viewers": {
+			"name":         "demo_viewers_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Viewers " + s.suffix,
+		},
+		"automation": {
+			"name":         "demo_automation_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Automation " + s.suffix,
+		},
+		"managers": {
+			"name":         "demo_managers_" + strings.ToLower(s.suffix),
+			"display_name": "Demo Managers " + s.suffix,
 		},
 	}
 
@@ -340,16 +376,23 @@ func (s *demoSeeder) createGroups(ctx context.Context, users map[string]demoCrea
 			return nil, fmt.Errorf("create demo group %s: %w", key, err)
 		}
 		groups[key] = group
+		fmt.Fprintf(s.stdout, "demo group: role=%s name=%s\n", key, group.Spec.Name)
 	}
 
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].id()+"/members/"+users["lead"].id(), nil, nil); err != nil {
-		return nil, fmt.Errorf("add lead to engineers: %w", err)
+	memberships := map[string][]string{
+		"product":    []string{"product", "lead"},
+		"engineers":  []string{"engineer", "lead"},
+		"qa":         []string{"qa"},
+		"viewers":    []string{"viewer", "reporter"},
+		"automation": []string{"automation", "lead"},
+		"managers":   []string{"manager", "lead"},
 	}
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["engineers"].id()+"/members/"+users["engineer"].id(), nil, nil); err != nil {
-		return nil, fmt.Errorf("add engineer to engineers: %w", err)
-	}
-	if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups["stakeholders"].id()+"/members/"+users["reporter"].id(), nil, nil); err != nil {
-		return nil, fmt.Errorf("add reporter to stakeholders: %w", err)
+	for groupKey, userKeys := range memberships {
+		for _, userKey := range userKeys {
+			if err := s.apiJSON(ctx, http.MethodPost, "/api/groups/"+groups[groupKey].id()+"/members/"+users[userKey].id(), nil, nil); err != nil {
+				return nil, fmt.Errorf("add %s to %s: %w", userKey, groupKey, err)
+			}
+		}
 	}
 	return groups, nil
 }
@@ -374,41 +417,74 @@ func (s *demoSeeder) createProject(ctx context.Context, leadUserID string) (trac
 	}, nil
 }
 
-func (s *demoSeeder) bindProjectAccess(ctx context.Context, engineerGroupID string, stakeholderGroupID string, leadUserID string, projectID string) error {
+func (s *demoSeeder) bindProjectAccess(ctx context.Context, groups map[string]demoGroup, projectID string) error {
 	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
 		"spec": {
-			RoleName:    authz.RoleProjectOwner,
-			SubjectType: authz.BindingTargetUser,
-			SubjectID:   leadUserID,
+			RoleName:    authz.RoleProjectAdmin,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groups["product"].id(),
 			Scope:       authz.ScopeKindProject,
 			ProjectID:   projectID,
 		},
 	}, nil); err != nil {
-		return fmt.Errorf("bind demo project owner: %w", err)
+		return fmt.Errorf("bind demo product admins: %w", err)
 	}
 	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
 		"spec": {
 			RoleName:    authz.RoleProjectMember,
 			SubjectType: authz.BindingTargetGroup,
-			SubjectID:   engineerGroupID,
+			SubjectID:   groups["engineers"].id(),
 			Scope:       authz.ScopeKindProject,
 			ProjectID:   projectID,
 		},
 	}, nil); err != nil {
-		return fmt.Errorf("bind demo project members: %w", err)
+		return fmt.Errorf("bind demo engineering members: %w", err)
+	}
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleProjectMember,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groups["qa"].id(),
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo qa members: %w", err)
 	}
 	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
 		"spec": {
 			RoleName:    authz.RoleProjectViewer,
 			SubjectType: authz.BindingTargetGroup,
-			SubjectID:   stakeholderGroupID,
+			SubjectID:   groups["viewers"].id(),
 			Scope:       authz.ScopeKindProject,
 			ProjectID:   projectID,
 		},
 	}, nil); err != nil {
 		return fmt.Errorf("bind demo project viewers: %w", err)
 	}
-	fmt.Fprintln(s.stdout, "demo role binding: project owner/member/viewer")
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleAutomationManager,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groups["automation"].id(),
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo automation managers: %w", err)
+	}
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleNotificationManager,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   groups["managers"].id(),
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo notification managers: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo role binding: owner/admin/member/viewer/automation/notification")
 	return nil
 }
 
