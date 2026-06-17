@@ -24,6 +24,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `href="/docs"`) ||
 		!strings.Contains(body, `href="/api/docs"`) ||
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
+		!strings.Contains(body, "Engine Workbench") ||
+		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `href="/1"`) ||
 		!strings.Contains(body, `href="/5"`) {
 		t.Fatalf("unexpected body: %s", body)

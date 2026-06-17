@@ -2,13 +2,19 @@ const state = {
   user: null,
   projects: [],
   selectedProject: null,
-  tickets: []
+  tickets: [],
+  engineResult: null
 };
 
 const els = {
   loginForm: document.querySelector("#login-form"),
   projectForm: document.querySelector("#project-form"),
   ticketForm: document.querySelector("#ticket-form"),
+  engineForm: document.querySelector("#engine-form"),
+  engineType: document.querySelector("#engine-type"),
+  engineProjectID: document.querySelector("#engine-project-id"),
+  engineWorkbench: document.querySelector("#engine-workbench"),
+  engineOutput: document.querySelector("#engine-output"),
   projectCreate: document.querySelector("#project-create"),
   logoutButton: document.querySelector("#logout-button"),
   signedOut: document.querySelector("#signed-out"),
@@ -68,6 +74,20 @@ function bindEvents() {
       event.currentTarget.reset();
       await loadTickets();
     }, "Ticket created");
+  });
+
+  els.engineType.addEventListener("change", () => {
+    renderEngineFields();
+  });
+
+  els.engineForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runAction(async () => {
+      const spec = engineTestSpec(event.currentTarget);
+      const result = await api("/api/engines/test", { method: "POST", body: { spec } });
+      state.engineResult = result;
+      renderEngineResult();
+    }, "Engine tested");
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
@@ -155,6 +175,10 @@ async function api(path, options = {}) {
       const body = await response.json();
       if (body.error && body.error.message) {
         message = body.error.message;
+      } else if (body.detail) {
+        message = body.detail;
+      } else if (body.title) {
+        message = body.title;
       }
     } catch (_) {
       message = response.statusText || message;
@@ -182,6 +206,7 @@ function render() {
   els.loginForm.hidden = signedIn;
   els.logoutButton.hidden = !signedIn;
   els.projectCreate.hidden = !signedIn;
+  els.engineWorkbench.hidden = !signedIn;
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn;
   els.ticketForm.hidden = !signedIn || !state.selectedProject;
@@ -189,6 +214,8 @@ function render() {
 
   renderProjects();
   renderTickets();
+  renderEngineFields();
+  renderEngineResult();
 }
 
 function renderProjects() {
@@ -209,6 +236,9 @@ function renderProjects() {
     }
     button.addEventListener("click", async () => {
       state.selectedProject = project;
+      if (els.engineProjectID && !els.engineProjectID.value) {
+        els.engineProjectID.value = project.id;
+      }
       await loadTickets();
     });
 
@@ -219,6 +249,64 @@ function renderProjects() {
     name.textContent = project.name;
     button.append(key, name);
     els.projects.append(button);
+  }
+}
+
+function renderEngineFields() {
+  const type = els.engineType ? els.engineType.value : "lua";
+  document.querySelectorAll("[data-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.engineField !== type;
+  });
+  if (els.engineProjectID && state.selectedProject && !els.engineProjectID.value) {
+    els.engineProjectID.value = state.selectedProject.id;
+  }
+}
+
+function renderEngineResult() {
+  if (!els.engineOutput) {
+    return;
+  }
+  els.engineOutput.textContent = JSON.stringify(state.engineResult || {}, null, 2);
+}
+
+function engineTestSpec(form) {
+  const data = formData(form);
+  const type = data.engine_type || "lua";
+  const engine = { type };
+  if (type === "lua") {
+    engine.script = data.script || "";
+  } else if (type === "ai") {
+    engine.prompt = data.prompt || "";
+    engine.provider_id = data.provider_id || "";
+  } else if (type === "wasm") {
+    engine.module_base64 = data.module_base64 || "";
+  }
+  return {
+    surface: data.surface || "scratch",
+    project_id: data.project_id || "",
+    engine,
+    context: parseJSONField(data.context, "Context JSON"),
+    input: parseJSONField(data.input, "Input JSON"),
+    dry_run: true
+  };
+}
+
+function parseJSONField(value, label) {
+  const text = (value || "").trim();
+  if (!text) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error(`${label} must be a JSON object`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error.message && error.message.includes("must be a JSON object")) {
+      throw error;
+    }
+    throw new Error(`${label} is not valid JSON`);
   }
 }
 

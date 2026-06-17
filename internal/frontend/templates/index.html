@@ -126,6 +126,84 @@
         </section>
       </section>
 
+      <section id="engine-workbench" class="engine-workbench" hidden>
+        <header class="workbench-header">
+          <div>
+            <p class="eyebrow">Automation</p>
+            <h2>Engine Workbench</h2>
+          </div>
+        </header>
+
+        <form id="engine-form" class="engine-form">
+          <div class="engine-form-row">
+            <label>
+              Engine
+              <select name="engine_type" id="engine-type">
+                <option value="lua">Lua</option>
+                <option value="ai">OpenRouter AI</option>
+                <option value="wasm">WASM</option>
+              </select>
+            </label>
+            <label>
+              Surface
+              <select name="surface">
+                <option value="scratch">Scratch</option>
+                <option value="cron">Cron</option>
+                <option value="ticket_hook_before">Ticket Hook Before</option>
+                <option value="ticket_hook_after">Ticket Hook After</option>
+                <option value="custom_create_page">Custom Create Page</option>
+                <option value="incoming_webhook">Incoming Webhook</option>
+                <option value="outgoing_webhook">Outgoing Webhook</option>
+                <option value="notification_hook">Notification Hook</option>
+              </select>
+            </label>
+            <label>
+              Project ID
+              <input name="project_id" id="engine-project-id" placeholder="optional">
+            </label>
+          </div>
+
+          <label data-engine-field="lua">
+            Lua Script
+            <textarea name="script" rows="6">return { ok = true, input = input }</textarea>
+          </label>
+
+          <div data-engine-field="ai" hidden>
+            <label>
+              AI Prompt
+              <textarea name="prompt" rows="5">Return a JSON object describing the input.</textarea>
+            </label>
+            <label>
+              Provider ID
+              <input name="provider_id" placeholder="openrouter_provider_...">
+            </label>
+          </div>
+
+          <label data-engine-field="wasm" hidden>
+            WASM Module Base64
+            <textarea name="module_base64" rows="5" spellcheck="false"></textarea>
+          </label>
+
+          <div class="engine-json-grid">
+            <label>
+              Context JSON
+              <textarea name="context" rows="5" spellcheck="false">{}</textarea>
+            </label>
+            <label>
+              Input JSON
+              <textarea name="input" rows="5" spellcheck="false">{"title":"Preview"}</textarea>
+            </label>
+          </div>
+
+          <button type="submit"><span aria-hidden="true">&gt;</span> Test Engine</button>
+        </form>
+
+        <section class="engine-result" aria-live="polite">
+          <h3>Result</h3>
+          <pre id="engine-output">{}</pre>
+        </section>
+      </section>
+
       <p id="notice" class="notice" role="status"></p>
     </section>
   </main>
