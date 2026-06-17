@@ -22,13 +22,16 @@ The command:
 - creates two demo groups;
 - adds demo users to those groups;
 - creates one demo project;
-- binds the demo engineers group to `project_member` for that project;
-- creates three demo tickets;
+- binds a demo lead as `project_owner` and the demo engineers group as `project_member` for that project;
+- replaces project workflow statuses and creates a delivery board;
+- creates a component, version/release target, required custom field, sprint, and Lua ticket hook;
+- creates an epic plus three child tickets with labels, component/version/sprint assignment, roadmap dates, and custom-field values;
 - moves one ticket to `in_progress`;
+- reorders the backlog;
 - prints generated demo usernames/passwords and seeded object summaries.
 
 The command exercises normal backend validation, permissions, and activity behavior because it calls public API endpoints rather than writing directly to SQLite.
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global/project role bindings, components, versions, workflows, boards, backlog ordering, sprints, epics, comments, richer label coverage on seeded tickets, custom fields, saved CEL query examples, Lua cron jobs, ticket hooks, and custom create pages.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, comments, attachments, saved CEL query examples, Lua cron jobs, custom create pages, incoming/outgoing webhooks, notification examples, and AI-backed automation examples when OpenRouter is configured.

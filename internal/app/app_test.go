@@ -48,10 +48,13 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	ctx := context.Background()
 	db, bootstrap := openAppTestDB(t, ctx)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
+	hooks := tracker.NewHookService(db.SQL, authorizer)
+	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hooks))
 	server := httptest.NewServer(backend.NewHandler(
 		backend.WithAuthService(auth.NewService(db.SQL)),
 		backend.WithAuthorizer(authorizer),
-		backend.WithTrackerService(tracker.NewService(db.SQL, authorizer)),
+		backend.WithTrackerService(trackerService),
+		backend.WithTicketHookService(hooks),
 	))
 	t.Cleanup(server.Close)
 
@@ -71,7 +74,11 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	output := stdout.String()
 	if !strings.Contains(output, "demo user: role=lead") ||
 		!strings.Contains(output, "demo project:") ||
-		!strings.Contains(output, "demo ticket:") {
+		!strings.Contains(output, "demo ticket:") ||
+		!strings.Contains(output, "demo workflow:") ||
+		!strings.Contains(output, "demo board:") ||
+		!strings.Contains(output, "demo sprint:") ||
+		!strings.Contains(output, "demo ticket hook:") {
 		t.Fatalf("unexpected demo output: %s", output)
 	}
 }

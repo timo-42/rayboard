@@ -138,6 +138,20 @@ type demoTicketResource struct {
 	} `json:"status"`
 }
 
+func (ticket demoTicketResource) id() string {
+	return ticket.Metadata.ID
+}
+
+type demoIDResource struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+}
+
+func (resource demoIDResource) id() string {
+	return resource.Metadata.ID
+}
+
 func newDemoSeeder(rawBackendURL string, stdout io.Writer) (*demoSeeder, error) {
 	parsed, err := url.Parse(strings.TrimRight(rawBackendURL, "/"))
 	if err != nil {
@@ -181,14 +195,21 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err != nil {
 		return err
 	}
-	project, err := s.createProject(ctx)
+	project, err := s.createProject(ctx, users["lead"].id())
 	if err != nil {
 		return err
 	}
-	if err := s.bindProjectMembers(ctx, groups["engineers"].id(), project.ID); err != nil {
+	if err := s.bindProjectAccess(ctx, groups["engineers"].id(), users["lead"].id(), project.ID); err != nil {
 		return err
 	}
-	if err := s.createTickets(ctx, project.ID); err != nil {
+	assets, err := s.createProjectPlanning(ctx, project.ID, users)
+	if err != nil {
+		return err
+	}
+	if err := s.createTicketHook(ctx, project.ID); err != nil {
+		return err
+	}
+	if err := s.createTickets(ctx, project.ID, assets); err != nil {
 		return err
 	}
 
@@ -273,11 +294,12 @@ func (s *demoSeeder) createGroups(ctx context.Context, users map[string]demoCrea
 	return groups, nil
 }
 
-func (s *demoSeeder) createProject(ctx context.Context) (tracker.Project, error) {
+func (s *demoSeeder) createProject(ctx context.Context, leadUserID string) (tracker.Project, error) {
 	input := tracker.CreateProjectInput{
 		Key:         "DEMO" + s.suffix,
 		Name:        "Demo Project " + s.suffix,
 		Description: "Seeded project for demos",
+		LeadUserID:  leadUserID,
 	}
 	var project demoProjectResource
 	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects", map[string]tracker.CreateProjectInput{"spec": input}, &project); err != nil {
@@ -292,8 +314,19 @@ func (s *demoSeeder) createProject(ctx context.Context) (tracker.Project, error)
 	}, nil
 }
 
-func (s *demoSeeder) bindProjectMembers(ctx context.Context, groupID string, projectID string) error {
-	return s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+func (s *demoSeeder) bindProjectAccess(ctx context.Context, groupID string, leadUserID string, projectID string) error {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleProjectOwner,
+			SubjectType: authz.BindingTargetUser,
+			SubjectID:   leadUserID,
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo project owner: %w", err)
+	}
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
 		"spec": {
 			RoleName:    authz.RoleProjectMember,
 			SubjectType: authz.BindingTargetGroup,
@@ -301,36 +334,191 @@ func (s *demoSeeder) bindProjectMembers(ctx context.Context, groupID string, pro
 			Scope:       authz.ScopeKindProject,
 			ProjectID:   projectID,
 		},
-	}, nil)
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo project members: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo role binding: project owner/member")
+	return nil
 }
 
-func (s *demoSeeder) createTickets(ctx context.Context, projectID string) error {
+type demoPlanningAssets struct {
+	ComponentID string
+	VersionID   string
+	SprintID    string
+}
+
+func (s *demoSeeder) createProjectPlanning(ctx context.Context, projectID string, users map[string]demoCreatedUser) (demoPlanningAssets, error) {
+	statuses := []tracker.ProjectStatusInput{
+		{Slug: "todo", Name: "To Do"},
+		{Slug: "in_progress", Name: "In Progress"},
+		{Slug: "review", Name: "Review"},
+		{Slug: "done", Name: "Done"},
+	}
+	if err := s.apiJSON(ctx, http.MethodPut, "/api/projects/"+projectID+"/statuses", map[string]any{
+		"spec": map[string]any{"statuses": statuses},
+	}, nil); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("replace demo workflow statuses: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo workflow: todo,in_progress,review,done")
+
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/boards", map[string]any{
+		"spec": map[string]any{
+			"name":         "Delivery Board",
+			"description":  "Seeded board for demos",
+			"status_slugs": []string{"todo", "in_progress", "review", "done"},
+		},
+	}, nil); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("create demo board: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo board: Delivery Board")
+
+	var component demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/components", map[string]any{
+		"spec": map[string]any{
+			"name":                "Platform",
+			"description":         "Backend and automation foundation",
+			"owner_user_id":       users["lead"].id(),
+			"default_assignee_id": users["engineer"].id(),
+		},
+	}, &component); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("create demo component: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo component: Platform")
+
+	var version demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/versions", map[string]any{
+		"spec": map[string]any{
+			"name":        "2026.7",
+			"description": "Demo release target",
+			"target_date": "2026-07-31",
+		},
+	}, &version); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("create demo version: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo version: 2026.7")
+
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/custom-fields", map[string]any{
+		"spec": map[string]any{
+			"key":        "severity",
+			"name":       "Severity",
+			"field_type": "single_select",
+			"required":   true,
+			"options":    []string{"Low", "Medium", "High"},
+		},
+	}, nil); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("create demo custom field: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo custom field: severity")
+
+	var sprint demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/sprints", map[string]any{
+		"spec": map[string]any{
+			"name":       "Sprint Demo",
+			"goal":       "Show planning and automation surfaces",
+			"start_date": "2026-06-17",
+			"end_date":   "2026-07-01",
+		},
+	}, &sprint); err != nil {
+		return demoPlanningAssets{}, fmt.Errorf("create demo sprint: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo sprint: Sprint Demo")
+
+	return demoPlanningAssets{
+		ComponentID: component.id(),
+		VersionID:   version.id(),
+		SprintID:    sprint.id(),
+	}, nil
+}
+
+func (s *demoSeeder) createTicketHook(ctx context.Context, projectID string) error {
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/ticket-hooks", map[string]any{
+		"spec": map[string]any{
+			"name":     "demo-label",
+			"event":    tracker.HookEventTicketCreate,
+			"phase":    tracker.HookPhaseBefore,
+			"enabled":  true,
+			"position": 10,
+			"engine": map[string]any{
+				"type": tracker.HookEngineLua,
+				"script": `
+ticket.labels = ticket.labels or {}
+ticket.labels[#ticket.labels + 1] = "demo-hook"
+return { ticket = ticket }
+`,
+			},
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("create demo ticket hook: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo ticket hook: demo-label")
+	return nil
+}
+
+func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets demoPlanningAssets) error {
+	epic, err := s.createDemoTicket(ctx, projectID, tracker.CreateTicketInput{
+		Title:       "Launch customer onboarding",
+		Description: "Epic for the seeded onboarding workflow.",
+		Priority:    "High",
+		Type:        "Epic",
+		Status:      "todo",
+		ComponentID: assets.ComponentID,
+		VersionID:   assets.VersionID,
+		StartDate:   "2026-06-17",
+		DueDate:     "2026-07-31",
+		Labels:      []string{"demo", "roadmap"},
+		CustomFields: map[string]any{
+			"severity": "High",
+		},
+	})
+	if err != nil {
+		return err
+	}
+
 	tickets := []tracker.CreateTicketInput{
 		{
-			Title:       "Prepare customer onboarding board",
-			Description: "Create the initial backlog and workflow states.",
-			Priority:    "High",
-			Type:        "Task",
+			Title:          "Prepare customer onboarding board",
+			Description:    "Create the initial backlog and workflow states.",
+			Priority:       "High",
+			Type:           "Task",
+			ParentTicketID: epic.id(),
+			SprintID:       assets.SprintID,
+			ComponentID:    assets.ComponentID,
+			VersionID:      assets.VersionID,
+			Labels:         []string{"demo", "planning"},
+			CustomFields:   map[string]any{"severity": "High"},
 		},
 		{
-			Title:       "Investigate login audit trail",
-			Description: "Capture activity that helps explain auth changes.",
-			Priority:    "Medium",
-			Type:        "Bug",
+			Title:          "Investigate login audit trail",
+			Description:    "Capture activity that helps explain auth changes.",
+			Priority:       "Medium",
+			Type:           "Bug",
+			ParentTicketID: epic.id(),
+			SprintID:       assets.SprintID,
+			ComponentID:    assets.ComponentID,
+			VersionID:      assets.VersionID,
+			Labels:         []string{"demo", "auth"},
+			CustomFields:   map[string]any{"severity": "Medium"},
 		},
 		{
-			Title:       "Draft roadmap for automation hooks",
-			Description: "Outline Lua and AI hook milestones.",
-			Priority:    "Low",
-			Type:        "Story",
+			Title:          "Draft roadmap for automation hooks",
+			Description:    "Outline Lua and AI hook milestones.",
+			Priority:       "Low",
+			Type:           "Story",
+			ParentTicketID: epic.id(),
+			SprintID:       assets.SprintID,
+			ComponentID:    assets.ComponentID,
+			VersionID:      assets.VersionID,
+			Labels:         []string{"demo", "automation"},
+			CustomFields:   map[string]any{"severity": "Low"},
 		},
 	}
+	createdTickets := []demoTicketResource{epic}
 	for index, ticket := range tickets {
-		var created demoTicketResource
-		if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/tickets", map[string]tracker.CreateTicketInput{"spec": ticket}, &created); err != nil {
+		created, err := s.createDemoTicket(ctx, projectID, ticket)
+		if err != nil {
 			return fmt.Errorf("create demo ticket %d: %w", index+1, err)
 		}
-		fmt.Fprintf(s.stdout, "demo ticket: key=%s title=%q\n", created.Status.Key, created.Spec.Title)
+		createdTickets = append(createdTickets, created)
 		if index == 1 {
 			status := "in_progress"
 			update := tracker.UpdateTicketInput{Status: &status}
@@ -339,7 +527,26 @@ func (s *demoSeeder) createTickets(ctx context.Context, projectID string) error 
 			}
 		}
 	}
+	reordered := make([]string, 0, len(createdTickets))
+	for index := len(createdTickets) - 1; index >= 0; index-- {
+		reordered = append(reordered, createdTickets[index].id())
+	}
+	if err := s.apiJSON(ctx, http.MethodPatch, "/api/projects/"+projectID+"/backlog", map[string]any{
+		"spec": map[string]any{"ticket_ids": reordered},
+	}, nil); err != nil {
+		return fmt.Errorf("reorder demo backlog: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo backlog: reordered")
 	return nil
+}
+
+func (s *demoSeeder) createDemoTicket(ctx context.Context, projectID string, ticket tracker.CreateTicketInput) (demoTicketResource, error) {
+	var created demoTicketResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/tickets", map[string]tracker.CreateTicketInput{"spec": ticket}, &created); err != nil {
+		return demoTicketResource{}, err
+	}
+	fmt.Fprintf(s.stdout, "demo ticket: key=%s title=%q\n", created.Status.Key, created.Spec.Title)
+	return created, nil
 }
 
 func (s *demoSeeder) apiJSON(ctx context.Context, method string, path string, input any, output any) error {
