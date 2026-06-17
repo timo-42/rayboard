@@ -41,6 +41,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-destination-form"`) ||
 		!strings.Contains(body, `id="notification-destinations"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
+		!strings.Contains(body, `id="cron-job-form"`) ||
+		!strings.Contains(body, `id="cron-jobs"`) ||
 		!strings.Contains(body, `id="ticket-hook-form"`) ||
 		!strings.Contains(body, `id="ticket-hooks"`) ||
 		!strings.Contains(body, `id="ticket-hook-preview-output"`) ||
@@ -115,11 +117,14 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadAuditLog",
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
+		"loadCronJobs",
 		"loadTicketHooks",
 		"normalizeAuditEntry",
 		"normalizeOpenRouterProvider",
 		"normalizeNotificationDestination",
+		"normalizeCronJob",
 		"normalizeTicketHook",
+		"cronJobSpec",
 		"ticketHookSpec",
 		"ticketHookPreviewSpec",
 		"rbacUserForm",
@@ -141,6 +146,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/projects/${projectID}/notification-destinations",
 		"data-test-notification-destination-id",
 		"data-delete-notification-destination-id",
+		"/api/cron-jobs?${query.toString()}",
+		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
+		"data-delete-cron-job-id",
 		"/api/projects/${projectID}/ticket-hooks?limit=100",
 		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
 		"data-delete-ticket-hook-id",
@@ -168,6 +176,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".openrouter-provider-list",
 		".notification-destination-form",
 		".notification-destination-list",
+		".cron-job-form",
+		".cron-job-list",
 		".ticket-hook-panel",
 		".ticket-hook-list",
 	} {

@@ -578,6 +578,57 @@
         <section class="ticket-hook-panel">
           <header class="ticket-hook-header">
             <div>
+              <p class="eyebrow">Cron</p>
+              <h3>Scheduled Jobs</h3>
+            </div>
+            <label>
+              Project
+              <select id="cron-job-project" name="cron_job_project"></select>
+            </label>
+          </header>
+
+          <form id="cron-job-form" class="cron-job-form">
+            <div class="cron-job-grid">
+              <input name="name" placeholder="Daily triage" required>
+              <input name="schedule" placeholder="0 9 * * *" required>
+              <input name="timezone" placeholder="UTC" value="UTC">
+              <input name="owner_user_id" placeholder="owner user id">
+              <select name="engine_type" id="cron-job-engine-type">
+                <option value="lua">Lua</option>
+                <option value="ai">OpenRouter AI</option>
+              </select>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox">
+                Enabled
+              </label>
+            </div>
+
+            <label data-cron-job-engine-field="lua">
+              Lua Script
+              <textarea name="script" rows="5">rayboard.log("cron started")</textarea>
+            </label>
+
+            <div data-cron-job-engine-field="ai" hidden>
+              <label>
+                AI Prompt
+                <textarea name="prompt" rows="4">Return a JSON object with planned actions for stale tickets.</textarea>
+              </label>
+              <label>
+                Provider ID
+                <input name="provider_id" placeholder="openrouter_provider_...">
+              </label>
+            </div>
+
+            <button type="submit">Create cron job</button>
+          </form>
+
+          <div id="cron-job-status" class="ticket-hook-status"></div>
+          <div id="cron-jobs" class="cron-job-list"></div>
+        </section>
+
+        <section class="ticket-hook-panel">
+          <header class="ticket-hook-header">
+            <div>
               <p class="eyebrow">Project Automation</p>
               <h3>Ticket Hooks</h3>
             </div>

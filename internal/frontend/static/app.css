@@ -2009,18 +2009,21 @@ p {
   text-transform: uppercase;
 }
 
+.cron-job-form,
 .ticket-hook-form,
 .ticket-hook-preview-form {
   display: grid;
   gap: 10px;
 }
 
+.cron-job-grid,
 .ticket-hook-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 
+.cron-job-form textarea,
 .ticket-hook-form textarea,
 .ticket-hook-preview-form textarea,
 .ticket-hook-preview pre {
@@ -2045,11 +2048,13 @@ p {
   font-size: 13px;
 }
 
+.cron-job-list,
 .ticket-hook-list {
   display: grid;
   gap: 8px;
 }
 
+.cron-job-item,
 .ticket-hook-item {
   display: grid;
   gap: 6px;
@@ -2111,6 +2116,36 @@ p {
 .ticket-hook-actions button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.cron-run-list {
+  display: grid;
+  gap: 6px;
+}
+
+.cron-run-item {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 8px;
+}
+
+.cron-run-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.cron-run-item pre {
+  max-height: 220px;
+  overflow: auto;
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .ticket-hook-preview {
@@ -2236,6 +2271,7 @@ p {
   .compact-admin-form,
   .engine-form-row,
   .engine-json-grid,
+  .cron-job-grid,
   .ticket-hook-grid,
   .ticket-hook-preview-form,
   .comment-form,

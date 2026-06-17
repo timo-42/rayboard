@@ -561,7 +561,7 @@ When `spec.surface` is `custom_create_page`, the workbench validates returned fo
 
 ## Cron Jobs
 
-The cron automation API/scheduler slice exposes Lua and OpenRouter AI cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
+The cron automation API/scheduler slice exposes Lua and OpenRouter AI cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time. The embedded `/automation` page provides basic browser management for project-scoped cron jobs.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

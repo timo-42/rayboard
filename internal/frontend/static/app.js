@@ -32,6 +32,9 @@ const state = {
   auditLogError: "",
   openRouterProvidersError: "",
   notificationDestinationsError: "",
+  cronJobs: [],
+  cronRuns: {},
+  cronJobsError: "",
   ticketHooks: [],
   ticketHooksError: "",
   ticketHookPreview: null,
@@ -48,6 +51,11 @@ const els = {
   engineProjectID: document.querySelector("#engine-project-id"),
   engineWorkbench: document.querySelector("#engine-workbench"),
   engineOutput: document.querySelector("#engine-output"),
+  cronJobProject: document.querySelector("#cron-job-project"),
+  cronJobForm: document.querySelector("#cron-job-form"),
+  cronJobEngineType: document.querySelector("#cron-job-engine-type"),
+  cronJobStatus: document.querySelector("#cron-job-status"),
+  cronJobs: document.querySelector("#cron-jobs"),
   ticketHookProject: document.querySelector("#ticket-hook-project"),
   ticketHookForm: document.querySelector("#ticket-hook-form"),
   ticketHookEngineType: document.querySelector("#ticket-hook-engine-type"),
@@ -204,6 +212,9 @@ function bindEvents() {
       state.auditLogError = "";
       state.openRouterProvidersError = "";
       state.notificationDestinationsError = "";
+      state.cronJobs = [];
+      state.cronRuns = {};
+      state.cronJobsError = "";
       state.ticketHooks = [];
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
@@ -248,10 +259,80 @@ function bindEvents() {
     renderTicketHookEngineFields();
   });
 
+  els.cronJobEngineType.addEventListener("change", () => {
+    renderCronJobEngineFields();
+  });
+
+  els.cronJobProject.addEventListener("change", async () => {
+    const projectID = els.cronJobProject.value;
+    const project = state.projects.find((item) => item.id === projectID);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await Promise.all([loadCronJobs(projectID), loadTicketHooks(projectID)]);
+    renderEngineFields();
+  });
+
+  els.cronJobForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    await runAction(async () => {
+      await api("/api/cron-jobs", {
+        method: "POST",
+        body: { spec: cronJobSpec(form) }
+      });
+      form.reset();
+      setFormValue(form, "timezone", "UTC");
+      renderCronJobEngineFields();
+      await loadCronJobs();
+    }, "Cron job created");
+  });
+
+  els.cronJobs.addEventListener("click", async (event) => {
+    const showRuns = event.target.closest("[data-load-cron-runs-id]");
+    if (showRuns) {
+      await runAction(async () => {
+        await loadCronRuns(showRuns.dataset.loadCronRunsId);
+      }, "Cron runs loaded");
+      return;
+    }
+
+    const run = event.target.closest("[data-run-cron-job-id]");
+    if (run) {
+      await runAction(async () => {
+        const result = normalizeCronRun(await api(`/api/cron-jobs/${run.dataset.runCronJobId}/run`, { method: "POST" }));
+        state.cronRuns[run.dataset.runCronJobId] = [result];
+        await loadCronJobs();
+      }, "Cron job started");
+      return;
+    }
+
+    const toggle = event.target.closest("[data-toggle-cron-job-id]");
+    if (toggle) {
+      await runAction(async () => {
+        await api(`/api/cron-jobs/${toggle.dataset.toggleCronJobId}`, {
+          method: "PATCH",
+          body: { spec: { enabled: toggle.dataset.cronJobEnabled === "true" } }
+        });
+        await loadCronJobs();
+      }, "Cron job updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-cron-job-id]");
+    if (remove) {
+      await runAction(async () => {
+        await api(`/api/cron-jobs/${remove.dataset.deleteCronJobId}`, { method: "DELETE" });
+        delete state.cronRuns[remove.dataset.deleteCronJobId];
+        await loadCronJobs();
+      }, "Cron job deleted");
+    }
+  });
+
   els.ticketHookProject.addEventListener("change", async () => {
     const projectID = els.ticketHookProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
-    await loadTicketHooks(projectID);
+    await Promise.all([loadCronJobs(projectID), loadTicketHooks(projectID)]);
   });
 
   els.ticketHookForm.addEventListener("submit", async (event) => {
@@ -1155,7 +1236,7 @@ async function loadRouteData() {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
     }
-    await loadTicketHooks();
+    await Promise.all([loadCronJobs(), loadTicketHooks()]);
   }
 }
 
@@ -1558,6 +1639,27 @@ async function loadNotificationDestinations(projectID = selectedNotificationDest
   renderSettings();
 }
 
+async function loadCronJobs(projectID = selectedCronJobProjectID()) {
+  const query = new URLSearchParams();
+  if (projectID) {
+    query.set("project_id", projectID);
+  }
+  query.set("limit", "100");
+  try {
+    state.cronJobs = listItems(await api(`/api/cron-jobs?${query.toString()}`)).map(normalizeCronJob);
+    state.cronJobsError = "";
+  } catch (error) {
+    state.cronJobs = [];
+    state.cronJobsError = error.message || "Cron jobs are not available";
+  }
+  renderCronJobs();
+}
+
+async function loadCronRuns(jobID) {
+  state.cronRuns[jobID] = listItems(await api(`/api/cron-jobs/${jobID}/runs?limit=10`)).map(normalizeCronRun);
+  renderCronJobs();
+}
+
 async function loadTicketHooks(projectID = selectedTicketHookProjectID()) {
   if (!projectID) {
     state.ticketHooks = [];
@@ -1672,6 +1774,7 @@ function render() {
   renderTokens();
   renderRBAC();
   renderSettings();
+  renderCronJobs();
   renderTicketHooks();
   renderEngineFields();
   renderEngineResult();
@@ -2647,6 +2750,123 @@ function inputNode(name, value, placeholder, type = "text") {
   return input;
 }
 
+function renderCronJobs() {
+  if (!els.cronJobs || !els.cronJobProject) {
+    return;
+  }
+  replaceSelectOptions(els.cronJobProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.cronJobProject.value = state.selectedProject.id;
+  }
+  renderCronJobEngineFields();
+
+  els.cronJobs.replaceChildren();
+  if (state.cronJobsError) {
+    els.cronJobStatus.textContent = state.cronJobsError;
+    return;
+  }
+  const projectID = selectedCronJobProjectID();
+  els.cronJobStatus.textContent = projectID
+    ? `${state.cronJobs.length} cron jobs`
+    : "Choose a project to manage cron jobs";
+  if (!projectID || !state.cronJobs.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = projectID ? "No cron jobs for this project" : "Select a project first";
+    els.cronJobs.append(empty);
+    return;
+  }
+  for (const job of state.cronJobs) {
+    els.cronJobs.append(cronJobNode(job));
+  }
+}
+
+function renderCronJobEngineFields() {
+  const type = els.cronJobEngineType ? els.cronJobEngineType.value : "lua";
+  document.querySelectorAll("[data-cron-job-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.cronJobEngineField !== type;
+  });
+}
+
+function cronJobNode(job) {
+  const article = document.createElement("article");
+  article.className = "cron-job-item";
+
+  const header = document.createElement("div");
+  header.className = "ticket-hook-item-header";
+  const title = document.createElement("p");
+  title.textContent = job.name || job.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = job.enabled ? "hook-state" : "hook-state is-disabled";
+  stateLabel.textContent = job.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    job.schedule,
+    job.timezone,
+    job.engine.type,
+    job.owner_user_id ? `owner ${job.owner_user_id}` : "",
+    job.next_run_at ? `next ${formatDateTime(job.next_run_at)}` : "",
+    job.last_run_status ? `last ${job.last_run_status}` : "",
+    job.last_error ? `error: ${job.last_error}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "ticket-hook-actions";
+
+  const runs = document.createElement("button");
+  runs.type = "button";
+  runs.dataset.loadCronRunsId = job.id;
+  runs.textContent = "Runs";
+
+  const run = document.createElement("button");
+  run.type = "button";
+  run.dataset.runCronJobId = job.id;
+  run.textContent = "Run now";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.toggleCronJobId = job.id;
+  toggle.dataset.cronJobEnabled = job.enabled ? "false" : "true";
+  toggle.textContent = job.enabled ? "Disable" : "Enable";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteCronJobId = job.id;
+  remove.textContent = "Delete";
+
+  actions.append(runs, run, toggle, remove);
+  article.append(header, meta, actions);
+
+  const jobRuns = state.cronRuns[job.id] || [];
+  if (jobRuns.length) {
+    article.append(cronRunListNode(jobRuns));
+  }
+  return article;
+}
+
+function cronRunListNode(runs) {
+  const list = document.createElement("div");
+  list.className = "cron-run-list";
+  for (const run of runs) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      run.state || "queued",
+      run.trigger_type,
+      run.created_at ? formatDateTime(run.created_at) : "",
+      run.error ? `error: ${run.error}` : ""
+    ].filter(Boolean).join(" / ");
+    const output = document.createElement("pre");
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
+    list.append(item);
+  }
+  return list;
+}
+
 function renderAuditLog() {
   if (!els.auditStatus || !els.auditLog) {
     return;
@@ -2897,11 +3117,51 @@ function selectedTicketHookProjectID() {
   return state.selectedProject ? state.selectedProject.id : "";
 }
 
+function selectedCronJobProjectID() {
+  if (els.cronJobProject && els.cronJobProject.value) {
+    return els.cronJobProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
 function selectedNotificationDestinationProjectID() {
   if (els.notificationDestinationProject && els.notificationDestinationProject.value) {
     return els.notificationDestinationProject.value;
   }
   return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function cronJobSpec(form) {
+  const data = formData(form);
+  const projectID = selectedCronJobProjectID();
+  const spec = {
+    project_id: projectID,
+    owner_user_id: data.owner_user_id || "",
+    name: data.name || "",
+    schedule: data.schedule || "",
+    timezone: data.timezone || "UTC",
+    enabled: Boolean(data.enabled),
+    engine: cronJobEngineSpec(data)
+  };
+  if (!spec.owner_user_id) {
+    delete spec.owner_user_id;
+  }
+  return spec;
+}
+
+function cronJobEngineSpec(data) {
+  const type = data.engine_type || "lua";
+  if (type === "ai") {
+    return {
+      type,
+      prompt: data.prompt || "",
+      provider_id: data.provider_id || ""
+    };
+  }
+  return {
+    type: "lua",
+    script: data.script || ""
+  };
 }
 
 function notificationDestinationCollectionPath(scopeType, projectID) {
@@ -4050,6 +4310,54 @@ function normalizeTicketHook(hook) {
     };
   }
   return hook;
+}
+
+function normalizeCronJob(job) {
+  if (!job) {
+    return null;
+  }
+  if (job.metadata && job.spec && job.status) {
+    return {
+      id: job.metadata.id || "",
+      created_at: job.metadata.created_at || "",
+      updated_at: job.metadata.updated_at || "",
+      owner_user_id: job.spec.owner_user_id || "",
+      project_id: job.spec.project_id || "",
+      name: job.spec.name || "",
+      schedule: job.spec.schedule || "",
+      timezone: job.spec.timezone || "UTC",
+      enabled: Boolean(job.spec.enabled),
+      engine: job.spec.engine || { type: "" },
+      last_run_status: job.status.last_run_status || "",
+      last_run_at: job.status.last_run_at || "",
+      next_run_at: job.status.next_run_at || "",
+      last_error: job.status.last_error || ""
+    };
+  }
+  return job;
+}
+
+function normalizeCronRun(run) {
+  if (!run) {
+    return null;
+  }
+  if (run.metadata && run.spec && run.status) {
+    return {
+      id: run.metadata.id || "",
+      created_at: run.metadata.created_at || "",
+      trigger_type: run.spec.trigger_type || "",
+      trigger_ref: run.spec.trigger_ref || "",
+      project_id: run.spec.project_id || "",
+      ticket_id: run.spec.ticket_id || "",
+      input: run.spec.input || {},
+      state: run.status.state || "",
+      output: run.status.output || {},
+      error: run.status.error || "",
+      started_at: run.status.started_at || "",
+      finished_at: run.status.finished_at || ""
+    };
+  }
+  return run;
 }
 
 function normalizeOpenRouterProvider(provider) {

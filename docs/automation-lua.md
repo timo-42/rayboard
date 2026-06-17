@@ -131,7 +131,7 @@ Validation and limit failures return or raise messages such as `JSON input excee
 
 Cron jobs use robfig cron for schedules, GopherLua for Lua execution, and OpenRouter for AI execution. The public API/scheduler slice supports cron job CRUD, manual runs, and run history. Jobs act as their owner user, inherit the owner's current RBAC permissions at run time, and should not overlap by default.
 
-Cron job management requires automation permissions. Disabled users cannot run owned cron jobs.
+Cron job management requires automation permissions. Disabled users cannot run owned cron jobs. The embedded `/automation` page exposes basic project-scoped cron job list/create/delete, enable/disable, manual run, and recent run-output inspection; the API remains the source of truth for the full resource shape.
 
 Run history uses the shared automation run-history model. A run record is used for scheduled and manual runs and may include trigger type, job identity, owner/project context when applicable, input/output summaries, logs, status, error details, start/finish timestamps, duration, and applied limits. Run history must not expose secrets.
 
