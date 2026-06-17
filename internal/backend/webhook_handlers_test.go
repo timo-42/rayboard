@@ -187,6 +187,39 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("webhook run list leaked token: %s", runs.Body.String())
 	}
 
+	outgoingReq := httptest.NewRequest(http.MethodPost, "/api/projects/project-1/webhooks", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"name":          "delivery-events",
+			"direction":     webhooks.DirectionOutgoing,
+			"enabled":       true,
+			"actor_user_id": actor.ID,
+			"engine": map[string]any{
+				"type":   webhooks.EngineTypeLua,
+				"script": `return { method = "POST", path = "/events", body = event }`,
+			},
+		},
+	}))
+	addSessionCSRF(outgoingReq, session, csrf)
+	outgoing := httptest.NewRecorder()
+	handler.ServeHTTP(outgoing, outgoingReq)
+	if outgoing.Code != http.StatusCreated {
+		t.Fatalf("expected outgoing webhook create status 201, got %d: %s", outgoing.Code, outgoing.Body.String())
+	}
+	createdOutgoing := decodeWebhookResource(t, outgoing.Body.Bytes())
+	if createdOutgoing.Metadata.ID == "" || createdOutgoing.Spec.Direction != webhooks.DirectionOutgoing || createdOutgoing.Status.TokenSet || createdOutgoing.Status.Token != "" {
+		t.Fatalf("unexpected outgoing webhook response: %#v", createdOutgoing)
+	}
+	outgoingListReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-1/webhooks?direction=outgoing", nil)
+	outgoingListReq.AddCookie(session)
+	outgoingList := httptest.NewRecorder()
+	handler.ServeHTTP(outgoingList, outgoingListReq)
+	if outgoingList.Code != http.StatusOK {
+		t.Fatalf("expected outgoing webhook list status 200, got %d: %s", outgoingList.Code, outgoingList.Body.String())
+	}
+	if !bytes.Contains(outgoingList.Body.Bytes(), []byte(createdOutgoing.Metadata.ID)) {
+		t.Fatalf("expected outgoing webhook list to include created webhook: %s", outgoingList.Body.String())
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/webhook-definitions/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, session, csrf)
 	deleted := httptest.NewRecorder()

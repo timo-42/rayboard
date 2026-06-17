@@ -140,14 +140,65 @@ func TestIncomingWebhookValidationAndRBAC(t *testing.T) {
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected invalid lua engine validation, got %v", err)
 	}
-	if _, err := service.Create(ctx, admin, CreateInput{
+}
+
+func TestOutgoingWebhookDefinitionLifecycle(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+
+	created, err := service.Create(ctx, principal, CreateInput{
 		ProjectID:   "project-1",
-		Name:        "outgoing",
+		Name:        "Delivery Events",
 		Direction:   DirectionOutgoing,
+		Enabled:     true,
 		ActorUserID: "actor",
-		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return {}`},
-	}); !errors.Is(err, ErrValidation) {
-		t.Fatalf("expected outgoing validation, got %v", err)
+		Engine: EngineSpec{
+			Type:   EngineTypeLua,
+			Script: `return { method = "POST", path = "/events", body = event }`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create outgoing webhook: %v", err)
+	}
+	if created.ID == "" || created.Direction != DirectionOutgoing || created.Token != "" || created.TokenSet || created.TokenRotatedAt != nil {
+		t.Fatalf("unexpected outgoing webhook: %#v", created)
+	}
+
+	listed, err := service.List(ctx, principal, ListInput{ProjectID: "project-1", Direction: DirectionOutgoing})
+	if err != nil {
+		t.Fatalf("list outgoing webhooks: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != created.ID || listed[0].TokenSet {
+		t.Fatalf("unexpected outgoing webhook list: %#v", listed)
+	}
+
+	if _, err := service.RotateIncomingToken(ctx, principal, created.ID); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected outgoing token rotation validation, got %v", err)
+	}
+
+	enabled := false
+	updated, err := service.Update(ctx, principal, created.ID, UpdateInput{Enabled: &enabled})
+	if err != nil {
+		t.Fatalf("disable outgoing webhook: %v", err)
+	}
+	if updated.Enabled || updated.Direction != DirectionOutgoing || updated.TokenSet {
+		t.Fatalf("unexpected disabled outgoing webhook: %#v", updated)
+	}
+
+	if err := service.Delete(ctx, principal, created.ID); err != nil {
+		t.Fatalf("delete outgoing webhook: %v", err)
+	}
+	if _, err := service.Get(ctx, principal, created.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected deleted outgoing webhook not found, got %v", err)
 	}
 }
 

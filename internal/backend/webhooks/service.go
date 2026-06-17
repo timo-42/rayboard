@@ -551,7 +551,7 @@ func (s *Service) get(ctx context.Context, webhookID string) (Webhook, error) {
 	return hook, nil
 }
 
-func (s *Service) validateWebhook(ctx context.Context, hook Webhook, creating bool) error {
+func (s *Service) validateWebhook(ctx context.Context, hook Webhook, _ bool) error {
 	fields := map[string]string{}
 	if hook.ProjectID == "" {
 		fields["project_id"] = "Required"
@@ -574,9 +574,6 @@ func (s *Service) validateWebhook(ctx context.Context, hook Webhook, creating bo
 	}
 	if err := validateEngine(hook.Engine); err != nil {
 		fields["engine"] = err.Error()
-	}
-	if hook.Direction == DirectionOutgoing && creating {
-		fields["direction"] = "Outgoing webhooks are not implemented yet"
 	}
 	if len(fields) > 0 {
 		return fmt.Errorf("%w: invalid webhook", ErrValidation)
