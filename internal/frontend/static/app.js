@@ -4,6 +4,8 @@ const state = {
   selectedProject: null,
   tickets: [],
   sprints: [],
+  components: [],
+  versions: [],
   attachments: {},
   comments: {},
   notifications: [],
@@ -34,6 +36,13 @@ const els = {
   sprintPanel: document.querySelector("#sprint-panel"),
   sprintForm: document.querySelector("#sprint-form"),
   sprints: document.querySelector("#sprints"),
+  releasePanel: document.querySelector("#release-panel"),
+  componentForm: document.querySelector("#component-form"),
+  versionForm: document.querySelector("#version-form"),
+  components: document.querySelector("#components"),
+  versions: document.querySelector("#versions"),
+  ticketComponentID: document.querySelector("#ticket-component-id"),
+  ticketVersionID: document.querySelector("#ticket-version-id"),
   searchPanel: document.querySelector("#search-panel"),
   searchForm: document.querySelector("#search-form"),
   savedViewForm: document.querySelector("#saved-view-form"),
@@ -80,6 +89,8 @@ function bindEvents() {
       state.selectedProject = null;
       state.tickets = [];
       state.sprints = [];
+      state.components = [];
+      state.versions = [];
       state.attachments = {};
       state.comments = {};
       state.notifications = [];
@@ -201,6 +212,83 @@ function bindEvents() {
     }
   });
 
+  els.componentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a component");
+      return;
+    }
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/components`, {
+        method: "POST",
+        body: { spec: { name: data.name || "", description: data.description || "" } }
+      });
+      event.currentTarget.reset();
+      await loadComponents();
+    }, "Component created");
+  });
+
+  els.versionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a version");
+      return;
+    }
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/versions`, {
+        method: "POST",
+        body: {
+          spec: {
+            name: data.name || "",
+            description: data.description || "",
+            target_date: data.target_date || "",
+            release_date: ""
+          }
+        }
+      });
+      event.currentTarget.reset();
+      await loadVersions();
+    }, "Version created");
+  });
+
+  els.components.addEventListener("click", async (event) => {
+    const remove = event.target.closest("[data-delete-component-id]");
+    if (!remove) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/components/${remove.dataset.deleteComponentId}`, { method: "DELETE" });
+      await loadComponents();
+      await loadTickets();
+    }, "Component deleted");
+  });
+
+  els.versions.addEventListener("click", async (event) => {
+    const status = event.target.closest("[data-version-status]");
+    if (status) {
+      await runAction(async () => {
+        await api(`/api/versions/${status.dataset.versionId}`, {
+          method: "PATCH",
+          body: { spec: { status: status.dataset.versionStatus } }
+        });
+        await loadVersions();
+      }, "Version updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-version-id]");
+    if (!remove) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/versions/${remove.dataset.deleteVersionId}`, { method: "DELETE" });
+      await loadVersions();
+      await loadTickets();
+    }, "Version deleted");
+  });
+
   els.notifications.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-notification-read-state]");
     if (!button) {
@@ -306,6 +394,26 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
+    const assignPlanning = event.target.closest("[data-assign-planning-id]");
+    if (assignPlanning) {
+      const control = assignPlanning.closest("[data-ticket-planning-control]");
+      const component = control ? control.querySelector("[data-ticket-component-select]") : null;
+      const version = control ? control.querySelector("[data-ticket-version-select]") : null;
+      await runAction(async () => {
+        await api(`/api/tickets/${assignPlanning.dataset.assignPlanningId}`, {
+          method: "PATCH",
+          body: {
+            spec: {
+              component_id: component ? component.value : "",
+              version_id: version ? version.value : ""
+            }
+          }
+        });
+        await loadTickets();
+      }, "Ticket planning fields updated");
+      return;
+    }
+
     const assignSprint = event.target.closest("[data-assign-sprint-id]");
     if (assignSprint) {
       const control = assignSprint.closest("[data-ticket-sprint-control]");
@@ -475,6 +583,44 @@ async function loadSprints(options = {}) {
   }
 }
 
+async function loadComponents(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.components = [];
+    renderComponents();
+    renderTicketFormOptions();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/components`);
+  state.components = listItems(data).map(normalizeComponent);
+  renderComponents();
+  renderTicketFormOptions();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
+async function loadVersions(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.versions = [];
+    renderVersions();
+    renderTicketFormOptions();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/versions`);
+  state.versions = listItems(data).map(normalizeVersion);
+  renderVersions();
+  renderTicketFormOptions();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
 async function runSearch(spec) {
   const normalized = {
     project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
@@ -501,11 +647,15 @@ async function loadProjects(selectedID = "") {
   }
   if (state.selectedProject) {
     await loadSprints({ renderTickets: false });
+    await loadComponents({ renderTickets: false });
+    await loadVersions({ renderTickets: false });
     await loadTickets();
     await loadSavedViews();
   } else {
     state.tickets = [];
     state.sprints = [];
+    state.components = [];
+    state.versions = [];
     state.attachments = {};
     state.comments = {};
     state.searchResults = [];
@@ -610,6 +760,7 @@ function render() {
   els.projectCreate.hidden = !signedIn;
   els.notificationInbox.hidden = !signedIn;
   els.sprintPanel.hidden = !signedIn || !state.selectedProject;
+  els.releasePanel.hidden = !signedIn || !state.selectedProject;
   els.searchPanel.hidden = !signedIn;
   els.accountPanel.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
@@ -622,6 +773,9 @@ function render() {
   renderTickets();
   renderNotifications();
   renderSprints();
+  renderComponents();
+  renderVersions();
+  renderTicketFormOptions();
   renderSearchResults();
   renderSavedViews();
   renderTokens();
@@ -746,6 +900,159 @@ function sprintNode(sprint) {
 
   article.append(body, actions);
   return article;
+}
+
+function renderComponents() {
+  if (!els.components) {
+    return;
+  }
+  els.components.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage components";
+    els.components.append(empty);
+    return;
+  }
+  if (!state.components.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No components";
+    els.components.append(empty);
+    return;
+  }
+  for (const component of state.components) {
+    els.components.append(componentNode(component));
+  }
+}
+
+function componentNode(component) {
+  const article = document.createElement("article");
+  article.className = "component-item";
+
+  const body = document.createElement("div");
+  body.className = "component-item-body";
+
+  const name = document.createElement("p");
+  name.textContent = component.name || "Component";
+
+  const meta = document.createElement("span");
+  meta.textContent = component.description || component.id;
+
+  body.append(name, meta);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteComponentId = component.id;
+  remove.textContent = "Delete";
+
+  article.append(body, remove);
+  return article;
+}
+
+function renderVersions() {
+  if (!els.versions) {
+    return;
+  }
+  els.versions.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage versions";
+    els.versions.append(empty);
+    return;
+  }
+  if (!state.versions.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No versions";
+    els.versions.append(empty);
+    return;
+  }
+  for (const version of state.versions) {
+    els.versions.append(versionNode(version));
+  }
+}
+
+function versionNode(version) {
+  const article = document.createElement("article");
+  article.className = "version-item";
+  article.dataset.versionState = version.state || "planned";
+
+  const body = document.createElement("div");
+  body.className = "version-item-body";
+
+  const name = document.createElement("p");
+  name.textContent = version.name || "Version";
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    version.state || "planned",
+    version.target_date ? `target ${version.target_date}` : "",
+    version.release_date ? `released ${version.release_date}` : "",
+    version.description
+  ].filter(Boolean).join(" / ");
+
+  body.append(name, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "version-actions";
+
+  if (version.state !== "released") {
+    const release = document.createElement("button");
+    release.type = "button";
+    release.dataset.versionId = version.id;
+    release.dataset.versionStatus = "released";
+    release.textContent = "Release";
+    actions.append(release);
+  }
+
+  if (version.state !== "archived") {
+    const archive = document.createElement("button");
+    archive.type = "button";
+    archive.dataset.versionId = version.id;
+    archive.dataset.versionStatus = "archived";
+    archive.textContent = "Archive";
+    actions.append(archive);
+  }
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteVersionId = version.id;
+  remove.textContent = "Delete";
+  actions.append(remove);
+
+  article.append(body, actions);
+  return article;
+}
+
+function renderTicketFormOptions() {
+  replaceSelectOptions(els.ticketComponentID, "Component", state.components, (component) => component.name);
+  replaceSelectOptions(els.ticketVersionID, "Version", state.versions, (version) => `${version.name} (${version.state})`);
+}
+
+function replaceSelectOptions(select, emptyLabel, items, label) {
+  if (!select) {
+    return;
+  }
+  const current = select.value;
+  select.replaceChildren();
+  appendSelectOptions(select, emptyLabel, items, label, current);
+}
+
+function appendSelectOptions(select, emptyLabel, items, label, selectedID = "") {
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = emptyLabel;
+  empty.selected = !selectedID;
+  select.append(empty);
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = label(item);
+    option.selected = item.id === selectedID;
+    select.append(option);
+  }
 }
 
 function renderSearchResults() {
@@ -918,6 +1225,8 @@ function renderProjects() {
         els.engineProjectID.value = project.id;
       }
       await loadSprints({ renderTickets: false });
+      await loadComponents({ renderTickets: false });
+      await loadVersions({ renderTickets: false });
       await loadTickets();
       await loadSavedViews();
     });
@@ -1029,8 +1338,43 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function planningControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-planning";
+  section.setAttribute("data-ticket-planning-control", "true");
+  section.setAttribute("aria-label", `${ticket.key} component and version`);
+
+  const heading = document.createElement("p");
+  heading.className = "planning-heading";
+  const component = ticket.component_id ? componentName(ticket.component_id) : "No component";
+  const version = ticket.version_id ? versionName(ticket.version_id) : "No version";
+  heading.textContent = `${component} / ${version}`;
+
+  const controls = document.createElement("div");
+  controls.className = "ticket-planning-controls";
+
+  const componentSelect = document.createElement("select");
+  componentSelect.setAttribute("aria-label", "Component");
+  componentSelect.setAttribute("data-ticket-component-select", "true");
+  appendSelectOptions(componentSelect, "Component", state.components, (item) => item.name, ticket.component_id);
+
+  const versionSelect = document.createElement("select");
+  versionSelect.setAttribute("aria-label", "Version");
+  versionSelect.setAttribute("data-ticket-version-select", "true");
+  appendSelectOptions(versionSelect, "Version", state.versions, (item) => `${item.name} (${item.state})`, ticket.version_id);
+
+  const assign = document.createElement("button");
+  assign.type = "button";
+  assign.dataset.assignPlanningId = ticket.id;
+  assign.textContent = "Set";
+
+  controls.append(componentSelect, versionSelect, assign);
+  section.append(heading, controls);
+  return section;
 }
 
 function sprintControlNode(ticket) {
@@ -1379,6 +1723,45 @@ function normalizeSprint(sprint) {
   return sprint;
 }
 
+function normalizeComponent(component) {
+  if (!component) {
+    return null;
+  }
+  if (component.metadata && component.spec) {
+    return {
+      id: component.metadata.id,
+      project_id: component.metadata.project_id,
+      created_at: component.metadata.created_at,
+      updated_at: component.metadata.updated_at,
+      name: component.spec.name || "",
+      description: component.spec.description || "",
+      owner_user_id: component.spec.owner_user_id || "",
+      default_assignee_id: component.spec.default_assignee_id || ""
+    };
+  }
+  return component;
+}
+
+function normalizeVersion(version) {
+  if (!version) {
+    return null;
+  }
+  if (version.metadata && version.spec && version.status) {
+    return {
+      id: version.metadata.id,
+      project_id: version.metadata.project_id,
+      created_at: version.metadata.created_at,
+      updated_at: version.metadata.updated_at,
+      name: version.spec.name || "",
+      description: version.spec.description || "",
+      target_date: version.spec.target_date || "",
+      release_date: version.spec.release_date || "",
+      state: version.status.state || "planned"
+    };
+  }
+  return version;
+}
+
 function normalizeToken(token) {
   if (!token) {
     return null;
@@ -1439,6 +1822,16 @@ function formatDateTime(value) {
 function sprintName(id) {
   const sprint = state.sprints.find((item) => item.id === id);
   return sprint ? sprint.name : id;
+}
+
+function componentName(id) {
+  const component = state.components.find((item) => item.id === id);
+  return component ? component.name : id;
+}
+
+function versionName(id) {
+  const version = state.versions.find((item) => item.id === id);
+  return version ? version.name : id;
 }
 
 function dateRange(start, end) {

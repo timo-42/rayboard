@@ -106,6 +106,12 @@
               <option value="Bug">Bug</option>
               <option value="Story">Story</option>
             </select>
+            <select id="ticket-component-id" name="component_id">
+              <option value="">Component</option>
+            </select>
+            <select id="ticket-version-id" name="version_id">
+              <option value="">Version</option>
+            </select>
             <button type="submit"><span aria-hidden="true">+</span> Ticket</button>
           </form>
 
@@ -161,6 +167,38 @@
         </form>
 
         <div id="sprints" class="sprint-list"></div>
+      </section>
+
+      <section id="release-panel" class="release-panel" hidden>
+        <header class="release-header">
+          <div>
+            <p class="eyebrow">Release Planning</p>
+            <h2>Components and Versions</h2>
+          </div>
+        </header>
+
+        <div class="release-grid">
+          <section>
+            <h3>Components</h3>
+            <form id="component-form" class="component-form">
+              <input name="name" placeholder="Component name" required>
+              <input name="description" placeholder="Description">
+              <button type="submit">Create</button>
+            </form>
+            <div id="components" class="component-list"></div>
+          </section>
+
+          <section>
+            <h3>Versions</h3>
+            <form id="version-form" class="version-form">
+              <input name="name" placeholder="Version name" required>
+              <input name="description" placeholder="Description">
+              <input name="target_date" type="date" aria-label="Target date">
+              <button type="submit">Create</button>
+            </form>
+            <div id="versions" class="version-list"></div>
+          </section>
+        </div>
       </section>
 
       <section id="search-panel" class="search-panel" hidden>
