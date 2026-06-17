@@ -29,7 +29,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, and creating/deleting role bindings when the signed-in user has permission;
-- a settings page under `/settings` for global attachment/webhook/demo settings when permitted and personal notification preferences for every signed-in user;
+- a settings page under `/settings` for global attachment/webhook/demo settings, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - project listing and project creation;
@@ -50,7 +50,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. User/group/RBAC administration beyond list summaries, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/policies/delivery history, and saved automation management screens are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, OpenRouter provider management, Shoutrrr destination management, project notification defaults/policies/delivery history, and saved automation management screens are API-only for now.
 
 Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
 

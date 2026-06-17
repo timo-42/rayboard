@@ -44,4 +44,4 @@ Migrations run at backend startup. For now:
 
 ## Planned Operational Work
 
-Production hardening is **Planned** and should include structured logging, configurable session TTLs, TLS/reverse-proxy guidance, online backup/restore docs, metrics, audit-log UI/export tools, rate limits, webhook delivery history, automation run inspection, and notification delivery inspection.
+Production hardening is **Planned** and should include structured logging, configurable session TTLs, TLS/reverse-proxy guidance, online backup/restore docs, metrics, audit-log export tools, rate limits, webhook delivery history, automation run inspection, and notification delivery inspection.

@@ -22,7 +22,7 @@ Implemented browser workflows:
 - custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, and role-binding summaries when permitted;
-- Settings page for global settings when permitted and personal notification preferences for every signed-in user;
+- Settings page for global settings and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
 - text/CEL search plus saved-view list, create, apply, and delete;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines.
 
@@ -36,7 +36,6 @@ Implemented API-only user workflows:
 - board ticket listing by board definition;
 - detailed component/version editing and filtering;
 - custom field update APIs beyond browser delete/recreate;
-- in-app notification inbox API, including unread filtering and read/unread state;
 - project notification defaults;
 - global/project notification policy CRUD, Lua/AI notification hook CRUD, and delivery history/manual retry;
 - incoming/outgoing webhook definition APIs, incoming execution, outgoing delivery history, and outgoing delivery retry;

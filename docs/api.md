@@ -522,7 +522,7 @@ Provider responses use `metadata`, `spec`, and `status`. `spec` contains name, d
 
 ## Global Settings
 
-Global settings are API-only and require global `settings:manage`.
+Global settings require global `settings:manage` and are available through the API and the browser `/settings` page.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -535,7 +535,7 @@ Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_c
 
 ## Audit Log
 
-Security audit log listing is API-only and requires global `settings:manage`.
+Security audit log listing requires global `settings:manage` and is available through the API and the browser `/settings` page.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

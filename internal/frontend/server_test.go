@@ -34,6 +34,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="rbac-member-form"`) ||
 		!strings.Contains(body, `id="rbac-binding-form"`) ||
 		!strings.Contains(body, `id="settings-panel"`) ||
+		!strings.Contains(body, `id="audit-form"`) ||
+		!strings.Contains(body, `id="audit-log"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
@@ -97,10 +99,13 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderIssue",
 		"renderRBAC",
 		"renderSettings",
+		"renderAuditLog",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadRBAC",
 		"loadSettingsPage",
+		"loadAuditLog",
+		"normalizeAuditEntry",
 		"rbacUserForm",
 		"rbacGroupForm",
 		"rbacMemberForm",
@@ -112,6 +117,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/role-bindings",
 		"/api/role-bindings/${deleteBinding.dataset.deleteBindingId}",
 		"/api/settings",
+		"/api/audit-log",
 		"/api/me/notification-preferences",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -130,6 +136,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".member-list",
 		".settings-panel",
 		".settings-grid",
+		".audit-form",
+		".audit-log",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

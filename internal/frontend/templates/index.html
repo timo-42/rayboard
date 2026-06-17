@@ -506,6 +506,25 @@
             </form>
             <div id="preference-status" class="settings-status"></div>
           </section>
+
+          <section class="settings-card audit-card">
+            <h3>Security Audit Log</h3>
+            <form id="audit-form" class="audit-form">
+              <input name="event_type" placeholder="event type">
+              <input name="actor_user_id" placeholder="actor user id">
+              <input name="subject_type" placeholder="subject type">
+              <input name="subject_id" placeholder="subject id">
+              <select name="outcome">
+                <option value="">Any outcome</option>
+                <option value="success">Success</option>
+                <option value="failure">Failure</option>
+              </select>
+              <input name="limit" type="number" min="1" max="500" step="1" value="25">
+              <button type="submit">Filter</button>
+            </form>
+            <div id="audit-status" class="settings-status"></div>
+            <div id="audit-log" class="audit-log"></div>
+          </section>
         </div>
       </section>
 

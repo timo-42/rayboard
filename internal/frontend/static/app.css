@@ -620,7 +620,8 @@ p {
 }
 
 .settings-form,
-.preference-form {
+.preference-form,
+.audit-form {
   display: grid;
   gap: 10px;
 }
@@ -629,8 +630,79 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.audit-card {
+  grid-column: 1 / -1;
+}
+
+.audit-form {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+}
+
+.audit-log {
+  display: grid;
+  gap: 8px;
+}
+
+.audit-entry {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.audit-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audit-entry p {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.audit-entry span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.audit-outcome {
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong) !important;
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+.audit-outcome.is-failure {
+  background: #f8e9e7;
+  color: #96342f !important;
+}
+
+.audit-entry pre {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 8px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .settings-form button,
-.preference-form button {
+.preference-form button,
+.audit-form button {
   justify-self: start;
 }
 
@@ -1895,7 +1967,8 @@ p {
   .rbac-grid,
   .issue-overview,
   .settings-grid,
-  .preference-form {
+  .preference-form,
+  .audit-form {
     grid-template-columns: 1fr;
   }
 

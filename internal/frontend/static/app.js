@@ -25,7 +25,9 @@ const state = {
   rbac: { users: [], groups: [], roles: [], bindings: [], members: {} },
   settings: null,
   notificationPreferences: null,
+  auditLog: [],
   settingsError: "",
+  auditLogError: "",
   engineResult: null
 };
 
@@ -65,6 +67,9 @@ const els = {
   settingsRefresh: document.querySelector("#settings-refresh"),
   settingsForm: document.querySelector("#settings-form"),
   settingsStatus: document.querySelector("#settings-status"),
+  auditForm: document.querySelector("#audit-form"),
+  auditStatus: document.querySelector("#audit-status"),
+  auditLog: document.querySelector("#audit-log"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
   notificationInbox: document.querySelector("#notification-inbox"),
@@ -170,7 +175,9 @@ function bindEvents() {
       state.rbac = { users: [], groups: [], roles: [], bindings: [], members: {} };
       state.settings = null;
       state.notificationPreferences = null;
+      state.auditLog = [];
       state.settingsError = "";
+      state.auditLogError = "";
       render();
     }, "Signed out");
   });
@@ -662,6 +669,13 @@ function bindEvents() {
       });
       await loadGlobalSettings();
     }, "Global settings saved");
+  });
+
+  els.auditForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runAction(async () => {
+      await loadAuditLog();
+    }, "Audit log refreshed");
   });
 
   els.preferenceForm.addEventListener("submit", async (event) => {
@@ -1249,7 +1263,8 @@ async function loadRBAC() {
 async function loadSettingsPage() {
   await Promise.all([
     loadGlobalSettings(),
-    loadNotificationPreferences()
+    loadNotificationPreferences(),
+    loadAuditLog()
   ]);
 }
 
@@ -1266,6 +1281,18 @@ async function loadGlobalSettings() {
 
 async function loadNotificationPreferences() {
   state.notificationPreferences = normalizePreferences(await api("/api/me/notification-preferences"));
+  renderSettings();
+}
+
+async function loadAuditLog() {
+  try {
+    const query = auditQuery();
+    state.auditLog = listItems(await api(`/api/audit-log${query}`)).map(normalizeAuditEntry);
+    state.auditLogError = "";
+  } catch (error) {
+    state.auditLog = [];
+    state.auditLogError = error.message || "Audit log is not available";
+  }
   renderSettings();
 }
 
@@ -2090,7 +2117,7 @@ function renderBindingSubjectOptions() {
 }
 
 function renderSettings() {
-  if (!els.settingsForm || !els.preferenceForm) {
+  if (!els.settingsForm || !els.preferenceForm || !els.auditForm) {
     return;
   }
 
@@ -2122,6 +2149,58 @@ function renderSettings() {
   } else {
     els.preferenceStatus.textContent = "Notification preferences are not loaded";
   }
+
+  renderAuditLog();
+}
+
+function renderAuditLog() {
+  if (!els.auditStatus || !els.auditLog) {
+    return;
+  }
+  els.auditLog.replaceChildren();
+  if (state.auditLogError) {
+    els.auditStatus.textContent = state.auditLogError;
+    return;
+  }
+  els.auditStatus.textContent = state.auditLog.length ? `${state.auditLog.length} audit entries` : "No audit entries";
+  if (!state.auditLog.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No audit events match the current filters";
+    els.auditLog.append(empty);
+    return;
+  }
+  for (const entry of state.auditLog) {
+    els.auditLog.append(auditEntryNode(entry));
+  }
+}
+
+function auditEntryNode(entry) {
+  const article = document.createElement("article");
+  article.className = "audit-entry";
+
+  const header = document.createElement("div");
+  header.className = "audit-entry-header";
+  const title = document.createElement("p");
+  title.textContent = entry.event_type || "audit event";
+  const outcome = document.createElement("span");
+  outcome.className = entry.outcome === "failure" ? "audit-outcome is-failure" : "audit-outcome";
+  outcome.textContent = entry.outcome || "success";
+  header.append(title, outcome);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    entry.occurred_at ? formatDateTime(entry.occurred_at) : "",
+    entry.actor_user_id ? `actor ${entry.actor_user_id}` : "",
+    entry.auth_kind || "",
+    entry.subject_type ? `${entry.subject_type}${entry.subject_id ? ` ${entry.subject_id}` : ""}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const payload = document.createElement("pre");
+  payload.textContent = JSON.stringify(entry.payload || {}, null, 2);
+
+  article.append(header, meta, payload);
+  return article;
 }
 
 function renderAdminList(container, items, nodeFactory) {
@@ -2872,6 +2951,22 @@ function preferenceKeys() {
   ];
 }
 
+function auditQuery() {
+  const params = new URLSearchParams();
+  if (!els.auditForm) {
+    params.set("limit", "25");
+    return `?${params.toString()}`;
+  }
+  const data = formData(els.auditForm);
+  for (const key of ["event_type", "actor_user_id", "subject_type", "subject_id", "outcome"]) {
+    if (data[key]) {
+      params.set(key, data[key]);
+    }
+  }
+  params.set("limit", String(Math.min(Math.max(Number(data.limit || 25), 1), 500)));
+  return `?${params.toString()}`;
+}
+
 function searchSpecFromForm(form) {
   const data = formData(form);
   return {
@@ -3228,6 +3323,27 @@ function normalizePreferences(preferences) {
     return normalized;
   }
   return preferences;
+}
+
+function normalizeAuditEntry(entry) {
+  if (!entry) {
+    return null;
+  }
+  if (entry.metadata && entry.spec && entry.status) {
+    return {
+      id: entry.metadata.id || "",
+      occurred_at: entry.metadata.occurred_at || "",
+      event_type: entry.spec.event_type || "",
+      actor_user_id: entry.spec.actor_user_id || "",
+      auth_kind: entry.spec.auth_kind || "",
+      subject_type: entry.spec.subject_type || "",
+      subject_id: entry.spec.subject_id || "",
+      outcome: entry.spec.outcome || "",
+      payload: entry.spec.payload || {},
+      security_event: Boolean(entry.status.security_event)
+    };
+  }
+  return entry;
 }
 
 function normalizeComment(comment) {
