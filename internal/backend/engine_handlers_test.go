@@ -20,8 +20,13 @@ func TestEngineTestEndpoint(t *testing.T) {
 	db, bootstrap := openBackendTestDB(t, ctx)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	runStore := automation.NewRunStore(db.SQL)
+	authService := auth.NewService(db.SQL)
+	actor, err := authService.CreateUser(ctx, auth.CreateUserInput{Username: "engine-owner"})
+	if err != nil {
+		t.Fatalf("create engine owner: %v", err)
+	}
 	handler := NewHandler(
-		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthService(authService),
 		WithAuthorizer(authorizer),
 		WithEngineService(engines.NewService(db.SQL, authorizer, runStore)),
 	)
@@ -135,6 +140,41 @@ func TestEngineTestEndpoint(t *testing.T) {
 	}
 	if scratchBody.Spec.Surface != "scratch" || scratchBody.Status.Output["surface"] != "scratch" || scratchBody.Status.Output["value"] != "scratch" || scratchBody.Status.Engine["surface"] != "scratch" {
 		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
+	}
+
+	contextActorReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"context": map[string]any{"actor_user_id": actor.ID},
+			"engine": map[string]string{
+				"type":   "lua",
+				"script": `return { actor_user_id = context.actor_user_id }`,
+			},
+		},
+	}))
+	contextActorReq.AddCookie(sessionCookie)
+	contextActorReq.AddCookie(csrfCookie)
+	contextActorReq.Header.Set("Content-Type", "application/json")
+	contextActorReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	contextActorRec := httptest.NewRecorder()
+	handler.ServeHTTP(contextActorRec, contextActorReq)
+	if contextActorRec.Code != http.StatusOK {
+		t.Fatalf("expected context actor engine test status 200, got %d: %s", contextActorRec.Code, contextActorRec.Body.String())
+	}
+	var contextActorBody struct {
+		Spec struct {
+			ActorUserID string         `json:"actor_user_id"`
+			Context     map[string]any `json:"context"`
+		} `json:"spec"`
+		Status struct {
+			Output map[string]any `json:"output"`
+			Engine map[string]any `json:"engine"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(contextActorRec.Body.Bytes(), &contextActorBody); err != nil {
+		t.Fatalf("decode context actor engine response: %v", err)
+	}
+	if contextActorBody.Spec.ActorUserID != actor.ID || contextActorBody.Spec.Context["actor_user_id"] != actor.ID || contextActorBody.Status.Output["actor_user_id"] != actor.ID {
+		t.Fatalf("expected actor fallback from context, got %#v", contextActorBody)
 	}
 
 	validateReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{

@@ -87,6 +87,42 @@ func TestLuaEngineTestDefaultsToScratchSurface(t *testing.T) {
 	}
 }
 
+func TestEngineTestUsesContextActorAndProjectFallback(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "automation-owner")
+	seedProject(t, ctx, db.SQL, "project-context")
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+		Context: map[string]any{
+			"project_id":    "project-context",
+			"actor_user_id": "automation-owner",
+		},
+		Engine: engines.EngineSpec{
+			Type:   "lua",
+			Script: `return { project_id = context.project_id, actor_user_id = context.actor_user_id }`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("test engine with context actor/project: %v", err)
+	}
+	if run.ProjectID != "project-context" {
+		t.Fatalf("expected run project from context, got %#v", run)
+	}
+	output, _ := run.Output["output"].(map[string]any)
+	if output["project_id"] != "project-context" || output["actor_user_id"] != "automation-owner" {
+		t.Fatalf("expected Lua context actor/project fallback, got %#v", run.Output)
+	}
+	inputEnvelope, _ := run.Input["input"].(map[string]any)
+	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
+	if contextEnvelope["project_id"] != "project-context" || contextEnvelope["actor_user_id"] != "automation-owner" {
+		t.Fatalf("expected normalized run input context fallback, got %#v", run.Input)
+	}
+}
+
 func TestEngineValidateOnlyDoesNotExecute(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t, ctx)
@@ -326,6 +362,18 @@ func seedUser(t *testing.T, ctx context.Context, db *sql.DB, userID string) {
 	`, userID, userID, userID)
 	if err != nil {
 		t.Fatalf("seed user %s: %v", userID, err)
+	}
+}
+
+func seedProject(t *testing.T, ctx context.Context, db *sql.DB, projectID string) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES (?, 'CTX', 'Context Project')
+	`, projectID)
+	if err != nil {
+		t.Fatalf("seed project %s: %v", projectID, err)
 	}
 }
 

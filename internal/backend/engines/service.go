@@ -110,6 +110,14 @@ func WithOpenRouterService(openRouterService *openrouter.Service) Option {
 func (s *Service) Test(ctx context.Context, principal authz.Principal, input TestInput) (automation.Run, error) {
 	input.ProjectID = strings.TrimSpace(input.ProjectID)
 	input.ActorUserID = strings.TrimSpace(input.ActorUserID)
+	if input.Context != nil {
+		if input.ProjectID == "" {
+			input.ProjectID = contextString(input.Context, "project_id")
+		}
+		if input.ActorUserID == "" {
+			input.ActorUserID = contextString(input.Context, "actor_user_id")
+		}
+	}
 	if input.ActorUserID == "" {
 		input.ActorUserID = principal.UserID
 	}
@@ -372,6 +380,18 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 		return &ValidationError{Message: "Invalid engine test", Fields: fields}
 	}
 	return nil
+}
+
+func contextString(context map[string]any, key string) string {
+	value, ok := context[key]
+	if !ok || value == nil {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
 }
 
 func validSurface(surface string) bool {
