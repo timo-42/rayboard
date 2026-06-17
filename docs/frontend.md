@@ -5,6 +5,7 @@ The current frontend is embedded in the Go binary with `embed.FS` and served by 
 Implemented routes:
 
 - `GET /`: renders `templates/index.html`.
+- `GET /1` through `GET /5`: render the same embedded application shell with distinct design variants selected.
 - `GET /docs` and `GET /docs/{page}`: render embedded markdown documentation as HTML.
 - `GET /health`: returns frontend health JSON.
 - `GET /static/*`: serves embedded static assets.
@@ -14,6 +15,7 @@ Implemented routes:
 
 The current UI is a small vanilla JavaScript board shell. It supports:
 
+- a root UI selector linking to five embedded design variants under `/1`, `/2`, `/3`, `/4`, and `/5`;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - project listing and project creation;
@@ -24,6 +26,18 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 It does not currently expose all backend endpoints. User/group/RBAC administration, comments, attachments, saved views, saved-view metadata, advanced search, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, component CRUD, version/release CRUD, ticket component/version assignment, roadmap data, custom field management, and ticket custom-field values are API-only for now.
 
 Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are also API-only for now. Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint/report screens, release reports, roadmap timeline UI, component/version UI screens, custom-field screens, and advanced release planning are **Planned**.
+
+## Design Variants
+
+The selector under `/` exposes five embedded visual directions without changing backend API behavior or the current JavaScript contract:
+
+- `/1`: Operations, a dense admin shell for repeated project and ticket work.
+- `/2`: Planning, a backlog-forward treatment with stronger prioritization cues.
+- `/3`: Automation, a darker workspace for hooks, scripts, and run feedback.
+- `/4`: Triage, a compact high-contrast queue style.
+- `/5`: Executive, a quieter overview style for roadmap and delivery status review.
+
+The variants are currently CSS-scoped explorations on the same HTML template. They are not separate frontend applications.
 
 ## Asset Policy
 

@@ -19,6 +19,8 @@ func TestIndex(t *testing.T) {
 	if body := rec.Body.String(); !strings.Contains(body, "Rayboard") ||
 		!strings.Contains(body, "http://backend.test") ||
 		!strings.Contains(body, "/static/app.js") ||
+		!strings.Contains(body, `class="design-selector-home"`) ||
+		!strings.Contains(body, "Design Selector") ||
 		!strings.Contains(body, `href="/docs"`) ||
 		!strings.Contains(body, `href="/api/docs"`) ||
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
@@ -29,18 +31,41 @@ func TestIndex(t *testing.T) {
 }
 
 func TestDesignVariantRoute(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/3", nil)
-	rec := httptest.NewRecorder()
-
-	NewHandler("http://backend.test").ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
+	tests := []struct {
+		path      string
+		bodyClass string
+		name      string
+	}{
+		{path: "/1", bodyClass: "design-operations", name: "Operations"},
+		{path: "/2", bodyClass: "design-planning", name: "Planning"},
+		{path: "/3", bodyClass: "design-automation", name: "Automation"},
+		{path: "/4", bodyClass: "design-triage", name: "Triage"},
+		{path: "/5", bodyClass: "design-executive", name: "Executive"},
 	}
-	if body := rec.Body.String(); !strings.Contains(body, `href="/3" aria-current="page"`) ||
-		!strings.Contains(body, `href="/1"`) ||
-		!strings.Contains(body, `href="/5"`) {
-		t.Fatalf("unexpected body: %s", body)
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			rec := httptest.NewRecorder()
+
+			NewHandler("http://backend.test").ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+			body := rec.Body.String()
+			for _, expected := range []string{
+				`class="` + tt.bodyClass + `"`,
+				tt.name,
+				`href="` + tt.path + `" aria-current="page"`,
+				`href="/1"`,
+				`href="/5"`,
+			} {
+				if !strings.Contains(body, expected) {
+					t.Fatalf("expected body to contain %q: %s", expected, body)
+				}
+			}
+		})
 	}
 }
 

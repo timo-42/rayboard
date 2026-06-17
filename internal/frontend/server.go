@@ -20,12 +20,21 @@ type Server struct {
 type indexData struct {
 	BackendURL string
 	Designs    []designOption
+	Design     designVariant
 }
 
 type designOption struct {
 	Path   string
 	Label  string
 	Active bool
+}
+
+type designVariant struct {
+	Path        string
+	Label       string
+	Name        string
+	Description string
+	BodyClass   string
 }
 
 func NewServer(addr string, backendURL string) *Server {
@@ -86,15 +95,40 @@ func isDesignVariantPath(path string) bool {
 
 func designOptions(selectedPath string) []designOption {
 	designs := make([]designOption, 0, 5)
-	for _, label := range []string{"1", "2", "3", "4", "5"} {
-		path := "/" + label
+	for _, variant := range designVariants() {
+		path := variant.Path
 		designs = append(designs, designOption{
 			Path:   path,
-			Label:  label,
+			Label:  variant.Label,
 			Active: path == selectedPath,
 		})
 	}
 	return designs
+}
+
+func selectedDesign(path string) designVariant {
+	for _, variant := range designVariants() {
+		if variant.Path == path {
+			return variant
+		}
+	}
+	return designVariant{
+		Path:        "/",
+		Label:       "Selector",
+		Name:        "Design Selector",
+		Description: "Choose one of five embedded Rayboard interface directions.",
+		BodyClass:   "design-selector-home",
+	}
+}
+
+func designVariants() []designVariant {
+	return []designVariant{
+		{Path: "/1", Label: "1", Name: "Operations", Description: "Dense admin shell for repeated project and ticket work.", BodyClass: "design-operations"},
+		{Path: "/2", Label: "2", Name: "Planning", Description: "Backlog-forward layout with stronger planning and prioritization cues.", BodyClass: "design-planning"},
+		{Path: "/3", Label: "3", Name: "Automation", Description: "Automation-oriented workspace for hooks, scripts, and run feedback.", BodyClass: "design-automation"},
+		{Path: "/4", Label: "4", Name: "Triage", Description: "High-contrast queue view for fast support and QA scanning.", BodyClass: "design-triage"},
+		{Path: "/5", Label: "5", Name: "Executive", Description: "Quiet overview style for roadmap, risk, and delivery status reviews.", BodyClass: "design-executive"},
+	}
 }
 
 func backendProxy(backendURL string) http.Handler {
@@ -107,7 +141,7 @@ func backendProxy(backendURL string) http.Handler {
 	return httputil.NewSingleHostReverseProxy(target)
 }
 
-func index(w http.ResponseWriter, backendURL string, selectedDesign string) {
+func index(w http.ResponseWriter, backendURL string, selectedPath string) {
 	tpl, err := template.ParseFS(assets, "templates/index.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
@@ -116,6 +150,7 @@ func index(w http.ResponseWriter, backendURL string, selectedDesign string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = tpl.Execute(w, indexData{
 		BackendURL: backendURL,
-		Designs:    designOptions(selectedDesign),
+		Designs:    designOptions(selectedPath),
+		Design:     selectedDesign(selectedPath),
 	})
 }

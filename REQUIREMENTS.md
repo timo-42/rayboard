@@ -188,15 +188,18 @@ internal/backend/httpapi/
   - provide Lua examples for JSON encode/decode, `json.null`, API function calls, validation errors, and safe payload transformation.
 - Add an automation engine test/workbench endpoint:
   - expose a backend-owned endpoint under `POST /api/engines/test` for testing shared engine definitions before attaching them to cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, or notification hooks.
+  - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
   - support `engine.type=lua` and `engine.type=ai` in the first implementation, and keep the request/response shape compatible with future `engine.type=wasm`.
   - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`.
-  - `spec.surface` selects the target automation contract, such as `cron`, `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook`.
+  - `spec.surface` selects the target automation contract, such as `scratch`, `cron`, `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook`.
+  - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and later wasm modules without choosing a real automation surface.
   - `spec.context` supplies the project, ticket, webhook, cron job, notification, actor, or other resource context needed to evaluate RBAC and surface-specific output schemas.
   - `spec.input` is arbitrary JSON passed to the engine using the same JSON/table conversion and validation rules used by real automation runs.
   - return a resource-like output with `metadata`, the normalized request `spec`, and `status` containing validated output, action previews, logs, duration, engine metadata, validation errors, runtime errors, limit errors, and redacted provider/runtime diagnostics.
   - execute tests with the same sandbox, owner/actor principal, RBAC checks, timeout, memory/log/payload limits, JSON/table conversion, output-schema validation, secret redaction, and run-history/audit behavior as the corresponding real automation surface.
   - test runs must never persist ticket/project mutations by default; mutation-capable previews require explicit dry-run/action-plan behavior that reports intended actions without committing them.
   - only authorized global admins or project automation managers can test engines, and project-scoped users can test only against projects/resources where they have automation-management permission.
+  - the frontend workbench must call this endpoint directly and show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.
   - the endpoint must be exposed in Huma/OpenAPI, Swagger UI, Redoc, and the embedded `/docs` HTML documentation with examples for Lua and OpenRouter AI.
 - Add Lua ticket hook plugins:
   - use the existing GopherLua stack for project-scoped ticket hooks.
@@ -361,7 +364,7 @@ internal/backend/httpapi/
   - global admin settings endpoints, project settings endpoints, and user settings endpoints
   - admin OpenRouter settings endpoints
   - automation engine selection for cron jobs, ticket hooks, custom create pages, and webhooks using the shared `engine` object
-  - generic engine test endpoint: `POST /api/engines/test` accepts `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`, then returns `metadata`, `spec`, and `status` with validated output, logs, metadata, duration, errors, and non-persistent action previews
+  - generic engine test endpoint: `POST /api/engines/test` accepts `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`, supports `spec.surface=scratch`, then returns `metadata`, `spec`, and `status` with validated output, logs, metadata, duration, errors, and non-persistent action previews
   - test/validate AI prompt endpoints for each automation surface
   - admin-only demo reset endpoint and demo seed support endpoints only if normal CRUD endpoints are insufficient
 - Frontend:
@@ -391,7 +394,7 @@ internal/backend/httpapi/
   - global OpenRouter settings for admins
   - global admin settings, project settings, and user settings pages
   - user detail view showing direct roles, group roles, and effective permissions
-  - automation engine workbench for testing Lua and OpenRouter AI engines against selected surfaces before saving them
+  - automation engine workbench for testing Lua and OpenRouter AI engines in scratch mode or against selected surfaces before saving them
   - per-automation Lua/AI selector, AI prompt editor, output schema preview, model selector, test panel, last error, and run history
   - user-facing create page routes such as `/projects/{key}/create/{slug}`
   - server-rendered pages and HTMX partials served from embedded templates/static assets
@@ -603,7 +606,7 @@ Rules:
 - Notification delivery tests verify queued delivery, retry/backoff, failure history, and named destination resolution at queue processing time.
 - OpenRouter config tests verify only global admins can configure the API key/model allowlist and secrets are not exposed.
 - Automation engine selection tests verify each Lua-capable surface can use the shared nested `engine` object with `engine.type` set to `lua` or `ai`.
-- Generic engine endpoint tests verify `POST /api/engines/test` can dry-run Lua and AI engine definitions with supplied JSON input, returns Kubernetes-style `metadata`/`spec`/`status`, validates surface-specific output schemas, enforces RBAC and sandbox limits, and does not persist mutations.
+- Generic engine endpoint tests verify `POST /api/engines/test` can dry-run Lua and AI engine definitions with supplied JSON input, supports scratch mode, returns Kubernetes-style `metadata`/`spec`/`status`, validates generic and surface-specific output schemas, enforces RBAC and sandbox limits, and does not persist mutations.
 - AI schema tests verify valid structured output is accepted and invalid/free-text output is rejected.
 - AI surface tests verify AI cron jobs, ticket hooks, custom create pages, incoming webhooks, and outgoing webhooks follow the same authorization and validation paths as Lua.
 - AI limit tests verify timeout, payload limits, action-count limits, and missing/disabled OpenRouter config behavior.
