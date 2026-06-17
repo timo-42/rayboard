@@ -23,7 +23,7 @@ X-CSRF-Token: <value from rayboard_csrf cookie>
 
 Bearer-token requests do not require CSRF because browsers do not attach bearer credentials automatically.
 
-Swagger UI authorization exposes only bearer API tokens in the authorization dialog. Cookie-authenticated browser requests still work at runtime; the embedded Swagger UI sends browser cookies and automatically copies the readable CSRF cookie into `X-CSRF-Token` only when no bearer `Authorization` header is present. CSRF is tied to browser session auth and not to API tokens.
+Swagger UI authorization exposes only bearer API tokens in the authorization dialog. Cookie-authenticated browser requests still work at runtime; when no bearer `Authorization` header is present, the embedded Swagger UI sends browser cookies and automatically copies the readable CSRF cookie into `X-CSRF-Token`. When a bearer token is present, Swagger UI omits browser credentials and clears the CSRF header. CSRF is tied to browser session auth and not to API tokens.
 
 ## API Tokens
 

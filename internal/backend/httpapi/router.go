@@ -192,11 +192,31 @@ func registerDocs(mux *http.ServeMux) {
 					}
 					return "";
 				}
+				function deleteHeader(headers, name) {
+					if (!headers) {
+						return;
+					}
+					if (typeof headers.delete === "function") {
+						headers.delete(name);
+						return;
+					}
+					var lower = name.toLowerCase();
+					for (var key in headers) {
+						if (key.toLowerCase() === lower) {
+							delete headers[key];
+						}
+					}
+				}
 				var csrf = cookieValue("rayboard_csrf");
-				request.credentials = "same-origin";
 				request.headers = request.headers || {};
 				var authorization = headerValue(request.headers, "Authorization");
-				if (csrf && !authorization.toLowerCase().startsWith("bearer ") && !headerValue(request.headers, "X-CSRF-Token")) {
+				if (authorization.toLowerCase().startsWith("bearer ")) {
+					request.credentials = "omit";
+					deleteHeader(request.headers, "X-CSRF-Token");
+					return request;
+				}
+				request.credentials = "same-origin";
+				if (csrf && !headerValue(request.headers, "X-CSRF-Token")) {
 					request.headers["X-CSRF-Token"] = csrf;
 				}
 				return request;
