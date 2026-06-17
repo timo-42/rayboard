@@ -279,6 +279,8 @@ internal/backend/httpapi/
   - use CodeMirror as an optional vendored static asset for Lua and CEL editors; a plain `<textarea>` is acceptable for the first pass if needed.
   - embed templates and static assets into the Go binary using Go's `embed.FS`.
   - avoid a Node/npm build pipeline for the first version.
+  - when richer UI design work starts, create five distinct UI design variants and serve them from the single binary under `/1`, `/2`, `/3`, `/4`, and `/5` for comparison before selecting the default.
+  - add a UI design selector on `/` that links to the five design variants once those routes exist.
 - Defer project/board CSS customization:
   - do not implement a project-owner CSS editor, board-owner CSS editor, custom CSS upload, or raw stylesheet storage in the first version.
   - default embedded CSS remains the only active stylesheet system in the first version.

@@ -83,6 +83,7 @@ type WebhookSpec struct {
 	Direction   string     `json:"direction,omitempty"`
 	Enabled     bool       `json:"enabled,omitempty"`
 	ActorUserID string     `json:"actor_user_id,omitempty"`
+	EventTypes  []string   `json:"event_types,omitempty"`
 	Engine      EngineSpec `json:"engine"`
 }
 
@@ -92,6 +93,7 @@ type UpdateWebhookSpec struct {
 	Name        *string     `json:"name,omitempty"`
 	Enabled     *bool       `json:"enabled,omitempty"`
 	ActorUserID *string     `json:"actor_user_id,omitempty"`
+	EventTypes  *[]string   `json:"event_types,omitempty"`
 	Engine      *EngineSpec `json:"engine,omitempty"`
 }
 
@@ -161,6 +163,7 @@ func (spec WebhookSpec) createInput(projectID string) webhooks.CreateInput {
 		Direction:   spec.Direction,
 		Enabled:     spec.Enabled,
 		ActorUserID: spec.ActorUserID,
+		EventTypes:  spec.EventTypes,
 		Engine:      spec.Engine.toService(),
 	}
 }
@@ -175,6 +178,7 @@ func (spec UpdateWebhookSpec) updateInput() webhooks.UpdateInput {
 		Name:        spec.Name,
 		Enabled:     spec.Enabled,
 		ActorUserID: spec.ActorUserID,
+		EventTypes:  spec.EventTypes,
 		Engine:      engine,
 	}
 }
@@ -210,6 +214,7 @@ func webhookResource(hook webhooks.Webhook) WebhookResource {
 			Direction:   hook.Direction,
 			Enabled:     hook.Enabled,
 			ActorUserID: hook.ActorUserID,
+			EventTypes:  hook.EventTypes,
 			Engine:      engineFromService(hook.Engine),
 		},
 		Status: WebhookStatus{

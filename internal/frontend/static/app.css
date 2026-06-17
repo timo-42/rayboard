@@ -136,6 +136,29 @@ p {
   font-size: 18px;
 }
 
+.design-selector nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.design-selector a {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c9d1dc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #293446;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.design-selector a:hover {
+  border-color: #237967;
+  color: #1c6b5a;
+}
+
 .workspace {
   min-width: 0;
   display: grid;

@@ -193,6 +193,7 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 			"direction":     webhooks.DirectionOutgoing,
 			"enabled":       true,
 			"actor_user_id": actor.ID,
+			"event_types":   []string{"ticket.updated"},
 			"engine": map[string]any{
 				"type":   webhooks.EngineTypeLua,
 				"script": `return { method = "POST", path = "/events", body = event }`,
@@ -206,7 +207,7 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("expected outgoing webhook create status 201, got %d: %s", outgoing.Code, outgoing.Body.String())
 	}
 	createdOutgoing := decodeWebhookResource(t, outgoing.Body.Bytes())
-	if createdOutgoing.Metadata.ID == "" || createdOutgoing.Spec.Direction != webhooks.DirectionOutgoing || createdOutgoing.Status.TokenSet || createdOutgoing.Status.Token != "" {
+	if createdOutgoing.Metadata.ID == "" || createdOutgoing.Spec.Direction != webhooks.DirectionOutgoing || len(createdOutgoing.Spec.EventTypes) != 1 || createdOutgoing.Spec.EventTypes[0] != "ticket.updated" || createdOutgoing.Status.TokenSet || createdOutgoing.Status.Token != "" {
 		t.Fatalf("unexpected outgoing webhook response: %#v", createdOutgoing)
 	}
 	outgoingListReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-1/webhooks?direction=outgoing", nil)
@@ -265,10 +266,11 @@ type webhookResourceBody struct {
 		ProjectID string `json:"project_id"`
 	} `json:"metadata"`
 	Spec struct {
-		Name        string `json:"name"`
-		Direction   string `json:"direction"`
-		Enabled     bool   `json:"enabled"`
-		ActorUserID string `json:"actor_user_id"`
+		Name        string   `json:"name"`
+		Direction   string   `json:"direction"`
+		Enabled     bool     `json:"enabled"`
+		ActorUserID string   `json:"actor_user_id"`
+		EventTypes  []string `json:"event_types"`
 		Engine      struct {
 			Type   string `json:"type"`
 			Script string `json:"script"`

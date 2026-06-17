@@ -10,6 +10,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -140,6 +141,15 @@ func TestIncomingWebhookValidationAndRBAC(t *testing.T) {
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected invalid lua engine validation, got %v", err)
 	}
+	if _, err := service.Create(ctx, admin, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "outgoing missing events",
+		Direction:   DirectionOutgoing,
+		ActorUserID: "actor",
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return {}`},
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected outgoing event type validation, got %v", err)
+	}
 }
 
 func TestOutgoingWebhookDefinitionLifecycle(t *testing.T) {
@@ -161,6 +171,7 @@ func TestOutgoingWebhookDefinitionLifecycle(t *testing.T) {
 		Direction:   DirectionOutgoing,
 		Enabled:     true,
 		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
 		Engine: EngineSpec{
 			Type:   EngineTypeLua,
 			Script: `return { method = "POST", path = "/events", body = event }`,
@@ -169,7 +180,7 @@ func TestOutgoingWebhookDefinitionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create outgoing webhook: %v", err)
 	}
-	if created.ID == "" || created.Direction != DirectionOutgoing || created.Token != "" || created.TokenSet || created.TokenRotatedAt != nil {
+	if created.ID == "" || created.Direction != DirectionOutgoing || created.Token != "" || created.TokenSet || created.TokenRotatedAt != nil || !equalStrings(created.EventTypes, []string{"ticket.updated"}) {
 		t.Fatalf("unexpected outgoing webhook: %#v", created)
 	}
 
@@ -199,6 +210,115 @@ func TestOutgoingWebhookDefinitionLifecycle(t *testing.T) {
 	}
 	if _, err := service.Get(ctx, principal, created.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected deleted outgoing webhook not found, got %v", err)
+	}
+}
+
+func TestOutgoingWebhookDeliveryEnqueue(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+
+	matching, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "ticket updates",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST" }`},
+	})
+	if err != nil {
+		t.Fatalf("create matching outgoing webhook: %v", err)
+	}
+	if _, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "comments",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"comment.created"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST" }`},
+	}); err != nil {
+		t.Fatalf("create nonmatching outgoing webhook: %v", err)
+	}
+	disabled, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "disabled",
+		Direction:   DirectionOutgoing,
+		Enabled:     false,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST" }`},
+	})
+	if err != nil {
+		t.Fatalf("create disabled outgoing webhook: %v", err)
+	}
+	_ = disabled
+
+	eventStore := events.NewStore(db.SQL)
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   "actor",
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data: map[string]any{
+			"changes": map[string]any{"status": map[string]string{"old": "todo", "new": "done"}},
+		},
+	}); err != nil {
+		t.Fatalf("append ticket event: %v", err)
+	}
+	pending, err := eventStore.ListPending(ctx, 10, "ticket.updated")
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("expected one pending event, got %#v", pending)
+	}
+
+	enqueued, err := service.EnqueueOutgoingDeliveriesForEvent(ctx, pending[0])
+	if err != nil {
+		t.Fatalf("enqueue outgoing deliveries: %v", err)
+	}
+	if enqueued != 1 {
+		t.Fatalf("expected one outgoing delivery, got %d", enqueued)
+	}
+	deliveries, err := service.ListOutgoingDeliveries(ctx, principal, matching.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list outgoing deliveries: %v", err)
+	}
+	if len(deliveries) != 1 {
+		t.Fatalf("expected one delivery, got %#v", deliveries)
+	}
+	delivery := deliveries[0]
+	if delivery.WebhookID != matching.ID || delivery.WebhookName != matching.Name || delivery.DomainEventID != pending[0].ID || delivery.Status != OutgoingDeliveryStatusQueued || delivery.NextAttemptAt == nil {
+		t.Fatalf("unexpected delivery: %#v", delivery)
+	}
+	eventPayload, ok := delivery.Payload["event"].(map[string]any)
+	if !ok || eventPayload["type"] != "ticket.updated" || eventPayload["project_id"] != "project-1" {
+		t.Fatalf("unexpected delivery event payload: %#v", delivery.Payload)
+	}
+	webhookPayload, ok := delivery.Payload["webhook"].(map[string]any)
+	if !ok || webhookPayload["id"] != matching.ID || webhookPayload["name"] != matching.Name {
+		t.Fatalf("unexpected delivery webhook payload: %#v", delivery.Payload)
+	}
+
+	enqueued, err = service.EnqueueOutgoingDeliveriesForEvent(ctx, pending[0])
+	if err != nil {
+		t.Fatalf("reenqueue outgoing deliveries: %v", err)
+	}
+	if enqueued != 0 {
+		t.Fatalf("expected idempotent reenqueue, got %d", enqueued)
+	}
+	if got := countWebhookRows(t, ctx, db, "outgoing_webhook_deliveries"); got != 1 {
+		t.Fatalf("expected one outgoing webhook delivery row, got %d", got)
 	}
 }
 
@@ -500,4 +620,16 @@ func countWebhookRows(t *testing.T, ctx context.Context, db *store.DB, table str
 		t.Fatalf("count rows in %s: %v", table, err)
 	}
 	return count
+}
+
+func equalStrings(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }

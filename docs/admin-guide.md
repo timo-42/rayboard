@@ -43,7 +43,7 @@ Notification policy CRUD is currently API-only. Global policies live under `/api
 
 Shoutrrr destination configuration is currently API-only. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only, can be rotated with `PATCH`, and can be verified with `POST /api/notification-destinations/{destination_id}/test-send`.
 
-Incoming and outgoing webhook definitions are currently API-only. Project webhooks live under `/api/projects/{project_id}/webhooks` and require project `webhooks:manage`. Incoming webhook tokens are returned once on create or rotation, stored only as hashes, and accepted at `/api/webhooks/incoming/{webhook_id}` with `Authorization: Bearer <webhook-token>`. Outgoing webhook definitions do not have tokens yet; delivery triggers, retries, and outbound HTTP are planned follow-up work.
+Incoming and outgoing webhook definitions are currently API-only. Project webhooks live under `/api/projects/{project_id}/webhooks` and require project `webhooks:manage`. Incoming webhook tokens are returned once on create or rotation, stored only as hashes, and accepted at `/api/webhooks/incoming/{webhook_id}` with `Authorization: Bearer <webhook-token>`. Outgoing webhook definitions do not have tokens; they subscribe to domain event names through `spec.event_types` and can be persisted as queued deliveries. Delivery processing, retries, and outbound HTTP are planned follow-up work.
 
 Custom CSS is planned as an override layer only. The first implementation should not allow arbitrary template changes.
 

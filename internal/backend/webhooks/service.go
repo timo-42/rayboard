@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -103,6 +104,7 @@ type Webhook struct {
 	Direction      string
 	Enabled        bool
 	ActorUserID    string
+	EventTypes     []string
 	Engine         EngineSpec
 	TokenSet       bool
 	TokenRotatedAt *time.Time
@@ -129,6 +131,7 @@ type CreateInput struct {
 	Direction   string
 	Enabled     bool
 	ActorUserID string
+	EventTypes  []string
 	Engine      EngineSpec
 }
 
@@ -136,6 +139,7 @@ type UpdateInput struct {
 	Name        *string
 	Enabled     *bool
 	ActorUserID *string
+	EventTypes  *[]string
 	Engine      *EngineSpec
 }
 
@@ -175,6 +179,7 @@ func (s *Service) List(ctx context.Context, principal authz.Principal, input Lis
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, name, direction, enabled, actor_user_id, engine_type,
 			COALESCE(lua_script, ''), COALESCE(ai_prompt, ''), COALESCE(ai_provider_id, ''),
+			event_types_json,
 			token_hash, token_rotated_at, COALESCE(last_error, ''), created_at, updated_at
 		FROM webhooks
 		WHERE `+joinAnd(where)+`
@@ -208,6 +213,7 @@ func (s *Service) Create(ctx context.Context, principal authz.Principal, input C
 		Direction:   strings.TrimSpace(input.Direction),
 		Enabled:     input.Enabled,
 		ActorUserID: strings.TrimSpace(input.ActorUserID),
+		EventTypes:  normalizeEventTypes(input.EventTypes),
 		Engine:      normalizeEngine(input.Engine),
 		CreatedAt:   s.now().UTC(),
 		UpdatedAt:   s.now().UTC(),
@@ -238,13 +244,13 @@ func (s *Service) Create(ctx context.Context, principal authz.Principal, input C
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO webhooks (
 			id, project_id, name, direction, enabled, actor_user_id, engine_type,
-			lua_script, ai_prompt, ai_provider_id, token_hash, token_rotated_at,
+			lua_script, ai_prompt, ai_provider_id, event_types_json, token_hash, token_rotated_at,
 			created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, hook.ID, hook.ProjectID, hook.Name, hook.Direction, hook.Enabled, hook.ActorUserID,
 		hook.Engine.Type, nullableString(hook.Engine.Script), nullableString(hook.Engine.Prompt),
-		nullableString(hook.Engine.ProviderID), tokenHash, tokenRotatedAt,
+		nullableString(hook.Engine.ProviderID), mustEventTypesJSON(hook.EventTypes), tokenHash, tokenRotatedAt,
 		formatTime(hook.CreatedAt), formatTime(hook.UpdatedAt)); err != nil {
 		if isUniqueConstraint(err) {
 			return CreatedWebhook{}, fmt.Errorf("%w: webhook name already exists in project", ErrValidation)
@@ -282,6 +288,9 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, webhook
 	if input.ActorUserID != nil {
 		current.ActorUserID = strings.TrimSpace(*input.ActorUserID)
 	}
+	if input.EventTypes != nil {
+		current.EventTypes = normalizeEventTypes(*input.EventTypes)
+	}
 	if input.Engine != nil {
 		current.Engine = normalizeEngine(*input.Engine)
 	}
@@ -292,11 +301,11 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, webhook
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE webhooks
 		SET name = ?, enabled = ?, actor_user_id = ?, engine_type = ?,
-			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, updated_at = ?
+			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, event_types_json = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`, current.Name, current.Enabled, current.ActorUserID, current.Engine.Type,
 		nullableString(current.Engine.Script), nullableString(current.Engine.Prompt),
-		nullableString(current.Engine.ProviderID), formatTime(current.UpdatedAt), webhookID)
+		nullableString(current.Engine.ProviderID), mustEventTypesJSON(current.EventTypes), formatTime(current.UpdatedAt), webhookID)
 	if err != nil {
 		if isUniqueConstraint(err) {
 			return Webhook{}, fmt.Errorf("%w: webhook name already exists in project", ErrValidation)
@@ -371,6 +380,7 @@ func (s *Service) AuthenticateIncoming(ctx context.Context, webhookID string, to
 	hook, err := scanWebhook(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, direction, enabled, actor_user_id, engine_type,
 			COALESCE(lua_script, ''), COALESCE(ai_prompt, ''), COALESCE(ai_provider_id, ''),
+			event_types_json,
 			token_hash, token_rotated_at, COALESCE(last_error, ''), created_at, updated_at
 		FROM webhooks
 		WHERE id = ? AND direction = ? AND enabled = 1 AND token_hash = ? AND deleted_at IS NULL
@@ -538,6 +548,7 @@ func (s *Service) get(ctx context.Context, webhookID string) (Webhook, error) {
 	hook, err := scanWebhook(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, direction, enabled, actor_user_id, engine_type,
 			COALESCE(lua_script, ''), COALESCE(ai_prompt, ''), COALESCE(ai_provider_id, ''),
+			event_types_json,
 			token_hash, token_rotated_at, COALESCE(last_error, ''), created_at, updated_at
 		FROM webhooks
 		WHERE id = ? AND deleted_at IS NULL
@@ -574,6 +585,9 @@ func (s *Service) validateWebhook(ctx context.Context, hook Webhook, _ bool) err
 	}
 	if err := validateEngine(hook.Engine); err != nil {
 		fields["engine"] = err.Error()
+	}
+	if hook.Direction == DirectionOutgoing && len(hook.EventTypes) == 0 {
+		fields["event_types"] = "Outgoing webhooks require at least one event type"
 	}
 	if len(fields) > 0 {
 		return fmt.Errorf("%w: invalid webhook", ErrValidation)
@@ -641,6 +655,7 @@ func scanWebhook(scanner interface{ Scan(...any) error }) (Webhook, error) {
 	var hook Webhook
 	var tokenHash sql.NullString
 	var tokenRotatedAt sql.NullString
+	var eventTypesJSON string
 	var createdAt string
 	var updatedAt string
 	if err := scanner.Scan(
@@ -654,6 +669,7 @@ func scanWebhook(scanner interface{ Scan(...any) error }) (Webhook, error) {
 		&hook.Engine.Script,
 		&hook.Engine.Prompt,
 		&hook.Engine.ProviderID,
+		&eventTypesJSON,
 		&tokenHash,
 		&tokenRotatedAt,
 		&hook.LastError,
@@ -664,6 +680,11 @@ func scanWebhook(scanner interface{ Scan(...any) error }) (Webhook, error) {
 	}
 	hook.TokenSet = tokenHash.Valid && tokenHash.String != ""
 	hook.TokenRotatedAt = parseNullableTime(tokenRotatedAt)
+	eventTypes, err := unmarshalEventTypes(eventTypesJSON)
+	if err != nil {
+		return Webhook{}, err
+	}
+	hook.EventTypes = eventTypes
 	created, err := parseTime(createdAt)
 	if err != nil {
 		return Webhook{}, err
@@ -683,6 +704,42 @@ func normalizeEngine(engine EngineSpec) EngineSpec {
 	engine.Prompt = strings.TrimSpace(engine.Prompt)
 	engine.ProviderID = strings.TrimSpace(engine.ProviderID)
 	return engine
+}
+
+func normalizeEventTypes(eventTypes []string) []string {
+	seen := map[string]struct{}{}
+	normalized := make([]string, 0, len(eventTypes))
+	for _, eventType := range eventTypes {
+		eventType = strings.TrimSpace(eventType)
+		if eventType == "" {
+			continue
+		}
+		if _, ok := seen[eventType]; ok {
+			continue
+		}
+		seen[eventType] = struct{}{}
+		normalized = append(normalized, eventType)
+	}
+	return normalized
+}
+
+func mustEventTypesJSON(eventTypes []string) string {
+	data, err := json.Marshal(normalizeEventTypes(eventTypes))
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
+}
+
+func unmarshalEventTypes(value string) ([]string, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	var eventTypes []string
+	if err := json.Unmarshal([]byte(value), &eventTypes); err != nil {
+		return nil, fmt.Errorf("decode webhook event types: %w", err)
+	}
+	return normalizeEventTypes(eventTypes), nil
 }
 
 func validDirection(direction string) bool {
