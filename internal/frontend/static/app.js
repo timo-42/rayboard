@@ -22,7 +22,7 @@ const state = {
   lastSearchSpec: { text: "", filter: "" },
   tokens: [],
   createdToken: null,
-  rbac: { users: [], groups: [], roles: [], bindings: [] },
+  rbac: { users: [], groups: [], roles: [], bindings: [], members: {} },
   settings: null,
   notificationPreferences: null,
   settingsError: "",
@@ -53,6 +53,10 @@ const els = {
   issueDetail: document.querySelector("#issue-detail"),
   rbacPanel: document.querySelector("#rbac-panel"),
   rbacRefresh: document.querySelector("#rbac-refresh"),
+  rbacUserForm: document.querySelector("#rbac-user-form"),
+  rbacGroupForm: document.querySelector("#rbac-group-form"),
+  rbacMemberForm: document.querySelector("#rbac-member-form"),
+  rbacBindingForm: document.querySelector("#rbac-binding-form"),
   rbacUsers: document.querySelector("#rbac-users"),
   rbacGroups: document.querySelector("#rbac-groups"),
   rbacRoles: document.querySelector("#rbac-roles"),
@@ -163,7 +167,7 @@ function bindEvents() {
       state.lastSearchSpec = { text: "", filter: "" };
       state.tokens = [];
       state.createdToken = null;
-      state.rbac = { users: [], groups: [], roles: [], bindings: [] };
+      state.rbac = { users: [], groups: [], roles: [], bindings: [], members: {} };
       state.settings = null;
       state.notificationPreferences = null;
       state.settingsError = "";
@@ -515,6 +519,121 @@ function bindEvents() {
     await runAction(async () => {
       await loadRBAC();
     }, "RBAC refreshed");
+  });
+
+  els.rbacUserForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      const created = normalizeUser(await api("/api/users", {
+        method: "POST",
+        body: {
+          spec: {
+            username: data.username || "",
+            display_name: data.display_name || "",
+            password: data.password || "",
+            disabled: false
+          }
+        }
+      }));
+      form.reset();
+      await loadRBAC();
+      if (created && created.generated_password) {
+        setNotice(`User created. Temporary password: ${created.generated_password}`);
+      }
+    }, "User created");
+  });
+
+  els.rbacGroupForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      await api("/api/groups", {
+        method: "POST",
+        body: { spec: { name: data.name || "", display_name: data.display_name || "" } }
+      });
+      form.reset();
+      await loadRBAC();
+    }, "Group created");
+  });
+
+  els.rbacMemberForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    if (!data.group_id || !data.user_id) {
+      setNotice("Choose a group and user");
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/groups/${data.group_id}/members/${data.user_id}`, { method: "POST" });
+      await loadRBAC();
+    }, "Group member added");
+  });
+
+  els.rbacBindingForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      await api("/api/role-bindings", {
+        method: "POST",
+        body: {
+          spec: {
+            role_name: data.role_name || "",
+            subject_type: data.subject_type || "user",
+            subject_id: data.subject_id || "",
+            scope: data.scope || "global",
+            project_id: data.scope === "project" ? data.project_id || "" : ""
+          }
+        }
+      });
+      await loadRBAC();
+    }, "Role bound");
+  });
+
+  els.rbacBindingForm.elements.subject_type.addEventListener("change", () => {
+    renderBindingSubjectOptions();
+  });
+
+  els.rbacPanel.addEventListener("click", async (event) => {
+    const userState = event.target.closest("[data-rbac-user-disabled]");
+    if (userState) {
+      await runAction(async () => {
+        await api(`/api/users/${userState.dataset.rbacUserId}`, {
+          method: "PATCH",
+          body: { spec: { disabled: userState.dataset.rbacUserDisabled === "true" } }
+        });
+        await loadRBAC();
+      }, "User updated");
+      return;
+    }
+
+    const deleteUser = event.target.closest("[data-delete-rbac-user-id]");
+    if (deleteUser) {
+      await runAction(async () => {
+        await api(`/api/users/${deleteUser.dataset.deleteRbacUserId}`, { method: "DELETE" });
+        await loadRBAC();
+      }, "User deleted");
+      return;
+    }
+
+    const removeMember = event.target.closest("[data-remove-group-member]");
+    if (removeMember) {
+      await runAction(async () => {
+        await api(`/api/groups/${removeMember.dataset.groupId}/members/${removeMember.dataset.userId}`, { method: "DELETE" });
+        await loadRBAC();
+      }, "Group member removed");
+      return;
+    }
+
+    const deleteBinding = event.target.closest("[data-delete-binding-id]");
+    if (deleteBinding) {
+      await runAction(async () => {
+        await api(`/api/role-bindings/${deleteBinding.dataset.deleteBindingId}`, { method: "DELETE" });
+        await loadRBAC();
+      }, "Role binding deleted");
+    }
   });
 
   els.settingsRefresh.addEventListener("click", async () => {
@@ -1116,8 +1235,14 @@ async function loadRBAC() {
     users: listItems(users).map(normalizeUser),
     groups: listItems(groups).map(normalizeGroup),
     roles: listItems(roles).map(normalizeRole),
-    bindings: listItems(bindings).map(normalizeRoleBinding)
+    bindings: listItems(bindings).map(normalizeRoleBinding),
+    members: {}
   };
+  const memberEntries = await Promise.all(state.rbac.groups.map(async (group) => {
+    const members = await api(`/api/groups/${group.id}/members`).catch(() => null);
+    return [group.id, listItems(members).map(normalizeUser)];
+  }));
+  state.rbac.members = Object.fromEntries(memberEntries);
   renderRBAC();
 }
 
@@ -1881,12 +2006,50 @@ function renderRBAC() {
   if (!els.rbacUsers) {
     return;
   }
+  renderRBACFormOptions();
   renderAdminList(els.rbacUsers, state.rbac.users, (user) => {
     const meta = [user.display_name, user.disabled ? "disabled" : "enabled"].filter(Boolean).join(" / ");
-    return adminItemNode(user.username || user.id, meta);
+    const row = adminItemNode(user.username || user.id, meta);
+    const actions = document.createElement("div");
+    actions.className = "admin-actions";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.dataset.rbacUserId = user.id;
+    toggle.dataset.rbacUserDisabled = user.disabled ? "false" : "true";
+    toggle.textContent = user.disabled ? "Enable" : "Disable";
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.deleteRbacUserId = user.id;
+    remove.textContent = "Delete";
+
+    actions.append(toggle, remove);
+    row.append(actions);
+    return row;
   });
   renderAdminList(els.rbacGroups, state.rbac.groups, (group) => {
-    return adminItemNode(group.display_name || group.name || group.id, group.name || group.id);
+    const members = state.rbac.members[group.id] || [];
+    const row = adminItemNode(group.display_name || group.name || group.id, `${group.name || group.id} / ${members.length} members`);
+    if (members.length) {
+      const list = document.createElement("div");
+      list.className = "member-list";
+      for (const member of members) {
+        const item = document.createElement("span");
+        item.textContent = member.username || member.id;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.dataset.removeGroupMember = "true";
+        remove.dataset.groupId = group.id;
+        remove.dataset.userId = member.id;
+        remove.setAttribute("aria-label", `Remove ${member.username || member.id}`);
+        remove.textContent = "x";
+        item.append(remove);
+        list.append(item);
+      }
+      row.append(list);
+    }
+    return row;
   });
   renderAdminList(els.rbacRoles, state.rbac.roles, (role) => {
     return adminItemNode(role.name, `${role.permissions.length} permissions`);
@@ -1894,8 +2057,36 @@ function renderRBAC() {
   renderAdminList(els.rbacBindings, state.rbac.bindings, (binding) => {
     const subject = `${binding.subject_type}:${binding.subject_id}`;
     const scope = binding.scope === "project" ? `project ${binding.project_id}` : "global";
-    return adminItemNode(binding.role_name, `${subject} / ${scope}`);
+    const row = adminItemNode(binding.role_name, `${subject} / ${scope}`);
+    const actions = document.createElement("div");
+    actions.className = "admin-actions";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.deleteBindingId = binding.id;
+    remove.textContent = "Delete";
+    actions.append(remove);
+    row.append(actions);
+    return row;
   });
+}
+
+function renderRBACFormOptions() {
+  replaceSelectOptions(els.rbacMemberForm.elements.group_id, "Group", state.rbac.groups, (group) => group.display_name || group.name || group.id);
+  replaceSelectOptions(els.rbacMemberForm.elements.user_id, "User", state.rbac.users, (user) => user.username || user.id);
+  replaceSelectOptions(els.rbacBindingForm.elements.role_name, "Role", state.rbac.roles.map((role) => ({ id: role.name, name: role.name })), (role) => role.name);
+  renderBindingSubjectOptions();
+  replaceSelectOptions(els.rbacBindingForm.elements.project_id, "Global scope", state.projects, (project) => `${project.key} ${project.name}`);
+}
+
+function renderBindingSubjectOptions() {
+  const type = els.rbacBindingForm.elements.subject_type.value || "user";
+  const items = type === "group" ? state.rbac.groups : state.rbac.users;
+  replaceSelectOptions(
+    els.rbacBindingForm.elements.subject_id,
+    type === "group" ? "Group" : "User",
+    items,
+    (item) => type === "group" ? (item.display_name || item.name || item.id) : (item.username || item.id)
+  );
 }
 
 function renderSettings() {
@@ -2944,7 +3135,8 @@ function normalizeUser(user) {
       id: user.metadata.id,
       username: user.spec.username || "",
       display_name: user.spec.display_name || "",
-      disabled: Boolean(user.status.disabled || user.spec.disabled)
+      disabled: Boolean(user.status.disabled || user.spec.disabled),
+      generated_password: user.status.password || ""
     };
   }
   return user;

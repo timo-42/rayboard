@@ -24,8 +24,8 @@ type AuthInput struct {
 	Authorization string `header:"Authorization" doc:"Bearer API token."`
 	CookieHeader  string `header:"Cookie" doc:"Raw Cookie header fallback."`
 	SessionCookie string `cookie:"rayboard_session" doc:"Browser session cookie."`
-	CSRFCookie    string `cookie:"rayboard_csrf" doc:"Browser CSRF cookie."`
-	CSRFToken     string `header:"X-CSRF-Token" doc:"CSRF token for mutating cookie-authenticated requests."`
+	CSRFCookie    string `cookie:"rayboard_csrf" hidden:"true"`
+	CSRFToken     string `header:"X-CSRF-Token" hidden:"true"`
 }
 
 type Authenticator struct {

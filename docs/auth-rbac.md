@@ -23,7 +23,7 @@ X-CSRF-Token: <value from rayboard_csrf cookie>
 
 Bearer-token requests do not require CSRF because browsers do not attach bearer credentials automatically.
 
-Swagger UI authorization should use either the bearer-token scheme or the session-cookie scheme. `X-CSRF-Token` is intentionally not a Swagger authorization scheme; provide it only as a request header when making mutating requests with session-cookie authentication.
+Swagger UI authorization should use either the bearer-token scheme or the session-cookie scheme. `X-CSRF-Token` is intentionally hidden from the OpenAPI controls because it only applies to mutating cookie-authenticated requests, not bearer-token requests.
 
 ## API Tokens
 

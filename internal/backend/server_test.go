@@ -82,6 +82,9 @@ func TestOpenAPIJSON(t *testing.T) {
 	if _, ok := body.Components.SecuritySchemes["csrfToken"]; ok {
 		t.Fatal("did not expect CSRF to be advertised as a Swagger authorization scheme")
 	}
+	if strings.Contains(rec.Body.String(), "X-CSRF-Token") || strings.Contains(rec.Body.String(), "rayboard_csrf") {
+		t.Fatal("did not expect CSRF inputs to be advertised in the OpenAPI document")
+	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
 	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})
 	assertResponseBodyFields(t, spec, "/api/me/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})

@@ -16,7 +16,7 @@ Admin workflows currently available through the API:
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.
 
-The current browser UI does not expose admin screens yet.
+The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter providers, notification destinations, and security audit inspection. Lower-level automation, webhook, and notification policy administration remains API-first while the POC UI grows.
 
 Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 

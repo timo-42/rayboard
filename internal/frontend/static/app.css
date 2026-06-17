@@ -444,6 +444,44 @@ p {
   text-transform: uppercase;
 }
 
+.admin-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.compact-admin-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.admin-form input,
+.admin-form select {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.admin-form button,
+.admin-actions button,
+.member-list button {
+  border: 0;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.admin-form button:hover,
+.admin-actions button:hover,
+.member-list button:hover {
+  background: var(--primary-strong);
+}
+
 .summary-list,
 .admin-list {
   display: grid;
@@ -481,6 +519,39 @@ p {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.member-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.member-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--text);
+  padding: 4px 4px 4px 8px;
+}
+
+.member-list button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
 }
 
 .issue-detail {
@@ -1845,6 +1916,7 @@ p {
   .field-form,
   .account-grid,
   .token-form,
+  .compact-admin-form,
   .engine-form-row,
   .engine-json-grid,
   .comment-form,

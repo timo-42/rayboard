@@ -402,10 +402,26 @@
         <div class="rbac-grid">
           <section>
             <h3>Users</h3>
+            <form id="rbac-user-form" class="admin-form">
+              <input name="username" placeholder="alice" required>
+              <input name="display_name" placeholder="Alice">
+              <input name="password" type="password" placeholder="optional password">
+              <button type="submit">Create user</button>
+            </form>
             <div id="rbac-users" class="admin-list"></div>
           </section>
           <section>
             <h3>Groups</h3>
+            <form id="rbac-group-form" class="admin-form">
+              <input name="name" placeholder="engineering" required>
+              <input name="display_name" placeholder="Engineering">
+              <button type="submit">Create group</button>
+            </form>
+            <form id="rbac-member-form" class="admin-form compact-admin-form">
+              <select name="group_id" required></select>
+              <select name="user_id" required></select>
+              <button type="submit">Add member</button>
+            </form>
             <div id="rbac-groups" class="admin-list"></div>
           </section>
           <section>
@@ -414,6 +430,20 @@
           </section>
           <section>
             <h3>Role Bindings</h3>
+            <form id="rbac-binding-form" class="admin-form">
+              <select name="role_name" required></select>
+              <select name="subject_type">
+                <option value="user">User</option>
+                <option value="group">Group</option>
+              </select>
+              <select name="subject_id" required></select>
+              <select name="scope">
+                <option value="global">Global</option>
+                <option value="project">Project</option>
+              </select>
+              <select name="project_id"></select>
+              <button type="submit">Bind role</button>
+            </form>
             <div id="rbac-bindings" class="admin-list"></div>
           </section>
         </div>

@@ -29,6 +29,10 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="dashboard-view"`) ||
 		!strings.Contains(body, `id="issue-view"`) ||
 		!strings.Contains(body, `id="rbac-panel"`) ||
+		!strings.Contains(body, `id="rbac-user-form"`) ||
+		!strings.Contains(body, `id="rbac-group-form"`) ||
+		!strings.Contains(body, `id="rbac-member-form"`) ||
+		!strings.Contains(body, `id="rbac-binding-form"`) ||
 		!strings.Contains(body, `id="settings-panel"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
@@ -97,8 +101,16 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadSelectedIssue",
 		"loadRBAC",
 		"loadSettingsPage",
+		"rbacUserForm",
+		"rbacGroupForm",
+		"rbacMemberForm",
+		"rbacBindingForm",
 		"/api/users",
+		"/api/groups/${data.group_id}/members/${data.user_id}",
+		"data-rbac-user-disabled",
+		"data-remove-group-member",
 		"/api/role-bindings",
+		"/api/role-bindings/${deleteBinding.dataset.deleteBindingId}",
 		"/api/settings",
 		"/api/me/notification-preferences",
 	} {
@@ -113,6 +125,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".metric-grid",
 		".issue-view",
 		".rbac-panel",
+		".admin-form",
+		".admin-actions",
+		".member-list",
 		".settings-panel",
 		".settings-grid",
 	} {

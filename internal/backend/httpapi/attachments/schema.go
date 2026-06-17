@@ -136,18 +136,6 @@ func uploadAttachmentParameters() []*huma.Param {
 			Description: "Browser session cookie.",
 			Schema:      &huma.Schema{Type: "string"},
 		},
-		{
-			Name:        shared.CSRFCookieName,
-			In:          "cookie",
-			Description: "Browser CSRF cookie.",
-			Schema:      &huma.Schema{Type: "string"},
-		},
-		{
-			Name:        "X-CSRF-Token",
-			In:          "header",
-			Description: "CSRF token for mutating cookie-authenticated requests.",
-			Schema:      &huma.Schema{Type: "string"},
-		},
 	}
 }
 
