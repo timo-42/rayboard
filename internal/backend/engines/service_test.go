@@ -23,13 +23,14 @@ func TestLuaEngineTestReturnsOutputAndLogs(t *testing.T) {
 	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
 
 	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
-		Surface: "generic",
+		Surface: "ticket_hook_before",
+		Context: map[string]any{"ticket_id": "ticket-1", "dry_run": false},
 		Input:   map[string]any{"title": "Example"},
 		Engine: engines.EngineSpec{
 			Type: "lua",
 			Script: `
 rayboard.log("checking " .. input.title)
-return { ok = true, title = input.title, surface = context.surface }
+return { ok = true, title = input.title, surface = context.surface, ticket_id = context.ticket_id, dry_run = context.dry_run }
 `,
 		},
 	})
@@ -40,7 +41,7 @@ return { ok = true, title = input.title, surface = context.surface }
 		t.Fatalf("expected succeeded run, got %#v", run)
 	}
 	output, _ := run.Output["output"].(map[string]any)
-	if output["ok"] != true || output["title"] != "Example" || output["surface"] != "generic" {
+	if output["ok"] != true || output["title"] != "Example" || output["surface"] != "ticket_hook_before" || output["ticket_id"] != "ticket-1" || output["dry_run"] != true {
 		t.Fatalf("unexpected output: %#v", run.Output)
 	}
 	logs, _ := run.Output["logs"].([]any)
@@ -49,6 +50,11 @@ return { ok = true, title = input.title, surface = context.surface }
 	}
 	if encoded := run.Input; encoded["engine"] != "lua" {
 		t.Fatalf("expected run input to store only engine type, got %#v", encoded)
+	}
+	inputEnvelope, _ := run.Input["input"].(map[string]any)
+	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
+	if inputEnvelope["dry_run"] != true || contextEnvelope["ticket_id"] != "ticket-1" || contextEnvelope["dry_run"] != true {
+		t.Fatalf("expected normalized dry-run context in run input, got %#v", run.Input)
 	}
 }
 

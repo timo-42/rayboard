@@ -28,6 +28,35 @@ Lua-capable surfaces:
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
 
+## Engine Workbench
+
+`POST /api/engines/test` is the shared automation workbench endpoint. It accepts a Kubernetes-style request body:
+
+```json
+{
+  "spec": {
+    "surface": "ticket_hook_before",
+    "project_id": "project_123",
+    "actor_user_id": "user_123",
+    "engine": {
+      "type": "lua",
+      "script": "rayboard.log(input.title); return { ok = true }"
+    },
+    "context": {
+      "ticket_id": "ticket_123"
+    },
+    "input": {
+      "title": "Preview"
+    },
+    "dry_run": true
+  }
+}
+```
+
+The endpoint requires `automations:manage` globally or for `spec.project_id`. It currently normalizes all test executions to `dry_run = true`; workbench runs do not persist ticket or project mutations. Lua receives the supplied `context` and `input` globals. `context` always includes normalized `surface`, `project_id`, `actor_user_id`, and `dry_run` fields, and user-supplied context fields such as `ticket_id` are preserved unless they conflict with normalized fields.
+
+Responses use `metadata`, `spec`, and `status`. `spec.engine.script` and `spec.engine.prompt` are redacted from responses and run history. `status.output` contains the returned Lua table or AI JSON object, `status.logs` contains captured log lines, `status.duration_millis` reports elapsed execution time when available, `status.engine` contains redacted engine metadata, and `status.error` contains runtime failures.
+
 ## JSON Module
 
 Every Lua surface exposes the same sandboxed JSON API:

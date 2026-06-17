@@ -42,11 +42,13 @@ func TestEngineTestEndpoint(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"surface": "generic",
+			"surface": "ticket_hook_before",
+			"context": map[string]any{"ticket_id": "ticket-1"},
 			"input":   map[string]string{"title": "Preview"},
+			"dry_run": false,
 			"engine": map[string]string{
 				"type":   "lua",
-				"script": `rayboard.log("preview " .. input.title); return { ok = true, title = input.title }`,
+				"script": `rayboard.log("preview " .. input.title); return { ok = true, title = input.title, surface = context.surface, ticket_id = context.ticket_id, dry_run = context.dry_run }`,
 			},
 		},
 	}))
@@ -69,10 +71,15 @@ func TestEngineTestEndpoint(t *testing.T) {
 				Type   string `json:"type"`
 				Script string `json:"script"`
 			} `json:"engine"`
+			Surface string         `json:"surface"`
+			Context map[string]any `json:"context"`
+			DryRun  bool           `json:"dry_run"`
 		} `json:"spec"`
 		Status struct {
 			State  string         `json:"state"`
 			Output map[string]any `json:"output"`
+			Logs   []string       `json:"logs"`
+			Engine map[string]any `json:"engine"`
 		} `json:"status"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -84,8 +91,13 @@ func TestEngineTestEndpoint(t *testing.T) {
 	if body.Spec.Engine.Type != "lua" || body.Spec.Engine.Script != "" {
 		t.Fatalf("expected engine source to be redacted, got %#v", body.Spec.Engine)
 	}
-	output, _ := body.Status.Output["output"].(map[string]any)
-	if output["ok"] != true || output["title"] != "Preview" {
+	if body.Spec.Surface != "ticket_hook_before" || body.Spec.Context["ticket_id"] != "ticket-1" || !body.Spec.DryRun {
+		t.Fatalf("expected normalized engine test spec, got %#v", body.Spec)
+	}
+	if body.Status.Output["ok"] != true || body.Status.Output["title"] != "Preview" || body.Status.Output["surface"] != "ticket_hook_before" || body.Status.Output["ticket_id"] != "ticket-1" || body.Status.Output["dry_run"] != true {
 		t.Fatalf("unexpected engine output: %#v", body.Status.Output)
+	}
+	if len(body.Status.Logs) != 1 || body.Status.Logs[0] != "preview Preview" || body.Status.Engine["type"] != "lua" || body.Status.Engine["surface"] != "ticket_hook_before" || body.Status.Engine["dry_run"] != true {
+		t.Fatalf("unexpected engine status metadata: %#v", body.Status)
 	}
 }

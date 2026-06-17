@@ -53,7 +53,9 @@ type TestInput struct {
 	ProjectID   string
 	ActorUserID string
 	Surface     string
+	Context     map[string]any
 	Input       map[string]any
+	DryRun      bool
 	Engine      EngineSpec
 }
 
@@ -104,10 +106,14 @@ func (s *Service) Test(ctx context.Context, principal authz.Principal, input Tes
 	if input.Surface == "" {
 		input.Surface = "generic"
 	}
+	if input.Context == nil {
+		input.Context = map[string]any{}
+	}
 	input.Engine = normalizeEngine(input.Engine)
 	if input.Input == nil {
 		input.Input = map[string]any{}
 	}
+	input.DryRun = true
 
 	if err := s.validate(ctx, input); err != nil {
 		return automation.Run{}, err
@@ -123,8 +129,9 @@ func (s *Service) Test(ctx context.Context, principal authz.Principal, input Tes
 		ActorUserID: input.ActorUserID,
 		Input: map[string]any{
 			"surface": input.Surface,
+			"context": input.normalizedContext(),
 			"input":   input.Input,
-			"dry_run": true,
+			"dry_run": input.DryRun,
 		},
 		Limits: s.runLimits(ctx, input),
 	})
@@ -223,12 +230,7 @@ func (s *Service) executeAI(ctx context.Context, input TestInput) (map[string]an
 
 func registerLuaHelpers(sandbox *luasandbox.Sandbox, input TestInput, logs *[]string) {
 	L := sandbox.L
-	contextValue, err := sandbox.JSON.FromGo(map[string]any{
-		"surface":       input.Surface,
-		"project_id":    input.ProjectID,
-		"actor_user_id": input.ActorUserID,
-		"dry_run":       true,
-	})
+	contextValue, err := sandbox.JSON.FromGo(input.normalizedContext())
 	if err == nil {
 		L.SetGlobal("context", contextValue)
 	}
@@ -258,13 +260,8 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 	} else if err := s.actorCanRun(ctx, input.ActorUserID); err != nil {
 		fields["actor_user_id"] = "Actor must exist and be enabled"
 	}
-	if input.Surface != "generic" &&
-		input.Surface != "cron" &&
-		input.Surface != "ticket_hook" &&
-		input.Surface != "webhook" &&
-		input.Surface != "notification_hook" &&
-		input.Surface != "create_page" {
-		fields["surface"] = "Must be generic, cron, ticket_hook, webhook, notification_hook, or create_page"
+	if !validSurface(input.Surface) {
+		fields["surface"] = "Must be generic, cron, ticket_hook_before, ticket_hook_after, custom_create_page, incoming_webhook, outgoing_webhook, or notification_hook"
 	}
 	switch input.Engine.Type {
 	case EngineLua:
@@ -287,6 +284,25 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 		return &ValidationError{Message: "Invalid engine test", Fields: fields}
 	}
 	return nil
+}
+
+func validSurface(surface string) bool {
+	switch surface {
+	case "generic",
+		"cron",
+		"ticket_hook",
+		"ticket_hook_before",
+		"ticket_hook_after",
+		"webhook",
+		"incoming_webhook",
+		"outgoing_webhook",
+		"notification_hook",
+		"create_page",
+		"custom_create_page":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) validateAIProvider(ctx context.Context, providerID string) error {
@@ -362,7 +378,7 @@ func (s *Service) runLimits(ctx context.Context, input TestInput) map[string]any
 func engineTestPrompt(input TestInput) (string, error) {
 	payload, err := json.Marshal(map[string]any{
 		"surface":      input.Surface,
-		"context":      map[string]any{"project_id": input.ProjectID, "actor_user_id": input.ActorUserID, "dry_run": true},
+		"context":      input.normalizedContext(),
 		"input":        input.Input,
 		"instructions": []string{"Return only a JSON object.", "Do not request or assume access to secrets.", "Do not perform mutations; describe intended actions as output data only."},
 	})
@@ -370,6 +386,18 @@ func engineTestPrompt(input TestInput) (string, error) {
 		return "", fmt.Errorf("encode engine test prompt context: %w", err)
 	}
 	return strings.TrimSpace(input.Engine.Prompt) + "\n\nRayboard engine test input:\n" + string(payload), nil
+}
+
+func (input TestInput) normalizedContext() map[string]any {
+	context := map[string]any{}
+	for key, value := range input.Context {
+		context[key] = value
+	}
+	context["surface"] = input.Surface
+	context["project_id"] = input.ProjectID
+	context["actor_user_id"] = input.ActorUserID
+	context["dry_run"] = true
+	return context
 }
 
 func normalizeEngine(engine EngineSpec) EngineSpec {

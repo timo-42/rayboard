@@ -20,11 +20,44 @@ Lua uses GopherLua. AI uses OpenRouter only in v1.
 Surfaces:
 
 - cron jobs
-- ticket hooks
+- ticket hooks, using `ticket_hook_before` and `ticket_hook_after` in generic test contexts
 - custom ticket create pages
-- incoming webhooks
-- outgoing webhooks
+- incoming webhooks, using `incoming_webhook` in generic test contexts
+- outgoing webhooks, using `outgoing_webhook` in generic test contexts
 - notification hooks
+
+## Engine Workbench
+
+The generic engine workbench endpoint is:
+
+```text
+POST /api/engines/test
+```
+
+It accepts a Kubernetes-style request body:
+
+```json
+{
+  "spec": {
+    "engine": {
+      "type": "lua",
+      "script": "return { ok = true }"
+    },
+    "surface": "ticket_hook_before",
+    "context": {
+      "ticket_id": "ticket_123"
+    },
+    "input": {
+      "title": "Preview"
+    },
+    "dry_run": true
+  }
+}
+```
+
+The response uses `metadata`, `spec`, and `status`. The response `spec` must redact Lua source and AI prompts. The response `status` contains the execution state, validated output, error when present, and timing metadata available from the run record.
+
+Workbench execution must use the same engine discriminator, JSON/table conversion, RBAC model, actor resolution, timeouts, logs, payload limits, secret redaction, and run-history persistence as the corresponding real surface. In the current POC the endpoint is always mutation-free and normalizes `dry_run` to `true`.
 
 ## Common Run Record
 
