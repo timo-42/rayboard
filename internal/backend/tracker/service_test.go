@@ -297,6 +297,169 @@ func TestTicketMutationsAppendDomainEvents(t *testing.T) {
 	}
 }
 
+func TestTicketBeforeHooksTransformAndReject(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	hooks := tracker.NewHookService(db.SQL, evaluator)
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithHookService(hooks))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "HOOK", Name: "Hooks"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+
+	if _, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "create defaults",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Position:  10,
+		Engine: tracker.HookEngineSpec{
+			Type: tracker.HookEngineLua,
+			Script: `
+ticket.priority = "High"
+ticket.type = "Bug"
+ticket.labels = {"Hooked", "Lua"}
+return { ticket = ticket }
+`,
+		},
+	}); err != nil {
+		t.Fatalf("create before hook: %v", err)
+	}
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Needs defaults"})
+	if err != nil {
+		t.Fatalf("create ticket with hook: %v", err)
+	}
+	if ticket.Priority != "high" || ticket.Type != "bug" || !slices.Equal(ticket.Labels, []string{"hooked", "lua"}) {
+		t.Fatalf("expected hook-transformed ticket, got %#v", ticket)
+	}
+
+	if _, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "reject create",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Position:  20,
+		Engine: tracker.HookEngineSpec{
+			Type:   tracker.HookEngineLua,
+			Script: `return { reject = { message = "blocked by policy" } }`,
+		},
+	}); err != nil {
+		t.Fatalf("create reject hook: %v", err)
+	}
+	ticketsBeforeReject := countTrackerRows(t, ctx, db.SQL, "tickets")
+	activityBeforeReject := countTrackerRows(t, ctx, db.SQL, "ticket_activity")
+	eventsBeforeReject := countTrackerRows(t, ctx, db.SQL, "domain_events")
+
+	if _, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Blocked"}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected hook validation error, got %v", err)
+	}
+	if countTrackerRows(t, ctx, db.SQL, "tickets") != ticketsBeforeReject {
+		t.Fatalf("expected rejected hook to leave ticket count unchanged")
+	}
+	if countTrackerRows(t, ctx, db.SQL, "ticket_activity") != activityBeforeReject {
+		t.Fatalf("expected rejected hook to leave activity count unchanged")
+	}
+	if countTrackerRows(t, ctx, db.SQL, "domain_events") != eventsBeforeReject {
+		t.Fatalf("expected rejected hook to leave domain event count unchanged")
+	}
+}
+
+func TestTicketBeforeUpdateHookTransformsAndAfterHookDoesNotRollback(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	hooks := tracker.NewHookService(db.SQL, evaluator)
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithHookService(hooks))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "UPD", Name: "Update Hooks"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Original", Description: "Keep me"})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+
+	if _, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "update defaults",
+		Event:     tracker.HookEventTicketUpdate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Position:  10,
+		Engine: tracker.HookEngineSpec{
+			Type: tracker.HookEngineLua,
+			Script: `
+ticket.priority = "High"
+ticket.labels = {"updated"}
+return { ticket = ticket }
+`,
+		},
+	}); err != nil {
+		t.Fatalf("create before update hook: %v", err)
+	}
+	afterHook, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "after fails",
+		Event:     tracker.HookEventTicketUpdate,
+		Phase:     tracker.HookPhaseAfter,
+		Enabled:   true,
+		Position:  10,
+		Engine: tracker.HookEngineSpec{
+			Type: tracker.HookEngineLua,
+			Script: `
+if rayboard.update_ticket ~= nil or rayboard.create_ticket ~= nil then
+  error("mutating helper exposed")
+end
+error("after failed after commit")
+`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create after hook: %v", err)
+	}
+
+	title := "Changed"
+	updated, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Title: &title})
+	if err != nil {
+		t.Fatalf("update ticket with hooks: %v", err)
+	}
+	if updated.Title != title || updated.Description != "Keep me" || updated.Priority != "high" || !slices.Equal(updated.Labels, []string{"updated"}) {
+		t.Fatalf("expected hook-transformed update, got %#v", updated)
+	}
+	if countTrackerRows(t, ctx, db.SQL, "ticket_activity") != 2 {
+		t.Fatalf("expected committed update activity")
+	}
+	var lastError string
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COALESCE(last_error, '') FROM ticket_hooks WHERE id = ?", afterHook.ID).Scan(&lastError); err != nil {
+		t.Fatalf("query after hook error: %v", err)
+	}
+	if lastError == "" {
+		t.Fatalf("expected after hook error to be recorded")
+	}
+}
+
 func ticketActivityByType(activities []tracker.TicketActivity, activityType string) *tracker.TicketActivity {
 	for index := range activities {
 		if activities[index].ActivityType == activityType {
@@ -965,6 +1128,16 @@ func seedRole(t *testing.T, ctx context.Context, db *sql.DB, role authz.RoleName
 	if err != nil {
 		t.Fatalf("seed role %s: %v", role, err)
 	}
+}
+
+func countTrackerRows(t *testing.T, ctx context.Context, db *sql.DB, table string) int {
+	t.Helper()
+
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+		t.Fatalf("count rows in %s: %v", table, err)
+	}
+	return count
 }
 
 func principal(userID string) authz.Principal {

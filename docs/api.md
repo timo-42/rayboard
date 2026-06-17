@@ -492,4 +492,4 @@ The planned AI form uses the same `engine` object with an OpenRouter provider re
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. OpenRouter AI automation, ticket hooks, custom create pages, webhooks, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner exposes `context`, `ticket`, optional `current`, and `rayboard.log`; public ticket-hook management APIs are still **Planned**. OpenRouter AI automation, custom create pages, outgoing webhooks, and notification hooks are **Planned**.

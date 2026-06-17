@@ -18,7 +18,7 @@ Lua surfaces use one shared sandbox runtime package and one shared Go/Lua conver
 Lua-capable surfaces:
 
 - cron jobs: first API/scheduler slice implemented;
-- ticket hooks: **Planned**;
+- ticket hooks: backend Lua runner foundation implemented; management API/UI still **Planned**;
 - custom ticket create pages: **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: **Planned**;
@@ -142,9 +142,11 @@ local comment, comment_err = rayboard.comment({
 if comment_err then return { error = comment_err.message } end
 ```
 
-## Planned Ticket Hooks
+## Ticket Hooks
 
-Ticket hooks are project-scoped. `before` hooks may validate or transform pending payloads; `after` hooks may inspect and log but cannot alter committed data.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Public hook CRUD/test APIs and UI are still **Planned**.
+
+Hook Lua receives `context`, `ticket`, and for update hooks `current`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
 
 Example validation shape:
 

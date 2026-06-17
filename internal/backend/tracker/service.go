@@ -34,6 +34,7 @@ type Service struct {
 	now        func() time.Time
 	eventBus   *events.Bus
 	eventStore *events.Store
+	hooks      *HookService
 }
 
 type Option func(*Service)
@@ -68,6 +69,12 @@ func WithEventBus(bus *events.Bus) Option {
 func WithEventStore(store *events.Store) Option {
 	return func(service *Service) {
 		service.eventStore = store
+	}
+}
+
+func WithHookService(hooks *HookService) Option {
+	return func(service *Service) {
+		service.hooks = hooks
 	}
 }
 
@@ -176,6 +183,19 @@ func (s *Service) CreateTicket(ctx context.Context, principal authz.Principal, i
 	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(input.ProjectID)); err != nil {
 		return Ticket{}, err
 	}
+	if s.hooks != nil {
+		var err error
+		input, _, err = s.hooks.RunBeforeCreate(ctx, principal, input)
+		if err != nil {
+			return Ticket{}, err
+		}
+		if input.ProjectID == "" {
+			return Ticket{}, validationFailed(map[string]string{"project_id": "Required"})
+		}
+		if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(input.ProjectID)); err != nil {
+			return Ticket{}, err
+		}
+	}
 
 	var ticket Ticket
 	var eventData map[string]any
@@ -200,6 +220,9 @@ func (s *Service) CreateTicket(ctx context.Context, principal authz.Principal, i
 		At:        ticket.CreatedAt,
 		Data:      eventData,
 	})
+	if s.hooks != nil {
+		s.hooks.RunAfterCreate(ctx, principal, ticket)
+	}
 
 	return ticket, nil
 }
@@ -266,6 +289,16 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 	}
 	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(current.ProjectID)); err != nil {
 		return Ticket{}, err
+	}
+	currentWithDetails, err := s.attachTicketDetails(ctx, current)
+	if err != nil {
+		return Ticket{}, err
+	}
+	if s.hooks != nil {
+		input, _, err = s.hooks.RunBeforeUpdate(ctx, principal, currentWithDetails, input)
+		if err != nil {
+			return Ticket{}, err
+		}
 	}
 
 	var updated Ticket
@@ -373,8 +406,15 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 			Data:      eventData,
 		})
 	}
+	updatedWithDetails, err := s.attachTicketDetails(ctx, updated)
+	if err != nil {
+		return Ticket{}, err
+	}
+	if s.hooks != nil && eventData != nil {
+		s.hooks.RunAfterUpdate(ctx, principal, currentWithDetails, updatedWithDetails)
+	}
 
-	return s.attachTicketDetails(ctx, updated)
+	return updatedWithDetails, nil
 }
 
 func (s *Service) ListTicketActivity(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketActivity, error) {
