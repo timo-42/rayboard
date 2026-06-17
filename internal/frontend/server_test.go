@@ -26,6 +26,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
 		!strings.Contains(body, "Engine Workbench") ||
 		!strings.Contains(body, `id="engine-form"`) ||
+		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
 		!strings.Contains(body, `href="/1"`) ||
 		!strings.Contains(body, `href="/5"`) {
@@ -94,6 +95,40 @@ func TestEmbeddedAppSupportsComments(t *testing.T) {
 		".ticket-comments",
 		".comment-item",
 		".comment-form",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsNotifications(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadNotifications",
+		"normalizeNotification",
+		"/api/notifications${query}",
+		"/api/notifications/read-all",
+		"/api/notifications/${button.dataset.notificationId}/${action}",
+		"data-notification-read-state",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".notification-inbox",
+		".notification-item",
+		".notification-item.is-unread",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

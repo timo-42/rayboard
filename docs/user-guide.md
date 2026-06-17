@@ -11,6 +11,7 @@ Implemented browser workflows:
 - ticket status changes;
 - ticket comment list, creation, and deletion from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
+- notification inbox listing with unread filter, read/unread toggle, refresh, and mark-all-read;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines.
 
 Implemented API-only user workflows:
@@ -39,9 +40,9 @@ Backlog list/reorder, sprint CRUD, sprint start/complete, ticket sprint assignme
 
 ## Notifications
 
-The current notification slice is API-only. Authenticated users can list their own notifications, filter to unread notifications, mark individual notifications read or unread, and update their notification preferences. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
+The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can also update notification preferences through the API. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser inbox and badge UI, browser notification hook screens, and richer hook routing controls are **Planned**.
+Browser badge UI, browser notification hook screens, and richer hook routing controls are **Planned**.
 
 ## Search
 

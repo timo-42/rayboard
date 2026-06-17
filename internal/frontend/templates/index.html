@@ -126,6 +126,24 @@
         </section>
       </section>
 
+      <section id="notification-inbox" class="notification-inbox" hidden>
+        <header class="inbox-header">
+          <div>
+            <p class="eyebrow">Inbox</p>
+            <h2>Notifications <span id="notification-count">0</span></h2>
+          </div>
+          <div class="inbox-actions">
+            <label class="inline-toggle">
+              <input id="notifications-unread-only" type="checkbox">
+              Unread
+            </label>
+            <button id="notifications-refresh" type="button">Refresh</button>
+            <button id="notifications-read-all" type="button">Read all</button>
+          </div>
+        </header>
+        <div id="notifications" class="notification-list"></div>
+      </section>
+
       <section id="engine-workbench" class="engine-workbench" hidden>
         <header class="workbench-header">
           <div>

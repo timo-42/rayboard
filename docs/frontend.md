@@ -24,6 +24,7 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 - ticket status changes between `todo`, `in_progress`, and `done`;
 - ticket comment listing, creation, and deletion on ticket cards;
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
+- a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`.
 
 It does not currently expose all backend endpoints. User/group/RBAC administration, saved views, saved-view metadata, advanced search, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, component CRUD, version/release CRUD, ticket component/version assignment, roadmap data, custom field management, ticket custom-field values, and saved automation management screens are API-only for now.

@@ -5,6 +5,8 @@ const state = {
   tickets: [],
   attachments: {},
   comments: {},
+  notifications: [],
+  unreadNotificationsOnly: false,
   engineResult: null
 };
 
@@ -17,6 +19,12 @@ const els = {
   engineProjectID: document.querySelector("#engine-project-id"),
   engineWorkbench: document.querySelector("#engine-workbench"),
   engineOutput: document.querySelector("#engine-output"),
+  notificationInbox: document.querySelector("#notification-inbox"),
+  notificationCount: document.querySelector("#notification-count"),
+  notificationUnreadOnly: document.querySelector("#notifications-unread-only"),
+  notificationRefresh: document.querySelector("#notifications-refresh"),
+  notificationReadAll: document.querySelector("#notifications-read-all"),
+  notifications: document.querySelector("#notifications"),
   projectCreate: document.querySelector("#project-create"),
   logoutButton: document.querySelector("#logout-button"),
   signedOut: document.querySelector("#signed-out"),
@@ -53,6 +61,8 @@ function bindEvents() {
       state.tickets = [];
       state.attachments = {};
       state.comments = {};
+      state.notifications = [];
+      state.unreadNotificationsOnly = false;
       render();
     }, "Signed out");
   });
@@ -92,6 +102,36 @@ function bindEvents() {
       state.engineResult = result;
       renderEngineResult();
     }, "Engine tested");
+  });
+
+  els.notificationUnreadOnly.addEventListener("change", async () => {
+    state.unreadNotificationsOnly = els.notificationUnreadOnly.checked;
+    await loadNotifications();
+  });
+
+  els.notificationRefresh.addEventListener("click", async () => {
+    await runAction(async () => {
+      await loadNotifications();
+    }, "Notifications refreshed");
+  });
+
+  els.notificationReadAll.addEventListener("click", async () => {
+    await runAction(async () => {
+      await api("/api/notifications/read-all", { method: "POST" });
+      await loadNotifications();
+    }, "Notifications marked read");
+  });
+
+  els.notifications.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-notification-read-state]");
+    if (!button) {
+      return;
+    }
+    await runAction(async () => {
+      const action = button.dataset.notificationReadState === "read" ? "read" : "unread";
+      await api(`/api/notifications/${button.dataset.notificationId}/${action}`, { method: "POST" });
+      await loadNotifications();
+    }, "Notification updated");
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
@@ -175,10 +215,23 @@ async function refreshSession() {
       display_name: data.spec.display_name
     };
     await loadProjects();
+    await loadNotifications();
   } catch (error) {
     state.user = null;
     render();
   }
+}
+
+async function loadNotifications() {
+  if (!state.user) {
+    state.notifications = [];
+    renderNotifications();
+    return;
+  }
+  const query = state.unreadNotificationsOnly ? "?unread=true&limit=20" : "?limit=20";
+  const data = await api(`/api/notifications${query}`);
+  state.notifications = listItems(data).map(normalizeNotification);
+  renderNotifications();
 }
 
 async function loadProjects(selectedID = "") {
@@ -295,6 +348,7 @@ function render() {
   els.loginForm.hidden = signedIn;
   els.logoutButton.hidden = !signedIn;
   els.projectCreate.hidden = !signedIn;
+  els.notificationInbox.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn;
@@ -303,8 +357,54 @@ function render() {
 
   renderProjects();
   renderTickets();
+  renderNotifications();
   renderEngineFields();
   renderEngineResult();
+}
+
+function renderNotifications() {
+  if (!els.notifications) {
+    return;
+  }
+  const unreadCount = state.notifications.filter((notification) => !notification.read_at).length;
+  els.notificationCount.textContent = String(unreadCount);
+  if (els.notificationUnreadOnly) {
+    els.notificationUnreadOnly.checked = state.unreadNotificationsOnly;
+  }
+  els.notifications.replaceChildren();
+  if (!state.notifications.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = state.unreadNotificationsOnly ? "No unread notifications" : "No notifications";
+    els.notifications.append(empty);
+    return;
+  }
+  for (const notification of state.notifications) {
+    els.notifications.append(notificationNode(notification));
+  }
+}
+
+function notificationNode(notification) {
+  const article = document.createElement("article");
+  article.className = "notification-item";
+  if (!notification.read_at) {
+    article.classList.add("is-unread");
+  }
+
+  const body = document.createElement("p");
+  body.textContent = notification.body || notification.type || "Notification";
+
+  const meta = document.createElement("span");
+  meta.textContent = [notification.type, notification.subject_type, notification.subject_id].filter(Boolean).join(" / ");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.notificationId = notification.id;
+  button.dataset.notificationReadState = notification.read_at ? "unread" : "read";
+  button.textContent = notification.read_at ? "Unread" : "Read";
+
+  article.append(body, meta, button);
+  return article;
 }
 
 function renderProjects() {
@@ -656,6 +756,26 @@ function normalizeAttachment(attachment) {
     };
   }
   return attachment;
+}
+
+function normalizeNotification(notification) {
+  if (!notification) {
+    return null;
+  }
+  if (notification.metadata && notification.spec && notification.status) {
+    return {
+      id: notification.metadata.id,
+      user_id: notification.metadata.user_id,
+      created_at: notification.metadata.created_at,
+      type: notification.spec.type || "",
+      subject_type: notification.spec.subject_type || "",
+      subject_id: notification.spec.subject_id || "",
+      body: notification.spec.body || "",
+      data: notification.spec.data || {},
+      read_at: notification.status.read_at || null
+    };
+  }
+  return notification;
 }
 
 function normalizeComment(comment) {

@@ -584,6 +584,111 @@ p {
   background: var(--primary-soft);
 }
 
+.notification-inbox {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.inbox-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inbox-header h2 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.inbox-header h2 span {
+  display: inline-grid;
+  min-width: 28px;
+  min-height: 24px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 13px;
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inline-toggle {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 0 10px;
+  color: var(--heading);
+}
+
+.inline-toggle input {
+  width: auto;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.notification-item.is-unread {
+  border-left-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.notification-item p {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.notification-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.notification-item button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.notification-item button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
 .engine-workbench {
   display: grid;
   gap: 14px;
@@ -689,6 +794,15 @@ p {
   .comment-form,
   .attachment-form {
     grid-template-columns: 1fr;
+  }
+
+  .inbox-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inbox-actions {
+    justify-content: flex-start;
   }
 }
 
