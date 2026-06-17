@@ -187,7 +187,7 @@ Ticket assignment keeps all records in one project. Cross-project component or v
 
 ## Roadmap
 
-The roadmap slice is backend/API-only. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. Browser roadmap timeline screens and drag/drop planning are **Planned**.
+The roadmap API lists epics and direct child-ticket progress. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a basic roadmap panel with epic schedule dates and child progress, plus ticket-form fields for epic creation, parent epic assignment, and roadmap dates. Rich browser roadmap timeline screens and drag/drop planning are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

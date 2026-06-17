@@ -29,6 +29,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
+		!strings.Contains(body, `id="roadmap-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
 		!strings.Contains(body, `id="account-panel"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
@@ -242,6 +243,42 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".component-form",
 		".version-form",
 		".ticket-planning",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadRoadmap",
+		"renderRoadmap",
+		"normalizeRoadmapItem",
+		"roadmapEpics",
+		"/api/projects/${state.selectedProject.id}/roadmap",
+		"ticket-parent-id",
+		"roadmap-progress",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".roadmap-panel",
+		".roadmap-list",
+		".roadmap-item",
+		".roadmap-progress",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

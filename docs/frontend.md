@@ -27,15 +27,16 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
 - a sprint panel for listing, creating, starting, completing, and deleting project sprints, plus ticket-card sprint assignment/removal;
 - a release-planning panel for listing, creating, deleting components and versions, changing version state, and assigning tickets to components/versions;
+- a roadmap panel that lists project epics, schedule dates, and child-ticket progress, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - an Account/API Tokens panel where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
 - compact search with text/CEL filters plus saved-view list, create, apply, and delete controls;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`.
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. User/group/RBAC administration beyond self-service API tokens, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, roadmap data, custom field management, ticket custom-field values, and saved automation management screens are API-only for now.
+It does not currently expose all backend endpoints. User/group/RBAC administration beyond self-service API tokens, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom field management, ticket custom-field values, and saved automation management screens are API-only for now.
 
-Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, roadmap timeline UI, richer component/version screens, custom-field screens, and advanced release planning are **Planned**.
+Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field screens, and advanced release planning are **Planned**.
 
 ## Design Variants
 

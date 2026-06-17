@@ -6,6 +6,7 @@ const state = {
   sprints: [],
   components: [],
   versions: [],
+  roadmap: [],
   attachments: {},
   comments: {},
   notifications: [],
@@ -41,6 +42,9 @@ const els = {
   versionForm: document.querySelector("#version-form"),
   components: document.querySelector("#components"),
   versions: document.querySelector("#versions"),
+  roadmapPanel: document.querySelector("#roadmap-panel"),
+  roadmap: document.querySelector("#roadmap"),
+  ticketParentID: document.querySelector("#ticket-parent-id"),
   ticketComponentID: document.querySelector("#ticket-component-id"),
   ticketVersionID: document.querySelector("#ticket-version-id"),
   searchPanel: document.querySelector("#search-panel"),
@@ -91,6 +95,7 @@ function bindEvents() {
       state.sprints = [];
       state.components = [];
       state.versions = [];
+      state.roadmap = [];
       state.attachments = {};
       state.comments = {};
       state.notifications = [];
@@ -123,6 +128,7 @@ function bindEvents() {
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       event.currentTarget.reset();
+      await loadRoadmap({ renderTickets: false });
       await loadTickets();
     }, "Ticket created");
   });
@@ -409,6 +415,7 @@ function bindEvents() {
             }
           }
         });
+        await loadRoadmap({ renderTickets: false });
         await loadTickets();
       }, "Ticket planning fields updated");
       return;
@@ -469,6 +476,7 @@ function bindEvents() {
         method: "PATCH",
         body: { spec: { status: button.dataset.ticketStatus } }
       });
+      await loadRoadmap({ renderTickets: false });
       await loadTickets();
     }, "Ticket updated");
   });
@@ -621,6 +629,25 @@ async function loadVersions(options = {}) {
   }
 }
 
+async function loadRoadmap(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.roadmap = [];
+    renderRoadmap();
+    renderTicketFormOptions();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/roadmap`);
+  state.roadmap = listItems(data).map(normalizeRoadmapItem);
+  renderRoadmap();
+  renderTicketFormOptions();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
 async function runSearch(spec) {
   const normalized = {
     project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
@@ -649,6 +676,7 @@ async function loadProjects(selectedID = "") {
     await loadSprints({ renderTickets: false });
     await loadComponents({ renderTickets: false });
     await loadVersions({ renderTickets: false });
+    await loadRoadmap({ renderTickets: false });
     await loadTickets();
     await loadSavedViews();
   } else {
@@ -656,6 +684,7 @@ async function loadProjects(selectedID = "") {
     state.sprints = [];
     state.components = [];
     state.versions = [];
+    state.roadmap = [];
     state.attachments = {};
     state.comments = {};
     state.searchResults = [];
@@ -761,6 +790,7 @@ function render() {
   els.notificationInbox.hidden = !signedIn;
   els.sprintPanel.hidden = !signedIn || !state.selectedProject;
   els.releasePanel.hidden = !signedIn || !state.selectedProject;
+  els.roadmapPanel.hidden = !signedIn || !state.selectedProject;
   els.searchPanel.hidden = !signedIn;
   els.accountPanel.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
@@ -775,6 +805,7 @@ function render() {
   renderSprints();
   renderComponents();
   renderVersions();
+  renderRoadmap();
   renderTicketFormOptions();
   renderSearchResults();
   renderSavedViews();
@@ -1027,6 +1058,7 @@ function versionNode(version) {
 }
 
 function renderTicketFormOptions() {
+  replaceSelectOptions(els.ticketParentID, "Parent epic", roadmapEpics(), (epic) => `${epic.key} ${epic.title}`);
   replaceSelectOptions(els.ticketComponentID, "Component", state.components, (component) => component.name);
   replaceSelectOptions(els.ticketVersionID, "Version", state.versions, (version) => `${version.name} (${version.state})`);
 }
@@ -1053,6 +1085,65 @@ function appendSelectOptions(select, emptyLabel, items, label, selectedID = "") 
     option.selected = item.id === selectedID;
     select.append(option);
   }
+}
+
+function renderRoadmap() {
+  if (!els.roadmap) {
+    return;
+  }
+  els.roadmap.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to view the roadmap";
+    els.roadmap.append(empty);
+    return;
+  }
+  if (!state.roadmap.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No epics";
+    els.roadmap.append(empty);
+    return;
+  }
+  for (const item of state.roadmap) {
+    els.roadmap.append(roadmapNode(item));
+  }
+}
+
+function roadmapNode(item) {
+  const article = document.createElement("article");
+  article.className = "roadmap-item";
+
+  const epic = item.epic;
+  const progress = item.progress || { total: 0, done: 0, by_status: {} };
+  const percent = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  const title = document.createElement("p");
+  title.textContent = `${epic.key} ${epic.title}`;
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    epic.start_date || epic.due_date ? dateRange(epic.start_date, epic.due_date) : "unscheduled",
+    `${progress.done}/${progress.total} done`,
+    epic.priority,
+    epic.version_id ? versionName(epic.version_id) : ""
+  ].filter(Boolean).join(" / ");
+
+  const bar = document.createElement("div");
+  bar.className = "roadmap-progress";
+  bar.setAttribute("aria-label", `${percent}% complete`);
+  const fill = document.createElement("span");
+  fill.style.width = `${percent}%`;
+  bar.append(fill);
+
+  const counts = document.createElement("small");
+  counts.textContent = Object.entries(progress.by_status || {})
+    .map(([status, count]) => `${status}: ${count}`)
+    .join(" / ") || "No child tickets";
+
+  article.append(title, meta, bar, counts);
+  return article;
 }
 
 function renderSearchResults() {
@@ -1227,6 +1318,7 @@ function renderProjects() {
       await loadSprints({ renderTickets: false });
       await loadComponents({ renderTickets: false });
       await loadVersions({ renderTickets: false });
+      await loadRoadmap({ renderTickets: false });
       await loadTickets();
       await loadSavedViews();
     });
@@ -1632,6 +1724,8 @@ function normalizeTicket(ticket) {
       component_id: ticket.spec.component_id || "",
       version_id: ticket.spec.version_id || "",
       rank: ticket.spec.rank || "",
+      start_date: ticket.spec.start_date || "",
+      due_date: ticket.spec.due_date || "",
       labels: ticket.spec.labels || [],
       custom_fields: ticket.spec.custom_fields || {}
     };
@@ -1762,6 +1856,21 @@ function normalizeVersion(version) {
   return version;
 }
 
+function normalizeRoadmapItem(item) {
+  if (!item) {
+    return null;
+  }
+  if (item.metadata && item.spec && item.status) {
+    return {
+      id: item.metadata.id,
+      project_id: item.metadata.project_id,
+      epic: normalizeTicket(item.spec.epic),
+      progress: item.status.progress || { total: 0, done: 0, by_status: {} }
+    };
+  }
+  return item;
+}
+
 function normalizeToken(token) {
   if (!token) {
     return null;
@@ -1832,6 +1941,12 @@ function componentName(id) {
 function versionName(id) {
   const version = state.versions.find((item) => item.id === id);
   return version ? version.name : id;
+}
+
+function roadmapEpics() {
+  return state.roadmap
+    .map((item) => item.epic)
+    .filter(Boolean);
 }
 
 function dateRange(start, end) {

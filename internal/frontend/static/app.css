@@ -951,6 +951,70 @@ p {
   font-size: 12px;
 }
 
+.roadmap-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.roadmap-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.roadmap-header h2 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.roadmap-list {
+  display: grid;
+  gap: 8px;
+}
+
+.roadmap-item {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.roadmap-item p {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-item span,
+.roadmap-item small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--subtle-bg);
+}
+
+.roadmap-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
 .search-panel {
   display: grid;
   gap: 12px;
