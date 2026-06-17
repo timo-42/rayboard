@@ -208,7 +208,7 @@ Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap lis
 
 ## Custom Fields
 
-The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/delete controls and JSON ticket custom-field value editing. Browser field update forms, custom create page layouts, richer field schemas, and field-aware search/layout screens are **Planned**.
+The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/update/delete controls and JSON ticket custom-field value editing. Custom create page layouts, richer field schemas, and field-aware search/layout screens are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

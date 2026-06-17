@@ -1881,7 +1881,7 @@ p {
 .field-item {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 2fr) auto;
   gap: 10px;
   align-items: center;
   border: 1px solid var(--border);
@@ -1900,6 +1900,24 @@ p {
   min-width: 0;
   display: grid;
   gap: 5px;
+}
+
+.field-edit-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.field-edit-form .inline-toggle {
+  min-height: 36px;
+  align-items: center;
+}
+
+.field-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .field-item p,
@@ -2807,6 +2825,8 @@ p {
   .component-form,
   .version-form,
   .field-form,
+  .field-item,
+  .field-edit-form,
   .account-grid,
   .token-form,
   .compact-admin-form,

@@ -946,6 +946,22 @@ function bindEvents() {
     }, "Custom field deleted");
   });
 
+  els.customFields.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-custom-field-edit-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/custom-fields/${form.dataset.customFieldEditForm}`, {
+        method: "PATCH",
+        body: { spec: customFieldUpdateSpec(form) }
+      });
+      await loadCustomFields();
+      await loadTickets();
+    }, "Custom field updated");
+  });
+
   els.notifications.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-notification-read-state]");
     if (!button) {
@@ -3223,6 +3239,7 @@ function renderCustomFields() {
 }
 
 function customFieldNode(field) {
+  const optionsList = Array.isArray(field.options) ? field.options : [];
   const article = document.createElement("article");
   article.className = "field-item";
   article.dataset.fieldType = field.field_type || "text";
@@ -3238,18 +3255,67 @@ function customFieldNode(field) {
     field.key,
     field.field_type,
     field.required ? "required" : "optional",
-    field.options.length ? `options: ${field.options.join(", ")}` : ""
+    optionsList.length ? `options: ${optionsList.join(", ")}` : ""
   ].filter(Boolean).join(" / ");
 
   body.append(name, meta);
+
+  const edit = document.createElement("form");
+  edit.className = "field-edit-form";
+  edit.dataset.customFieldEditForm = field.id;
+
+  edit.append(
+    inputNode("key", field.key || "", "key"),
+    inputNode("name", field.name || "", "name"),
+    customFieldTypeSelect(field.field_type || "text")
+  );
+
+  const required = document.createElement("label");
+  required.className = "inline-toggle";
+  const requiredInput = document.createElement("input");
+  requiredInput.type = "checkbox";
+  requiredInput.name = "required";
+  requiredInput.checked = Boolean(field.required);
+  required.append(requiredInput, " Required");
+
+  const options = inputNode("options", optionsList.join(", "), "options");
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  edit.append(required, options, save);
 
   const remove = document.createElement("button");
   remove.type = "button";
   remove.dataset.deleteFieldId = field.id;
   remove.textContent = "Delete";
 
-  article.append(body, remove);
+  const actions = document.createElement("div");
+  actions.className = "field-actions";
+  actions.append(remove);
+
+  article.append(body, edit, actions);
   return article;
+}
+
+function customFieldTypeSelect(value) {
+  const select = document.createElement("select");
+  select.name = "field_type";
+  for (const [fieldValue, label] of [
+    ["text", "Text"],
+    ["number", "Number"],
+    ["boolean", "Boolean"],
+    ["date", "Date"],
+    ["single_select", "Single select"],
+    ["multi_select", "Multi select"],
+    ["user", "User"]
+  ]) {
+    const option = document.createElement("option");
+    option.value = fieldValue;
+    option.textContent = label;
+    option.selected = fieldValue === value;
+    select.append(option);
+  }
+  return select;
 }
 
 function renderTicketFormOptions() {
@@ -6187,6 +6253,17 @@ function customFieldExampleValue(field) {
     default:
       return "";
   }
+}
+
+function customFieldUpdateSpec(form) {
+  const data = formData(form);
+  return {
+    key: data.key || "",
+    name: data.name || "",
+    field_type: data.field_type || "text",
+    required: Boolean(data.required),
+    options: parseOptions(data.options)
+  };
 }
 
 function preferenceKeys() {

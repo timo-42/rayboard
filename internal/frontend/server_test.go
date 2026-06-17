@@ -673,7 +673,10 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		"renderCustomFields",
 		"normalizeCustomField",
 		"parseCustomFields",
+		"customFieldUpdateSpec",
+		"data-custom-field-edit-form",
 		"/api/projects/${state.selectedProject.id}/custom-fields",
+		"/api/custom-fields/${form.dataset.customFieldEditForm}",
 		"/api/custom-fields/${remove.dataset.deleteFieldId}",
 		"data-ticket-custom-field-control",
 		"data-update-custom-fields-id",
@@ -686,6 +689,7 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 	for _, expected := range []string{
 		".field-panel",
 		".field-form",
+		".field-edit-form",
 		".field-list",
 		".ticket-custom-fields",
 	} {

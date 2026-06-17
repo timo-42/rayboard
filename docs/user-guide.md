@@ -19,7 +19,7 @@ Implemented browser workflows:
 - sprint list, create, start, complete, delete, and ticket sprint assignment/removal for the selected project;
 - component and version list/create/delete, version release/archive state changes, and ticket component/version assignment;
 - roadmap epic list with schedule dates and child-ticket progress, plus ticket form fields for epics, parent epics, and roadmap dates;
-- custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
+- custom field list/create/update/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - workflow status replacement, board create/select/delete, and board-backed ticket columns for the selected project;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, role-binding summaries, and effective-permission inspection when permitted;
@@ -38,7 +38,6 @@ Implemented API-only user workflows:
 - advanced saved-view pagination;
 - detailed sprint editing and sprint-state filtering;
 - detailed component/version editing and filtering;
-- custom field update APIs beyond browser delete/recreate;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
 - custom ticket create-page schema resolution and submission APIs.
 
