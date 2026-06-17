@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	lua "github.com/yuin/gopher-lua"
 )
 
 const (
@@ -30,6 +33,7 @@ var (
 type Service struct {
 	db         *sql.DB
 	authorizer authz.Evaluator
+	runs       *automation.RunStore
 	now        func() time.Time
 }
 
@@ -52,6 +56,12 @@ func WithNow(now func() time.Time) Option {
 		if now != nil {
 			service.now = now
 		}
+	}
+}
+
+func WithRunStore(runStore *automation.RunStore) Option {
+	return func(service *Service) {
+		service.runs = runStore
 	}
 }
 
@@ -103,6 +113,17 @@ type UpdateInput struct {
 	Enabled     *bool
 	ActorUserID *string
 	Engine      *EngineSpec
+}
+
+type IncomingInput struct {
+	Headers map[string]string
+	Query   map[string]string
+	Payload map[string]any
+}
+
+type IncomingResult struct {
+	Webhook Webhook
+	Run     automation.Run
 }
 
 func (s *Service) List(ctx context.Context, principal authz.Principal, input ListInput) ([]Webhook, error) {
@@ -339,6 +360,165 @@ func (s *Service) AuthenticateIncoming(ctx context.Context, webhookID string, to
 	return hook, nil
 }
 
+func (s *Service) ReceiveIncoming(ctx context.Context, webhookID string, token string, input IncomingInput) (IncomingResult, error) {
+	hook, err := s.AuthenticateIncoming(ctx, webhookID, token)
+	if err != nil {
+		return IncomingResult{}, err
+	}
+	if s.runs == nil {
+		return IncomingResult{}, errors.New("webhooks: run store is required")
+	}
+	run, err := s.runs.Start(ctx, automation.StartInput{
+		TriggerType: "incoming_webhook",
+		TriggerRef:  hook.ID,
+		ProjectID:   hook.ProjectID,
+		Engine:      hook.Engine.Type,
+		ActorUserID: hook.ActorUserID,
+		Input: map[string]any{
+			"webhook_id": hook.ID,
+			"request":    incomingRequestMap(input),
+		},
+		Limits: map[string]any{
+			"timeout_seconds": 10,
+		},
+	})
+	if err != nil {
+		return IncomingResult{}, err
+	}
+
+	output, logs, execErr := s.executeIncoming(ctx, hook, input)
+	finish := automation.FinishInput{
+		Status: automation.StatusSucceeded,
+		Output: output,
+		Logs:   logs,
+	}
+	if execErr != nil {
+		finish.Status = automation.StatusFailed
+		finish.Error = execErr.Error()
+	}
+	finished, finishErr := s.runs.Finish(ctx, run.ID, finish)
+	if finishErr != nil {
+		return IncomingResult{}, finishErr
+	}
+	if err := s.recordRunResult(ctx, hook.ID, finished.Status, finish.Error); err != nil {
+		return IncomingResult{}, err
+	}
+	hook, getErr := s.get(ctx, hook.ID)
+	if getErr != nil {
+		return IncomingResult{}, getErr
+	}
+	result := IncomingResult{Webhook: hook, Run: finished}
+	if execErr != nil {
+		return result, fmt.Errorf("%w: incoming webhook script failed: %v", ErrValidation, execErr)
+	}
+	return result, nil
+}
+
+func (s *Service) ListRuns(ctx context.Context, principal authz.Principal, webhookID string, limit int, offset int) ([]automation.Run, error) {
+	hook, err := s.Get(ctx, principal, webhookID)
+	if err != nil {
+		return nil, err
+	}
+	if s.runs == nil {
+		return nil, errors.New("webhooks: run store is required")
+	}
+	return s.runs.List(ctx, automation.ListInput{
+		TriggerType: "incoming_webhook",
+		TriggerRef:  hook.ID,
+		ProjectID:   hook.ProjectID,
+		Limit:       limit,
+		Offset:      offset,
+	})
+}
+
+func (s *Service) executeIncoming(ctx context.Context, hook Webhook, input IncomingInput) (map[string]any, []string, error) {
+	switch hook.Engine.Type {
+	case EngineTypeLua:
+		return s.executeIncomingLua(ctx, hook, input)
+	case EngineTypeAI:
+		return map[string]any{}, nil, fmt.Errorf("%w: AI incoming webhooks are not implemented yet", ErrValidation)
+	default:
+		return map[string]any{}, nil, fmt.Errorf("%w: unsupported engine", ErrValidation)
+	}
+}
+
+func (s *Service) executeIncomingLua(ctx context.Context, hook Webhook, input IncomingInput) (map[string]any, []string, error) {
+	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	sandbox := luasandbox.New(luasandbox.DefaultJSONLimits())
+	defer sandbox.Close()
+	sandbox.L.SetContext(runCtx)
+
+	requestValue, err := sandbox.JSON.FromGo(incomingRequestMap(input))
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
+	sandbox.L.SetGlobal("request", requestValue)
+	logs := []string{}
+	registerIncomingLuaHelpers(sandbox, &logs)
+
+	fn, err := sandbox.L.LoadString(hook.Engine.Script)
+	if err != nil {
+		return map[string]any{}, logs, err
+	}
+	top := sandbox.L.GetTop()
+	sandbox.L.Push(fn)
+	if err := sandbox.L.PCall(0, lua.MultRet, nil); err != nil {
+		return map[string]any{}, logs, err
+	}
+	output := map[string]any{"ok": true}
+	if sandbox.L.GetTop() > top {
+		returned := sandbox.L.Get(-1)
+		value, err := sandbox.JSON.ToGo(returned)
+		if err != nil {
+			return map[string]any{}, logs, err
+		}
+		if object, ok := value.(map[string]any); ok {
+			output = object
+		} else if value != nil {
+			output = map[string]any{"result": value}
+		}
+	}
+	return output, logs, nil
+}
+
+func registerIncomingLuaHelpers(sandbox *luasandbox.Sandbox, logs *[]string) {
+	rayboard := sandbox.L.GetGlobal("rayboard")
+	rayboardTable, ok := rayboard.(*lua.LTable)
+	if !ok {
+		rayboardTable = sandbox.L.NewTable()
+		sandbox.L.SetGlobal("rayboard", rayboardTable)
+	}
+	sandbox.L.SetField(rayboardTable, "log", sandbox.L.NewFunction(func(L *lua.LState) int {
+		if len(*logs) < 100 {
+			*logs = append(*logs, L.CheckString(1))
+		}
+		return 0
+	}))
+}
+
+func incomingRequestMap(input IncomingInput) map[string]any {
+	return map[string]any{
+		"headers": stringAnyMap(input.Headers),
+		"query":   stringAnyMap(input.Query),
+		"payload": nonNilMap(input.Payload),
+	}
+}
+
+func (s *Service) recordRunResult(ctx context.Context, webhookID string, status string, lastError string) error {
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE webhooks
+		SET last_error = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, nullableString(lastError), formatTime(now), webhookID)
+	if err != nil {
+		return fmt.Errorf("record webhook run result: %w", err)
+	}
+	_ = status
+	return requireRowsAffected(result, "webhook run result")
+}
+
 func (s *Service) get(ctx context.Context, webhookID string) (Webhook, error) {
 	hook, err := scanWebhook(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, direction, enabled, actor_user_id, engine_type,
@@ -501,6 +681,21 @@ func normalizeList(limit int, offset int) (int, int, error) {
 		return 0, 0, fmt.Errorf("%w: limit must be 200 or fewer", ErrValidation)
 	}
 	return limit, offset, nil
+}
+
+func nonNilMap(value map[string]any) map[string]any {
+	if value == nil {
+		return map[string]any{}
+	}
+	return value
+}
+
+func stringAnyMap(value map[string]string) map[string]any {
+	result := map[string]any{}
+	for key, item := range value {
+		result[key] = item
+	}
+	return result
 }
 
 func joinAnd(parts []string) string {

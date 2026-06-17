@@ -20,7 +20,7 @@ Lua-capable surfaces:
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: **Planned**;
 - custom ticket create pages: **Planned**;
-- incoming webhooks: **Planned**;
+- incoming webhooks: definition CRUD, token auth, Lua validation/logging, and run history implemented;
 - outgoing webhooks: **Planned**;
 - notification hooks: **Planned**.
 
@@ -181,20 +181,19 @@ return {
 
 ## Webhooks
 
-Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, and the stable `POST /api/webhooks/incoming/{id}` endpoint are implemented. The current receiver authenticates the bearer token and accepts a structured `spec` payload; Lua validation/action execution is still **Planned**. Incoming webhook Lua will map request data to allowed Rayboard actions using a configured actor user. Outgoing webhooks are **Planned** and will shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
+Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua validation/logging, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. Ticket-mutating Rayboard action helpers for incoming webhooks are still **Planned** and will run as the configured actor user through normal RBAC. Outgoing webhooks are **Planned** and will shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
 
 Incoming example shape:
 
 ```lua
-local body = json.decode(request.body)
-if body.title == nil then
+if request.payload.title == nil then
+  rayboard.log("missing title")
   return { reject = { status = 400, message = "title is required" } }
 end
 
 return {
-  actions = {
-    { type = "create_ticket", input = { title = body.title, project_id = context.project_id } }
-  }
+  accepted = true,
+  title = request.payload.title
 }
 ```
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/store"
 )
 
@@ -144,6 +145,85 @@ func TestIncomingWebhookValidationAndRBAC(t *testing.T) {
 		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return {}`},
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected outgoing validation, got %v", err)
+	}
+}
+
+func TestIncomingWebhookReceiveRunsLuaAndRecordsHistory(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+		WithRunStore(automation.NewRunStore(db.SQL)),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+
+	created, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "receiver",
+		Direction:   DirectionIncoming,
+		Enabled:     true,
+		ActorUserID: "actor",
+		Engine: EngineSpec{
+			Type: EngineTypeLua,
+			Script: `
+				rayboard.log("event " .. request.payload.event)
+				return { accepted = true, event = request.payload.event }
+			`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create webhook: %v", err)
+	}
+
+	result, err := service.ReceiveIncoming(ctx, created.ID, created.Token, IncomingInput{
+		Headers: map[string]string{"x-event": "push"},
+		Query:   map[string]string{"dry_run": "true"},
+		Payload: map[string]any{"event": "opened"},
+	})
+	if err != nil {
+		t.Fatalf("receive incoming webhook: %v", err)
+	}
+	if result.Run.Status != automation.StatusSucceeded {
+		t.Fatalf("expected succeeded run, got %#v", result.Run)
+	}
+	output, ok := result.Run.Output["output"].(map[string]any)
+	if !ok || output["accepted"] != true || output["event"] != "opened" {
+		t.Fatalf("unexpected run output: %#v", result.Run.Output)
+	}
+	logs, ok := result.Run.Output["logs"].([]any)
+	if !ok || len(logs) != 1 || logs[0] != "event opened" {
+		t.Fatalf("unexpected run logs: %#v", result.Run.Output)
+	}
+	if result.Webhook.LastError != "" {
+		t.Fatalf("expected empty last error, got %#v", result.Webhook)
+	}
+
+	failingScript := `error("rejected")`
+	if _, err := service.Update(ctx, principal, created.ID, UpdateInput{Engine: &EngineSpec{Type: EngineTypeLua, Script: failingScript}}); err != nil {
+		t.Fatalf("update webhook script: %v", err)
+	}
+	failed, err := service.ReceiveIncoming(ctx, created.ID, created.Token, IncomingInput{Payload: map[string]any{"event": "closed"}})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+	if failed.Run.Status != automation.StatusFailed || failed.Run.Error == "" {
+		t.Fatalf("expected failed run, got %#v", failed.Run)
+	}
+	if failed.Webhook.LastError == "" {
+		t.Fatalf("expected webhook last error, got %#v", failed.Webhook)
+	}
+
+	runs, err := service.ListRuns(ctx, principal, created.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list webhook runs: %v", err)
+	}
+	if len(runs) != 2 || runs[0].Status != automation.StatusFailed || runs[1].Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected webhook runs: %#v", runs)
 	}
 }
 

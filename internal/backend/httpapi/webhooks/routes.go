@@ -16,6 +16,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/webhook-definitions/{webhook_id}", "Webhooks", "Update webhook"), provider.updateWebhook)
 	huma.Register(api, operation(http.MethodDelete, "/api/webhook-definitions/{webhook_id}", "Webhooks", "Delete webhook", http.StatusNoContent), provider.deleteWebhook)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/webhook-definitions/{webhook_id}/rotate-token", "Webhooks", "Rotate incoming webhook token"), provider.rotateWebhookToken)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/webhook-definitions/{webhook_id}/runs", "Webhooks", "List webhook runs"), provider.listWebhookRuns)
 	huma.Register(api, shared.PublicOperation(http.MethodPost, "/api/webhooks/incoming/{webhook_id}", "Webhooks", "Receive incoming webhook"), provider.receiveIncomingWebhook)
 }
 
@@ -95,12 +96,28 @@ func (provider Provider) rotateWebhookToken(ctx context.Context, input *WebhookI
 	return &RotateWebhookTokenOutput{Body: createdWebhookResource(hook)}, nil
 }
 
-func (provider Provider) receiveIncomingWebhook(ctx context.Context, input *IncomingWebhookInput) (*IncomingWebhookOutput, error) {
-	hook, err := provider.Webhooks.AuthenticateIncoming(ctx, input.WebhookID, bearerToken(input.Authorization))
+func (provider Provider) listWebhookRuns(ctx context.Context, input *ListWebhookRunsInput) (*ListWebhookRunsOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := provider.Webhooks.ListRuns(ctx, principal, input.WebhookID, input.Limit, input.Offset)
 	if err != nil {
 		return nil, shared.WebhookError(err)
 	}
-	return &IncomingWebhookOutput{Body: webhookResource(hook)}, nil
+	return &ListWebhookRunsOutput{Body: shared.NewListResource[WebhookRunResource](runResources(runs))}, nil
+}
+
+func (provider Provider) receiveIncomingWebhook(ctx context.Context, input *IncomingWebhookInput) (*IncomingWebhookOutput, error) {
+	result, err := provider.Webhooks.ReceiveIncoming(ctx, input.WebhookID, bearerToken(input.Authorization), webhooks.IncomingInput{
+		Headers: input.Body.Spec.Headers,
+		Query:   input.Body.Spec.Query,
+		Payload: input.Body.Spec.Payload,
+	})
+	if err != nil {
+		return nil, shared.WebhookError(err)
+	}
+	return &IncomingWebhookOutput{Body: incomingWebhookResource(input.Body.Spec, result)}, nil
 }
 
 func bearerToken(header string) string {

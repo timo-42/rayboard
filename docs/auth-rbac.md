@@ -94,7 +94,7 @@ Personal notification preferences require authentication but no RBAC permission 
 
 `notifications:manage` is required to manage project notification defaults, notification policies, Shoutrrr notification destinations, delivery history, and manual delivery retry. Global policy, destination, and delivery APIs require the permission at global scope; project preference/default, policy, destination, and delivery APIs require it at the target project scope.
 
-`webhooks:manage` is required to create, list, update, delete, and rotate project webhook definitions. Incoming webhook receiver calls authenticate with a webhook-specific bearer token rather than a user session or API token; follow-up Lua/action execution will run as the configured actor user and must not exceed that actor's effective RBAC permissions.
+`webhooks:manage` is required to create, list, update, delete, rotate, and inspect run history for project webhook definitions. Incoming webhook receiver calls authenticate with a webhook-specific bearer token rather than a user session or API token. Current Lua execution records run history and logs; future ticket-mutating webhook action helpers will run as the configured actor user and must not exceed that actor's effective RBAC permissions.
 
 ## Current Limitations
 

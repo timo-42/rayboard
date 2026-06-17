@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
@@ -25,6 +26,13 @@ type CreateProjectWebhookInput struct {
 type WebhookIDInput struct {
 	shared.AuthInput
 	WebhookID string `path:"webhook_id" doc:"Webhook ID."`
+}
+
+type ListWebhookRunsInput struct {
+	shared.AuthInput
+	WebhookID string `path:"webhook_id" doc:"Webhook ID."`
+	Limit     int    `query:"limit" doc:"Maximum number of runs to return."`
+	Offset    int    `query:"offset" doc:"Number of runs to skip."`
 }
 
 type IncomingWebhookInput struct {
@@ -104,11 +112,35 @@ type CreatedWebhookStatus struct {
 	Token string `json:"token,omitempty"`
 }
 
+type WebhookRunMetadata struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type WebhookRunSpec struct {
+	TriggerType string         `json:"trigger_type"`
+	TriggerRef  string         `json:"trigger_ref,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	TicketID    string         `json:"ticket_id,omitempty"`
+	Input       map[string]any `json:"input"`
+}
+
+type WebhookRunStatus struct {
+	State      string         `json:"state"`
+	Output     map[string]any `json:"output"`
+	Error      string         `json:"error,omitempty"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
+}
+
 type WebhookResource = shared.Resource[WebhookMetadata, WebhookSpec, WebhookStatus]
 type CreatedWebhookResource = shared.Resource[WebhookMetadata, WebhookSpec, CreatedWebhookStatus]
+type IncomingWebhookResource = shared.Resource[WebhookRunMetadata, IncomingWebhookSpec, WebhookRunStatus]
+type WebhookRunResource = shared.Resource[WebhookRunMetadata, WebhookRunSpec, WebhookRunStatus]
 
 type ListWebhooksOutput = shared.ListOutput[WebhookResource]
 type CreateWebhookOutput = shared.CreatedOutput[CreatedWebhookResource]
+type ListWebhookRunsOutput = shared.ListOutput[WebhookRunResource]
 
 type WebhookOutput struct {
 	Body WebhookResource
@@ -119,7 +151,7 @@ type RotateWebhookTokenOutput struct {
 }
 
 type IncomingWebhookOutput struct {
-	Body WebhookResource
+	Body IncomingWebhookResource
 }
 
 func (spec WebhookSpec) createInput(projectID string) webhooks.CreateInput {
@@ -204,6 +236,54 @@ func webhookResources(hooks []webhooks.Webhook) []WebhookResource {
 	resources := make([]WebhookResource, 0, len(hooks))
 	for _, hook := range hooks {
 		resources = append(resources, webhookResource(hook))
+	}
+	return resources
+}
+
+func incomingWebhookResource(input IncomingWebhookSpec, result webhooks.IncomingResult) IncomingWebhookResource {
+	return IncomingWebhookResource{
+		Metadata: WebhookRunMetadata{
+			ID:        result.Run.ID,
+			CreatedAt: result.Run.CreatedAt,
+		},
+		Spec: input,
+		Status: WebhookRunStatus{
+			State:      result.Run.Status,
+			Output:     result.Run.Output,
+			Error:      result.Run.Error,
+			StartedAt:  result.Run.StartedAt,
+			FinishedAt: result.Run.FinishedAt,
+		},
+	}
+}
+
+func runResource(run automation.Run) WebhookRunResource {
+	return WebhookRunResource{
+		Metadata: WebhookRunMetadata{
+			ID:        run.ID,
+			CreatedAt: run.CreatedAt,
+		},
+		Spec: WebhookRunSpec{
+			TriggerType: run.TriggerType,
+			TriggerRef:  run.TriggerRef,
+			ProjectID:   run.ProjectID,
+			TicketID:    run.TicketID,
+			Input:       run.Input,
+		},
+		Status: WebhookRunStatus{
+			State:      run.Status,
+			Output:     run.Output,
+			Error:      run.Error,
+			StartedAt:  run.StartedAt,
+			FinishedAt: run.FinishedAt,
+		},
+	}
+}
+
+func runResources(runs []automation.Run) []WebhookRunResource {
+	resources := make([]WebhookRunResource, 0, len(runs))
+	for _, run := range runs {
+		resources = append(resources, runResource(run))
 	}
 	return resources
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
@@ -19,7 +20,7 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	db, bootstrap := openBackendTestDB(t, ctx)
 	authService := auth.NewService(db.SQL)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
-	webhookService := webhooks.NewService(db.SQL, authorizer)
+	webhookService := webhooks.NewService(db.SQL, authorizer, webhooks.WithRunStore(automation.NewRunStore(db.SQL)))
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authorizer),
@@ -62,7 +63,7 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 			"actor_user_id": actor.ID,
 			"engine": map[string]any{
 				"type":   webhooks.EngineTypeLua,
-				"script": "return { ok = true }",
+				"script": `rayboard.log("received " .. request.payload.kind); return { ok = true, kind = request.payload.kind }`,
 			},
 		},
 	}))
@@ -152,7 +153,7 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	}
 
 	incomingReq := httptest.NewRequest(http.MethodPost, "/api/webhooks/incoming/"+created.Metadata.ID, mustJSON(t, map[string]any{
-		"spec": map[string]any{"payload": map[string]any{"ok": true}},
+		"spec": map[string]any{"payload": map[string]any{"kind": "demo"}},
 	}))
 	incomingReq.Header.Set("Authorization", "Bearer "+rotated.Status.Token)
 	incoming := httptest.NewRecorder()
@@ -160,8 +161,30 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	if incoming.Code != http.StatusOK {
 		t.Fatalf("expected incoming webhook status 200, got %d: %s", incoming.Code, incoming.Body.String())
 	}
+	received := decodeIncomingRunResource(t, incoming.Body.Bytes())
+	if received.Metadata.ID == "" || received.Spec.Payload["kind"] != "demo" || received.Status.State != automation.StatusSucceeded {
+		t.Fatalf("unexpected incoming webhook response: %#v", received)
+	}
+	output, ok := received.Status.Output["output"].(map[string]any)
+	if !ok || output["ok"] != true || output["kind"] != "demo" {
+		t.Fatalf("unexpected incoming webhook output: %#v", received.Status.Output)
+	}
 	if bytes.Contains(incoming.Body.Bytes(), []byte(rotated.Status.Token)) {
 		t.Fatalf("incoming webhook response leaked token: %s", incoming.Body.String())
+	}
+
+	runsReq := httptest.NewRequest(http.MethodGet, "/api/webhook-definitions/"+created.Metadata.ID+"/runs", nil)
+	runsReq.AddCookie(session)
+	runs := httptest.NewRecorder()
+	handler.ServeHTTP(runs, runsReq)
+	if runs.Code != http.StatusOK {
+		t.Fatalf("expected webhook runs status 200, got %d: %s", runs.Code, runs.Body.String())
+	}
+	if !bytes.Contains(runs.Body.Bytes(), []byte(received.Metadata.ID)) {
+		t.Fatalf("expected run list to include incoming run: %s", runs.Body.String())
+	}
+	if bytes.Contains(runs.Body.Bytes(), []byte(rotated.Status.Token)) {
+		t.Fatalf("webhook run list leaked token: %s", runs.Body.String())
 	}
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/webhook-definitions/"+created.Metadata.ID, nil)
@@ -181,7 +204,7 @@ func TestWebhookEndpointsRequirePermission(t *testing.T) {
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authorizer),
-		WithWebhookService(webhooks.NewService(db.SQL, authorizer)),
+		WithWebhookService(webhooks.NewService(db.SQL, authorizer, webhooks.WithRunStore(automation.NewRunStore(db.SQL)))),
 	)
 	seedWebhookHandlerProject(t, ctx, db, "project-1")
 	viewer, err := authService.CreateUser(ctx, auth.CreateUserInput{Username: "viewer"})
@@ -230,6 +253,29 @@ func decodeWebhookResource(t *testing.T, data []byte) webhookResourceBody {
 	var body webhookResourceBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode webhook resource: %v", err)
+	}
+	return body
+}
+
+type incomingRunResourceBody struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		Payload map[string]any `json:"payload"`
+	} `json:"spec"`
+	Status struct {
+		State  string         `json:"state"`
+		Output map[string]any `json:"output"`
+	} `json:"status"`
+}
+
+func decodeIncomingRunResource(t *testing.T, data []byte) incomingRunResourceBody {
+	t.Helper()
+
+	var body incomingRunResourceBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode incoming run resource: %v", err)
 	}
 	return body
 }

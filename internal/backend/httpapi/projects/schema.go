@@ -174,12 +174,6 @@ type ListVersionsOutput = shared.ListOutput[versionapi.VersionResource]
 type CreateVersionOutput = shared.CreatedOutput[versionapi.VersionResource]
 type ListCustomFieldsOutput = shared.ListOutput[fieldapi.FieldResource]
 type CreateCustomFieldOutput = shared.CreatedOutput[fieldapi.FieldResource]
-type RoadmapItemResource struct {
-	Metadata RoadmapItemMetadata `json:"metadata"`
-	Spec     RoadmapItemSpec     `json:"spec"`
-	Status   RoadmapItemStatus   `json:"status"`
-}
-
 type RoadmapItemMetadata struct {
 	ID        string `json:"id"`
 	ProjectID string `json:"project_id"`
@@ -193,6 +187,7 @@ type RoadmapItemStatus struct {
 	Progress tracker.RoadmapProgress `json:"progress"`
 }
 
+type RoadmapItemResource = shared.Resource[RoadmapItemMetadata, RoadmapItemSpec, RoadmapItemStatus]
 type ListRoadmapOutput = shared.ListOutput[RoadmapItemResource]
 type ListSprintsOutput = shared.ListOutput[sprintapi.SprintResource]
 type CreateSprintOutput = shared.CreatedOutput[sprintapi.SprintResource]
