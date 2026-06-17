@@ -434,7 +434,7 @@ Notification policies define which event types should route to named destination
 | `PATCH` | `/api/notification-policies/{policy_id}` | `{"spec":{"enabled":false}}` or any subset of name, event types, destination IDs, and enabled state. |
 | `DELETE` | `/api/notification-policies/{policy_id}` | soft-deletes and disables the policy. |
 
-Supported policy event types are `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, `release_changed`, and `automation_failed`. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
+Generated policy event types currently include `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, and `release_changed`. `automation_failed` is accepted for policy configuration and reserved for automation failure events as that surface grows. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
 
 ## Notification Deliveries
 

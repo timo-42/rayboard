@@ -411,6 +411,36 @@ func (s *Service) externalNotificationPlans(ctx context.Context, event events.Ev
 				},
 			})
 		}
+		if sprintID := changeNew(event.Data, "sprint_id"); sprintID != "" {
+			plans = append(plans, externalNotificationPlan{
+				EventType:   "sprint_changed",
+				ProjectID:   projectID,
+				SubjectType: "ticket",
+				SubjectID:   ticket.ID,
+				Message:     fmt.Sprintf("%s sprint changed", ticket.Key),
+				Payload: map[string]any{
+					"ticket_id":     ticket.ID,
+					"ticket_key":    ticket.Key,
+					"sprint_id":     sprintID,
+					"actor_user_id": event.ActorID,
+				},
+			})
+		}
+		if versionID := changeNew(event.Data, "version_id"); versionID != "" {
+			plans = append(plans, externalNotificationPlan{
+				EventType:   "release_changed",
+				ProjectID:   projectID,
+				SubjectType: "ticket",
+				SubjectID:   ticket.ID,
+				Message:     fmt.Sprintf("%s release changed", ticket.Key),
+				Payload: map[string]any{
+					"ticket_id":     ticket.ID,
+					"ticket_key":    ticket.Key,
+					"version_id":    versionID,
+					"actor_user_id": event.ActorID,
+				},
+			})
+		}
 		return plans, nil
 	default:
 		return nil, nil
@@ -493,22 +523,42 @@ func (s *Service) handleTicketUpdated(ctx context.Context, event events.Event) e
 		}
 	}
 	if status := changeNew(event.Data, "status"); status != "" {
-		recipients := recipientSet(event.ActorID, ticket.ReporterID, ticket.AssigneeID)
-		for userID := range recipients {
-			if _, err := s.Create(ctx, CreateInput{
-				UserID:      userID,
-				Type:        "ticket_status_changed",
-				SubjectType: "ticket",
-				SubjectID:   ticket.ID,
-				Body:        fmt.Sprintf("%s moved to %s", ticket.Key, status),
-				Data: map[string]any{
-					"ticket_id":  ticket.ID,
-					"ticket_key": ticket.Key,
-					"status":     status,
-				},
-			}); err != nil {
-				return err
-			}
+		if err := s.createTicketChangeNotifications(ctx, event.ActorID, ticket, "ticket_status_changed", fmt.Sprintf("%s moved to %s", ticket.Key, status), map[string]any{"status": status}); err != nil {
+			return err
+		}
+	}
+	if sprintID := changeNew(event.Data, "sprint_id"); sprintID != "" {
+		if err := s.createTicketChangeNotifications(ctx, event.ActorID, ticket, "sprint_changed", fmt.Sprintf("%s sprint changed", ticket.Key), map[string]any{"sprint_id": sprintID}); err != nil {
+			return err
+		}
+	}
+	if versionID := changeNew(event.Data, "version_id"); versionID != "" {
+		if err := s.createTicketChangeNotifications(ctx, event.ActorID, ticket, "release_changed", fmt.Sprintf("%s release changed", ticket.Key), map[string]any{"version_id": versionID}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) createTicketChangeNotifications(ctx context.Context, actorID string, ticket eventTicket, notificationType string, body string, data map[string]any) error {
+	recipients := recipientSet(actorID, ticket.ReporterID, ticket.AssigneeID)
+	for userID := range recipients {
+		payload := map[string]any{
+			"ticket_id":  ticket.ID,
+			"ticket_key": ticket.Key,
+		}
+		for key, value := range data {
+			payload[key] = value
+		}
+		if _, err := s.Create(ctx, CreateInput{
+			UserID:      userID,
+			Type:        notificationType,
+			SubjectType: "ticket",
+			SubjectID:   ticket.ID,
+			Body:        body,
+			Data:        payload,
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

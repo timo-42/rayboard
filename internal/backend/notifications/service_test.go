@@ -115,6 +115,8 @@ func TestNotificationEventHandlers(t *testing.T) {
 			"changes": map[string]any{
 				"status":      map[string]string{"old": "todo", "new": "done"},
 				"assignee_id": map[string]string{"old": "", "new": "assignee"},
+				"sprint_id":   map[string]string{"old": "", "new": "sprint-1"},
+				"version_id":  map[string]string{"old": "", "new": "version-1"},
 			},
 		},
 	})
@@ -126,6 +128,12 @@ func TestNotificationEventHandlers(t *testing.T) {
 	}
 	if got := countNotifications(t, ctx, db, "ticket_assigned"); got != 1 {
 		t.Fatalf("expected 1 assignment notification, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "sprint_changed"); got != 2 {
+		t.Fatalf("expected 2 sprint notifications, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "release_changed"); got != 2 {
+		t.Fatalf("expected 2 release notifications, got %d", got)
 	}
 }
 
@@ -155,6 +163,8 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 			"changes": map[string]any{
 				"status":      map[string]string{"old": "todo", "new": "done"},
 				"assignee_id": map[string]string{"old": "", "new": "assignee"},
+				"sprint_id":   map[string]string{"old": "", "new": "sprint-1"},
+				"version_id":  map[string]string{"old": "", "new": "version-1"},
 			},
 		},
 	}); err != nil {
@@ -177,6 +187,12 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	if got := countNotifications(t, ctx, db, "ticket_assigned"); got != 1 {
 		t.Fatalf("expected 1 assignment notification, got %d", got)
 	}
+	if got := countNotifications(t, ctx, db, "sprint_changed"); got != 2 {
+		t.Fatalf("expected 2 sprint notifications, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "release_changed"); got != 2 {
+		t.Fatalf("expected 2 release notifications, got %d", got)
+	}
 	assertDomainEventStatus(t, ctx, db, "comment.created", "processed", 1, "")
 	assertDomainEventStatus(t, ctx, db, "ticket.updated", "processed", 1, "")
 
@@ -187,7 +203,7 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	if processed != 0 {
 		t.Fatalf("expected no processed events on rerun, got %d", processed)
 	}
-	if got := totalNotifications(t, ctx, db); got != 5 {
+	if got := totalNotifications(t, ctx, db); got != 9 {
 		t.Fatalf("expected no duplicate notifications on rerun, got %d", got)
 	}
 }
@@ -226,7 +242,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 		Name:           "project ticket updates",
 		ScopeType:      PolicyScopeProject,
 		ProjectID:      "project-1",
-		EventTypes:     []string{"ticket_assigned", "ticket_status_changed"},
+		EventTypes:     []string{"ticket_assigned", "ticket_status_changed", "sprint_changed", "release_changed"},
 		DestinationIDs: []string{globalDestination.ID, projectDestination.ID},
 		Enabled:        true,
 	})
@@ -255,6 +271,8 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 			"changes": map[string]any{
 				"status":      map[string]string{"old": "todo", "new": "done"},
 				"assignee_id": map[string]string{"old": "", "new": "assignee"},
+				"sprint_id":   map[string]string{"old": "", "new": "sprint-1"},
+				"version_id":  map[string]string{"old": "", "new": "version-1"},
 			},
 		},
 	}); err != nil {
@@ -277,6 +295,12 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	if got := countDeliveries(t, ctx, db, "ticket_assigned"); got != 2 {
 		t.Fatalf("expected 2 assignment deliveries, got %d", got)
 	}
+	if got := countDeliveries(t, ctx, db, "sprint_changed"); got != 2 {
+		t.Fatalf("expected 2 sprint deliveries, got %d", got)
+	}
+	if got := countDeliveries(t, ctx, db, "release_changed"); got != 2 {
+		t.Fatalf("expected 2 release deliveries, got %d", got)
+	}
 	var keyCount int
 	if err := db.SQL.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -285,7 +309,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	`).Scan(&keyCount); err != nil {
 		t.Fatalf("count idempotent deliveries: %v", err)
 	}
-	if keyCount != 5 {
+	if keyCount != 9 {
 		t.Fatalf("expected all deliveries to have idempotency keys and domain events, got %d", keyCount)
 	}
 
@@ -296,7 +320,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	if processed != 0 {
 		t.Fatalf("expected no processed events on rerun, got %d", processed)
 	}
-	if got := totalDeliveries(t, ctx, db); got != 5 {
+	if got := totalDeliveries(t, ctx, db); got != 9 {
 		t.Fatalf("expected no duplicate deliveries, got %d", got)
 	}
 }
