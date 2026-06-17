@@ -125,6 +125,7 @@ function bindEvents() {
       return;
     }
     const data = formData(event.currentTarget);
+    data.labels = parseLabels(data.labels);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       event.currentTarget.reset();
@@ -400,6 +401,21 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
+    const updateLabels = event.target.closest("[data-update-labels-id]");
+    if (updateLabels) {
+      const control = updateLabels.closest("[data-ticket-label-control]");
+      const input = control ? control.querySelector("input[name='labels']") : null;
+      await runAction(async () => {
+        await api(`/api/tickets/${updateLabels.dataset.updateLabelsId}`, {
+          method: "PATCH",
+          body: { spec: { labels: parseLabels(input ? input.value : "") } }
+        });
+        await loadRoadmap({ renderTickets: false });
+        await loadTickets();
+      }, "Ticket labels updated");
+      return;
+    }
+
     const assignPlanning = event.target.closest("[data-assign-planning-id]");
     if (assignPlanning) {
       const control = assignPlanning.closest("[data-ticket-planning-control]");
@@ -1430,8 +1446,48 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, labelControlNode(ticket), planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function labelControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-labels";
+  section.setAttribute("data-ticket-label-control", "true");
+  section.setAttribute("aria-label", `${ticket.key} labels`);
+
+  const chips = document.createElement("div");
+  chips.className = "label-chips";
+  if (ticket.labels.length) {
+    for (const label of ticket.labels) {
+      const chip = document.createElement("span");
+      chip.textContent = label;
+      chips.append(chip);
+    }
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No labels";
+    chips.append(empty);
+  }
+
+  const controls = document.createElement("div");
+  controls.className = "ticket-label-controls";
+
+  const input = document.createElement("input");
+  input.name = "labels";
+  input.value = ticket.labels.join(", ");
+  input.placeholder = "backend, auth";
+  input.setAttribute("aria-label", "Labels");
+
+  const update = document.createElement("button");
+  update.type = "button";
+  update.dataset.updateLabelsId = ticket.id;
+  update.textContent = "Labels";
+
+  controls.append(input, update);
+  section.append(chips, controls);
+  return section;
 }
 
 function planningControlNode(ticket) {
@@ -1655,6 +1711,13 @@ function statusActions(status) {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function parseLabels(value) {
+  return String(value || "")
+    .split(",")
+    .map((label) => label.trim())
+    .filter(Boolean);
 }
 
 function searchSpecFromForm(form) {

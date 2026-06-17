@@ -22,6 +22,7 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 - ticket listing per selected project;
 - ticket creation;
 - ticket status changes between `todo`, `in_progress`, and `done`;
+- ticket label entry on create plus ticket-card label display and comma-separated label updates;
 - ticket comment listing, creation, and deletion on ticket cards;
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
