@@ -87,6 +87,38 @@ func TestLuaEngineTestDefaultsToScratchSurface(t *testing.T) {
 	}
 }
 
+func TestEngineValidateOnlyDoesNotExecute(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+		Surface:      "custom_create_page",
+		ValidateOnly: true,
+		Engine: engines.EngineSpec{
+			Type:   "lua",
+			Script: `error("must not execute")`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("validate engine: %v", err)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("expected succeeded validation run, got %#v", run)
+	}
+	output, _ := run.Output["output"].(map[string]any)
+	if output["validated"] != true || output["mode"] != "validated" || output["engine_type"] != "lua" || output["surface"] != "custom_create_page" {
+		t.Fatalf("unexpected validate-only output: %#v", run.Output)
+	}
+	inputEnvelope, _ := run.Input["input"].(map[string]any)
+	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
+	if inputEnvelope["validate_only"] != true || contextEnvelope["validate_only"] != true {
+		t.Fatalf("expected validate-only run input, got %#v", run.Input)
+	}
+}
+
 func TestWASMEngineTestReturnsOutputAndLogs(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t, ctx)

@@ -46,23 +46,25 @@ Every surface should enforce timeouts, max script size, max log size, max input/
     "input": {
       "title": "Preview"
     },
-    "dry_run": true
+    "dry_run": true,
+    "validate_only": false
   }
 }
 ```
 
-The endpoint requires `automations:manage` globally or for `spec.project_id`. Use `surface: "scratch"` for a generic playground run, or choose a concrete surface such as `ticket_hook_before` to test against that surface contract. Missing `surface` defaults to `scratch`. It currently normalizes all test executions to `dry_run = true`; workbench runs do not persist ticket or project mutations. Lua receives the supplied `context` and `input` globals. `context` always includes normalized `surface`, `project_id`, `actor_user_id`, and `dry_run` fields, and user-supplied context fields such as `ticket_id` are preserved unless they conflict with normalized fields.
+The endpoint requires `automations:manage` globally or for `spec.project_id`. Use `surface: "scratch"` for a generic playground run, or choose a concrete surface such as `ticket_hook_before` to test against that surface contract. Missing `surface` defaults to `scratch`. It currently normalizes all test executions to `dry_run = true`; workbench runs do not persist ticket or project mutations. When `validate_only` is true, Rayboard validates actor/project permissions, surface, engine discriminator fields, AI provider availability, and WASM module shape without executing Lua, calling OpenRouter, or instantiating WASM. Lua receives the supplied `context` and `input` globals when execution is enabled. `context` always includes normalized `surface`, `project_id`, `actor_user_id`, `dry_run`, and `validate_only` fields, and user-supplied context fields such as `ticket_id` are preserved unless they conflict with normalized fields.
 
-Responses use `metadata`, `spec`, and `status`. `spec.engine.script`, `spec.engine.prompt`, and `spec.engine.module_base64` are redacted from responses and run history. `status.output` contains the returned Lua table, AI JSON object, or WASM stdout JSON object; `status.logs` contains captured log lines; `status.duration_millis` reports elapsed execution time when available; `status.engine` contains redacted engine metadata; and `status.error` contains runtime failures.
+Responses use `metadata`, `spec`, and `status`. `spec.engine.script`, `spec.engine.prompt`, and `spec.engine.module_base64` are redacted from responses and run history. `status.mode` is `validated` for validate-only checks and `executed` for engine runs. `status.output` contains validation metadata, the returned Lua table, AI JSON object, or WASM stdout JSON object; `status.logs` contains captured log lines; `status.duration_millis` reports elapsed execution time when available; `status.engine` contains redacted engine metadata; and `status.error` contains runtime failures.
 
 Initial WASM workbench support uses wazero with a WASI command-module contract. Requests use `engine.type = "wasm"` and `engine.module_base64` with a base64-encoded `.wasm` module. Rayboard sends this JSON object to stdin:
 
 ```json
 {
   "surface": "scratch",
-  "context": {"surface": "scratch", "project_id": "", "actor_user_id": "user_123", "dry_run": true},
+  "context": {"surface": "scratch", "project_id": "", "actor_user_id": "user_123", "dry_run": true, "validate_only": false},
   "input": {"title": "Preview"},
-  "dry_run": true
+  "dry_run": true,
+  "validate_only": false
 }
 ```
 

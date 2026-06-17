@@ -137,6 +137,49 @@ func TestEngineTestEndpoint(t *testing.T) {
 		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
 	}
 
+	validateReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"surface":       "custom_create_page",
+			"validate_only": true,
+			"engine": map[string]string{
+				"type":   "lua",
+				"script": `error("must not execute")`,
+			},
+		},
+	}))
+	validateReq.AddCookie(sessionCookie)
+	validateReq.AddCookie(csrfCookie)
+	validateReq.Header.Set("Content-Type", "application/json")
+	validateReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	validateRec := httptest.NewRecorder()
+	handler.ServeHTTP(validateRec, validateReq)
+	if validateRec.Code != http.StatusOK {
+		t.Fatalf("expected validate-only engine status 200, got %d: %s", validateRec.Code, validateRec.Body.String())
+	}
+	var validateBody struct {
+		Spec struct {
+			ValidateOnly bool `json:"validate_only"`
+			Engine       struct {
+				Script string `json:"script"`
+			} `json:"engine"`
+		} `json:"spec"`
+		Status struct {
+			State  string         `json:"state"`
+			Mode   string         `json:"mode"`
+			Output map[string]any `json:"output"`
+			Engine map[string]any `json:"engine"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(validateRec.Body.Bytes(), &validateBody); err != nil {
+		t.Fatalf("decode validate-only engine response: %v", err)
+	}
+	if !validateBody.Spec.ValidateOnly || validateBody.Spec.Engine.Script != "" {
+		t.Fatalf("expected validate-only redacted spec, got %#v", validateBody.Spec)
+	}
+	if validateBody.Status.State != automation.StatusSucceeded || validateBody.Status.Mode != "validated" || validateBody.Status.Output["validated"] != true || validateBody.Status.Engine["validate_only"] != true {
+		t.Fatalf("unexpected validate-only response: %#v", validateBody.Status)
+	}
+
 	wasmModule := tinyEngineHandlerWASIBase64(`{"ok":true,"value":"wasm","surface":"scratch"}`+"\n", "wasm preview\n")
 	wasmReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
 		"spec": map[string]any{

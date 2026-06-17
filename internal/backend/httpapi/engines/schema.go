@@ -48,13 +48,14 @@ func (EngineSpec) Schema(_ huma.Registry) *huma.Schema {
 }
 
 type TestEngineSpec struct {
-	Surface     string         `json:"surface,omitempty" enum:"scratch,cron,ticket_hook_before,ticket_hook_after,custom_create_page,incoming_webhook,outgoing_webhook,notification_hook" default:"scratch" doc:"Automation surface contract to test; scratch is a generic playground."`
-	ProjectID   string         `json:"project_id,omitempty"`
-	ActorUserID string         `json:"actor_user_id,omitempty"`
-	Engine      EngineSpec     `json:"engine"`
-	Context     map[string]any `json:"context,omitempty"`
-	Input       map[string]any `json:"input,omitempty"`
-	DryRun      bool           `json:"dry_run,omitempty"`
+	Surface      string         `json:"surface,omitempty" enum:"scratch,cron,ticket_hook_before,ticket_hook_after,custom_create_page,incoming_webhook,outgoing_webhook,notification_hook" default:"scratch" doc:"Automation surface contract to test; scratch is a generic playground."`
+	ProjectID    string         `json:"project_id,omitempty"`
+	ActorUserID  string         `json:"actor_user_id,omitempty"`
+	Engine       EngineSpec     `json:"engine"`
+	Context      map[string]any `json:"context,omitempty"`
+	Input        map[string]any `json:"input,omitempty"`
+	DryRun       bool           `json:"dry_run,omitempty"`
+	ValidateOnly bool           `json:"validate_only,omitempty" doc:"Validate engine shape, permissions, provider/runtime availability, and surface compatibility without executing code."`
 }
 
 type TestEngineMetadata struct {
@@ -64,6 +65,7 @@ type TestEngineMetadata struct {
 
 type TestEngineStatus struct {
 	State          string           `json:"state"`
+	Mode           string           `json:"mode,omitempty"`
 	Output         map[string]any   `json:"output"`
 	ActionPreviews []map[string]any `json:"action_previews,omitempty"`
 	Logs           []string         `json:"logs,omitempty"`
@@ -78,12 +80,13 @@ type TestEngineResource = shared.Resource[TestEngineMetadata, TestEngineSpec, Te
 
 func (spec TestEngineSpec) testInput() engines.TestInput {
 	return engines.TestInput{
-		ProjectID:   spec.ProjectID,
-		ActorUserID: spec.ActorUserID,
-		Surface:     spec.Surface,
-		Context:     spec.Context,
-		Input:       spec.Input,
-		DryRun:      true,
+		ProjectID:    spec.ProjectID,
+		ActorUserID:  spec.ActorUserID,
+		Surface:      spec.Surface,
+		Context:      spec.Context,
+		Input:        spec.Input,
+		DryRun:       true,
+		ValidateOnly: spec.ValidateOnly,
 		Engine: engines.EngineSpec{
 			Type:         spec.Engine.Type,
 			Script:       spec.Engine.Script,
@@ -120,6 +123,7 @@ func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResou
 	sanitized.Context["project_id"] = sanitized.ProjectID
 	sanitized.Context["actor_user_id"] = sanitized.ActorUserID
 	sanitized.Context["dry_run"] = true
+	sanitized.Context["validate_only"] = sanitized.ValidateOnly
 	sanitized.DryRun = true
 	return TestEngineResource{
 		Metadata: TestEngineMetadata{
@@ -129,6 +133,7 @@ func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResou
 		Spec: sanitized,
 		Status: TestEngineStatus{
 			State:          run.Status,
+			Mode:           runMode(run),
 			Output:         runOutput(run.Output),
 			ActionPreviews: actionPreviews(run.Output),
 			Logs:           runLogs(run.Output),
@@ -139,6 +144,15 @@ func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResou
 			FinishedAt:     run.FinishedAt,
 		},
 	}
+}
+
+func runMode(run automation.Run) string {
+	if input, ok := run.Input["input"].(map[string]any); ok {
+		if validateOnly, ok := input["validate_only"].(bool); ok && validateOnly {
+			return "validated"
+		}
+	}
+	return "executed"
 }
 
 func runOutput(output map[string]any) map[string]any {
@@ -192,6 +206,9 @@ func engineMetadata(run automation.Run) map[string]any {
 		if context, ok := input["context"].(map[string]any); ok {
 			if dryRun, ok := context["dry_run"].(bool); ok {
 				metadata["dry_run"] = dryRun
+			}
+			if validateOnly, ok := context["validate_only"].(bool); ok {
+				metadata["validate_only"] = validateOnly
 			}
 			if surface, ok := context["surface"].(string); ok && surface != "" {
 				metadata["surface"] = surface

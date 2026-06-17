@@ -60,13 +60,14 @@ type EngineSpec struct {
 }
 
 type TestInput struct {
-	ProjectID   string
-	ActorUserID string
-	Surface     string
-	Context     map[string]any
-	Input       map[string]any
-	DryRun      bool
-	Engine      EngineSpec
+	ProjectID    string
+	ActorUserID  string
+	Surface      string
+	Context      map[string]any
+	Input        map[string]any
+	DryRun       bool
+	ValidateOnly bool
+	Engine       EngineSpec
 }
 
 type Service struct {
@@ -138,15 +139,33 @@ func (s *Service) Test(ctx context.Context, principal authz.Principal, input Tes
 		Engine:      input.Engine.Type,
 		ActorUserID: input.ActorUserID,
 		Input: map[string]any{
-			"surface": input.Surface,
-			"context": input.normalizedContext(),
-			"input":   input.Input,
-			"dry_run": input.DryRun,
+			"surface":       input.Surface,
+			"context":       input.normalizedContext(),
+			"input":         input.Input,
+			"dry_run":       input.DryRun,
+			"validate_only": input.ValidateOnly,
 		},
 		Limits: s.runLimits(ctx, input),
 	})
 	if err != nil {
 		return automation.Run{}, err
+	}
+
+	if input.ValidateOnly {
+		finished, finishErr := s.runs.Finish(ctx, run.ID, automation.FinishInput{
+			Status: automation.StatusSucceeded,
+			Output: map[string]any{
+				"mode":        "validated",
+				"validated":   true,
+				"surface":     input.Surface,
+				"engine_type": input.Engine.Type,
+			},
+			Logs: []string{},
+		})
+		if finishErr != nil {
+			return automation.Run{}, finishErr
+		}
+		return finished, nil
 	}
 
 	output, logs, execErr := s.execute(ctx, input)
@@ -249,10 +268,11 @@ func (s *Service) executeWASM(ctx context.Context, input TestInput) (map[string]
 		return map[string]any{}, nil, err
 	}
 	stdin, err := json.Marshal(map[string]any{
-		"surface": input.Surface,
-		"context": input.normalizedContext(),
-		"input":   input.Input,
-		"dry_run": true,
+		"surface":       input.Surface,
+		"context":       input.normalizedContext(),
+		"input":         input.Input,
+		"dry_run":       true,
+		"validate_only": input.ValidateOnly,
 	})
 	if err != nil {
 		return map[string]any{}, nil, fmt.Errorf("encode wasm engine input: %w", err)
@@ -496,6 +516,7 @@ func (s *Service) runLimits(ctx context.Context, input TestInput) map[string]any
 	limits := map[string]any{
 		"timeout_seconds": 30,
 		"dry_run":         true,
+		"validate_only":   input.ValidateOnly,
 	}
 	if input.Engine.Type == EngineWASM {
 		limits["max_module_bytes"] = maxWASMModuleBytes
@@ -539,6 +560,7 @@ func (input TestInput) normalizedContext() map[string]any {
 	context["project_id"] = input.ProjectID
 	context["actor_user_id"] = input.ActorUserID
 	context["dry_run"] = true
+	context["validate_only"] = input.ValidateOnly
 	return context
 }
 
