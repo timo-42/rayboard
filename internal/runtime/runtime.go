@@ -87,6 +87,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		cronjobs.WithTrackerService(trackerService),
 		cronjobs.WithSearchService(searchService),
 		cronjobs.WithCommentService(commentService),
+		cronjobs.WithOpenRouterService(openRouterService),
 	)
 	if err := cronService.StartScheduler(ctx); err != nil {
 		return err
@@ -159,6 +160,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		cronjobs.WithTrackerService(trackerService),
 		cronjobs.WithSearchService(searchService),
 		cronjobs.WithCommentService(commentService),
+		cronjobs.WithOpenRouterService(openRouterService),
 	)
 	if err := cronService.StartScheduler(ctx); err != nil {
 		return err

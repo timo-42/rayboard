@@ -2,14 +2,19 @@ package cronjobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -132,6 +137,124 @@ func TestCronJobValidationAndDisabledOwner(t *testing.T) {
 		},
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected AI validation, got %v", err)
+	}
+
+	openRouterService := openrouter.NewService(db.SQL)
+	disabledProvider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:         "Disabled",
+		DefaultModel: "openai/gpt-4.1-mini",
+		APIKey:       "sk-or-secret",
+		Enabled:      false,
+	})
+	if err != nil {
+		t.Fatalf("create disabled provider: %v", err)
+	}
+	aiService := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-1", authz.RoleGlobalAdmin, authz.GlobalScope()))),
+		automation.NewRunStore(db.SQL),
+		WithOpenRouterService(openRouterService),
+	)
+	if _, err := aiService.Create(ctx, principal, CreateInput{
+		Name:     "Disabled AI",
+		Schedule: "* * * * *",
+		Timezone: "UTC",
+		Engine: EngineSpec{
+			Type:       EngineAI,
+			Prompt:     "Return JSON",
+			ProviderID: disabledProvider.ID,
+		},
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected disabled provider validation, got %v", err)
+	}
+}
+
+func TestCronJobAIManualRun(t *testing.T) {
+	ctx := context.Background()
+	db := openCronTestDB(t, ctx)
+	seedCronUser(t, ctx, db, "user-1", false)
+
+	var receivedAuth string
+	var receivedBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		if err := json.NewDecoder(r.Body).Decode(&receivedBody); err != nil {
+			t.Fatalf("decode OpenRouter request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id": "gen_cron",
+			"choices": [{"message": {"role": "assistant", "content": "{\"summary\":\"done\",\"tickets\":3}"}}],
+			"usage": {"prompt_tokens": 7, "completion_tokens": 4}
+		}`))
+	}))
+	defer server.Close()
+
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:                  "Default",
+		DefaultModel:          "openai/gpt-4.1-mini",
+		APIKey:                "sk-or-secret",
+		DefaultTimeoutSeconds: 15,
+		MaxOutputTokens:       321,
+		Enabled:               true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-1", authz.RoleGlobalAdmin, authz.GlobalScope()))),
+		automation.NewRunStore(db.SQL),
+		WithOpenRouterService(openRouterService),
+	)
+	principal := authz.Principal{UserID: "user-1", AuthKind: authz.AuthKindSession}
+
+	job, err := service.Create(ctx, principal, CreateInput{
+		Name:     "AI triage",
+		Schedule: "0 9 * * *",
+		Timezone: "UTC",
+		Engine: EngineSpec{
+			Type:       EngineAI,
+			Prompt:     "Summarize the current backlog as JSON.",
+			ProviderID: provider.ID,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create AI cron job: %v", err)
+	}
+
+	run, err := service.RunNow(ctx, principal, job.ID)
+	if err != nil {
+		t.Fatalf("run AI cron job: %v", err)
+	}
+	if receivedAuth != "Bearer sk-or-secret" {
+		t.Fatalf("unexpected OpenRouter auth header: %q", receivedAuth)
+	}
+	if receivedBody["model"] != "openai/gpt-4.1-mini" || receivedBody["max_tokens"] != float64(321) {
+		t.Fatalf("unexpected OpenRouter request body: %#v", receivedBody)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected AI run: %#v", run)
+	}
+	envelope, ok := run.Output["output"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected AI output: %#v", run.Output)
+	}
+	output, ok := envelope["output"].(map[string]any)
+	if !ok || output["summary"] != "done" || output["tickets"] != float64(3) {
+		t.Fatalf("unexpected AI output: %#v", run.Output)
+	}
+	if envelope["model"] != "openai/gpt-4.1-mini" || envelope["provider_id"] != provider.ID {
+		t.Fatalf("expected model/provider metadata, got %#v", run.Output)
+	}
+	encoded, err := json.Marshal(run)
+	if err != nil {
+		t.Fatalf("marshal run: %v", err)
+	}
+	if strings.Contains(string(encoded), "sk-or-secret") || strings.Contains(string(encoded), "Summarize the current backlog") {
+		t.Fatalf("run history leaked secret or prompt: %s", string(encoded))
 	}
 }
 

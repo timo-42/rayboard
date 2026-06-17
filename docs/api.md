@@ -480,7 +480,7 @@ Provider responses use `metadata`, `spec`, and `status`. `spec` contains name, d
 
 ## Cron Jobs
 
-The first cron automation API/scheduler slice exposes Lua cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
+The cron automation API/scheduler slice exposes Lua and OpenRouter AI cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -492,7 +492,7 @@ The first cron automation API/scheduler slice exposes Lua cron job management, m
 | `POST` | `/api/cron-jobs/{cron_job_id}/run` | Starts a manual run. |
 | `GET` | `/api/cron-jobs/{cron_job_id}/runs` | Run history for the job. |
 
-Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. Run resources use `metadata` for run identity/timestamps, `spec` for trigger and input context, and `status` for state, output, error, and start/finish timestamps. The implemented cron slice is Lua-only.
+Cron job CRUD and manual runs require automation management permissions. Run history uses the shared automation run-history model and must not expose secrets. Run resources use `metadata` for run identity/timestamps, `spec` for trigger and input context, and `status` for state, output, error, and start/finish timestamps. Lua cron jobs execute scripts with constrained Rayboard helpers. AI cron jobs call the configured OpenRouter provider, require JSON-object output, and store the validated object plus model/usage metadata in run history without exposing prompts or API keys.
 
 Cron job engine configuration is nested and reusable across future hooks/webhooks:
 
@@ -513,7 +513,7 @@ Cron job engine configuration is nested and reusable across future hooks/webhook
 
 The OpenAPI schema represents `spec.engine` as a discriminated `oneOf` object. `{"type":"lua"}` requires `script`; `{"type":"ai"}` requires `prompt` and `provider_id`.
 
-The planned AI form uses the same `engine` object with an OpenRouter provider reference:
+AI cron jobs use the same `engine` object with an OpenRouter provider reference:
 
 ```json
 {
@@ -527,4 +527,4 @@ The planned AI form uses the same `engine` object with an OpenRouter provider re
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. OpenRouter AI automation, Lua/AI dynamic custom create-page logic, outgoing webhook execution/delivery, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, outgoing webhook execution/delivery, and notification hooks are **Planned**.

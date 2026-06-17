@@ -18,6 +18,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -105,6 +106,7 @@ type Service struct {
 	tracker    *tracker.Service
 	search     *search.Service
 	comments   *comments.Service
+	openrouter *openrouter.Service
 	now        func() time.Time
 
 	mu      sync.Mutex
@@ -152,6 +154,12 @@ func WithSearchService(searchService *search.Service) Option {
 func WithCommentService(commentService *comments.Service) Option {
 	return func(service *Service) {
 		service.comments = commentService
+	}
+}
+
+func WithOpenRouterService(openRouterService *openrouter.Service) Option {
+	return func(service *Service) {
+		service.openrouter = openRouterService
 	}
 }
 
@@ -366,7 +374,7 @@ func (s *Service) ListRuns(ctx context.Context, principal authz.Principal, jobID
 }
 
 func (s *Service) runScheduled(jobID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	job, err := s.get(ctx, jobID)
 	if err != nil || !job.Enabled {
@@ -390,9 +398,7 @@ func (s *Service) runJob(ctx context.Context, job Job, mode string) (automation.
 			"job_id":   job.ID,
 			"job_name": job.Name,
 		},
-		Limits: map[string]any{
-			"timeout_seconds": 30,
-		},
+		Limits: s.runLimits(ctx, job),
 	})
 	if err != nil {
 		return automation.Run{}, err
@@ -424,7 +430,7 @@ func (s *Service) execute(ctx context.Context, job Job) (map[string]any, []strin
 	case EngineLua:
 		return s.executeLua(ctx, job)
 	case EngineAI:
-		return nil, nil, fmt.Errorf("%w: AI cron jobs are not implemented yet", ErrValidation)
+		return s.executeAI(ctx, job)
 	default:
 		return nil, nil, fmt.Errorf("%w: unsupported engine", ErrValidation)
 	}
@@ -444,6 +450,32 @@ func (s *Service) executeLua(ctx context.Context, job Job) (map[string]any, []st
 		return map[string]any{}, logs, err
 	}
 	return map[string]any{"ok": true}, logs, nil
+}
+
+func (s *Service) executeAI(ctx context.Context, job Job) (map[string]any, []string, error) {
+	if s.openrouter == nil {
+		return map[string]any{}, nil, fmt.Errorf("%w: OpenRouter service is not configured", ErrValidation)
+	}
+	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
+		ProviderID: job.Engine.ProviderID,
+		Prompt:     job.Engine.Prompt,
+	})
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
+	output := map[string]any{
+		"ok":          true,
+		"provider_id": result.ProviderID,
+		"model":       result.Model,
+		"output":      result.Output,
+	}
+	if result.ResponseID != "" {
+		output["response_id"] = result.ResponseID
+	}
+	if len(result.Usage) > 0 {
+		output["usage"] = result.Usage
+	}
+	return output, nil, nil
 }
 
 func (s *Service) validateCreate(ctx context.Context, input CreateInput) (Job, error) {
@@ -497,7 +529,11 @@ func (s *Service) validateJob(ctx context.Context, job Job) error {
 		if strings.TrimSpace(job.Engine.ProviderID) == "" {
 			fields["engine.provider_id"] = "Required for ai engine"
 		}
-		fields["engine.type"] = "AI cron jobs are planned but not implemented"
+		if _, ok := fields["engine.provider_id"]; !ok {
+			if err := s.validateAIProvider(ctx, job.Engine.ProviderID); err != nil {
+				fields["engine.provider_id"] = err.Error()
+			}
+		}
 	default:
 		fields["engine.type"] = "Must be lua or ai"
 	}
@@ -505,6 +541,48 @@ func (s *Service) validateJob(ctx context.Context, job Job) error {
 		return &ValidationError{Message: "Invalid cron job", Fields: fields}
 	}
 	return nil
+}
+
+func (s *Service) validateAIProvider(ctx context.Context, providerID string) error {
+	if s.openrouter == nil {
+		return errors.New("OpenRouter service is not configured")
+	}
+	provider, err := s.openrouter.GetExecutionProvider(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	if !provider.Enabled {
+		return errors.New("OpenRouter provider is disabled")
+	}
+	if strings.TrimSpace(provider.APIKey) == "" {
+		return errors.New("OpenRouter provider API key is not configured")
+	}
+	if strings.TrimSpace(provider.DefaultModel) == "" {
+		return errors.New("OpenRouter provider default model is required")
+	}
+	if provider.DefaultTimeoutSeconds <= 0 {
+		return errors.New("OpenRouter provider timeout must be greater than zero")
+	}
+	if provider.MaxOutputTokens <= 0 {
+		return errors.New("OpenRouter provider max output tokens must be greater than zero")
+	}
+	return nil
+}
+
+func (s *Service) runLimits(ctx context.Context, job Job) map[string]any {
+	limits := map[string]any{"timeout_seconds": 30}
+	if job.Engine.Type != EngineAI || s.openrouter == nil {
+		return limits
+	}
+	provider, err := s.openrouter.GetExecutionProvider(ctx, job.Engine.ProviderID)
+	if err != nil {
+		return limits
+	}
+	limits["timeout_seconds"] = provider.DefaultTimeoutSeconds
+	limits["max_output_tokens"] = provider.MaxOutputTokens
+	limits["provider_id"] = provider.ID
+	limits["model"] = provider.DefaultModel
+	return limits
 }
 
 func (s *Service) ownerCanRun(ctx context.Context, userID string) error {

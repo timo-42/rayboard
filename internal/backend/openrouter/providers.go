@@ -47,6 +47,11 @@ type Provider struct {
 	UpdatedAt             time.Time
 }
 
+type ExecutionProvider struct {
+	Provider
+	APIKey string
+}
+
 type CreateProviderInput struct {
 	Name                  string
 	DefaultModel          string
@@ -68,16 +73,20 @@ type UpdateProviderInput struct {
 }
 
 type Service struct {
-	db  *sql.DB
-	now func() time.Time
+	db         *sql.DB
+	now        func() time.Time
+	baseURL    string
+	httpClient httpClient
 }
 
 type Option func(*Service)
 
 func NewService(db *sql.DB, options ...Option) *Service {
 	service := &Service{
-		db:  db,
-		now: func() time.Time { return time.Now().UTC() },
+		db:         db,
+		now:        func() time.Time { return time.Now().UTC() },
+		baseURL:    "https://openrouter.ai/api/v1",
+		httpClient: defaultHTTPClient(),
 	}
 	for _, option := range options {
 		option(service)
@@ -89,6 +98,22 @@ func WithNow(now func() time.Time) Option {
 	return func(service *Service) {
 		if now != nil {
 			service.now = now
+		}
+	}
+}
+
+func WithBaseURL(baseURL string) Option {
+	return func(service *Service) {
+		if strings.TrimSpace(baseURL) != "" {
+			service.baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+		}
+	}
+}
+
+func WithHTTPClient(client httpClient) Option {
+	return func(service *Service) {
+		if client != nil {
+			service.httpClient = client
 		}
 	}
 }
@@ -168,6 +193,14 @@ func (s *Service) GetProvider(ctx context.Context, providerID string) (Provider,
 	provider, err := s.getProvider(ctx, providerID)
 	if err != nil {
 		return Provider{}, err
+	}
+	return provider, nil
+}
+
+func (s *Service) GetExecutionProvider(ctx context.Context, providerID string) (ExecutionProvider, error) {
+	provider, err := s.getExecutionProvider(ctx, providerID)
+	if err != nil {
+		return ExecutionProvider{}, err
 	}
 	return provider, nil
 }
@@ -291,6 +324,45 @@ func (s *Service) getProvider(ctx context.Context, providerID string) (Provider,
 		}
 		return Provider{}, err
 	}
+	return provider, nil
+}
+
+func (s *Service) getExecutionProvider(ctx context.Context, providerID string) (ExecutionProvider, error) {
+	var provider ExecutionProvider
+	var allowedJSON string
+	var created string
+	var updated string
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, default_model, api_key_secret, allowed_models_json,
+			default_timeout_seconds, max_output_tokens, enabled, created_at, updated_at
+		FROM openrouter_providers
+		WHERE id = ? AND deleted_at IS NULL
+	`, strings.TrimSpace(providerID)).Scan(
+		&provider.ID,
+		&provider.Name,
+		&provider.DefaultModel,
+		&provider.APIKey,
+		&allowedJSON,
+		&provider.DefaultTimeoutSeconds,
+		&provider.MaxOutputTokens,
+		&provider.Enabled,
+		&created,
+		&updated,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ExecutionProvider{}, ErrNotFound
+		}
+		return ExecutionProvider{}, fmt.Errorf("scan OpenRouter execution provider: %w", err)
+	}
+	provider.APIKeySet = provider.APIKey != ""
+	if allowedJSON == "" {
+		allowedJSON = "[]"
+	}
+	if err := json.Unmarshal([]byte(allowedJSON), &provider.AllowedModels); err != nil {
+		return ExecutionProvider{}, fmt.Errorf("decode allowed models: %w", err)
+	}
+	provider.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+	provider.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
 	return provider, nil
 }
 
