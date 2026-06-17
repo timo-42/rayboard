@@ -29,7 +29,7 @@ Expand Rayboard from runtime/auth foundation into a Jira-like ticket system with
   - every protected operation checks effective RBAC permissions from user role bindings and group role bindings.
   - mutating cookie-authenticated requests require CSRF protection.
   - bearer-token requests do not require CSRF because bearer credentials are not automatically attached by browsers.
-  - Swagger UI must expose only bearer API tokens in its authorization dialog; browser session cookies and CSRF are sent automatically when present.
+  - Swagger UI must expose only bearer API tokens in its authorization dialog; browser session cookies and CSRF are sent automatically only when no bearer Authorization header is present.
   - unauthenticated UI page requests redirect to login; unauthenticated API requests return `401`.
   - authentication and authorization remain backend-owned so split frontend/backend mode does not duplicate password, session, token, or permission logic.
 - Use a scalable backend HTTP API layout:

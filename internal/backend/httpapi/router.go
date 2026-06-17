@@ -177,10 +177,26 @@ func registerDocs(mux *http.ServeMux) {
 						.filter(function(part) { return part.startsWith(name + "="); })
 						.map(function(part) { return decodeURIComponent(part.slice(name.length + 1)); })[0] || "";
 				}
+				function headerValue(headers, name) {
+					if (!headers) {
+						return "";
+					}
+					if (typeof headers.get === "function") {
+						return headers.get(name) || "";
+					}
+					var lower = name.toLowerCase();
+					for (var key in headers) {
+						if (key.toLowerCase() === lower) {
+							return headers[key] || "";
+						}
+					}
+					return "";
+				}
 				var csrf = cookieValue("rayboard_csrf");
 				request.credentials = "same-origin";
 				request.headers = request.headers || {};
-				if (csrf && !request.headers["X-CSRF-Token"]) {
+				var authorization = headerValue(request.headers, "Authorization");
+				if (csrf && !authorization.toLowerCase().startsWith("bearer ") && !headerValue(request.headers, "X-CSRF-Token")) {
 					request.headers["X-CSRF-Token"] = csrf;
 				}
 				return request;
