@@ -16,6 +16,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -83,45 +84,7 @@ func TestDemoSeedRequiresFreshReset(t *testing.T) {
 func TestDemoSeedPopulatesBackend(t *testing.T) {
 	ctx := context.Background()
 	db, bootstrap := openAppTestDB(t, ctx)
-	authorizer := authz.NewSQLEvaluator(db.SQL)
-	hooks := tracker.NewHookService(db.SQL, authorizer)
-	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hooks))
-	createPages := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
-	commentService := comments.NewService(db.SQL, authorizer)
-	attachmentService := attachments.NewService(db.SQL, authorizer)
-	searchService := search.NewService(db.SQL, authorizer)
-	runStore := automation.NewRunStore(db.SQL)
-	webhookService := webhooks.NewService(
-		db.SQL,
-		authorizer,
-		webhooks.WithRunStore(runStore),
-		webhooks.WithTrackerService(trackerService),
-		webhooks.WithSearchService(searchService),
-		webhooks.WithCommentService(commentService),
-	)
-	notificationService := notifications.NewService(db.SQL)
-	cronService := cronjobs.NewService(
-		db.SQL,
-		authorizer,
-		runStore,
-		cronjobs.WithTrackerService(trackerService),
-		cronjobs.WithSearchService(searchService),
-		cronjobs.WithCommentService(commentService),
-	)
-	server := httptest.NewServer(backend.NewHandler(
-		backend.WithAuthService(auth.NewService(db.SQL)),
-		backend.WithAuditStore(audit.NewStore(db.SQL)),
-		backend.WithAuthorizer(authorizer),
-		backend.WithTrackerService(trackerService),
-		backend.WithTicketHookService(hooks),
-		backend.WithCreatePageService(createPages),
-		backend.WithCommentService(commentService),
-		backend.WithAttachmentService(attachmentService),
-		backend.WithSearchService(searchService),
-		backend.WithCronService(cronService),
-		backend.WithWebhookService(webhookService),
-		backend.WithNotificationService(notificationService),
-	))
+	server := newDemoTestServer(t, db, "")
 	t.Cleanup(server.Close)
 
 	var stdout bytes.Buffer
@@ -156,7 +119,8 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		!strings.Contains(output, "demo outgoing webhook:") ||
 		!strings.Contains(output, "demo notification destination:") ||
 		!strings.Contains(output, "demo notification policy:") ||
-		!strings.Contains(output, "demo notification hook:") {
+		!strings.Contains(output, "demo notification hook:") ||
+		!strings.Contains(output, "demo AI examples: skipped") {
 		t.Fatalf("unexpected demo output: %s", output)
 	}
 	if !strings.Contains(output, "token=wh_") {
@@ -202,6 +166,55 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	}
 }
 
+func TestDemoSeedAddsAIExamplesWhenOpenRouterConfigured(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openAppTestDB(t, ctx)
+	server := newDemoTestServer(t, db, "sk-or-demo")
+	t.Cleanup(server.Close)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Main(ctx, []string{
+		"demo", "seed",
+		"--backend-url", server.URL,
+		"--admin-user", bootstrap.Username,
+		"--admin-password", bootstrap.Password,
+		"--fresh-reset",
+	}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	for _, marker := range []string{
+		"demo AI cron job:",
+		"demo AI ticket hook:",
+		"demo AI webhook:",
+		"demo AI outgoing webhook:",
+		"demo AI notification hook:",
+		"demo AI examples: provider=",
+	} {
+		if !strings.Contains(output, marker) {
+			t.Fatalf("expected %q in demo output: %s", marker, output)
+		}
+	}
+	for table, want := range map[string]int{
+		"openrouter_providers": 1,
+		"cron_jobs":            2,
+		"ticket_hooks":         2,
+		"webhooks":             4,
+		"notification_hooks":   2,
+	} {
+		var got int
+		if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&got); err != nil {
+			t.Fatalf("count %s: %v", table, err)
+		}
+		if got != want {
+			t.Fatalf("expected %d rows in %s, got %d", want, table, got)
+		}
+	}
+}
+
 func openAppTestDB(t *testing.T, ctx context.Context) (*store.DB, auth.BootstrapAdminResult) {
 	t.Helper()
 
@@ -222,4 +235,66 @@ func openAppTestDB(t *testing.T, ctx context.Context) (*store.DB, auth.Bootstrap
 		t.Fatalf("bootstrap admin: %v", err)
 	}
 	return db, bootstrap
+}
+
+func newDemoTestServer(t *testing.T, db *store.DB, openRouterAPIKey string) *httptest.Server {
+	t.Helper()
+
+	ctx := context.Background()
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	openRouterService := openrouter.NewService(db.SQL)
+	if openRouterAPIKey != "" {
+		if _, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+			Name:                  "Demo AI",
+			DefaultModel:          "openai/gpt-4o-mini",
+			APIKey:                openRouterAPIKey,
+			AllowedModels:         []string{"openai/gpt-4o-mini"},
+			DefaultTimeoutSeconds: 30,
+			MaxOutputTokens:       256,
+			Enabled:               true,
+		}); err != nil {
+			t.Fatalf("create OpenRouter provider: %v", err)
+		}
+	}
+	hooks := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookOpenRouterService(openRouterService))
+	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hooks))
+	createPages := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
+	commentService := comments.NewService(db.SQL, authorizer)
+	attachmentService := attachments.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	webhookService := webhooks.NewService(
+		db.SQL,
+		authorizer,
+		webhooks.WithRunStore(runStore),
+		webhooks.WithTrackerService(trackerService),
+		webhooks.WithSearchService(searchService),
+		webhooks.WithCommentService(commentService),
+		webhooks.WithOpenRouterService(openRouterService),
+	)
+	notificationService := notifications.NewService(db.SQL, notifications.WithOpenRouterService(openRouterService))
+	cronService := cronjobs.NewService(
+		db.SQL,
+		authorizer,
+		runStore,
+		cronjobs.WithTrackerService(trackerService),
+		cronjobs.WithSearchService(searchService),
+		cronjobs.WithCommentService(commentService),
+		cronjobs.WithOpenRouterService(openRouterService),
+	)
+	return httptest.NewServer(backend.NewHandler(
+		backend.WithAuthService(auth.NewService(db.SQL)),
+		backend.WithAuditStore(audit.NewStore(db.SQL)),
+		backend.WithAuthorizer(authorizer),
+		backend.WithTrackerService(trackerService),
+		backend.WithTicketHookService(hooks),
+		backend.WithCreatePageService(createPages),
+		backend.WithCommentService(commentService),
+		backend.WithAttachmentService(attachmentService),
+		backend.WithSearchService(searchService),
+		backend.WithCronService(cronService),
+		backend.WithWebhookService(webhookService),
+		backend.WithNotificationService(notificationService),
+		backend.WithOpenRouterService(openRouterService),
+	))
 }

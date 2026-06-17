@@ -170,6 +170,29 @@ func (resource demoCreatedWebhookResource) id() string {
 	return resource.Metadata.ID
 }
 
+type demoOpenRouterProviderList struct {
+	Status struct {
+		Items []demoOpenRouterProviderResource `json:"items"`
+	} `json:"status"`
+}
+
+type demoOpenRouterProviderResource struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		Name    string `json:"name"`
+		Enabled bool   `json:"enabled"`
+	} `json:"spec"`
+	Status struct {
+		APIKeySet bool `json:"api_key_set"`
+	} `json:"status"`
+}
+
+func (provider demoOpenRouterProviderResource) id() string {
+	return provider.Metadata.ID
+}
+
 func newDemoSeeder(rawBackendURL string, stdout io.Writer) (*demoSeeder, error) {
 	parsed, err := url.Parse(strings.TrimRight(rawBackendURL, "/"))
 	if err != nil {
@@ -244,6 +267,9 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 		return err
 	}
 	if err := s.createIntegrationExamples(ctx, project.ID, users["lead"].id()); err != nil {
+		return err
+	}
+	if err := s.createAIExamplesIfConfigured(ctx, project.ID, users["lead"].id()); err != nil {
 		return err
 	}
 
@@ -820,6 +846,156 @@ return { message = notification.plan.message, payload = notification.plan.payloa
 		return fmt.Errorf("create demo notification hook: %w", err)
 	}
 	fmt.Fprintf(s.stdout, "demo notification hook: id=%s enabled=false\n", hook.id())
+	return nil
+}
+
+func (s *demoSeeder) createAIExamplesIfConfigured(ctx context.Context, projectID string, actorUserID string) error {
+	provider, ok, err := s.demoOpenRouterProvider(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		fmt.Fprintln(s.stdout, "demo AI examples: skipped, no enabled OpenRouter provider with API key")
+		return nil
+	}
+	if err := s.createAICronJob(ctx, projectID, actorUserID, provider.id()); err != nil {
+		return err
+	}
+	if err := s.createAITicketHook(ctx, projectID, provider.id()); err != nil {
+		return err
+	}
+	if err := s.createAIWebhook(ctx, projectID, actorUserID, provider.id()); err != nil {
+		return err
+	}
+	if err := s.createAIOutgoingWebhook(ctx, projectID, actorUserID, provider.id()); err != nil {
+		return err
+	}
+	if err := s.createAINotificationHook(ctx, projectID, actorUserID, provider.id()); err != nil {
+		return err
+	}
+	fmt.Fprintf(s.stdout, "demo AI examples: provider=%s name=%q\n", provider.id(), provider.Spec.Name)
+	return nil
+}
+
+func (s *demoSeeder) demoOpenRouterProvider(ctx context.Context) (demoOpenRouterProviderResource, bool, error) {
+	var providers demoOpenRouterProviderList
+	if err := s.apiJSON(ctx, http.MethodGet, "/api/openrouter-providers", nil, &providers); err != nil {
+		return demoOpenRouterProviderResource{}, false, fmt.Errorf("list OpenRouter providers for demo AI examples: %w", err)
+	}
+	for _, provider := range providers.Status.Items {
+		if provider.Spec.Enabled && provider.Status.APIKeySet {
+			return provider, true, nil
+		}
+	}
+	return demoOpenRouterProviderResource{}, false, nil
+}
+
+func (s *demoSeeder) createAICronJob(ctx context.Context, projectID string, ownerUserID string, providerID string) error {
+	var job demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/cron-jobs", map[string]any{
+		"spec": map[string]any{
+			"owner_user_id": ownerUserID,
+			"project_id":    projectID,
+			"name":          "Demo AI stale ticket summary",
+			"schedule":      "30 9 * * 1",
+			"timezone":      "UTC",
+			"enabled":       false,
+			"engine": map[string]any{
+				"type":        "ai",
+				"provider_id": providerID,
+				"prompt":      "Return JSON with keys checked=true and summary describing demo stale tickets. Do not request side effects.",
+			},
+		},
+	}, &job); err != nil {
+		return fmt.Errorf("create demo AI cron job: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo AI cron job: id=%s enabled=false\n", job.id())
+	return nil
+}
+
+func (s *demoSeeder) createAITicketHook(ctx context.Context, projectID string, providerID string) error {
+	var hook demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/ticket-hooks", map[string]any{
+		"spec": map[string]any{
+			"name":     "demo-ai-ticket-normalizer",
+			"event":    tracker.HookEventTicketCreate,
+			"phase":    tracker.HookPhaseBefore,
+			"enabled":  false,
+			"position": 20,
+			"engine": map[string]any{
+				"type":        tracker.HookEngineAI,
+				"provider_id": providerID,
+				"prompt":      "Return JSON. If the ticket title is unclear, return {\"reject\":{\"message\":\"clearer title required\"}}; otherwise return {\"ticket\":ticket}.",
+			},
+		},
+	}, &hook); err != nil {
+		return fmt.Errorf("create demo AI ticket hook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo AI ticket hook: id=%s enabled=false\n", hook.id())
+	return nil
+}
+
+func (s *demoSeeder) createAIWebhook(ctx context.Context, projectID string, actorUserID string, providerID string) error {
+	var hook demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/webhooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo AI incoming triage",
+			"direction":     webhooks.DirectionIncoming,
+			"enabled":       false,
+			"actor_user_id": actorUserID,
+			"engine": map[string]any{
+				"type":        webhooks.EngineTypeAI,
+				"provider_id": providerID,
+				"prompt":      "Return JSON with either {\"ok\":true,\"actions\":[]} or {\"reject\":{\"message\":\"reason\"}} for this incoming demo payload.",
+			},
+		},
+	}, &hook); err != nil {
+		return fmt.Errorf("create demo AI webhook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo AI webhook: id=%s enabled=false\n", hook.id())
+	return nil
+}
+
+func (s *demoSeeder) createAIOutgoingWebhook(ctx context.Context, projectID string, actorUserID string, providerID string) error {
+	var hook demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/webhooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo AI outgoing ticket update",
+			"direction":     webhooks.DirectionOutgoing,
+			"enabled":       false,
+			"actor_user_id": actorUserID,
+			"event_types":   []string{"ticket.updated"},
+			"engine": map[string]any{
+				"type":        webhooks.EngineTypeAI,
+				"provider_id": providerID,
+				"prompt":      "Return JSON describing a controlled outbound request for this ticket event. Use only method, path, headers, and body.",
+			},
+		},
+	}, &hook); err != nil {
+		return fmt.Errorf("create demo AI outgoing webhook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo AI outgoing webhook: id=%s enabled=false\n", hook.id())
+	return nil
+}
+
+func (s *demoSeeder) createAINotificationHook(ctx context.Context, projectID string, actorUserID string, providerID string) error {
+	var hook demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/notification-hooks", map[string]any{
+		"spec": map[string]any{
+			"name":          "Demo AI notification annotator",
+			"actor_user_id": actorUserID,
+			"event_types":   []string{"comment_added"},
+			"enabled":       false,
+			"engine": map[string]any{
+				"type":        notifications.HookEngineAI,
+				"provider_id": providerID,
+				"prompt":      "Return JSON with optional message and payload adjustments for this notification plan.",
+			},
+		},
+	}, &hook); err != nil {
+		return fmt.Errorf("create demo AI notification hook: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo AI notification hook: id=%s enabled=false\n", hook.id())
 	return nil
 }
 

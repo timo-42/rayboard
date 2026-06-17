@@ -36,10 +36,12 @@ The command:
 - creates one incoming Lua webhook and prints its one-time demo token;
 - creates one disabled outgoing Lua webhook for ticket update events;
 - creates a project Shoutrrr `logger://` notification destination plus disabled policy and hook examples;
+- when an enabled OpenRouter provider with an API key already exists, creates disabled AI cron, ticket hook, incoming/outgoing webhook, and notification hook examples without calling OpenRouter;
+- when no usable OpenRouter provider exists, prints that AI examples were skipped;
 - prints generated demo usernames/passwords and seeded object summaries.
 
 The command exercises normal backend validation, permissions, and activity behavior because it calls public API endpoints rather than writing directly to SQLite.
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, and AI-backed automation examples when OpenRouter is configured.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, and global role bindings.
