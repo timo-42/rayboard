@@ -74,10 +74,13 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
 	}
-	for _, scheme := range []string{"bearerToken", "sessionCookie", "csrfToken"} {
+	for _, scheme := range []string{"bearerToken", "sessionCookie"} {
 		if _, ok := body.Components.SecuritySchemes[scheme]; !ok {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
+	}
+	if _, ok := body.Components.SecuritySchemes["csrfToken"]; ok {
+		t.Fatalf("csrfToken should not be a Swagger authorization scheme; it is auto-sent from the CSRF cookie for session auth")
 	}
 	assertOpenAPISecurity(t, spec)
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
@@ -214,10 +217,13 @@ func TestAPIDocsAreServedLocally(t *testing.T) {
 	if !strings.Contains(body, "/api/openapi.json") {
 		t.Fatalf("expected docs page to reference local OpenAPI JSON")
 	}
-	for _, expected := range []string{`ui.preauthorizeApiKey("csrfToken", csrf)`, `request.credentials = "same-origin"`, `request.headers["X-CSRF-Token"] = csrf`} {
+	for _, expected := range []string{`request.credentials = "same-origin"`, `request.headers["X-CSRF-Token"] = csrf`} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("expected Swagger UI page to include CSRF helper %q", expected)
 		}
+	}
+	if strings.Contains(body, `preauthorizeApiKey("csrfToken"`) {
+		t.Fatalf("Swagger UI should not expose CSRF as a manual authorization field")
 	}
 	for _, localAsset := range []string{"/api/docs/swagger-ui.css", "/api/docs/swagger-ui-bundle.js", "/api/docs/swagger-ui-standalone-preset.js"} {
 		if !strings.Contains(body, localAsset) {
@@ -492,7 +498,6 @@ func assertOperationSecurity(t *testing.T, path string, method string, operation
 	}
 	hasBearerOnly := false
 	hasSessionOnly := false
-	hasSessionCSRF := false
 	for _, item := range security {
 		requirement, ok := item.(map[string]any)
 		if !ok {
@@ -510,33 +515,12 @@ func assertOperationSecurity(t *testing.T, path string, method string, operation
 		if hasSession && !hasBearer && !hasCSRF {
 			hasSessionOnly = true
 		}
-		if hasSession && hasCSRF && !hasBearer {
-			hasSessionCSRF = true
-		}
 	}
 	if !hasBearerOnly {
 		t.Fatalf("expected %s %s to allow bearer-token auth without CSRF: %#v", strings.ToUpper(method), path, security)
 	}
-	if isMutatingMethod(method) {
-		if !hasSessionCSRF {
-			t.Fatalf("expected %s %s mutating session auth to require CSRF: %#v", strings.ToUpper(method), path, security)
-		}
-		if hasSessionOnly {
-			t.Fatalf("expected %s %s not to allow mutating session auth without CSRF: %#v", strings.ToUpper(method), path, security)
-		}
-		return
-	}
 	if !hasSessionOnly {
-		t.Fatalf("expected %s %s read session auth not to require CSRF: %#v", strings.ToUpper(method), path, security)
-	}
-}
-
-func isMutatingMethod(method string) bool {
-	switch strings.ToUpper(method) {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return false
-	default:
-		return true
+		t.Fatalf("expected %s %s to allow session-cookie auth; mutating session requests enforce CSRF in middleware: %#v", strings.ToUpper(method), path, security)
 	}
 }
 

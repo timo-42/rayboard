@@ -128,13 +128,7 @@ func openAPIConfig() huma.Config {
 			Type:        "apiKey",
 			In:          "cookie",
 			Name:        "rayboard_session",
-			Description: "Browser session cookie created by POST /api/login.",
-		},
-		"csrfToken": {
-			Type:        "apiKey",
-			In:          "header",
-			Name:        "X-CSRF-Token",
-			Description: "Required only with sessionCookie on mutating requests. Bearer-token requests do not need CSRF.",
+			Description: "Browser session cookie created by POST /api/login. Mutating cookie-authenticated requests also require X-CSRF-Token from the rayboard_csrf cookie; Swagger UI sends it automatically when present. Bearer-token requests do not need CSRF.",
 		},
 	}
 	config.OpenAPI.Security = shared.SecurityForMethod(http.MethodGet)
@@ -171,10 +165,6 @@ func registerDocs(mux *http.ServeMux) {
 						.map(function(part) { return part.trim(); })
 						.filter(function(part) { return part.startsWith(name + "="); })
 						.map(function(part) { return decodeURIComponent(part.slice(name.length + 1)); })[0] || "";
-				}
-				var csrf = cookieValue("rayboard_csrf");
-				if (csrf) {
-					ui.preauthorizeApiKey("csrfToken", csrf);
 				}
 				var dom = document.querySelector(".scheme-container select");
 				for (var key in dom) {
