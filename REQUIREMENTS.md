@@ -188,6 +188,7 @@ internal/backend/httpapi/
   - provide Lua examples for JSON encode/decode, `json.null`, API function calls, validation errors, and safe payload transformation.
 - Add an automation engine test/workbench endpoint:
   - expose a backend-owned endpoint under `POST /api/engines/test` for testing shared engine definitions before attaching them to cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, or notification hooks.
+  - expose the endpoint as the canonical way to try out engines interactively from the UI and programmatically from API clients.
   - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
   - support `engine.type=lua` and `engine.type=ai` in the first implementation, and keep the request/response shape compatible with future `engine.type=wasm`.
   - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`.
@@ -199,7 +200,8 @@ internal/backend/httpapi/
   - execute tests with the same sandbox, owner/actor principal, RBAC checks, timeout, memory/log/payload limits, JSON/table conversion, output-schema validation, secret redaction, and run-history/audit behavior as the corresponding real automation surface.
   - test runs must never persist ticket/project mutations by default; mutation-capable previews require explicit dry-run/action-plan behavior that reports intended actions without committing them.
   - only authorized global admins or project automation managers can test engines, and project-scoped users can test only against projects/resources where they have automation-management permission.
-  - the frontend workbench must call this endpoint directly and show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.
+  - the frontend workbench must call this endpoint directly and let users test Lua, OpenRouter AI, and future wasm engines with editable input JSON before saving the engine onto an automation surface.
+  - the frontend workbench must show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.
   - the endpoint must be exposed in Huma/OpenAPI, Swagger UI, Redoc, and the embedded `/docs` HTML documentation with examples for Lua and OpenRouter AI.
 - Add Lua ticket hook plugins:
   - use the existing GopherLua stack for project-scoped ticket hooks.
@@ -364,7 +366,7 @@ internal/backend/httpapi/
   - global admin settings endpoints, project settings endpoints, and user settings endpoints
   - admin OpenRouter settings endpoints
   - automation engine selection for cron jobs, ticket hooks, custom create pages, and webhooks using the shared `engine` object
-  - generic engine test endpoint: `POST /api/engines/test` accepts `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`, supports `spec.surface=scratch`, then returns `metadata`, `spec`, and `status` with validated output, logs, metadata, duration, errors, and non-persistent action previews
+  - generic engine test/workbench endpoint: `POST /api/engines/test` accepts `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`, supports `spec.surface=scratch`, then returns `metadata`, `spec`, and `status` with validated output, logs, metadata, duration, errors, and non-persistent action previews
   - test/validate AI prompt endpoints for each automation surface
   - admin-only demo reset endpoint and demo seed support endpoints only if normal CRUD endpoints are insufficient
 - Frontend:
@@ -394,7 +396,7 @@ internal/backend/httpapi/
   - global OpenRouter settings for admins
   - global admin settings, project settings, and user settings pages
   - user detail view showing direct roles, group roles, and effective permissions
-  - automation engine workbench for testing Lua and OpenRouter AI engines in scratch mode or against selected surfaces before saving them
+  - automation engine workbench backed by `POST /api/engines/test` for testing Lua and OpenRouter AI engines in scratch mode or against selected surfaces before saving them
   - per-automation Lua/AI selector, AI prompt editor, output schema preview, model selector, test panel, last error, and run history
   - user-facing create page routes such as `/projects/{key}/create/{slug}`
   - server-rendered pages and HTMX partials served from embedded templates/static assets
