@@ -1,6 +1,6 @@
 # Automation and Lua
 
-Automation public surfaces are mostly **Planned**. The current implementation includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, automation run history persistence in `internal/backend/automation`, and the first cron jobs API/scheduler slice for Lua cron job CRUD, manual runs, and run history.
+Automation public surfaces are partially implemented. The current implementation includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, automation run history persistence in `internal/backend/automation`, cron job CRUD/scheduler/manual run/history APIs, ticket-hook runner/CRUD/preview APIs, and incoming webhook CRUD/execution APIs.
 
 Relevant upstream references:
 
@@ -18,7 +18,7 @@ Lua surfaces use one shared sandbox runtime package and one shared Go/Lua conver
 Lua-capable surfaces:
 
 - cron jobs: first API/scheduler slice implemented;
-- ticket hooks: backend Lua runner foundation implemented; management API/UI still **Planned**;
+- ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
 - custom ticket create pages: **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: **Planned**;
@@ -144,9 +144,9 @@ if comment_err then return { error = comment_err.message } end
 
 ## Ticket Hooks
 
-The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD is available through the API; hook test endpoints and UI are still **Planned**.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD and single-hook preview are available through the API; UI is still **Planned**.
 
-Hook Lua receives `context`, `ticket`, and for update hooks `current`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
+Hook Lua receives `context`, `ticket`, and for update hooks `current`. The preview API uses the same globals for one saved hook without changing tickets or persisting `last_error`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
 
 Example validation shape:
 

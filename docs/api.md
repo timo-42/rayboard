@@ -439,9 +439,10 @@ Project ticket hooks are API-only automation resources that run during ticket cr
 | `POST` | `/api/projects/{project_id}/ticket-hooks` | `{"spec":{"name":"normalize-title","event":"ticket_create","phase":"before","enabled":true,"position":100,"engine":{"type":"lua","script":"return { ticket = ticket }"}}}` |
 | `GET` | `/api/ticket-hooks/{hook_id}` | Ticket hook definition. |
 | `PATCH` | `/api/ticket-hooks/{hook_id}` | Any subset of `name`, `event`, `phase`, `enabled`, `position`, and `engine`. |
+| `POST` | `/api/ticket-hooks/{hook_id}/preview` | `{"spec":{"ticket":{"title":"Example"},"current":{}}}`; executes one saved hook without changing tickets or `last_error`. |
 | `DELETE` | `/api/ticket-hooks/{hook_id}` | Soft-deletes and disables the hook. |
 
-Ticket hook responses use `metadata` for IDs/project/timestamps, `spec` for event, phase, order, enabled state, and engine configuration, and `status.last_error` for the last execution error. The OpenAPI schema represents `spec.engine` as a discriminated `oneOf` object. Lua hooks require `engine.script`; AI hook input shape is documented with `engine.prompt` and `engine.provider_id`, but AI hook execution is not implemented yet.
+Ticket hook responses use `metadata` for IDs/project/timestamps, `spec` for event, phase, order, enabled state, and engine configuration, and `status.last_error` for the last persisted execution error. Preview responses use `metadata.hook_id`, echo the preview input in `spec`, and return `status.output`, transformed `status.ticket` when present, `status.logs`, and `status.error` for Lua reject/runtime errors. The OpenAPI schema represents `spec.engine` as a discriminated `oneOf` object. Lua hooks require `engine.script`; AI hook input shape is documented with `engine.prompt` and `engine.provider_id`, but AI hook execution is not implemented yet.
 
 ## OpenRouter Providers
 
@@ -506,4 +507,4 @@ The planned AI form uses the same `engine` object with an OpenRouter provider re
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner exposes `context`, `ticket`, optional `current`, and `rayboard.log`; public ticket-hook management APIs are still **Planned**. OpenRouter AI automation, custom create pages, outgoing webhooks, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. OpenRouter AI automation, custom create pages, outgoing webhooks, and notification hooks are **Planned**.

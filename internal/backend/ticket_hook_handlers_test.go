@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
@@ -57,6 +58,34 @@ func TestTicketHookEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("unexpected created ticket hook engine: %#v", created.Spec.Engine)
 	}
 
+	missingPreviewCSRF := postJSON(t, handler, "/api/ticket-hooks/"+created.Metadata.ID+"/preview", map[string]any{
+		"spec": map[string]any{
+			"ticket": map[string]any{"title": "Preview"},
+		},
+	}, []*http.Cookie{session})
+	if missingPreviewCSRF.Code != http.StatusForbidden {
+		t.Fatalf("expected missing preview CSRF status 403, got %d: %s", missingPreviewCSRF.Code, missingPreviewCSRF.Body.String())
+	}
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/api/ticket-hooks/"+created.Metadata.ID+"/preview", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"ticket": map[string]any{"title": "Preview"},
+		},
+	}))
+	addSessionCSRF(previewReq, session, csrf)
+	preview := httptest.NewRecorder()
+	handler.ServeHTTP(preview, previewReq)
+	if preview.Code != http.StatusOK {
+		t.Fatalf("expected preview ticket hook status 200, got %d: %s", preview.Code, preview.Body.String())
+	}
+	previewed := decodeTicketHookPreview(t, preview.Body.Bytes())
+	if previewed.Metadata.HookID != created.Metadata.ID || previewed.Metadata.ProjectID != "project-1" {
+		t.Fatalf("unexpected preview metadata: %#v", previewed)
+	}
+	if previewed.Status.Error != "" || len(previewed.Status.Logs) != 0 || previewed.Status.Ticket["title"] != "Preview" {
+		t.Fatalf("unexpected preview result: %#v", previewed)
+	}
+
 	listReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-1/ticket-hooks?event=ticket_create&phase=before", nil)
 	listReq.AddCookie(session)
 	list := httptest.NewRecorder()
@@ -94,6 +123,35 @@ func TestTicketHookEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("unexpected updated ticket hook: %#v", updated)
 	}
 
+	rejectScript := `return { reject = { message = "blocked in preview" } }`
+	if _, err := hookService.Update(ctx, authz.Principal{UserID: bootstrap.UserID}, created.Metadata.ID, tracker.UpdateHookInput{
+		Engine: &tracker.HookEngineSpec{Type: tracker.HookEngineLua, Script: rejectScript},
+	}); err != nil {
+		t.Fatalf("set reject script: %v", err)
+	}
+	rejectReq := httptest.NewRequest(http.MethodPost, "/api/ticket-hooks/"+created.Metadata.ID+"/preview", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"ticket": map[string]any{"title": "Preview reject"},
+		},
+	}))
+	addSessionCSRF(rejectReq, session, csrf)
+	reject := httptest.NewRecorder()
+	handler.ServeHTTP(reject, rejectReq)
+	if reject.Code != http.StatusOK {
+		t.Fatalf("expected reject preview status 200, got %d: %s", reject.Code, reject.Body.String())
+	}
+	rejected := decodeTicketHookPreview(t, reject.Body.Bytes())
+	if !strings.Contains(rejected.Status.Error, "blocked in preview") || rejected.Status.Output["reject"] == nil {
+		t.Fatalf("expected rejected preview output, got %#v", rejected)
+	}
+	stored, err := hookService.Get(ctx, authz.Principal{UserID: bootstrap.UserID}, created.Metadata.ID)
+	if err != nil {
+		t.Fatalf("get previewed hook: %v", err)
+	}
+	if stored.LastError != "" {
+		t.Fatalf("preview should not persist last_error, got %q", stored.LastError)
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/ticket-hooks/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, session, csrf)
 	deleted := httptest.NewRecorder()
@@ -109,6 +167,16 @@ func TestTicketHookEndpointsLifecycle(t *testing.T) {
 	if notFound.Code != http.StatusNotFound {
 		t.Fatalf("expected deleted ticket hook status 404, got %d: %s", notFound.Code, notFound.Body.String())
 	}
+
+	notFoundPreviewReq := httptest.NewRequest(http.MethodPost, "/api/ticket-hooks/"+created.Metadata.ID+"/preview", mustJSON(t, map[string]any{
+		"spec": map[string]any{"ticket": map[string]any{"title": "missing"}},
+	}))
+	addSessionCSRF(notFoundPreviewReq, session, csrf)
+	notFoundPreview := httptest.NewRecorder()
+	handler.ServeHTTP(notFoundPreview, notFoundPreviewReq)
+	if notFoundPreview.Code != http.StatusNotFound {
+		t.Fatalf("expected deleted ticket hook preview status 404, got %d: %s", notFoundPreview.Code, notFoundPreview.Body.String())
+	}
 }
 
 func TestTicketHookEndpointsRequirePermission(t *testing.T) {
@@ -116,12 +184,27 @@ func TestTicketHookEndpointsRequirePermission(t *testing.T) {
 	db, _ := openBackendTestDB(t, ctx)
 	authService := auth.NewService(db.SQL)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
+	hookService := tracker.NewHookService(db.SQL, authorizer)
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authorizer),
-		WithTicketHookService(tracker.NewHookService(db.SQL, authorizer)),
+		WithTicketHookService(hookService),
 	)
 	seedTicketHookHandlerProject(t, ctx, db, "project-1")
+	hook, err := hookService.Create(ctx, authz.Principal{UserID: "user_admin"}, tracker.CreateHookInput{
+		ProjectID: "project-1",
+		Name:      "protected",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Engine: tracker.HookEngineSpec{
+			Type:   tracker.HookEngineLua,
+			Script: `return { ticket = ticket }`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create protected hook: %v", err)
+	}
 	viewer, err := authService.CreateUser(ctx, auth.CreateUserInput{Username: "viewer"})
 	if err != nil {
 		t.Fatalf("create viewer: %v", err)
@@ -131,6 +214,7 @@ func TestTicketHookEndpointsRequirePermission(t *testing.T) {
 		"password": viewer.Password,
 	}, nil)
 	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/projects/project-1/ticket-hooks", nil)
 	req.AddCookie(session)
@@ -138,6 +222,16 @@ func TestTicketHookEndpointsRequirePermission(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected forbidden ticket hook list, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/ticket-hooks/"+hook.ID+"/preview", mustJSON(t, map[string]any{
+		"spec": map[string]any{"ticket": map[string]any{"title": "forbidden"}},
+	}))
+	addSessionCSRF(req, session, csrf)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden ticket hook preview, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -185,6 +279,22 @@ type ticketHookListBody struct {
 	} `json:"status"`
 }
 
+type ticketHookPreviewBody struct {
+	Metadata struct {
+		HookID    string `json:"hook_id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Ticket map[string]any `json:"ticket"`
+	} `json:"spec"`
+	Status struct {
+		Output map[string]any `json:"output"`
+		Ticket map[string]any `json:"ticket"`
+		Logs   []string       `json:"logs"`
+		Error  string         `json:"error"`
+	} `json:"status"`
+}
+
 func decodeTicketHookResource(t *testing.T, data []byte) ticketHookResourceBody {
 	t.Helper()
 
@@ -201,6 +311,16 @@ func decodeTicketHookList(t *testing.T, data []byte) ticketHookListBody {
 	var body ticketHookListBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode ticket hook list: %v", err)
+	}
+	return body
+}
+
+func decodeTicketHookPreview(t *testing.T, data []byte) ticketHookPreviewBody {
+	t.Helper()
+
+	var body ticketHookPreviewBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode ticket hook preview: %v", err)
 	}
 	return body
 }

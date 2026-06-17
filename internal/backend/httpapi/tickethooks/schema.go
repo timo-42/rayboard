@@ -34,6 +34,12 @@ type UpdateHookInput struct {
 	Body   shared.ResourceInput[UpdateHookSpec]
 }
 
+type PreviewHookInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Ticket hook ID."`
+	Body   shared.ResourceInput[PreviewHookSpec]
+}
+
 type HookMetadata struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"project_id"`
@@ -87,13 +93,35 @@ type HookStatus struct {
 	LastError string `json:"last_error,omitempty"`
 }
 
+type PreviewHookSpec struct {
+	Ticket  map[string]any `json:"ticket"`
+	Current map[string]any `json:"current,omitempty"`
+}
+
+type PreviewHookMetadata struct {
+	HookID    string `json:"hook_id"`
+	ProjectID string `json:"project_id"`
+}
+
+type PreviewHookStatus struct {
+	Output map[string]any `json:"output"`
+	Ticket map[string]any `json:"ticket,omitempty"`
+	Logs   []string       `json:"logs"`
+	Error  string         `json:"error,omitempty"`
+}
+
 type HookResource = shared.Resource[HookMetadata, HookSpec, HookStatus]
+type PreviewHookResource = shared.Resource[PreviewHookMetadata, PreviewHookSpec, PreviewHookStatus]
 
 type ListHooksOutput = shared.ListOutput[HookResource]
 type CreateHookOutput = shared.CreatedOutput[HookResource]
 
 type HookOutput struct {
 	Body HookResource
+}
+
+type PreviewHookOutput struct {
+	Body PreviewHookResource
 }
 
 func (spec HookSpec) createInput(projectID string) tracker.CreateHookInput {
@@ -116,6 +144,13 @@ func (spec UpdateHookSpec) updateInput() tracker.UpdateHookInput {
 		Enabled:  spec.Enabled,
 		Position: spec.Position,
 		Engine:   optionalEngineSpec(spec.Engine),
+	}
+}
+
+func (spec PreviewHookSpec) previewInput() tracker.PreviewHookInput {
+	return tracker.PreviewHookInput{
+		Ticket:  spec.Ticket,
+		Current: spec.Current,
 	}
 }
 
@@ -173,6 +208,35 @@ func hookResources(hooks []tracker.Hook) []HookResource {
 		resources = append(resources, hookResource(hook))
 	}
 	return resources
+}
+
+func previewResource(preview tracker.HookPreview) PreviewHookResource {
+	ticket, _ := preview.Output["ticket"].(map[string]any)
+	return PreviewHookResource{
+		Metadata: PreviewHookMetadata{
+			HookID:    preview.Hook.ID,
+			ProjectID: preview.Hook.ProjectID,
+		},
+		Spec: PreviewHookSpec{
+			Ticket:  objectFromPreviewInput(preview.Input, "ticket"),
+			Current: objectFromPreviewInput(preview.Input, "current"),
+		},
+		Status: PreviewHookStatus{
+			Output: preview.Output,
+			Ticket: ticket,
+			Logs:   preview.Logs,
+			Error:  preview.Error,
+		},
+	}
+}
+
+func objectFromPreviewInput(input map[string]any, key string) map[string]any {
+	value, ok := input[key]
+	if !ok {
+		return nil
+	}
+	object, _ := value.(map[string]any)
+	return object
 }
 
 func engineVariantSchema(title string, required []string, properties map[string]*huma.Schema) *huma.Schema {

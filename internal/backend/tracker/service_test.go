@@ -377,6 +377,83 @@ return { ticket = ticket }
 	}
 }
 
+func TestTicketHookPreviewDoesNotPersistLastError(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	hooks := tracker.NewHookService(db.SQL, evaluator)
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithHookService(hooks))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "HPV", Name: "Hook Preview"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	hook, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "preview",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   false,
+		Position:  10,
+		Engine: tracker.HookEngineSpec{
+			Type: tracker.HookEngineLua,
+			Script: `
+rayboard.log("previewing " .. ticket.title)
+ticket.priority = "High"
+return { ticket = ticket }
+`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create hook: %v", err)
+	}
+
+	preview, err := hooks.Preview(ctx, admin, hook.ID, tracker.PreviewHookInput{
+		Ticket: map[string]any{"title": "Preview me"},
+	})
+	if err != nil {
+		t.Fatalf("preview hook: %v", err)
+	}
+	ticket, ok := preview.Output["ticket"].(map[string]any)
+	if !ok || ticket["priority"] != "High" || preview.Error != "" || !slices.Equal(preview.Logs, []string{"previewing Preview me"}) {
+		t.Fatalf("unexpected preview result: %#v", preview)
+	}
+	stored, err := hooks.Get(ctx, admin, hook.ID)
+	if err != nil {
+		t.Fatalf("get hook: %v", err)
+	}
+	if stored.LastError != "" {
+		t.Fatalf("preview should not persist last error, got %q", stored.LastError)
+	}
+
+	badScript := `return { reject = { message = "blocked in preview" } }`
+	if _, err := hooks.Update(ctx, admin, hook.ID, tracker.UpdateHookInput{Engine: &tracker.HookEngineSpec{Type: tracker.HookEngineLua, Script: badScript}}); err != nil {
+		t.Fatalf("update hook script: %v", err)
+	}
+	rejected, err := hooks.Preview(ctx, admin, hook.ID, tracker.PreviewHookInput{
+		Ticket: map[string]any{"title": "Rejected"},
+	})
+	if err != nil {
+		t.Fatalf("preview rejected hook: %v", err)
+	}
+	if rejected.Error == "" || rejected.Output["reject"] == nil {
+		t.Fatalf("expected preview error and reject output, got %#v", rejected)
+	}
+	stored, err = hooks.Get(ctx, admin, hook.ID)
+	if err != nil {
+		t.Fatalf("get hook after reject: %v", err)
+	}
+	if stored.LastError != "" {
+		t.Fatalf("rejected preview should not persist last error, got %q", stored.LastError)
+	}
+}
+
 func TestTicketBeforeUpdateHookTransformsAndAfterHookDoesNotRollback(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

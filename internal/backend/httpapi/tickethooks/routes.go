@@ -15,6 +15,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/ticket-hooks/{hook_id}", "Ticket Hooks", "Get ticket hook"), provider.getHook)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/ticket-hooks/{hook_id}", "Ticket Hooks", "Update ticket hook"), provider.updateHook)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/ticket-hooks/{hook_id}", "Ticket Hooks", "Delete ticket hook", http.StatusNoContent), provider.deleteHook)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/ticket-hooks/{hook_id}/preview", "Ticket Hooks", "Preview ticket hook"), provider.previewHook)
 }
 
 func (provider Provider) listProjectHooks(ctx context.Context, input *ProjectHooksInput) (*ListHooksOutput, error) {
@@ -80,4 +81,16 @@ func (provider Provider) deleteHook(ctx context.Context, input *HookIDInput) (*s
 		return nil, shared.TrackerError(err)
 	}
 	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) previewHook(ctx context.Context, input *PreviewHookInput) (*PreviewHookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := provider.Hooks.Preview(ctx, principal, input.HookID, input.Body.Spec.previewInput())
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &PreviewHookOutput{Body: previewResource(preview)}, nil
 }

@@ -75,9 +75,22 @@ type UpdateHookInput struct {
 	Engine   *HookEngineSpec
 }
 
+type PreviewHookInput struct {
+	Ticket  map[string]any
+	Current map[string]any
+}
+
 type HookResult struct {
 	Output map[string]any
 	Logs   []string
+}
+
+type HookPreview struct {
+	Hook   Hook
+	Input  map[string]any
+	Output map[string]any
+	Logs   []string
+	Error  string
 }
 
 type HookService struct {
@@ -285,6 +298,51 @@ func (s *HookService) Delete(ctx context.Context, principal authz.Principal, hoo
 		return notFound("ticket_hook", hookID)
 	}
 	return nil
+}
+
+func (s *HookService) Preview(ctx context.Context, principal authz.Principal, hookID string, input PreviewHookInput) (HookPreview, error) {
+	hook, err := s.get(ctx, hookID)
+	if err != nil {
+		return HookPreview{}, err
+	}
+	if err := s.requireManage(principal, hook.ProjectID); err != nil {
+		return HookPreview{}, err
+	}
+	fields := map[string]string{}
+	if input.Ticket == nil {
+		fields["ticket"] = "Required"
+	}
+	if hook.Event == HookEventTicketUpdate && input.Current == nil {
+		fields["current"] = "Required for ticket_update hooks"
+	}
+	if len(fields) > 0 {
+		return HookPreview{}, validationFailed(fields)
+	}
+	executionInput := map[string]any{}
+	executionInput["ticket"] = input.Ticket
+	if input.Current != nil {
+		executionInput["current"] = input.Current
+	}
+	result, err := s.execute(ctx, principal, hook, copyHookMap(executionInput))
+	preview := HookPreview{
+		Hook:   hook,
+		Input:  executionInput,
+		Output: result.Output,
+		Logs:   result.Logs,
+	}
+	if err != nil {
+		preview.Error = err.Error()
+		if message := hookRejectMessage(result.Output); message != "" {
+			preview.Error = message
+		}
+	}
+	if preview.Output == nil {
+		preview.Output = map[string]any{}
+	}
+	if preview.Logs == nil {
+		preview.Logs = []string{}
+	}
+	return preview, nil
 }
 
 func (s *HookService) RunBeforeCreate(ctx context.Context, principal authz.Principal, input CreateTicketInput) (CreateTicketInput, []HookResult, error) {
