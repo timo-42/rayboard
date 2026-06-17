@@ -87,6 +87,17 @@ func (s *Service) CreateProject(ctx context.Context, principal authz.Principal, 
 	if err != nil {
 		return Project{}, err
 	}
+	event := events.Event{
+		Type:      "project.created",
+		ActorID:   actorID(principal),
+		ProjectID: project.ID,
+		ObjectID:  project.ID,
+		At:        project.CreatedAt,
+		Data: map[string]any{
+			"key":  project.Key,
+			"name": project.Name,
+		},
+	}
 
 	if err := s.withTx(ctx, func(tx *sql.Tx) error {
 		if err := s.requireUser(ctx, tx, "lead_user_id", project.LeadUserID); err != nil {
@@ -101,22 +112,15 @@ func (s *Service) CreateProject(ctx context.Context, principal authz.Principal, 
 		if err := s.repo.bindProjectOwner(ctx, tx, project.ID, project.LeadUserID, project.CreatedAt); err != nil {
 			return err
 		}
-		return s.seedDefaultProjectWorkflow(ctx, tx, project)
+		if err := s.seedDefaultProjectWorkflow(ctx, tx, project); err != nil {
+			return err
+		}
+		return s.appendDomainEvent(ctx, tx, event)
 	}); err != nil {
 		return Project{}, err
 	}
 
-	s.publish(ctx, events.Event{
-		Type:      "project.created",
-		ActorID:   actorID(principal),
-		ProjectID: project.ID,
-		ObjectID:  project.ID,
-		At:        project.CreatedAt,
-		Data: map[string]any{
-			"key":  project.Key,
-			"name": project.Name,
-		},
-	})
+	s.publish(ctx, event)
 
 	return project, nil
 }

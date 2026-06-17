@@ -76,6 +76,61 @@ func TestCreateProjectCreatesOwnerBindingAndListsReadableProjects(t *testing.T) 
 	}
 }
 
+func TestCreateProjectAppendsDomainEvent(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-lead")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithEventStore(events.NewStore(db.SQL)))
+	principal := principal("user-admin")
+
+	if _, err := service.CreateProject(ctx, principal, tracker.CreateProjectInput{Key: "bad-key", Name: ""}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected validation error before project event check, got %v", err)
+	}
+	if countTrackerRows(t, ctx, db.SQL, "domain_events") != 0 {
+		t.Fatalf("validation failure should not append a domain event")
+	}
+
+	project, err := service.CreateProject(ctx, principal, tracker.CreateProjectInput{
+		Key:        "CORE",
+		Name:       "Core Tracking",
+		LeadUserID: "user-lead",
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	var eventType string
+	var actorID string
+	var projectID sql.NullString
+	var subjectType string
+	var subjectID string
+	var status string
+	var payload string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT event_type, actor_id, project_id, subject_type, subject_id, processing_status, payload_json
+		FROM domain_events
+		WHERE subject_type = 'project' AND subject_id = ?
+	`, project.ID).Scan(&eventType, &actorID, &projectID, &subjectType, &subjectID, &status, &payload); err != nil {
+		t.Fatalf("query project domain event: %v", err)
+	}
+	if eventType != "project.created" || actorID != "user-admin" || !projectID.Valid || projectID.String != project.ID || subjectType != "project" || subjectID != project.ID || status != "pending" {
+		t.Fatalf("unexpected project event row: %s %s %v %s %s %s", eventType, actorID, projectID, subjectType, subjectID, status)
+	}
+	var payloadMap map[string]any
+	if err := json.Unmarshal([]byte(payload), &payloadMap); err != nil {
+		t.Fatalf("decode project event payload: %v", err)
+	}
+	if payloadMap["key"] != "CORE" || payloadMap["name"] != "Core Tracking" {
+		t.Fatalf("unexpected project event payload: %#v", payloadMap)
+	}
+}
+
 func TestProjectValidationConflictAndNotFound(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)
