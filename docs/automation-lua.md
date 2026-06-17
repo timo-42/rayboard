@@ -20,7 +20,7 @@ Lua-capable surfaces:
 
 - generic engine tests: dry-run Lua/AI execution with supplied JSON input, `context`, `input`, JSON helpers, `rayboard.log`, source redaction, and run history implemented;
 - cron jobs: first API/scheduler slice implemented;
-- ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
+- ticket hooks: Lua runner, management API, preview API, and basic `/automation` browser management implemented;
 - custom ticket create pages: static definition/submit API plus saved Lua and OpenRouter AI schema/default transformation implemented; UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
@@ -190,7 +190,7 @@ if comment_err then return { error = comment_err.message } end
 
 ## Ticket Hooks
 
-The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua and AI hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD and single-hook preview are available through the API; UI is still **Planned**.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua and AI hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD and single-hook preview are available through the API. The `/automation` browser UI provides basic project ticket-hook list, create, delete, enable/disable, and preview controls using the saved-hook endpoints; richer editing/history screens remain **Planned**.
 
 Hook Lua receives `context`, `ticket`, and for update hooks `current`. The preview API uses the same globals for one saved hook without changing tickets or persisting `last_error`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
 

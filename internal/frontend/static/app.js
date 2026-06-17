@@ -28,6 +28,9 @@ const state = {
   auditLog: [],
   settingsError: "",
   auditLogError: "",
+  ticketHooks: [],
+  ticketHooksError: "",
+  ticketHookPreview: null,
   engineResult: null
 };
 
@@ -41,6 +44,13 @@ const els = {
   engineProjectID: document.querySelector("#engine-project-id"),
   engineWorkbench: document.querySelector("#engine-workbench"),
   engineOutput: document.querySelector("#engine-output"),
+  ticketHookProject: document.querySelector("#ticket-hook-project"),
+  ticketHookForm: document.querySelector("#ticket-hook-form"),
+  ticketHookEngineType: document.querySelector("#ticket-hook-engine-type"),
+  ticketHookPreviewForm: document.querySelector("#ticket-hook-preview-form"),
+  ticketHookStatus: document.querySelector("#ticket-hook-status"),
+  ticketHooks: document.querySelector("#ticket-hooks"),
+  ticketHookPreviewOutput: document.querySelector("#ticket-hook-preview-output"),
   dashboardView: document.querySelector("#dashboard-view"),
   metricProjects: document.querySelector("#metric-projects"),
   metricOpenTickets: document.querySelector("#metric-open-tickets"),
@@ -178,6 +188,9 @@ function bindEvents() {
       state.auditLog = [];
       state.settingsError = "";
       state.auditLogError = "";
+      state.ticketHooks = [];
+      state.ticketHooksError = "";
+      state.ticketHookPreview = null;
       render();
     }, "Signed out");
   });
@@ -213,6 +226,74 @@ function bindEvents() {
 
   els.engineType.addEventListener("change", () => {
     renderEngineFields();
+  });
+
+  els.ticketHookEngineType.addEventListener("change", () => {
+    renderTicketHookEngineFields();
+  });
+
+  els.ticketHookProject.addEventListener("change", async () => {
+    const projectID = els.ticketHookProject.value;
+    state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
+    await loadTicketHooks(projectID);
+  });
+
+  els.ticketHookForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const projectID = selectedTicketHookProjectID();
+    if (!projectID) {
+      setNotice("Choose a project for ticket hooks");
+      return;
+    }
+    const form = event.currentTarget;
+    await runAction(async () => {
+      await api(`/api/projects/${projectID}/ticket-hooks`, {
+        method: "POST",
+        body: { spec: ticketHookSpec(form) }
+      });
+      form.reset();
+      setFormChecked(form, "enabled", true);
+      renderTicketHookEngineFields();
+      await loadTicketHooks(projectID);
+    }, "Ticket hook created");
+  });
+
+  els.ticketHooks.addEventListener("click", async (event) => {
+    const preview = event.target.closest("[data-preview-ticket-hook-id]");
+    if (preview) {
+      await runAction(async () => {
+        const result = await api(`/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview`, {
+          method: "POST",
+          body: { spec: ticketHookPreviewSpec() }
+        });
+        state.ticketHookPreview = result;
+        renderTicketHookPreview();
+      }, "Ticket hook previewed");
+      return;
+    }
+
+    const toggle = event.target.closest("[data-toggle-ticket-hook-id]");
+    if (toggle) {
+      await runAction(async () => {
+        await api(`/api/ticket-hooks/${toggle.dataset.toggleTicketHookId}`, {
+          method: "PATCH",
+          body: { spec: { enabled: toggle.dataset.ticketHookEnabled === "true" } }
+        });
+        await loadTicketHooks();
+      }, "Ticket hook updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-ticket-hook-id]");
+    if (remove) {
+      await runAction(async () => {
+        await api(`/api/ticket-hooks/${remove.dataset.deleteTicketHookId}`, { method: "DELETE" });
+        if (state.ticketHookPreview && state.ticketHookPreview.metadata && state.ticketHookPreview.metadata.hook_id === remove.dataset.deleteTicketHookId) {
+          state.ticketHookPreview = null;
+        }
+        await loadTicketHooks();
+      }, "Ticket hook deleted");
+    }
   });
 
   els.engineForm.addEventListener("submit", async (event) => {
@@ -927,6 +1008,13 @@ async function loadRouteData() {
   }
   if (route.page === "settings") {
     await loadSettingsPage();
+    return;
+  }
+  if (route.page === "automation") {
+    if (!state.selectedProject && state.projects.length) {
+      state.selectedProject = state.projects[0];
+    }
+    await loadTicketHooks();
   }
 }
 
@@ -1296,6 +1384,23 @@ async function loadAuditLog() {
   renderSettings();
 }
 
+async function loadTicketHooks(projectID = selectedTicketHookProjectID()) {
+  if (!projectID) {
+    state.ticketHooks = [];
+    state.ticketHooksError = "Choose a project to manage ticket hooks";
+    renderTicketHooks();
+    return;
+  }
+  try {
+    state.ticketHooks = listItems(await api(`/api/projects/${projectID}/ticket-hooks?limit=100`)).map(normalizeTicketHook);
+    state.ticketHooksError = "";
+  } catch (error) {
+    state.ticketHooks = [];
+    state.ticketHooksError = error.message || "Ticket hooks are not available";
+  }
+  renderTicketHooks();
+}
+
 async function api(path, options = {}) {
   const request = {
     method: options.method || "GET",
@@ -1393,6 +1498,7 @@ function render() {
   renderTokens();
   renderRBAC();
   renderSettings();
+  renderTicketHooks();
   renderEngineFields();
   renderEngineResult();
 }
@@ -2265,6 +2371,98 @@ function renderProjects() {
   }
 }
 
+function renderTicketHooks() {
+  if (!els.ticketHooks || !els.ticketHookProject) {
+    return;
+  }
+  replaceSelectOptions(els.ticketHookProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.ticketHookProject.value = state.selectedProject.id;
+  }
+  renderTicketHookEngineFields();
+  renderTicketHookPreview();
+
+  els.ticketHooks.replaceChildren();
+  if (state.ticketHooksError) {
+    els.ticketHookStatus.textContent = state.ticketHooksError;
+    return;
+  }
+  const projectID = selectedTicketHookProjectID();
+  els.ticketHookStatus.textContent = projectID
+    ? `${state.ticketHooks.length} ticket hooks`
+    : "Choose a project to manage ticket hooks";
+  if (!projectID || !state.ticketHooks.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = projectID ? "No ticket hooks for this project" : "Select a project first";
+    els.ticketHooks.append(empty);
+    return;
+  }
+  for (const hook of state.ticketHooks) {
+    els.ticketHooks.append(ticketHookNode(hook));
+  }
+}
+
+function renderTicketHookEngineFields() {
+  const type = els.ticketHookEngineType ? els.ticketHookEngineType.value : "lua";
+  document.querySelectorAll("[data-ticket-hook-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.ticketHookEngineField !== type;
+  });
+}
+
+function renderTicketHookPreview() {
+  if (!els.ticketHookPreviewOutput) {
+    return;
+  }
+  els.ticketHookPreviewOutput.textContent = JSON.stringify(state.ticketHookPreview || {}, null, 2);
+}
+
+function ticketHookNode(hook) {
+  const article = document.createElement("article");
+  article.className = "ticket-hook-item";
+
+  const header = document.createElement("div");
+  header.className = "ticket-hook-item-header";
+  const title = document.createElement("p");
+  title.textContent = hook.name || hook.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = hook.enabled ? "hook-state" : "hook-state is-disabled";
+  stateLabel.textContent = hook.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    hook.event,
+    hook.phase,
+    `position ${hook.position}`,
+    hook.engine.type,
+    hook.last_error ? `last error: ${hook.last_error}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "ticket-hook-actions";
+
+  const preview = document.createElement("button");
+  preview.type = "button";
+  preview.dataset.previewTicketHookId = hook.id;
+  preview.textContent = "Preview";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.toggleTicketHookId = hook.id;
+  toggle.dataset.ticketHookEnabled = hook.enabled ? "false" : "true";
+  toggle.textContent = hook.enabled ? "Disable" : "Enable";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteTicketHookId = hook.id;
+  remove.textContent = "Delete";
+
+  actions.append(preview, toggle, remove);
+  article.append(header, meta, actions);
+  return article;
+}
+
 function renderEngineFields() {
   const type = els.engineType ? els.engineType.value : "lua";
   document.querySelectorAll("[data-engine-field]").forEach((field) => {
@@ -2302,6 +2500,52 @@ function engineTestSpec(form) {
     input: parseJSONField(data.input, "Input JSON"),
     dry_run: true
   };
+}
+
+function selectedTicketHookProjectID() {
+  if (els.ticketHookProject && els.ticketHookProject.value) {
+    return els.ticketHookProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function ticketHookSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    event: data.event || "ticket_create",
+    phase: data.phase || "before",
+    enabled: Boolean(data.enabled),
+    position: Number(data.position || 0),
+    engine: ticketHookEngineSpec(data)
+  };
+}
+
+function ticketHookEngineSpec(data) {
+  const type = data.engine_type || "lua";
+  if (type === "ai") {
+    return {
+      type,
+      prompt: data.prompt || "",
+      provider_id: data.provider_id || ""
+    };
+  }
+  return {
+    type: "lua",
+    script: data.script || ""
+  };
+}
+
+function ticketHookPreviewSpec() {
+  const data = formData(els.ticketHookPreviewForm);
+  const spec = {
+    ticket: parseJSONField(data.ticket, "Preview ticket JSON")
+  };
+  const currentText = (data.current || "").trim();
+  if (currentText) {
+    spec.current = parseJSONField(currentText, "Current ticket JSON");
+  }
+  return spec;
 }
 
 function parseJSONField(value, label) {
@@ -3344,6 +3588,28 @@ function normalizeAuditEntry(entry) {
     };
   }
   return entry;
+}
+
+function normalizeTicketHook(hook) {
+  if (!hook) {
+    return null;
+  }
+  if (hook.metadata && hook.spec && hook.status) {
+    return {
+      id: hook.metadata.id || "",
+      project_id: hook.metadata.project_id || "",
+      created_at: hook.metadata.created_at || "",
+      updated_at: hook.metadata.updated_at || "",
+      name: hook.spec.name || "",
+      event: hook.spec.event || "",
+      phase: hook.spec.phase || "",
+      enabled: Boolean(hook.spec.enabled),
+      position: Number(hook.spec.position || 0),
+      engine: hook.spec.engine || { type: "" },
+      last_error: hook.status.last_error || ""
+    };
+  }
+  return hook;
 }
 
 function normalizeComment(comment) {

@@ -11,7 +11,7 @@ Implemented routes:
 - `GET /rbac` and `GET /admin/rbac`: render the RBAC administration page shell.
 - `GET /settings`: renders the settings page shell.
 - `GET /search`: renders the search/saved-views page shell.
-- `GET /automation`: renders the engine workbench page shell.
+- `GET /automation`: renders the engine workbench and basic project ticket-hook management shell.
 - `GET /1` through `GET /5`: render the same embedded application shell with distinct design variants selected.
 - `GET /docs` and `GET /docs/{page}`: render embedded markdown documentation as HTML.
 - `GET /health`: returns frontend health JSON.
@@ -46,11 +46,12 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a custom-fields panel for listing, creating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
 - compact search with text/CEL filters plus saved-view list, create, apply, and delete controls;
-- an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`.
+- an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`;
+- basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, OpenRouter provider management, Shoutrrr destination management, project notification defaults/policies/delivery history, and saved automation management screens are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, OpenRouter provider management, Shoutrrr destination management, project notification defaults/policies/delivery history, cron job management, webhook management, notification-hook management, custom create-page management, and richer automation management screens beyond basic project ticket hooks are API-only for now.
 
 Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
 

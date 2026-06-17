@@ -37,6 +37,9 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="audit-form"`) ||
 		!strings.Contains(body, `id="audit-log"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
+		!strings.Contains(body, `id="ticket-hook-form"`) ||
+		!strings.Contains(body, `id="ticket-hooks"`) ||
+		!strings.Contains(body, `id="ticket-hook-preview-output"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
@@ -100,12 +103,17 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderRBAC",
 		"renderSettings",
 		"renderAuditLog",
+		"renderTicketHooks",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadRBAC",
 		"loadSettingsPage",
 		"loadAuditLog",
+		"loadTicketHooks",
 		"normalizeAuditEntry",
+		"normalizeTicketHook",
+		"ticketHookSpec",
+		"ticketHookPreviewSpec",
 		"rbacUserForm",
 		"rbacGroupForm",
 		"rbacMemberForm",
@@ -118,6 +126,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/role-bindings/${deleteBinding.dataset.deleteBindingId}",
 		"/api/settings",
 		"/api/audit-log",
+		"/api/projects/${projectID}/ticket-hooks?limit=100",
+		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
+		"data-delete-ticket-hook-id",
 		"/api/me/notification-preferences",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -138,6 +149,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".settings-grid",
 		".audit-form",
 		".audit-log",
+		".ticket-hook-panel",
+		".ticket-hook-list",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

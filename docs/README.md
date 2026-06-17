@@ -1,6 +1,6 @@
 # Rayboard Documentation
 
-Rayboard is a single Go binary for a Jira-like project board proof of concept. The current implementation includes runtime modes, SQLite persistence, admin bootstrap, browser/API authentication, RBAC, projects, tickets, ticket labels, comments, attachments, search, saved views, first backlog, sprint, component, version/release, and custom ticket create-page API slices, an in-app notification API slice with read/unread state, Lua cron job API/scheduler basics, Lua ticket-hook runner and CRUD APIs, a small embedded frontend, embedded HTML documentation under `/docs`, and a demo seed command.
+Rayboard is a single Go binary for a Jira-like project board proof of concept. The current implementation includes runtime modes, SQLite persistence, admin bootstrap, browser/API authentication, RBAC, projects, tickets, ticket labels, comments, attachments, search, saved views, first backlog, sprint, component, version/release, and custom ticket create-page API slices, an in-app notification API slice with read/unread state, Lua cron job API/scheduler basics, Lua ticket-hook runner and CRUD APIs with basic `/automation` browser management, a small embedded frontend, embedded HTML documentation under `/docs`, and a demo seed command.
 
 Planned features are marked **Planned** in these docs. Do not treat planned sections as implemented API behavior.
 

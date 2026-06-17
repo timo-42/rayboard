@@ -536,6 +536,93 @@
           </div>
         </header>
 
+        <section class="ticket-hook-panel">
+          <header class="ticket-hook-header">
+            <div>
+              <p class="eyebrow">Project Automation</p>
+              <h3>Ticket Hooks</h3>
+            </div>
+            <label>
+              Project
+              <select id="ticket-hook-project" name="ticket_hook_project"></select>
+            </label>
+          </header>
+
+          <form id="ticket-hook-form" class="ticket-hook-form">
+            <div class="ticket-hook-grid">
+              <label>
+                Name
+                <input name="name" placeholder="normalize-title" required>
+              </label>
+              <label>
+                Event
+                <select name="event">
+                  <option value="ticket_create">Ticket Create</option>
+                  <option value="ticket_update">Ticket Update</option>
+                </select>
+              </label>
+              <label>
+                Phase
+                <select name="phase">
+                  <option value="before">Before</option>
+                  <option value="after">After</option>
+                </select>
+              </label>
+              <label>
+                Position
+                <input name="position" type="number" step="1" value="100">
+              </label>
+              <label>
+                Engine
+                <select name="engine_type" id="ticket-hook-engine-type">
+                  <option value="lua">Lua</option>
+                  <option value="ai">OpenRouter AI</option>
+                </select>
+              </label>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+            </div>
+
+            <label data-ticket-hook-engine-field="lua">
+              Lua Script
+              <textarea name="script" rows="5" spellcheck="false">return { ticket = ticket }</textarea>
+            </label>
+
+            <div data-ticket-hook-engine-field="ai" hidden>
+              <label>
+                AI Prompt
+                <textarea name="prompt" rows="4">Return a JSON object with ticket or reject.</textarea>
+              </label>
+              <label>
+                Provider ID
+                <input name="provider_id" placeholder="openrouter_provider_...">
+              </label>
+            </div>
+
+            <button type="submit">Create hook</button>
+          </form>
+
+          <form id="ticket-hook-preview-form" class="ticket-hook-preview-form">
+            <label>
+              Preview Ticket JSON
+              <textarea name="ticket" rows="4" spellcheck="false">{"title":"Example"}</textarea>
+            </label>
+            <label>
+              Current Ticket JSON
+              <textarea name="current" rows="4" spellcheck="false">{}</textarea>
+            </label>
+          </form>
+
+          <div id="ticket-hook-status" class="ticket-hook-status"></div>
+          <div id="ticket-hooks" class="ticket-hook-list"></div>
+          <section class="ticket-hook-preview" aria-live="polite">
+            <h3>Preview Result</h3>
+            <pre id="ticket-hook-preview-output">{}</pre>
+          </section>
+        </section>
+
         <form id="engine-form" class="engine-form">
           <div class="engine-form-row">
             <label>
