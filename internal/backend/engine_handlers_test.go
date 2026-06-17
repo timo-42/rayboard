@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
@@ -133,5 +134,76 @@ func TestEngineTestEndpoint(t *testing.T) {
 	}
 	if scratchBody.Spec.Surface != "scratch" || scratchBody.Status.Output["surface"] != "scratch" || scratchBody.Status.Output["value"] != "scratch" || scratchBody.Status.Engine["surface"] != "scratch" {
 		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
+	}
+
+	customReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"surface": "custom_create_page",
+			"engine": map[string]string{
+				"type": "lua",
+				"script": `
+return {
+  field_layout = {
+    { key = "title", type = "text", required = true },
+    { key = "priority", type = "single-select", options = { "Low", "High" } },
+  },
+  defaults = { priority = "High" }
+}
+`,
+			},
+		},
+	}))
+	customReq.AddCookie(sessionCookie)
+	customReq.AddCookie(csrfCookie)
+	customReq.Header.Set("Content-Type", "application/json")
+	customReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	customRec := httptest.NewRecorder()
+	handler.ServeHTTP(customRec, customReq)
+	if customRec.Code != http.StatusOK {
+		t.Fatalf("expected custom create page engine status 200, got %d: %s", customRec.Code, customRec.Body.String())
+	}
+	var customBody struct {
+		Status struct {
+			State  string         `json:"state"`
+			Output map[string]any `json:"output"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(customRec.Body.Bytes(), &customBody); err != nil {
+		t.Fatalf("decode custom create page engine response: %v", err)
+	}
+	layout, _ := customBody.Status.Output["field_layout"].([]any)
+	if customBody.Status.State != automation.StatusSucceeded || len(layout) != 2 || customBody.Status.Output["defaults"] == nil {
+		t.Fatalf("expected validated custom create page output, got %#v", customBody.Status)
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"surface": "custom_create_page",
+			"engine": map[string]string{
+				"type":   "lua",
+				"script": `return { field_layout = { { html = "<strong>no</strong>" } } }`,
+			},
+		},
+	}))
+	invalidReq.AddCookie(sessionCookie)
+	invalidReq.AddCookie(csrfCookie)
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	invalidRec := httptest.NewRecorder()
+	handler.ServeHTTP(invalidRec, invalidReq)
+	if invalidRec.Code != http.StatusOK {
+		t.Fatalf("expected invalid custom create page engine status 200, got %d: %s", invalidRec.Code, invalidRec.Body.String())
+	}
+	var invalidBody struct {
+		Status struct {
+			State string `json:"state"`
+			Error string `json:"error"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(invalidRec.Body.Bytes(), &invalidBody); err != nil {
+		t.Fatalf("decode invalid custom create page engine response: %v", err)
+	}
+	if invalidBody.Status.State != automation.StatusFailed || !strings.Contains(invalidBody.Status.Error, "Invalid custom create page output") {
+		t.Fatalf("expected failed validation response, got %#v", invalidBody.Status)
 	}
 }

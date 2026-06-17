@@ -55,6 +55,8 @@ The endpoint requires `automations:manage` globally or for `spec.project_id`. Us
 
 Responses use `metadata`, `spec`, and `status`. `spec.engine.script` and `spec.engine.prompt` are redacted from responses and run history. `status.output` contains the returned Lua table or AI JSON object, `status.logs` contains captured log lines, `status.duration_millis` reports elapsed execution time when available, `status.engine` contains redacted engine metadata, and `status.error` contains runtime failures.
 
+For `surface: "custom_create_page"`, the workbench validates the returned form data before recording success. Output must include at least one of `field_layout`, `defaults`, or `description`; `field_layout` must be an array of objects; nested `fields` arrays are validated recursively; `defaults` must be an object; `description` must be a string; and raw `html` fields are rejected. Invalid surface output is returned as a normal failed run resource with HTTP `200`, `status.state = "failed"`, and `status.error`.
+
 ## JSON Module
 
 Every Lua surface exposes the same sandboxed JSON API:
@@ -199,6 +201,8 @@ return { ticket = ticket }
 ## Custom Create Pages
 
 Custom create pages expose project-scoped definitions and submit tickets through the normal backend ticket-create path. Optional `form_lua_script` runs during schema resolution and submission. It receives `context`, `page`, `json`, `rayboard.json`, and `rayboard.log(message)`, and may return `field_layout`, `defaults`, and/or `description`. Lua must return structured form data and never raw HTML.
+
+The generic engine workbench enforces the same output shape when `surface` is `custom_create_page`, so form scripts can be tested before saving.
 
 ```lua
 return {

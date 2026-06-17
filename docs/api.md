@@ -541,6 +541,8 @@ The current endpoint is dry-run and mutation-free; `spec.dry_run` is normalized 
 
 Responses use `metadata`, `spec`, and `status`. The response redacts `spec.engine.script` and `spec.engine.prompt`; run history stores the engine type, actor, surface, normalized context, dry-run flag, and supplied input, not raw source or prompt. `status.output` contains the validated engine output, `status.logs` contains captured log lines, `status.duration_millis` reports elapsed execution time when available, and `status.engine` contains redacted engine metadata. Runtime failures return a normal resource response with `status.state = "failed"` and `status.error`.
 
+When `spec.surface` is `custom_create_page`, the workbench validates returned form data before marking the run successful. Output must include at least one of `field_layout`, `defaults`, or `description`; `field_layout` must be an array of objects; nested `fields` arrays are checked recursively; `defaults` must be an object; `description` must be a string; and raw `html` fields are rejected. Invalid surface output is recorded as a failed run and returned with HTTP `200`, `status.state = "failed"`, and `status.error`.
+
 ## Cron Jobs
 
 The cron automation API/scheduler slice exposes Lua and OpenRouter AI cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.

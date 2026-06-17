@@ -57,6 +57,8 @@ The response uses `metadata`, `spec`, and `status`. The response `spec` must red
 
 Use `surface: "scratch"` for a playground run that only validates generic JSON input/output. Use concrete surfaces such as `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook` to test against a surface-specific contract. Missing `surface` defaults to `scratch`.
 
+For `custom_create_page`, workbench output must be structured form data and include at least one of `field_layout`, `defaults`, or `description`. `field_layout` must be an array of objects, nested `fields` arrays are validated recursively, `defaults` must be an object, `description` must be a string, and raw `html` fields are rejected. Invalid surface output is a failed run response, not a transport-level API error.
+
 Workbench execution must use the same engine discriminator, JSON/table conversion, RBAC model, actor resolution, timeouts, logs, payload limits, secret redaction, and run-history persistence as the corresponding real surface. In the current POC the endpoint is always mutation-free and normalizes `dry_run` to `true`.
 
 ## Common Run Record

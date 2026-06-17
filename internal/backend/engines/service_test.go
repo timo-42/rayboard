@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +83,84 @@ func TestLuaEngineTestDefaultsToScratchSurface(t *testing.T) {
 	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
 	if inputEnvelope["dry_run"] != true || contextEnvelope["surface"] != "scratch" {
 		t.Fatalf("expected scratch run input context, got %#v", run.Input)
+	}
+}
+
+func TestLuaEngineTestValidatesCustomCreatePageOutput(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+		Surface: "custom_create_page",
+		Engine: engines.EngineSpec{
+			Type: "lua",
+			Script: `
+return {
+  field_layout = {
+    { key = "title", type = "text", required = true },
+    { key = "priority", type = "single-select", options = { "Low", "High" } },
+  },
+  defaults = { priority = "High" },
+  description = "Dynamic form"
+}
+`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("test custom create page engine: %v", err)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("expected succeeded run, got %#v", run)
+	}
+	output, _ := run.Output["output"].(map[string]any)
+	layout, _ := output["field_layout"].([]any)
+	if len(layout) != 2 || output["description"] != "Dynamic form" {
+		t.Fatalf("unexpected custom create page output: %#v", output)
+	}
+}
+
+func TestLuaEngineTestRejectsInvalidCustomCreatePageOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+	}{
+		{name: "raw_html", script: `return { field_layout = { { html = "<strong>no</strong>" } } }`},
+		{name: "layout_string", script: `return { field_layout = "bad" }`},
+		{name: "layout_item_string", script: `return { field_layout = { "bad" } }`},
+		{name: "defaults_string", script: `return { defaults = "bad" }`},
+		{name: "description_table", script: `return { description = { text = "bad" } }`},
+		{name: "unknown_only", script: `return { ok = true }`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t, ctx)
+			seedUser(t, ctx, db.SQL, "user-admin")
+			evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+			service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+			run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+				Surface: "custom_create_page",
+				Engine: engines.EngineSpec{
+					Type:   "lua",
+					Script: tt.script,
+				},
+			})
+			if !errors.Is(err, engines.ErrValidation) {
+				t.Fatalf("expected validation error, got run=%#v err=%v", run, err)
+			}
+			if run.ID == "" || run.Status != automation.StatusFailed || !strings.Contains(run.Error, "Invalid custom create page output") {
+				t.Fatalf("expected failed validation run, got run=%#v err=%v", run, err)
+			}
+			output, _ := run.Output["output"].(map[string]any)
+			if len(output) == 0 {
+				t.Fatalf("expected failed run to retain output preview, got %#v", run.Output)
+			}
+		})
 	}
 }
 

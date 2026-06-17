@@ -140,6 +140,9 @@ func (s *Service) Test(ctx context.Context, principal authz.Principal, input Tes
 	}
 
 	output, logs, execErr := s.execute(ctx, input)
+	if execErr == nil {
+		execErr = validateSurfaceOutput(input, output)
+	}
 	finish := automation.FinishInput{
 		Status: automation.StatusSucceeded,
 		Output: output,
@@ -300,6 +303,77 @@ func validSurface(surface string) bool {
 	default:
 		return false
 	}
+}
+
+func validateSurfaceOutput(input TestInput, output map[string]any) error {
+	switch input.Surface {
+	case "custom_create_page":
+		return validateCustomCreatePageOutput(surfaceOutput(input, output))
+	default:
+		return nil
+	}
+}
+
+func surfaceOutput(input TestInput, output map[string]any) map[string]any {
+	if input.Engine.Type == EngineAI {
+		if nested, ok := output["output"].(map[string]any); ok {
+			return nested
+		}
+		return map[string]any{}
+	}
+	return output
+}
+
+func validateCustomCreatePageOutput(output map[string]any) error {
+	fields := map[string]string{}
+	recognized := false
+	if rawLayout, ok := output["field_layout"]; ok {
+		recognized = true
+		if err := validateCreatePageFieldLayout(rawLayout); err != nil {
+			fields["field_layout"] = err.Error()
+		}
+	}
+	if rawDefaults, ok := output["defaults"]; ok {
+		recognized = true
+		if _, ok := rawDefaults.(map[string]any); !ok {
+			fields["defaults"] = "Must be an object"
+		}
+	}
+	if rawDescription, ok := output["description"]; ok {
+		recognized = true
+		if _, ok := rawDescription.(string); !ok {
+			fields["description"] = "Must be a string"
+		}
+	}
+	if !recognized {
+		fields["output"] = "Must include field_layout, defaults, or description"
+	}
+	if len(fields) > 0 {
+		return &ValidationError{Message: "Invalid custom create page output", Fields: fields}
+	}
+	return nil
+}
+
+func validateCreatePageFieldLayout(value any) error {
+	items, ok := value.([]any)
+	if !ok {
+		return errors.New("Must be an array of objects")
+	}
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return errors.New("Must be an array of objects")
+		}
+		if _, hasHTML := object["html"]; hasHTML {
+			return errors.New("Raw HTML fields are not allowed")
+		}
+		if nested, ok := object["fields"]; ok {
+			if err := validateCreatePageFieldLayout(nested); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) validateAIProvider(ctx context.Context, providerID string) error {
