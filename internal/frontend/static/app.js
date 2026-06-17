@@ -26,8 +26,10 @@ const state = {
   settings: null,
   notificationPreferences: null,
   auditLog: [],
+  openRouterProviders: [],
   settingsError: "",
   auditLogError: "",
+  openRouterProvidersError: "",
   ticketHooks: [],
   ticketHooksError: "",
   ticketHookPreview: null,
@@ -80,6 +82,9 @@ const els = {
   auditForm: document.querySelector("#audit-form"),
   auditStatus: document.querySelector("#audit-status"),
   auditLog: document.querySelector("#audit-log"),
+  openRouterProviderForm: document.querySelector("#openrouter-provider-form"),
+  openRouterProviderStatus: document.querySelector("#openrouter-provider-status"),
+  openRouterProviders: document.querySelector("#openrouter-providers"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
   notificationInbox: document.querySelector("#notification-inbox"),
@@ -186,8 +191,10 @@ function bindEvents() {
       state.settings = null;
       state.notificationPreferences = null;
       state.auditLog = [];
+      state.openRouterProviders = [];
       state.settingsError = "";
       state.auditLogError = "";
+      state.openRouterProvidersError = "";
       state.ticketHooks = [];
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
@@ -782,6 +789,50 @@ function bindEvents() {
     }, "Notification preferences saved");
   });
 
+  els.openRouterProviderForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    await runAction(async () => {
+      await api("/api/openrouter-providers", {
+        method: "POST",
+        body: { spec: openRouterProviderSpec(form) }
+      });
+      form.reset();
+      setFormChecked(form, "enabled", true);
+      setFormValue(form, "default_timeout_seconds", "30");
+      setFormValue(form, "max_output_tokens", "2048");
+      await loadOpenRouterProviders();
+    }, "OpenRouter provider created");
+  });
+
+  els.openRouterProviders.addEventListener("click", async (event) => {
+    const remove = event.target.closest("[data-delete-openrouter-provider-id]");
+    if (remove) {
+      if (!window.confirm("Delete this OpenRouter provider?")) {
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/openrouter-providers/${remove.dataset.deleteOpenrouterProviderId}`, { method: "DELETE" });
+        await loadOpenRouterProviders();
+      }, "OpenRouter provider deleted");
+    }
+  });
+
+  els.openRouterProviders.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-openrouter-provider-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/openrouter-providers/${form.dataset.openrouterProviderForm}`, {
+        method: "PATCH",
+        body: { spec: openRouterProviderUpdateSpec(form) }
+      });
+      await loadOpenRouterProviders();
+    }, "OpenRouter provider saved");
+  });
+
   document.addEventListener("click", async (event) => {
     if (!event.target.closest("#ticket-columns, #issue-detail")) {
       return;
@@ -1352,7 +1403,8 @@ async function loadSettingsPage() {
   await Promise.all([
     loadGlobalSettings(),
     loadNotificationPreferences(),
-    loadAuditLog()
+    loadAuditLog(),
+    loadOpenRouterProviders()
   ]);
 }
 
@@ -1380,6 +1432,17 @@ async function loadAuditLog() {
   } catch (error) {
     state.auditLog = [];
     state.auditLogError = error.message || "Audit log is not available";
+  }
+  renderSettings();
+}
+
+async function loadOpenRouterProviders() {
+  try {
+    state.openRouterProviders = listItems(await api("/api/openrouter-providers")).map(normalizeOpenRouterProvider);
+    state.openRouterProvidersError = "";
+  } catch (error) {
+    state.openRouterProviders = [];
+    state.openRouterProvidersError = error.message || "OpenRouter providers are not available";
   }
   renderSettings();
 }
@@ -2223,7 +2286,7 @@ function renderBindingSubjectOptions() {
 }
 
 function renderSettings() {
-  if (!els.settingsForm || !els.preferenceForm || !els.auditForm) {
+  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm) {
     return;
   }
 
@@ -2257,6 +2320,106 @@ function renderSettings() {
   }
 
   renderAuditLog();
+  renderOpenRouterProviders();
+}
+
+function renderOpenRouterProviders() {
+  if (!els.openRouterProviderStatus || !els.openRouterProviders) {
+    return;
+  }
+  els.openRouterProviders.replaceChildren();
+  if (state.openRouterProvidersError) {
+    els.openRouterProviderForm.hidden = true;
+    els.openRouterProviderStatus.textContent = state.openRouterProvidersError;
+    return;
+  }
+  els.openRouterProviderForm.hidden = false;
+  els.openRouterProviderStatus.textContent = state.openRouterProviders.length
+    ? `${state.openRouterProviders.length} OpenRouter providers`
+    : "No OpenRouter providers";
+  if (!state.openRouterProviders.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Create a provider to use AI engines";
+    els.openRouterProviders.append(empty);
+    return;
+  }
+  for (const provider of state.openRouterProviders) {
+    els.openRouterProviders.append(openRouterProviderNode(provider));
+  }
+}
+
+function openRouterProviderNode(provider) {
+  const article = document.createElement("article");
+  article.className = "openrouter-provider-item";
+
+  const header = document.createElement("div");
+  header.className = "openrouter-provider-header";
+  const title = document.createElement("p");
+  title.textContent = provider.name || provider.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = provider.enabled ? "provider-state" : "provider-state is-disabled";
+  stateLabel.textContent = provider.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    provider.api_key_set ? "key set" : "missing key",
+    provider.allowed_models.length ? `${provider.allowed_models.length} allowed models` : "all models allowed",
+    provider.updated_at ? `updated ${formatDateTime(provider.updated_at)}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const form = document.createElement("form");
+  form.className = "openrouter-provider-edit-form";
+  form.dataset.openrouterProviderForm = provider.id;
+
+  const name = inputNode("name", provider.name, "name");
+  const model = inputNode("default_model", provider.default_model, "default model");
+  const allowed = document.createElement("textarea");
+  allowed.name = "allowed_models";
+  allowed.rows = 2;
+  allowed.placeholder = "allowed models";
+  allowed.value = provider.allowed_models.join(", ");
+  const timeout = inputNode("default_timeout_seconds", String(provider.default_timeout_seconds || 30), "timeout seconds", "number");
+  timeout.min = "1";
+  timeout.max = "300";
+  timeout.step = "1";
+  const tokens = inputNode("max_output_tokens", String(provider.max_output_tokens || 2048), "max output tokens", "number");
+  tokens.min = "1";
+  tokens.max = "32000";
+  tokens.step = "1";
+  const key = inputNode("api_key", "", "rotate api key", "password");
+  key.autocomplete = "off";
+
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = provider.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteOpenrouterProviderId = provider.id;
+  remove.textContent = "Delete";
+
+  form.append(name, model, allowed, timeout, tokens, key, enabled, save, remove);
+  article.append(header, meta, form);
+  return article;
+}
+
+function inputNode(name, value, placeholder, type = "text") {
+  const input = document.createElement("input");
+  input.name = name;
+  input.type = type;
+  input.placeholder = placeholder;
+  input.value = value || "";
+  return input;
 }
 
 function renderAuditLog() {
@@ -3211,6 +3374,27 @@ function auditQuery() {
   return `?${params.toString()}`;
 }
 
+function openRouterProviderSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    default_model: data.default_model || "",
+    api_key: data.api_key || "",
+    allowed_models: parseCommaList(data.allowed_models),
+    default_timeout_seconds: Number(data.default_timeout_seconds || 0),
+    max_output_tokens: Number(data.max_output_tokens || 0),
+    enabled: Boolean(data.enabled)
+  };
+}
+
+function openRouterProviderUpdateSpec(form) {
+  const spec = openRouterProviderSpec(form);
+  if (!spec.api_key) {
+    delete spec.api_key;
+  }
+  return spec;
+}
+
 function searchSpecFromForm(form) {
   const data = formData(form);
   return {
@@ -3610,6 +3794,28 @@ function normalizeTicketHook(hook) {
     };
   }
   return hook;
+}
+
+function normalizeOpenRouterProvider(provider) {
+  if (!provider) {
+    return null;
+  }
+  if (provider.metadata && provider.spec && provider.status) {
+    return {
+      id: provider.metadata.id || "",
+      created_at: provider.metadata.created_at || "",
+      updated_at: provider.metadata.updated_at || "",
+      name: provider.spec.name || "",
+      default_model: provider.spec.default_model || "",
+      allowed_models: provider.spec.allowed_models || [],
+      default_timeout_seconds: Number(provider.spec.default_timeout_seconds || 0),
+      max_output_tokens: Number(provider.spec.max_output_tokens || 0),
+      enabled: Boolean(provider.spec.enabled),
+      api_key_set: Boolean(provider.status.api_key_set),
+      deleted: Boolean(provider.status.deleted)
+    };
+  }
+  return provider;
 }
 
 function normalizeComment(comment) {

@@ -22,7 +22,7 @@ Implemented browser workflows:
 - custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, and role-binding summaries when permitted;
-- Settings page for global settings and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
+- Settings page for global settings, OpenRouter provider management, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
 - text/CEL search plus saved-view list, create, apply, and delete;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - basic project ticket-hook list, create, delete, enable/disable, and preview controls for the selected project.

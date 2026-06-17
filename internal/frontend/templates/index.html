@@ -507,6 +507,25 @@
             <div id="preference-status" class="settings-status"></div>
           </section>
 
+          <section class="settings-card">
+            <h3>OpenRouter Providers</h3>
+            <form id="openrouter-provider-form" class="openrouter-provider-form">
+              <input name="name" placeholder="default" required>
+              <input name="default_model" placeholder="openai/gpt-4.1-mini" required>
+              <input name="api_key" type="password" placeholder="sk-or-..." autocomplete="off" required>
+              <textarea name="allowed_models" rows="2" placeholder="openai/gpt-4.1-mini, anthropic/claude-3.5-sonnet"></textarea>
+              <input name="default_timeout_seconds" type="number" min="1" max="300" step="1" value="30">
+              <input name="max_output_tokens" type="number" min="1" max="32000" step="1" value="2048">
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+              <button type="submit">Create provider</button>
+            </form>
+            <div id="openrouter-provider-status" class="settings-status"></div>
+            <div id="openrouter-providers" class="openrouter-provider-list"></div>
+          </section>
+
           <section class="settings-card audit-card">
             <h3>Security Audit Log</h3>
             <form id="audit-form" class="audit-form">

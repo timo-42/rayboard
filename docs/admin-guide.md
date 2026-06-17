@@ -16,7 +16,7 @@ Admin workflows currently available through the API:
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.
 
-The browser UI exposes initial admin screens for RBAC, global settings, personal notification preferences, and security audit inspection. OpenRouter provider management, Shoutrrr destination management, lower-level automation, webhook, and notification policy administration remain API-first while the POC UI grows.
+The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, personal notification preferences, and security audit inspection. Shoutrrr destination management, lower-level automation, webhook, and notification policy administration remain API-first while the POC UI grows.
 
 Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 
@@ -48,7 +48,7 @@ Future settings should cover:
 - automation, webhook, notification, and OpenRouter configuration;
 - Shoutrrr destination definitions.
 
-OpenRouter provider configuration is currently API-only at `/api/openrouter-providers` and requires global `ai:manage`. Provider API keys are write-only; responses return `status.api_key_set` instead of the key.
+OpenRouter provider configuration is available in the browser `/settings` page and API at `/api/openrouter-providers`; both require global `ai:manage`. Provider API keys are write-only; responses return `status.api_key_set` instead of the key. The browser UI supports create, edit, enable/disable, key rotation by entering a new key, and delete.
 
 Project notification defaults are currently API-only at `/api/projects/{project_id}/notification-preferences` and require project `notifications:manage`.
 

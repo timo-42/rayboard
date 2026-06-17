@@ -508,7 +508,7 @@ Ticket hook responses use `metadata` for IDs/project/timestamps, `spec` for even
 
 ## OpenRouter Providers
 
-Global admins configure OpenRouter provider references for AI automation. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.
+Global admins configure OpenRouter provider references for AI automation through the API or browser `/settings` page. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

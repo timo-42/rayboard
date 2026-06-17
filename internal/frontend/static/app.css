@@ -621,7 +621,9 @@ p {
 
 .settings-form,
 .preference-form,
-.audit-form {
+.audit-form,
+.openrouter-provider-form,
+.openrouter-provider-edit-form {
   display: grid;
   gap: 10px;
 }
@@ -636,6 +638,67 @@ p {
 
 .audit-form {
   grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+}
+
+.openrouter-provider-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.openrouter-provider-form textarea,
+.openrouter-provider-edit-form textarea {
+  resize: vertical;
+}
+
+.openrouter-provider-list {
+  display: grid;
+  gap: 8px;
+}
+
+.openrouter-provider-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.openrouter-provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.openrouter-provider-item p {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.openrouter-provider-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.provider-state {
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong) !important;
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+.provider-state.is-disabled {
+  background: var(--subtle-bg);
+  color: var(--muted) !important;
+}
+
+.openrouter-provider-edit-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .audit-log {
@@ -702,7 +765,9 @@ p {
 
 .settings-form button,
 .preference-form button,
-.audit-form button {
+.audit-form button,
+.openrouter-provider-form button,
+.openrouter-provider-edit-form button {
   justify-self: start;
 }
 
@@ -2111,7 +2176,9 @@ p {
   .issue-overview,
   .settings-grid,
   .preference-form,
-  .audit-form {
+  .audit-form,
+  .openrouter-provider-form,
+  .openrouter-provider-edit-form {
     grid-template-columns: 1fr;
   }
 

@@ -36,6 +36,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="settings-panel"`) ||
 		!strings.Contains(body, `id="audit-form"`) ||
 		!strings.Contains(body, `id="audit-log"`) ||
+		!strings.Contains(body, `id="openrouter-provider-form"`) ||
+		!strings.Contains(body, `id="openrouter-providers"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="ticket-hook-form"`) ||
 		!strings.Contains(body, `id="ticket-hooks"`) ||
@@ -109,8 +111,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadRBAC",
 		"loadSettingsPage",
 		"loadAuditLog",
+		"loadOpenRouterProviders",
 		"loadTicketHooks",
 		"normalizeAuditEntry",
+		"normalizeOpenRouterProvider",
 		"normalizeTicketHook",
 		"ticketHookSpec",
 		"ticketHookPreviewSpec",
@@ -126,6 +130,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/role-bindings/${deleteBinding.dataset.deleteBindingId}",
 		"/api/settings",
 		"/api/audit-log",
+		"/api/openrouter-providers",
+		"/api/openrouter-providers/${form.dataset.openrouterProviderForm}",
+		"data-delete-openrouter-provider-id",
 		"/api/projects/${projectID}/ticket-hooks?limit=100",
 		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
 		"data-delete-ticket-hook-id",
@@ -149,6 +156,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".settings-grid",
 		".audit-form",
 		".audit-log",
+		".openrouter-provider-form",
+		".openrouter-provider-list",
 		".ticket-hook-panel",
 		".ticket-hook-list",
 	} {

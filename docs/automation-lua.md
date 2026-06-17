@@ -299,7 +299,7 @@ return { suppress = true }
 
 ## OpenRouter Providers and Planned AI Automation
 
-AI automation will use OpenRouter only. Global admins can manage provider references through `/api/openrouter-providers`; these records contain a name, default model, allowed model list, timeout/output limits, enabled state, and a write-only API key. Responses never include the API key and only expose `status.api_key_set`. Provider create/update/delete changes are written to the security audit log without secret values.
+AI automation will use OpenRouter only. Global admins can manage provider references through `/api/openrouter-providers` or the browser `/settings` page; these records contain a name, default model, allowed model list, timeout/output limits, enabled state, and a write-only API key. Responses never include the API key and only expose `status.api_key_set`. Provider create/update/delete changes are written to the security audit log without secret values.
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
