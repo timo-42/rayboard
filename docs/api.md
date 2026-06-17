@@ -169,7 +169,7 @@ Burndown, velocity, burnup, sprint report APIs, and other agile analytics are **
 
 ## Components and Versions
 
-The components/versions API supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/delete, version release/archive state changes, and ticket component/version assignment. Release reports, roadmap timeline screens, detailed component/version editing/filtering, and advanced release planning UI are **Planned**.
+The components/versions API supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/update/delete, version release/archive state changes, and ticket component/version assignment. Release reports, roadmap timeline screens, component/version filtering, and advanced release planning UI are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

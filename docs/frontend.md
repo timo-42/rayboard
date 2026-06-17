@@ -42,7 +42,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
 - a sprint panel for listing, creating, starting, completing, and deleting project sprints, plus ticket-card sprint assignment/removal;
-- a release-planning panel for listing, creating, deleting components and versions, changing version state, and assigning tickets to components/versions;
+- a release-planning panel for listing, creating, updating, and deleting components and versions, changing version state, and assigning tickets to components/versions;
 - a roadmap panel that lists project epics, schedule dates, and child-ticket progress, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, updating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
@@ -56,9 +56,9 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced search pagination and detailed component/version editing are API-only for now.
+It does not currently expose all backend endpoints. Advanced search pagination and component/version filtering are API-only for now.
 
-Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, component/version filtering and reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

@@ -567,9 +567,15 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"loadVersions",
 		"normalizeComponent",
 		"normalizeVersion",
+		"componentUpdateSpec",
+		"versionUpdateSpec",
 		"/api/projects/${state.selectedProject.id}/components",
 		"/api/projects/${state.selectedProject.id}/versions",
+		"/api/components/${form.dataset.componentEditForm}",
+		"/api/versions/${form.dataset.versionEditForm}",
 		"/api/tickets/${assignPlanning.dataset.assignPlanningId}",
+		"data-component-edit-form",
+		"data-version-edit-form",
 		"data-ticket-planning-control",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -581,6 +587,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".release-panel",
 		".component-form",
 		".version-form",
+		".component-edit-form",
+		".version-edit-form",
 		".ticket-planning",
 	} {
 		if !strings.Contains(cssText, expected) {

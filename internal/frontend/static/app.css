@@ -1765,7 +1765,7 @@ p {
 .version-item {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 2fr) auto;
   gap: 10px;
   align-items: center;
   border: 1px solid var(--border);
@@ -1792,6 +1792,22 @@ p {
   gap: 5px;
 }
 
+.component-edit-form,
+.version-edit-form {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.component-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+}
+
+.version-edit-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+
 .component-item p,
 .version-item p,
 .planning-heading {
@@ -1808,7 +1824,9 @@ p {
   overflow-wrap: anywhere;
 }
 
-.component-item button,
+.component-actions button,
+.component-edit-form button,
+.version-edit-form button,
 .version-actions button,
 .ticket-planning-controls button {
   min-height: 30px;
@@ -1818,18 +1836,25 @@ p {
   padding: 0 9px;
 }
 
-.component-item button:hover,
+.component-actions button:hover,
+.component-edit-form button:hover,
+.version-edit-form button:hover,
 .version-actions button:hover,
 .ticket-planning-controls button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
+.component-actions,
 .version-actions,
 .ticket-planning-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.component-actions {
+  justify-content: flex-end;
 }
 
 .ticket-planning {
@@ -2824,6 +2849,10 @@ p {
   .release-grid,
   .component-form,
   .version-form,
+  .component-item,
+  .version-item,
+  .component-edit-form,
+  .version-edit-form,
   .field-form,
   .field-item,
   .field-edit-form,

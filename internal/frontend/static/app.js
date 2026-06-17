@@ -884,6 +884,22 @@ function bindEvents() {
     }, "Component deleted");
   });
 
+  els.components.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-component-edit-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/components/${form.dataset.componentEditForm}`, {
+        method: "PATCH",
+        body: { spec: componentUpdateSpec(form) }
+      });
+      await loadComponents();
+      await loadTickets();
+    }, "Component updated");
+  });
+
   els.versions.addEventListener("click", async (event) => {
     const status = event.target.closest("[data-version-status]");
     if (status) {
@@ -906,6 +922,23 @@ function bindEvents() {
       await loadVersions();
       await loadTickets();
     }, "Version deleted");
+  });
+
+  els.versions.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-version-edit-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/versions/${form.dataset.versionEditForm}`, {
+        method: "PATCH",
+        body: { spec: versionUpdateSpec(form) }
+      });
+      await loadVersions();
+      await loadTickets();
+      await loadRoadmap();
+    }, "Version updated");
   });
 
   els.fieldForm.addEventListener("submit", async (event) => {
@@ -3129,12 +3162,31 @@ function componentNode(component) {
 
   body.append(name, meta);
 
+  const edit = document.createElement("form");
+  edit.className = "component-edit-form";
+  edit.dataset.componentEditForm = component.id;
+  edit.append(
+    inputNode("name", component.name || "", "name"),
+    inputNode("description", component.description || "", "description"),
+    inputNode("owner_user_id", component.owner_user_id || "", "owner user id"),
+    inputNode("default_assignee_id", component.default_assignee_id || "", "default assignee id")
+  );
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  edit.append(save);
+
   const remove = document.createElement("button");
   remove.type = "button";
   remove.dataset.deleteComponentId = component.id;
   remove.textContent = "Delete";
 
-  article.append(body, remove);
+  const actions = document.createElement("div");
+  actions.className = "component-actions";
+  actions.append(remove);
+
+  article.append(body, edit, actions);
   return article;
 }
 
@@ -3183,6 +3235,22 @@ function versionNode(version) {
 
   body.append(name, meta);
 
+  const edit = document.createElement("form");
+  edit.className = "version-edit-form";
+  edit.dataset.versionEditForm = version.id;
+  edit.append(
+    inputNode("name", version.name || "", "name"),
+    inputNode("description", version.description || "", "description"),
+    versionStatusSelect(version.state || "planned"),
+    inputNode("target_date", version.target_date || "", "target date", "date"),
+    inputNode("release_date", version.release_date || "", "release date", "date")
+  );
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  edit.append(save);
+
   const actions = document.createElement("div");
   actions.className = "version-actions";
 
@@ -3210,8 +3278,25 @@ function versionNode(version) {
   remove.textContent = "Delete";
   actions.append(remove);
 
-  article.append(body, actions);
+  article.append(body, edit, actions);
   return article;
+}
+
+function versionStatusSelect(value) {
+  const select = document.createElement("select");
+  select.name = "status";
+  for (const [statusValue, label] of [
+    ["planned", "Planned"],
+    ["released", "Released"],
+    ["archived", "Archived"]
+  ]) {
+    const option = document.createElement("option");
+    option.value = statusValue;
+    option.textContent = label;
+    option.selected = statusValue === value;
+    select.append(option);
+  }
+  return select;
 }
 
 function renderCustomFields() {
@@ -6263,6 +6348,27 @@ function customFieldUpdateSpec(form) {
     field_type: data.field_type || "text",
     required: Boolean(data.required),
     options: parseOptions(data.options)
+  };
+}
+
+function componentUpdateSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    description: data.description || "",
+    owner_user_id: data.owner_user_id || "",
+    default_assignee_id: data.default_assignee_id || ""
+  };
+}
+
+function versionUpdateSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    description: data.description || "",
+    status: data.status || "planned",
+    target_date: data.target_date || "",
+    release_date: data.release_date || ""
   };
 }
 
