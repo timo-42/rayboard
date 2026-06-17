@@ -9,6 +9,7 @@ Implemented routes:
 - `GET /issues/{ticket_id}`: renders the embedded issue detail page shell.
 - `GET /profile`: renders the profile/API token page shell.
 - `GET /rbac` and `GET /admin/rbac`: render the RBAC administration page shell.
+- `GET /settings`: renders the settings page shell.
 - `GET /search`: renders the search/saved-views page shell.
 - `GET /automation`: renders the engine workbench page shell.
 - `GET /1` through `GET /5`: render the same embedded application shell with distinct design variants selected.
@@ -22,12 +23,13 @@ Implemented routes:
 The current UI is a small vanilla JavaScript website shell. It supports:
 
 - a root UI selector linking to five embedded design variants under `/1`, `/2`, `/3`, `/4`, and `/5`;
-- a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, and Profile;
+- a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, Settings, and Profile;
 - a dashboard overview at `/` with project/ticket summary metrics, recently modified tickets, biggest projects, active sprints, and notifications;
 - project pages under `/projects` and `/projects/{project_id}` for project-scoped tickets, sprints, components, versions, roadmap epics, and custom fields;
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for users, groups, roles, and role-binding summaries when the signed-in user has permission;
+- a settings page under `/settings` for global attachment/webhook/demo settings when permitted and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - project listing and project creation;
@@ -48,7 +50,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. User/group/RBAC administration beyond self-service API tokens, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, and saved automation management screens are API-only for now.
+It does not currently expose all backend endpoints. User/group/RBAC administration beyond list summaries, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/policies/delivery history, and saved automation management screens are API-only for now.
 
 Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
 

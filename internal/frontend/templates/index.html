@@ -46,6 +46,7 @@
         <a href="/search">Search</a>
         <a href="/automation">Automation</a>
         <a href="/rbac">RBAC</a>
+        <a href="/settings">Settings</a>
         <a href="/profile">Profile</a>
       </nav>
 
@@ -414,6 +415,66 @@
           <section>
             <h3>Role Bindings</h3>
             <div id="rbac-bindings" class="admin-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="settings-panel" class="settings-panel" hidden>
+        <header class="settings-header">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h2>Settings</h2>
+          </div>
+          <button id="settings-refresh" type="button">Refresh</button>
+        </header>
+
+        <div class="settings-grid">
+          <section class="settings-card">
+            <h3>Global Settings</h3>
+            <form id="settings-form" class="settings-form">
+              <label>
+                Max attachment bytes
+                <input name="attachment_max_size_bytes" type="number" min="1" max="104857600" step="1">
+              </label>
+              <label>
+                Allowed content types
+                <textarea name="attachment_allowed_content_types" rows="2" placeholder="text/plain, image/png"></textarea>
+              </label>
+              <label>
+                Webhook allowlist URLs
+                <textarea name="webhook_allowed_base_urls" rows="2" placeholder="https://example.com/hooks"></textarea>
+              </label>
+              <label>
+                System health note
+                <input name="system_health_note" placeholder="green">
+              </label>
+              <label class="inline-toggle">
+                <input name="demo_warning_enabled" type="checkbox">
+                Demo warning
+              </label>
+              <label class="inline-toggle">
+                <input name="backup_enabled" type="checkbox">
+                Backup enabled
+              </label>
+              <button type="submit">Save global settings</button>
+            </form>
+            <div id="settings-status" class="settings-status"></div>
+          </section>
+
+          <section class="settings-card">
+            <h3>Notification Preferences</h3>
+            <form id="preference-form" class="preference-form">
+              <label class="inline-toggle"><input name="in_app_enabled" type="checkbox"> In-app</label>
+              <label class="inline-toggle"><input name="external_enabled" type="checkbox"> External</label>
+              <label class="inline-toggle"><input name="assignment_enabled" type="checkbox"> Assignments</label>
+              <label class="inline-toggle"><input name="comment_enabled" type="checkbox"> Comments</label>
+              <label class="inline-toggle"><input name="status_change_enabled" type="checkbox"> Status changes</label>
+              <label class="inline-toggle"><input name="sprint_change_enabled" type="checkbox"> Sprint changes</label>
+              <label class="inline-toggle"><input name="release_change_enabled" type="checkbox"> Release changes</label>
+              <label class="inline-toggle"><input name="automation_failure_enabled" type="checkbox"> Automation failures</label>
+              <button type="submit">Save preferences</button>
+            </form>
+            <div id="preference-status" class="settings-status"></div>
           </section>
         </div>
       </section>

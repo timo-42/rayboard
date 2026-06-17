@@ -29,6 +29,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="dashboard-view"`) ||
 		!strings.Contains(body, `id="issue-view"`) ||
 		!strings.Contains(body, `id="rbac-panel"`) ||
+		!strings.Contains(body, `id="settings-panel"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
@@ -52,6 +53,7 @@ func TestAppPageRoutesRenderShell(t *testing.T) {
 		"/profile",
 		"/rbac",
 		"/admin/rbac",
+		"/settings",
 		"/search",
 		"/automation",
 	} {
@@ -90,11 +92,15 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderDashboard",
 		"renderIssue",
 		"renderRBAC",
+		"renderSettings",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadRBAC",
+		"loadSettingsPage",
 		"/api/users",
 		"/api/role-bindings",
+		"/api/settings",
+		"/api/me/notification-preferences",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -107,6 +113,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".metric-grid",
 		".issue-view",
 		".rbac-panel",
+		".settings-panel",
+		".settings-grid",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

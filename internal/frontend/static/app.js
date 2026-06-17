@@ -23,6 +23,9 @@ const state = {
   tokens: [],
   createdToken: null,
   rbac: { users: [], groups: [], roles: [], bindings: [] },
+  settings: null,
+  notificationPreferences: null,
+  settingsError: "",
   engineResult: null
 };
 
@@ -54,6 +57,12 @@ const els = {
   rbacGroups: document.querySelector("#rbac-groups"),
   rbacRoles: document.querySelector("#rbac-roles"),
   rbacBindings: document.querySelector("#rbac-bindings"),
+  settingsPanel: document.querySelector("#settings-panel"),
+  settingsRefresh: document.querySelector("#settings-refresh"),
+  settingsForm: document.querySelector("#settings-form"),
+  settingsStatus: document.querySelector("#settings-status"),
+  preferenceForm: document.querySelector("#preference-form"),
+  preferenceStatus: document.querySelector("#preference-status"),
   notificationInbox: document.querySelector("#notification-inbox"),
   notificationCount: document.querySelector("#notification-count"),
   notificationUnreadOnly: document.querySelector("#notifications-unread-only"),
@@ -155,6 +164,9 @@ function bindEvents() {
       state.tokens = [];
       state.createdToken = null;
       state.rbac = { users: [], groups: [], roles: [], bindings: [] };
+      state.settings = null;
+      state.notificationPreferences = null;
+      state.settingsError = "";
       render();
     }, "Signed out");
   });
@@ -505,6 +517,57 @@ function bindEvents() {
     }, "RBAC refreshed");
   });
 
+  els.settingsRefresh.addEventListener("click", async () => {
+    await runAction(async () => {
+      await loadSettingsPage();
+    }, "Settings refreshed");
+  });
+
+  els.settingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      await api("/api/settings", {
+        method: "PATCH",
+        body: {
+          spec: {
+            attachment_max_size_bytes: Number(data.attachment_max_size_bytes || 0),
+            attachment_allowed_content_types: parseCommaList(data.attachment_allowed_content_types),
+            webhook_allowed_base_urls: parseCommaList(data.webhook_allowed_base_urls),
+            demo_warning_enabled: Boolean(data.demo_warning_enabled),
+            backup_enabled: Boolean(data.backup_enabled),
+            system_health_note: data.system_health_note || ""
+          }
+        }
+      });
+      await loadGlobalSettings();
+    }, "Global settings saved");
+  });
+
+  els.preferenceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      await api("/api/me/notification-preferences", {
+        method: "PATCH",
+        body: {
+          spec: {
+            in_app_enabled: Boolean(data.in_app_enabled),
+            external_enabled: Boolean(data.external_enabled),
+            assignment_enabled: Boolean(data.assignment_enabled),
+            comment_enabled: Boolean(data.comment_enabled),
+            status_change_enabled: Boolean(data.status_change_enabled),
+            sprint_change_enabled: Boolean(data.sprint_change_enabled),
+            release_change_enabled: Boolean(data.release_change_enabled),
+            automation_failure_enabled: Boolean(data.automation_failure_enabled)
+          }
+        }
+      });
+      await loadNotificationPreferences();
+    }, "Notification preferences saved");
+  });
+
   document.addEventListener("click", async (event) => {
     if (!event.target.closest("#ticket-columns, #issue-detail")) {
       return;
@@ -687,6 +750,9 @@ function currentRoute() {
   if (path === "/rbac" || path === "/admin/rbac") {
     return { page: "rbac" };
   }
+  if (path === "/settings") {
+    return { page: "settings" };
+  }
   if (path === "/search") {
     return { page: "search" };
   }
@@ -724,6 +790,10 @@ async function loadRouteData() {
   }
   if (route.page === "rbac") {
     await loadRBAC();
+    return;
+  }
+  if (route.page === "settings") {
+    await loadSettingsPage();
   }
 }
 
@@ -1051,6 +1121,29 @@ async function loadRBAC() {
   renderRBAC();
 }
 
+async function loadSettingsPage() {
+  await Promise.all([
+    loadGlobalSettings(),
+    loadNotificationPreferences()
+  ]);
+}
+
+async function loadGlobalSettings() {
+  try {
+    state.settings = normalizeSettings(await api("/api/settings"));
+    state.settingsError = "";
+  } catch (error) {
+    state.settings = null;
+    state.settingsError = error.message || "Global settings are not available";
+  }
+  renderSettings();
+}
+
+async function loadNotificationPreferences() {
+  state.notificationPreferences = normalizePreferences(await api("/api/me/notification-preferences"));
+  renderSettings();
+}
+
 async function api(path, options = {}) {
   const request = {
     method: options.method || "GET",
@@ -1123,6 +1216,7 @@ function render() {
   els.searchPanel.hidden = !signedIn || route.page !== "search";
   els.accountPanel.hidden = !signedIn || route.page !== "profile";
   els.rbacPanel.hidden = !signedIn || route.page !== "rbac";
+  els.settingsPanel.hidden = !signedIn || route.page !== "settings";
   els.engineWorkbench.hidden = !signedIn || route.page !== "automation";
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn || route.page !== "projects";
@@ -1146,6 +1240,7 @@ function render() {
   renderSavedViews();
   renderTokens();
   renderRBAC();
+  renderSettings();
   renderEngineFields();
   renderEngineResult();
 }
@@ -1162,6 +1257,7 @@ function renderNavigation(route) {
       (route.page === "search" && target === "/search") ||
       (route.page === "automation" && target === "/automation") ||
       (route.page === "rbac" && target === "/rbac") ||
+      (route.page === "settings" && target === "/settings") ||
       (route.page === "profile" && target === "/profile");
     if (active) {
       link.setAttribute("aria-current", "page");
@@ -1802,6 +1898,41 @@ function renderRBAC() {
   });
 }
 
+function renderSettings() {
+  if (!els.settingsForm || !els.preferenceForm) {
+    return;
+  }
+
+  if (state.settings) {
+    setFormValue(els.settingsForm, "attachment_max_size_bytes", String(state.settings.attachment_max_size_bytes || 0));
+    setFormValue(els.settingsForm, "attachment_allowed_content_types", state.settings.attachment_allowed_content_types.join(", "));
+    setFormValue(els.settingsForm, "webhook_allowed_base_urls", state.settings.webhook_allowed_base_urls.join(", "));
+    setFormValue(els.settingsForm, "system_health_note", state.settings.system_health_note || "");
+    setFormChecked(els.settingsForm, "demo_warning_enabled", state.settings.demo_warning_enabled);
+    setFormChecked(els.settingsForm, "backup_enabled", state.settings.backup_enabled);
+    els.settingsForm.hidden = false;
+    els.settingsStatus.textContent = [
+      state.settings.attachment_policy_active ? "attachment policy active" : "",
+      state.settings.webhook_allowlist_active ? "webhook allowlist active" : "",
+      state.settings.demo_warning_visible ? "demo warning visible" : "",
+      state.settings.backup_available ? "backup available" : ""
+    ].filter(Boolean).join(" / ") || "No active global policy flags";
+  } else {
+    els.settingsForm.hidden = true;
+    els.settingsStatus.textContent = state.settingsError || "Global settings require settings management permission";
+  }
+
+  const prefs = state.notificationPreferences;
+  if (prefs) {
+    for (const key of preferenceKeys()) {
+      setFormChecked(els.preferenceForm, key, Boolean(prefs[key]));
+    }
+    els.preferenceStatus.textContent = prefs.customized ? "Customized preferences" : "Using defaults until saved";
+  } else {
+    els.preferenceStatus.textContent = "Notification preferences are not loaded";
+  }
+}
+
 function renderAdminList(container, items, nodeFactory) {
   if (!container) {
     return;
@@ -2436,10 +2567,29 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function setFormValue(form, name, value) {
+  if (form && form.elements[name]) {
+    form.elements[name].value = value;
+  }
+}
+
+function setFormChecked(form, name, checked) {
+  if (form && form.elements[name]) {
+    form.elements[name].checked = Boolean(checked);
+  }
+}
+
 function parseLabels(value) {
   return String(value || "")
     .split(",")
     .map((label) => label.trim())
+    .filter(Boolean);
+}
+
+function parseCommaList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
     .filter(Boolean);
 }
 
@@ -2516,6 +2666,19 @@ function customFieldExampleValue(field) {
     default:
       return "";
   }
+}
+
+function preferenceKeys() {
+  return [
+    "in_app_enabled",
+    "external_enabled",
+    "assignment_enabled",
+    "comment_enabled",
+    "status_change_enabled",
+    "sprint_change_enabled",
+    "release_change_enabled",
+    "automation_failure_enabled"
+  ];
 }
 
 function searchSpecFromForm(form) {
@@ -2831,6 +2994,48 @@ function normalizeRoleBinding(binding) {
     };
   }
   return binding;
+}
+
+function normalizeSettings(settings) {
+  if (!settings) {
+    return null;
+  }
+  if (settings.metadata && settings.spec && settings.status) {
+    return {
+      id: settings.metadata.id,
+      updated_at: settings.metadata.updated_at,
+      updated_by: settings.metadata.updated_by || "",
+      attachment_max_size_bytes: settings.spec.attachment_max_size_bytes || 0,
+      attachment_allowed_content_types: settings.spec.attachment_allowed_content_types || [],
+      webhook_allowed_base_urls: settings.spec.webhook_allowed_base_urls || [],
+      demo_warning_enabled: Boolean(settings.spec.demo_warning_enabled),
+      backup_enabled: Boolean(settings.spec.backup_enabled),
+      system_health_note: settings.spec.system_health_note || "",
+      attachment_policy_active: Boolean(settings.status.attachment_policy_active),
+      webhook_allowlist_active: Boolean(settings.status.webhook_allowlist_active),
+      demo_warning_visible: Boolean(settings.status.demo_warning_visible),
+      backup_available: Boolean(settings.status.backup_available)
+    };
+  }
+  return settings;
+}
+
+function normalizePreferences(preferences) {
+  if (!preferences) {
+    return null;
+  }
+  if (preferences.metadata && preferences.spec && preferences.status) {
+    const normalized = {
+      id: preferences.metadata.id || "",
+      scope_type: preferences.metadata.scope_type || "",
+      customized: Boolean(preferences.status.customized)
+    };
+    for (const key of preferenceKeys()) {
+      normalized[key] = Boolean(preferences.spec[key]);
+    }
+    return normalized;
+  }
+  return preferences;
 }
 
 function normalizeComment(comment) {

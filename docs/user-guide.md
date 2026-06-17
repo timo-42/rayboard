@@ -1,6 +1,6 @@
 # User Guide
 
-The current browser UI is a small proof-of-concept website. Log in with the startup-generated admin credentials, then use `/` for the dashboard overview, `/projects` or `/projects/{project_id}` for project work, `/issues/{ticket_id}` for an issue detail page, `/profile` for account/API tokens, `/rbac` for administration, `/search` for saved searches, and `/automation` for the engine workbench.
+The current browser UI is a small proof-of-concept website. Log in with the startup-generated admin credentials, then use `/` for the dashboard overview, `/projects` or `/projects/{project_id}` for project work, `/issues/{ticket_id}` for an issue detail page, `/profile` for account/API tokens, `/rbac` for administration, `/settings` for global/user settings, `/search` for saved searches, and `/automation` for the engine workbench.
 
 Implemented browser workflows:
 
@@ -22,6 +22,7 @@ Implemented browser workflows:
 - custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, and role-binding summaries when permitted;
+- Settings page for global settings when permitted and personal notification preferences for every signed-in user;
 - text/CEL search plus saved-view list, create, apply, and delete;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines.
 
@@ -36,7 +37,7 @@ Implemented API-only user workflows:
 - detailed component/version editing and filtering;
 - custom field update APIs beyond browser delete/recreate;
 - in-app notification inbox API, including unread filtering and read/unread state;
-- current-user notification preferences and project notification defaults;
+- project notification defaults;
 - global/project notification policy CRUD, Lua/AI notification hook CRUD, and delivery history/manual retry;
 - incoming/outgoing webhook definition APIs, incoming execution, outgoing delivery history, and outgoing delivery retry;
 - Lua cron job management, manual runs, run history, and cron Lua helpers for search, ticket create/update, ticket lookup, comments, and logging;
