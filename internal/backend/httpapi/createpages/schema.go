@@ -121,6 +121,7 @@ type SchemaResource = shared.Resource[SchemaMetadata, PublicPageSpec, SchemaStat
 
 type ListPagesOutput = shared.ListOutput[PageResource]
 type CreatePageOutput = shared.CreatedOutput[PageResource]
+type PreviewPageOutput = SchemaOutput
 type SubmitPageOutput = shared.CreatedOutput[ticketapi.TicketResource]
 
 type PageOutput struct {

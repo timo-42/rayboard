@@ -294,6 +294,27 @@ func TestTicketCreatePageSchemaRunsLuaFormLogic(t *testing.T) {
 		t.Fatalf("expected form Lua script in management response: %#v", created.Spec)
 	}
 
+	missingPreviewCSRF := httptest.NewRequest(http.MethodPost, "/api/ticket-create-pages/"+created.Metadata.ID+"/preview", nil)
+	missingPreviewCSRF.AddCookie(session)
+	missingPreviewCSRFRec := httptest.NewRecorder()
+	handler.ServeHTTP(missingPreviewCSRFRec, missingPreviewCSRF)
+	if missingPreviewCSRFRec.Code != http.StatusForbidden {
+		t.Fatalf("expected missing preview CSRF status 403, got %d: %s", missingPreviewCSRFRec.Code, missingPreviewCSRFRec.Body.String())
+	}
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/api/ticket-create-pages/"+created.Metadata.ID+"/preview", nil)
+	addSessionCSRF(previewReq, session, csrf)
+	previewRec := httptest.NewRecorder()
+	handler.ServeHTTP(previewRec, previewReq)
+	if previewRec.Code != http.StatusOK {
+		t.Fatalf("expected preview status 200, got %d: %s", previewRec.Code, previewRec.Body.String())
+	}
+	preview := decodeTicketCreatePageSchema(t, previewRec.Body.Bytes())
+	if preview.Metadata.PageID != created.Metadata.ID || len(preview.Spec.FieldLayout) != 2 || preview.Spec.FieldLayout[1]["key"] != "component" || preview.Spec.Defaults["priority"] != "High" {
+		t.Fatalf("expected preview schema/defaults, got %#v", preview)
+	}
+	assertTicketCreatePageSchemaRedactsFormLogic(t, previewRec.Body.Bytes())
+
 	schemaReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/ticket-create-pages/dynamic-intake/schema", nil)
 	schemaReq.AddCookie(session)
 	schemaRec := httptest.NewRecorder()

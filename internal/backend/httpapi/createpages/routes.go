@@ -16,6 +16,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/ticket-create-pages/{page_id}", "Ticket Create Pages", "Get ticket create page"), provider.getPage)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/ticket-create-pages/{page_id}", "Ticket Create Pages", "Update ticket create page"), provider.updatePage)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/ticket-create-pages/{page_id}", "Ticket Create Pages", "Delete ticket create page", http.StatusNoContent), provider.deletePage)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/ticket-create-pages/{page_id}/preview", "Ticket Create Pages", "Preview ticket create page form logic"), provider.previewPage)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/ticket-create-pages/{slug}/schema", "Ticket Create Pages", "Resolve ticket create page schema"), provider.resolvePage)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/ticket-create-pages/{slug}/submit", "Ticket Create Pages", "Submit ticket create page", http.StatusCreated), provider.submitPage)
 }
@@ -82,6 +83,18 @@ func (provider Provider) deletePage(ctx context.Context, input *PageIDInput) (*s
 		return nil, shared.TrackerError(err)
 	}
 	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) previewPage(ctx context.Context, input *PageIDInput) (*PreviewPageOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	page, err := provider.CreatePages.Preview(ctx, principal, input.PageID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &PreviewPageOutput{Body: schemaResource(page)}, nil
 }
 
 func (provider Provider) resolvePage(ctx context.Context, input *ResolvePageInput) (*SchemaOutput, error) {

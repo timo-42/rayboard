@@ -213,11 +213,11 @@ return { ticket = ticket }
 
 ## Custom Create Pages
 
-Custom create pages expose project-scoped definitions and submit tickets through the normal backend ticket-create path. Optional `form_lua_script` runs during schema resolution and submission. It receives `context`, `page`, `json`, `rayboard.json`, and `rayboard.log(message)`, and may return `field_layout`, `defaults`, and/or `description`. Lua must return structured form data and never raw HTML.
+Custom create pages expose project-scoped definitions and submit tickets through the normal backend ticket-create path. Optional `form_lua_script` runs during saved-page preview, schema resolution, and submission. It receives `context`, `page`, `json`, `rayboard.json`, and `rayboard.log(message)`, and may return `field_layout`, `defaults`, and/or `description`. Lua must return structured form data and never raw HTML.
 
 Optional OpenRouter AI form logic uses `form_ai_prompt` plus `form_ai_provider_id`. The provider must be enabled and configured with an API key, model, timeout, and max output token limit. Rayboard sends the saved prompt with page/user context and requires a JSON object containing only `field_layout`, `defaults`, and/or `description`. AI output is validated through the same form schema/default validator as Lua, and raw HTML is rejected. Public schema responses redact `form_lua_script`, `form_ai_prompt`, and `form_ai_provider_id`.
 
-The generic engine workbench enforces the same output shape when `surface` is `custom_create_page`, so form scripts can be tested before saving.
+The generic engine workbench enforces the same output shape when `surface` is `custom_create_page`, so form scripts can be tested before saving. Saved pages can also be tested with `POST /api/ticket-create-pages/{page_id}/preview`, which returns the effective renderable schema without submitting a ticket and without exposing `form_lua_script`, `form_ai_prompt`, or `form_ai_provider_id`.
 
 ```lua
 return {

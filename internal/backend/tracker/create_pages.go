@@ -216,6 +216,17 @@ func (s *CreatePageService) Resolve(ctx context.Context, principal authz.Princip
 	return s.applyFormLogic(ctx, principal, page)
 }
 
+func (s *CreatePageService) Preview(ctx context.Context, principal authz.Principal, pageID string) (CreatePage, error) {
+	page, err := s.get(ctx, pageID)
+	if err != nil {
+		return CreatePage{}, err
+	}
+	if err := s.requireManage(principal, page.ProjectID); err != nil {
+		return CreatePage{}, err
+	}
+	return s.applyFormLogic(ctx, principal, page)
+}
+
 func (s *CreatePageService) Update(ctx context.Context, principal authz.Principal, pageID string, input UpdateCreatePageInput) (CreatePage, error) {
 	current, err := s.get(ctx, pageID)
 	if err != nil {
