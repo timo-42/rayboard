@@ -144,7 +144,7 @@ if comment_err then return { error = comment_err.message } end
 
 ## Ticket Hooks
 
-The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Public hook CRUD/test APIs and UI are still **Planned**.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD is available through the API; hook test endpoints and UI are still **Planned**.
 
 Hook Lua receives `context`, `ticket`, and for update hooks `current`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
 

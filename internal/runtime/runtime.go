@@ -103,6 +103,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithTicketHookService(hookService),
 		backend.WithWebhookService(webhookService),
 	)
 	frontendServer := frontend.NewServer(cfg.FrontendAddr, cfg.BackendURL)
@@ -172,6 +173,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithTicketHookService(hookService),
 		backend.WithWebhookService(webhookService),
 	)
 	group.start("backend", server.ListenAndServe, server.Shutdown)

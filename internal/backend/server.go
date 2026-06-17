@@ -33,6 +33,7 @@ type options struct {
 	notifications *notifications.Service
 	openrouter    *openrouter.Service
 	search        *search.Service
+	ticketHooks   *tracker.HookService
 	webhooks      *webhooks.Service
 }
 
@@ -98,6 +99,12 @@ func WithSearchService(service *search.Service) Option {
 	}
 }
 
+func WithTicketHookService(service *tracker.HookService) Option {
+	return func(options *options) {
+		options.ticketHooks = service
+	}
+}
+
 func WithWebhookService(service *webhooks.Service) Option {
 	return func(options *options) {
 		options.webhooks = service
@@ -138,6 +145,7 @@ func NewHandler(opts ...Option) http.Handler {
 		Notifications: options.notifications,
 		OpenRouter:    options.openrouter,
 		Search:        options.search,
+		TicketHooks:   options.ticketHooks,
 		Webhooks:      options.webhooks,
 	})
 }

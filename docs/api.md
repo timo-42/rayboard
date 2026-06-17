@@ -429,6 +429,20 @@ Webhook definition responses use `metadata` for IDs/timestamps, `spec` for direc
 
 Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the webhook's configured actor user. Disabled or deleted actor users cause incoming execution to fail before the script runs.
 
+## Ticket Hooks
+
+Project ticket hooks are API-only automation resources that run during ticket create/update. Before hooks can validate or transform the pending ticket payload; after hooks run after commit and cannot roll back committed changes.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/ticket-hooks` | Optional `event`, `phase`, `limit`, `offset`; requires project `automations:manage`. |
+| `POST` | `/api/projects/{project_id}/ticket-hooks` | `{"spec":{"name":"normalize-title","event":"ticket_create","phase":"before","enabled":true,"position":100,"engine":{"type":"lua","script":"return { ticket = ticket }"}}}` |
+| `GET` | `/api/ticket-hooks/{hook_id}` | Ticket hook definition. |
+| `PATCH` | `/api/ticket-hooks/{hook_id}` | Any subset of `name`, `event`, `phase`, `enabled`, `position`, and `engine`. |
+| `DELETE` | `/api/ticket-hooks/{hook_id}` | Soft-deletes and disables the hook. |
+
+Ticket hook responses use `metadata` for IDs/project/timestamps, `spec` for event, phase, order, enabled state, and engine configuration, and `status.last_error` for the last execution error. The OpenAPI schema represents `spec.engine` as a discriminated `oneOf` object. Lua hooks require `engine.script`; AI hook input shape is documented with `engine.prompt` and `engine.provider_id`, but AI hook execution is not implemented yet.
+
 ## OpenRouter Providers
 
 Global admins configure OpenRouter provider references for future AI automation. Provider CRUD requires global `ai:manage`; providers hold global secrets and are not project-scoped. API keys are write-only: create/update accepts `spec.api_key`, but responses only return `status.api_key_set`.

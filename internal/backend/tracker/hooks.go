@@ -58,6 +58,23 @@ type CreateHookInput struct {
 	Engine    HookEngineSpec
 }
 
+type ListHooksInput struct {
+	ProjectID string
+	Event     string
+	Phase     string
+	Limit     int
+	Offset    int
+}
+
+type UpdateHookInput struct {
+	Name     *string
+	Event    *string
+	Phase    *string
+	Enabled  *bool
+	Position *int
+	Engine   *HookEngineSpec
+}
+
 type HookResult struct {
 	Output map[string]any
 	Logs   []string
@@ -114,6 +131,160 @@ func (s *HookService) Create(ctx context.Context, principal authz.Principal, inp
 		return Hook{}, fmt.Errorf("insert ticket hook: %w", err)
 	}
 	return hook, nil
+}
+
+func (s *HookService) List(ctx context.Context, principal authz.Principal, input ListHooksInput) ([]Hook, error) {
+	projectID := strings.TrimSpace(input.ProjectID)
+	event := strings.TrimSpace(input.Event)
+	phase := strings.TrimSpace(input.Phase)
+	if projectID == "" {
+		return nil, validationFailed(map[string]string{"project_id": "Required"})
+	}
+	if event != "" && !validHookEvent(event) {
+		return nil, validationFailed(map[string]string{"event": "Must be ticket_create or ticket_update"})
+	}
+	if phase != "" && !validHookPhase(phase) {
+		return nil, validationFailed(map[string]string{"phase": "Must be before or after"})
+	}
+	if err := validateListInput(input.Limit, input.Offset); err != nil {
+		return nil, err
+	}
+	if err := s.requireManage(principal, projectID); err != nil {
+		return nil, err
+	}
+	limit, offset := normalizeListWindow(input.Limit, input.Offset)
+	where := []string{"project_id = ?", "deleted_at IS NULL"}
+	args := []any{projectID}
+	if event != "" {
+		where = append(where, "event = ?")
+		args = append(args, event)
+	}
+	if phase != "" {
+		where = append(where, "phase = ?")
+		args = append(args, phase)
+	}
+	args = append(args, limit, offset)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, name, event, phase, enabled, position, engine_type,
+			COALESCE(lua_script, ''), COALESCE(ai_prompt, ''), COALESCE(ai_provider_id, ''),
+			COALESCE(last_error, ''), created_at, updated_at
+		FROM ticket_hooks
+		WHERE `+strings.Join(where, " AND ")+`
+		ORDER BY event ASC, phase ASC, position ASC, name ASC, id ASC
+		LIMIT ? OFFSET ?
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list ticket hooks: %w", err)
+	}
+	defer rows.Close()
+
+	var hooks []Hook
+	for rows.Next() {
+		hook, err := scanHook(rows)
+		if err != nil {
+			return nil, err
+		}
+		hooks = append(hooks, hook)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket hooks: %w", err)
+	}
+	return hooks, nil
+}
+
+func (s *HookService) Get(ctx context.Context, principal authz.Principal, hookID string) (Hook, error) {
+	hook, err := s.get(ctx, hookID)
+	if err != nil {
+		return Hook{}, err
+	}
+	if err := s.requireManage(principal, hook.ProjectID); err != nil {
+		return Hook{}, err
+	}
+	return hook, nil
+}
+
+func (s *HookService) Update(ctx context.Context, principal authz.Principal, hookID string, input UpdateHookInput) (Hook, error) {
+	current, err := s.get(ctx, hookID)
+	if err != nil {
+		return Hook{}, err
+	}
+	if err := s.requireManage(principal, current.ProjectID); err != nil {
+		return Hook{}, err
+	}
+	updated := current
+	if input.Name != nil {
+		updated.Name = normalizeHookName(*input.Name)
+	}
+	if input.Event != nil {
+		updated.Event = strings.TrimSpace(*input.Event)
+	}
+	if input.Phase != nil {
+		updated.Phase = strings.TrimSpace(*input.Phase)
+	}
+	if input.Enabled != nil {
+		updated.Enabled = *input.Enabled
+	}
+	if input.Position != nil {
+		updated.Position = *input.Position
+	}
+	if updated.Position == 0 {
+		updated.Position = 100
+	}
+	if input.Engine != nil {
+		updated.Engine = normalizeHookEngine(*input.Engine)
+	}
+	updated.UpdatedAt = s.now().UTC()
+	if err := s.validate(ctx, updated); err != nil {
+		return Hook{}, err
+	}
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE ticket_hooks
+		SET name = ?, event = ?, phase = ?, enabled = ?, position = ?, engine_type = ?,
+			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, updated.Name, updated.Event, updated.Phase, updated.Enabled, updated.Position,
+		updated.Engine.Type, nullableHookString(updated.Engine.Script), nullableHookString(updated.Engine.Prompt),
+		nullableHookString(updated.Engine.ProviderID), formatHookTime(updated.UpdatedAt), updated.ID)
+	if err != nil {
+		if isHookUniqueConstraint(err) {
+			return Hook{}, validationFailed(map[string]string{"name": "Hook name already exists for this event and phase"})
+		}
+		return Hook{}, fmt.Errorf("update ticket hook: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return Hook{}, fmt.Errorf("check ticket hook update: %w", err)
+	}
+	if affected == 0 {
+		return Hook{}, notFound("ticket_hook", hookID)
+	}
+	return updated, nil
+}
+
+func (s *HookService) Delete(ctx context.Context, principal authz.Principal, hookID string) error {
+	hook, err := s.get(ctx, hookID)
+	if err != nil {
+		return err
+	}
+	if err := s.requireManage(principal, hook.ProjectID); err != nil {
+		return err
+	}
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE ticket_hooks
+		SET enabled = 0, deleted_at = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, formatHookTime(s.now().UTC()), formatHookTime(s.now().UTC()), hook.ID)
+	if err != nil {
+		return fmt.Errorf("delete ticket hook: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check ticket hook delete: %w", err)
+	}
+	if affected == 0 {
+		return notFound("ticket_hook", hookID)
+	}
+	return nil
 }
 
 func (s *HookService) RunBeforeCreate(ctx context.Context, principal authz.Principal, input CreateTicketInput) (CreateTicketInput, []HookResult, error) {
@@ -274,6 +445,27 @@ func registerHookLuaHelpers(sandbox *luasandbox.Sandbox, logs *[]string) {
 		}
 		return 0
 	}))
+}
+
+func (s *HookService) get(ctx context.Context, hookID string) (Hook, error) {
+	hookID = strings.TrimSpace(hookID)
+	if hookID == "" {
+		return Hook{}, validationFailed(map[string]string{"hook_id": "Required"})
+	}
+	hook, err := scanHook(s.db.QueryRowContext(ctx, `
+		SELECT id, project_id, name, event, phase, enabled, position, engine_type,
+			COALESCE(lua_script, ''), COALESCE(ai_prompt, ''), COALESCE(ai_provider_id, ''),
+			COALESCE(last_error, ''), created_at, updated_at
+		FROM ticket_hooks
+		WHERE id = ? AND deleted_at IS NULL
+	`, hookID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Hook{}, notFound("ticket_hook", hookID)
+	}
+	if err != nil {
+		return Hook{}, fmt.Errorf("get ticket hook: %w", err)
+	}
+	return hook, nil
 }
 
 func (s *HookService) enabledHooks(ctx context.Context, projectID string, event string, phase string) ([]Hook, error) {
