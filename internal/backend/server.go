@@ -15,6 +15,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
+	"github.com/timo-42/rayboard/internal/backend/settings"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
@@ -36,6 +37,7 @@ type options struct {
 	notifications *notifications.Service
 	openrouter    *openrouter.Service
 	search        *search.Service
+	settings      *settings.Service
 	ticketHooks   *tracker.HookService
 	webhooks      *webhooks.Service
 }
@@ -114,6 +116,12 @@ func WithSearchService(service *search.Service) Option {
 	}
 }
 
+func WithSettingsService(service *settings.Service) Option {
+	return func(options *options) {
+		options.settings = service
+	}
+}
+
 func WithTicketHookService(service *tracker.HookService) Option {
 	return func(options *options) {
 		options.ticketHooks = service
@@ -162,6 +170,7 @@ func NewHandler(opts ...Option) http.Handler {
 		Notifications: options.notifications,
 		OpenRouter:    options.openrouter,
 		Search:        options.search,
+		Settings:      options.settings,
 		TicketHooks:   options.ticketHooks,
 		Webhooks:      options.webhooks,
 	})

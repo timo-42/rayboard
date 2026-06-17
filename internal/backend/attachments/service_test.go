@@ -108,6 +108,56 @@ func TestAttachmentValidationAndAuthorization(t *testing.T) {
 	}
 }
 
+func TestAttachmentPolicyProvider(t *testing.T) {
+	ctx := context.Background()
+	db := openAttachmentTestDB(t, ctx)
+	seedAttachmentProject(t, ctx, db.SQL)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("member", authz.RoleProjectMember, authz.ProjectScope("project-1")),
+	))
+	service := NewService(db.SQL, evaluator, WithPolicyProvider(staticPolicy{
+		policy: AttachmentPolicy{
+			MaxSizeBytes:        4,
+			AllowedContentTypes: []string{"text/plain"},
+		},
+	}))
+	member := authz.Principal{UserID: "member", ActorUserID: "member", AuthKind: authz.AuthKindSession}
+
+	if _, err := service.Upload(ctx, member, UploadInput{
+		TicketID:    "ticket-1",
+		FileName:    "bad.json",
+		ContentType: "application/json",
+		Data:        []byte("{}"),
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected content type validation, got %v", err)
+	}
+	if _, err := service.Upload(ctx, member, UploadInput{
+		TicketID:    "ticket-1",
+		FileName:    "large.txt",
+		ContentType: "text/plain",
+		Data:        []byte("large"),
+	}); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("expected policy too-large error, got %v", err)
+	}
+	if _, err := service.Upload(ctx, member, UploadInput{
+		TicketID:    "ticket-1",
+		FileName:    "ok.txt",
+		ContentType: "text/plain; charset=utf-8",
+		Data:        []byte("ok"),
+	}); err != nil {
+		t.Fatalf("expected allowed attachment upload, got %v", err)
+	}
+}
+
+type staticPolicy struct {
+	policy AttachmentPolicy
+}
+
+func (policy staticPolicy) AttachmentPolicy(context.Context) (AttachmentPolicy, error) {
+	return policy.policy, nil
+}
+
 func openAttachmentTestDB(t *testing.T, ctx context.Context) *store.DB {
 	t.Helper()
 

@@ -59,6 +59,15 @@ type File struct {
 	Data []byte
 }
 
+type AttachmentPolicy struct {
+	MaxSizeBytes        int64
+	AllowedContentTypes []string
+}
+
+type PolicyProvider interface {
+	AttachmentPolicy(context.Context) (AttachmentPolicy, error)
+}
+
 type UploadInput struct {
 	TicketID    string
 	FileName    string
@@ -72,6 +81,7 @@ type Service struct {
 	now        func() time.Time
 	eventBus   *events.Bus
 	eventStore *events.Store
+	policies   PolicyProvider
 }
 
 type Option func(*Service)
@@ -108,6 +118,12 @@ func WithEventStore(store *events.Store) Option {
 	}
 }
 
+func WithPolicyProvider(provider PolicyProvider) Option {
+	return func(service *Service) {
+		service.policies = provider
+	}
+}
+
 func (s *Service) Upload(ctx context.Context, principal authz.Principal, input UploadInput) (Metadata, error) {
 	fields := map[string]string{}
 	input.TicketID = strings.TrimSpace(input.TicketID)
@@ -121,14 +137,21 @@ func (s *Service) Upload(ctx context.Context, principal authz.Principal, input U
 	if len(input.FileName) > 240 {
 		fields["file_name"] = "Must be 240 characters or fewer"
 	}
-	if len(input.Data) > MaxAttachmentSizeBytes {
-		return Metadata{}, ErrTooLarge
-	}
 	if len(fields) > 0 {
 		return Metadata{}, &ValidationError{Message: "Invalid attachment", Fields: fields}
 	}
 	if input.ContentType = strings.TrimSpace(input.ContentType); input.ContentType == "" {
 		input.ContentType = "application/octet-stream"
+	}
+	policy, err := s.attachmentPolicy(ctx)
+	if err != nil {
+		return Metadata{}, err
+	}
+	if int64(len(input.Data)) > policy.MaxSizeBytes {
+		return Metadata{}, ErrTooLarge
+	}
+	if !contentTypeAllowed(input.ContentType, policy.AllowedContentTypes) {
+		return Metadata{}, &ValidationError{Message: "Invalid attachment", Fields: map[string]string{"content_type": "Content type is not allowed"}}
 	}
 
 	projectID, err := s.ticketProject(ctx, input.TicketID)
@@ -200,6 +223,34 @@ func (s *Service) Upload(ctx context.Context, principal authz.Principal, input U
 
 	s.publish(ctx, event)
 	return meta, nil
+}
+
+func (s *Service) attachmentPolicy(ctx context.Context) (AttachmentPolicy, error) {
+	if s.policies == nil {
+		return AttachmentPolicy{MaxSizeBytes: MaxAttachmentSizeBytes}, nil
+	}
+	policy, err := s.policies.AttachmentPolicy(ctx)
+	if err != nil {
+		return AttachmentPolicy{}, err
+	}
+	if policy.MaxSizeBytes <= 0 {
+		policy.MaxSizeBytes = MaxAttachmentSizeBytes
+	}
+	return policy, nil
+}
+
+func contentTypeAllowed(contentType string, allowed []string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	for _, allowedType := range allowed {
+		allowedType = strings.ToLower(strings.TrimSpace(allowedType))
+		if allowedType == contentType {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) List(ctx context.Context, principal authz.Principal, ticketID string) ([]Metadata, error) {

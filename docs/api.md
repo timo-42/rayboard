@@ -510,6 +510,19 @@ Global admins configure OpenRouter provider references for AI automation. Provid
 
 Provider responses use `metadata`, `spec`, and `status`. `spec` contains name, default model, allowed model list, limits, and enabled state. `status.api_key_set` reports whether a secret is configured. OpenRouter provider create/update/delete writes security audit entries without storing the key in audit payloads.
 
+## Global Settings
+
+Global settings are API-only and require global `settings:manage`.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/settings` | none |
+| `PATCH` | `/api/settings` | `{"spec":{"attachment_max_size_bytes":10485760,"attachment_allowed_content_types":["text/plain"],"webhook_allowed_base_urls":["https://example.com/hooks"],"demo_warning_enabled":true,"backup_enabled":false,"system_health_note":"green"}}` |
+
+Responses use `metadata`, `spec`, and `status`. `metadata` contains the global settings ID, update time, and last updater when set. `spec` contains attachment policy, webhook allowlist metadata, demo warning, backup flag, and health note. `status` reports whether attachment policy, webhook allowlist, demo warning, and backup availability are active.
+
+Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_content_types`. An empty content-type list permits all content types. Settings updates write `settings.updated` audit entries with changed field names only.
+
 ## Engine Test
 
 The generic engine test endpoint executes an inline Lua or OpenRouter AI engine against supplied JSON input before attaching that engine to cron jobs, hooks, webhooks, notification hooks, or custom create pages.

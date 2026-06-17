@@ -19,6 +19,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
+	"github.com/timo-42/rayboard/internal/backend/settings"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
@@ -62,10 +63,11 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
 	openRouterService := openrouter.NewService(db.SQL)
+	settingsService := settings.NewService(db.SQL)
 	hookService := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookOpenRouterService(openRouterService))
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
 	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
-	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
+	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore), attachments.WithPolicyProvider(settingsService))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
@@ -111,6 +113,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithSettingsService(settingsService),
 		backend.WithTicketHookService(hookService),
 		backend.WithWebhookService(webhookService),
 	)
@@ -139,10 +142,11 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
 	openRouterService := openrouter.NewService(db.SQL)
+	settingsService := settings.NewService(db.SQL)
 	hookService := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookOpenRouterService(openRouterService))
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
 	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
-	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
+	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore), attachments.WithPolicyProvider(settingsService))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
@@ -188,6 +192,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
+		backend.WithSettingsService(settingsService),
 		backend.WithTicketHookService(hookService),
 		backend.WithWebhookService(webhookService),
 	)

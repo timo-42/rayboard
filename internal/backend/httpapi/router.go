@@ -28,6 +28,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/openrouterapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/projects"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/searchapi"
+	settingsapi "github.com/timo-42/rayboard/internal/backend/httpapi/settings"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/sprints"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/tickethooks"
@@ -37,6 +38,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/search"
+	"github.com/timo-42/rayboard/internal/backend/settings"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
@@ -54,6 +56,7 @@ type Options struct {
 	Notifications *notifications.Service
 	OpenRouter    *openrouter.Service
 	Search        *search.Service
+	Settings      *settings.Service
 	TicketHooks   *tracker.HookService
 	Webhooks      *webhooks.Service
 }
@@ -99,6 +102,7 @@ func NewHandler(options Options) http.Handler {
 	enginesapi.Register(api, enginesapi.Provider{Engines: options.Engines, Authenticator: authenticator})
 	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Audit: options.Audit, Authenticator: authenticator})
 	openrouterapi.Register(api, openrouterapi.Provider{OpenRouter: options.OpenRouter, Audit: options.Audit, Authenticator: authenticator})
+	settingsapi.Register(api, settingsapi.Provider{Settings: options.Settings, Audit: options.Audit, Authenticator: authenticator})
 	tickethooks.Register(api, tickethooks.Provider{Hooks: options.TicketHooks, Authenticator: authenticator})
 	webhooksapi.Register(api, webhooksapi.Provider{Webhooks: options.Webhooks, Authenticator: authenticator})
 	return mux

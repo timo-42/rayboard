@@ -13,10 +13,11 @@ Admin workflows currently available through the API:
 - list roles;
 - create and delete role bindings.
 - create, update, disable, and delete OpenRouter provider references for AI automation.
+- read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 
 The current browser UI does not expose admin screens yet.
 
-Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, and OpenRouter provider create/update/delete. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets.
+Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets.
 
 ## RBAC
 
@@ -26,7 +27,18 @@ See [Authentication and RBAC](auth-rbac.md) for the implemented model and curren
 
 ## Settings
 
-Admin, project, and board settings pages are **Planned**. Future settings should cover:
+Browser admin, project, and board settings pages are **Planned**.
+
+Global settings are currently API-only at `/api/settings` and require global `settings:manage`. The implemented global settings cover:
+
+- attachment maximum size and allowed attachment content types;
+- webhook allowed base URL metadata for future allowlist-driven delivery;
+- demo warning visibility;
+- backup availability flag and system health note.
+
+Attachment uploads enforce the configured max size and content-type allowlist. An empty content-type allowlist permits all content types.
+
+Future settings should cover:
 
 - user, group, role, and token administration;
 - project ownership and project settings;
