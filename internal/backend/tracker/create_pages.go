@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	lua "github.com/yuin/gopher-lua"
@@ -83,6 +84,7 @@ type CreatePageService struct {
 	db         *sql.DB
 	tracker    *Service
 	authorizer authz.Evaluator
+	runs       *automation.RunStore
 	openrouter *openrouter.Service
 	now        func() time.Time
 }
@@ -92,6 +94,12 @@ type CreatePageOption func(*CreatePageService)
 func WithCreatePageOpenRouterService(openRouterService *openrouter.Service) CreatePageOption {
 	return func(service *CreatePageService) {
 		service.openrouter = openRouterService
+	}
+}
+
+func WithCreatePageRunStore(runStore *automation.RunStore) CreatePageOption {
+	return func(service *CreatePageService) {
+		service.runs = runStore
 	}
 }
 
@@ -224,7 +232,24 @@ func (s *CreatePageService) Preview(ctx context.Context, principal authz.Princip
 	if err := s.requireManage(principal, page.ProjectID); err != nil {
 		return CreatePage{}, err
 	}
-	return s.applyFormLogic(ctx, principal, page)
+	return s.previewRecorded(ctx, principal, page)
+}
+
+func (s *CreatePageService) ListRuns(ctx context.Context, principal authz.Principal, pageID string, limit int, offset int) ([]automation.Run, error) {
+	page, err := s.Get(ctx, principal, pageID)
+	if err != nil {
+		return nil, err
+	}
+	if s.runs == nil {
+		return []automation.Run{}, nil
+	}
+	return s.runs.List(ctx, automation.ListInput{
+		TriggerType: "ticket_create_page",
+		TriggerRef:  page.ID,
+		ProjectID:   page.ProjectID,
+		Limit:       limit,
+		Offset:      offset,
+	})
 }
 
 func (s *CreatePageService) Update(ctx context.Context, principal authz.Principal, pageID string, input UpdateCreatePageInput) (CreatePage, error) {
@@ -539,6 +564,47 @@ func (s *CreatePageService) applyFormLogic(ctx context.Context, principal authz.
 	return page, nil
 }
 
+func (s *CreatePageService) previewRecorded(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
+	if s.runs == nil {
+		return s.applyFormLogic(ctx, principal, page)
+	}
+	run, err := s.runs.Start(ctx, automation.StartInput{
+		TriggerType: "ticket_create_page",
+		TriggerRef:  page.ID,
+		ProjectID:   page.ProjectID,
+		Engine:      createPageEngineType(page),
+		ActorUserID: principal.UserID,
+		Input: map[string]any{
+			"operation":     "preview",
+			"page_id":       page.ID,
+			"slug":          page.Slug,
+			"actor_user_id": principal.UserID,
+		},
+	})
+	if err != nil {
+		return CreatePage{}, err
+	}
+	preview, execErr := s.applyFormLogic(ctx, principal, page)
+	status := automation.StatusSucceeded
+	errorMessage := ""
+	output := createPageRunOutput(preview)
+	if execErr != nil {
+		status = automation.StatusFailed
+		errorMessage = execErr.Error()
+		output = map[string]any{}
+	}
+	_, finishErr := s.runs.Finish(ctx, run.ID, automation.FinishInput{
+		Status: status,
+		Output: output,
+		Error:  errorMessage,
+		Logs:   []string{},
+	})
+	if finishErr != nil {
+		return preview, finishErr
+	}
+	return preview, execErr
+}
+
 func (s *CreatePageService) applyFormLua(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
 	if strings.TrimSpace(page.FormLuaScript) == "" {
 		return page, nil
@@ -697,6 +763,30 @@ func applyCreatePageFormOutput(page CreatePage, output map[string]any) (CreatePa
 		page.Description = strings.TrimSpace(rawDescription)
 	}
 	return page, nil
+}
+
+func createPageEngineType(page CreatePage) string {
+	switch {
+	case strings.TrimSpace(page.FormLuaScript) != "":
+		return "lua"
+	case strings.TrimSpace(page.FormAIPrompt) != "":
+		return "ai"
+	default:
+		return "static"
+	}
+}
+
+func createPageRunOutput(page CreatePage) map[string]any {
+	return map[string]any{
+		"name":          page.Name,
+		"slug":          page.Slug,
+		"description":   page.Description,
+		"target_type":   page.TargetType,
+		"target_status": page.TargetStatus,
+		"enabled":       page.Enabled,
+		"field_layout":  page.FieldLayout,
+		"defaults":      page.Defaults,
+	}
 }
 
 func createPageLayoutFromAny(value any) ([]map[string]any, error) {

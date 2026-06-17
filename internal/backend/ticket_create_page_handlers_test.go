@@ -9,6 +9,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -250,7 +251,8 @@ func TestTicketCreatePageSchemaRunsLuaFormLogic(t *testing.T) {
 	authService := auth.NewService(db.SQL)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	trackerService := tracker.NewService(db.SQL, authorizer)
-	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer, tracker.WithCreatePageRunStore(runStore))
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authorizer),
@@ -314,6 +316,26 @@ func TestTicketCreatePageSchemaRunsLuaFormLogic(t *testing.T) {
 		t.Fatalf("expected preview schema/defaults, got %#v", preview)
 	}
 	assertTicketCreatePageSchemaRedactsFormLogic(t, previewRec.Body.Bytes())
+
+	runsReq := httptest.NewRequest(http.MethodGet, "/api/ticket-create-pages/"+created.Metadata.ID+"/runs", nil)
+	runsReq.AddCookie(session)
+	runsRec := httptest.NewRecorder()
+	handler.ServeHTTP(runsRec, runsReq)
+	if runsRec.Code != http.StatusOK {
+		t.Fatalf("expected runs status 200, got %d: %s", runsRec.Code, runsRec.Body.String())
+	}
+	runs := decodeTicketCreatePageRunList(t, runsRec.Body.Bytes())
+	if runs.Metadata.Count != 1 || len(runs.Status.Items) != 1 {
+		t.Fatalf("unexpected create page runs: %#v", runs)
+	}
+	run := runs.Status.Items[0]
+	if run.Spec.TriggerType != "ticket_create_page" || run.Spec.TriggerRef != created.Metadata.ID || run.Spec.ProjectID != project.ID || run.Status.State != automation.StatusSucceeded {
+		t.Fatalf("unexpected create page run: %#v", run)
+	}
+	output, _ := run.Status.Output["output"].(map[string]any)
+	if output["field_layout"] == nil || output["defaults"] == nil || run.Spec.Input["input"] == nil {
+		t.Fatalf("expected create page run input/output, got %#v", run)
+	}
 
 	schemaReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/ticket-create-pages/dynamic-intake/schema", nil)
 	schemaReq.AddCookie(session)
@@ -418,6 +440,33 @@ type ticketCreatePageSchemaBody struct {
 	} `json:"status"`
 }
 
+type ticketCreatePageRunListBody struct {
+	Metadata struct {
+		Count int `json:"count"`
+	} `json:"metadata"`
+	Status struct {
+		Items []ticketCreatePageRunBody `json:"items"`
+	} `json:"status"`
+}
+
+type ticketCreatePageRunBody struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		TriggerType string         `json:"trigger_type"`
+		TriggerRef  string         `json:"trigger_ref"`
+		ProjectID   string         `json:"project_id"`
+		TicketID    string         `json:"ticket_id"`
+		Input       map[string]any `json:"input"`
+	} `json:"spec"`
+	Status struct {
+		State  string         `json:"state"`
+		Output map[string]any `json:"output"`
+		Error  string         `json:"error"`
+	} `json:"status"`
+}
+
 type ticketCreatePageTicketBody struct {
 	Metadata struct {
 		ID        string `json:"id"`
@@ -462,6 +511,16 @@ func decodeTicketCreatePageSchema(t *testing.T, data []byte) ticketCreatePageSch
 	var body ticketCreatePageSchemaBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode ticket create page schema: %v", err)
+	}
+	return body
+}
+
+func decodeTicketCreatePageRunList(t *testing.T, data []byte) ticketCreatePageRunListBody {
+	t.Helper()
+
+	var body ticketCreatePageRunListBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode ticket create page run list: %v", err)
 	}
 	return body
 }

@@ -17,6 +17,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/ticket-create-pages/{page_id}", "Ticket Create Pages", "Update ticket create page"), provider.updatePage)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/ticket-create-pages/{page_id}", "Ticket Create Pages", "Delete ticket create page", http.StatusNoContent), provider.deletePage)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/ticket-create-pages/{page_id}/preview", "Ticket Create Pages", "Preview ticket create page form logic"), provider.previewPage)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/ticket-create-pages/{page_id}/runs", "Ticket Create Pages", "List ticket create page runs"), provider.listPageRuns)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/ticket-create-pages/{slug}/schema", "Ticket Create Pages", "Resolve ticket create page schema"), provider.resolvePage)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/ticket-create-pages/{slug}/submit", "Ticket Create Pages", "Submit ticket create page", http.StatusCreated), provider.submitPage)
 }
@@ -95,6 +96,18 @@ func (provider Provider) previewPage(ctx context.Context, input *PageIDInput) (*
 		return nil, shared.TrackerError(err)
 	}
 	return &PreviewPageOutput{Body: schemaResource(page)}, nil
+}
+
+func (provider Provider) listPageRuns(ctx context.Context, input *ListPageRunsInput) (*ListPageRunsOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := provider.CreatePages.ListRuns(ctx, principal, input.PageID, input.Limit, input.Offset)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListPageRunsOutput{Body: shared.NewListResource[PageRunResource](pageRunResources(runs))}, nil
 }
 
 func (provider Provider) resolvePage(ctx context.Context, input *ResolvePageInput) (*SchemaOutput, error) {

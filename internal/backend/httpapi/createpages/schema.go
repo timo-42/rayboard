@@ -3,6 +3,7 @@ package createpages
 import (
 	"time"
 
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
@@ -44,6 +45,13 @@ type SubmitPageInput struct {
 	ProjectID string `path:"project_id" doc:"Project ID."`
 	Slug      string `path:"slug" doc:"Ticket create page slug."`
 	Body      shared.ResourceInput[SubmitPageSpec]
+}
+
+type ListPageRunsInput struct {
+	shared.AuthInput
+	PageID string `path:"page_id" doc:"Ticket create page ID."`
+	Limit  int    `query:"limit" doc:"Maximum number of runs to return."`
+	Offset int    `query:"offset" doc:"Number of runs to skip."`
 }
 
 type PageMetadata struct {
@@ -116,12 +124,35 @@ type SubmitPageSpec struct {
 	Ticket ticketapi.TicketSpec `json:"ticket"`
 }
 
+type PageRunMetadata struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PageRunSpec struct {
+	TriggerType string         `json:"trigger_type"`
+	TriggerRef  string         `json:"trigger_ref,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	TicketID    string         `json:"ticket_id,omitempty"`
+	Input       map[string]any `json:"input"`
+}
+
+type PageRunStatus struct {
+	State      string         `json:"state"`
+	Output     map[string]any `json:"output"`
+	Error      string         `json:"error,omitempty"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
+}
+
 type PageResource = shared.Resource[PageMetadata, PageSpec, PageStatus]
 type SchemaResource = shared.Resource[SchemaMetadata, PublicPageSpec, SchemaStatus]
+type PageRunResource = shared.Resource[PageRunMetadata, PageRunSpec, PageRunStatus]
 
 type ListPagesOutput = shared.ListOutput[PageResource]
 type CreatePageOutput = shared.CreatedOutput[PageResource]
 type PreviewPageOutput = SchemaOutput
+type ListPageRunsOutput = shared.ListOutput[PageRunResource]
 type SubmitPageOutput = shared.CreatedOutput[ticketapi.TicketResource]
 
 type PageOutput struct {
@@ -220,6 +251,37 @@ func schemaResource(page tracker.CreatePage) SchemaResource {
 		},
 		Status: SchemaStatus{Enabled: page.Enabled},
 	}
+}
+
+func pageRunResource(run automation.Run) PageRunResource {
+	return PageRunResource{
+		Metadata: PageRunMetadata{
+			ID:        run.ID,
+			CreatedAt: run.CreatedAt,
+		},
+		Spec: PageRunSpec{
+			TriggerType: run.TriggerType,
+			TriggerRef:  run.TriggerRef,
+			ProjectID:   run.ProjectID,
+			TicketID:    run.TicketID,
+			Input:       run.Input,
+		},
+		Status: PageRunStatus{
+			State:      run.Status,
+			Output:     run.Output,
+			Error:      run.Error,
+			StartedAt:  run.StartedAt,
+			FinishedAt: run.FinishedAt,
+		},
+	}
+}
+
+func pageRunResources(runs []automation.Run) []PageRunResource {
+	resources := make([]PageRunResource, 0, len(runs))
+	for _, run := range runs {
+		resources = append(resources, pageRunResource(run))
+	}
+	return resources
 }
 
 func pageResources(pages []tracker.CreatePage) []PageResource {
