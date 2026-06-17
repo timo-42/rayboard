@@ -53,6 +53,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-delivery-form"`) ||
 		!strings.Contains(body, `id="notification-deliveries"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
+		!strings.Contains(body, `id="engine-result-summary"`) ||
 		!strings.Contains(body, `id="cron-job-form"`) ||
 		!strings.Contains(body, `id="cron-jobs"`) ||
 		!strings.Contains(body, `id="webhook-form"`) ||
@@ -168,6 +169,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderBacklog",
 		"renderWorkflowPanel",
 		"renderTicketHooks",
+		"renderEngineResultSummary",
+		"engineBadge",
+		"action_previews",
+		"previewed",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadCreatePageForRoute",
@@ -319,6 +324,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".ticket-hook-list",
 		".create-page-form",
 		".create-page-list",
+		".engine-result-summary",
+		".engine-result-badge",
+		".engine-action-preview",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

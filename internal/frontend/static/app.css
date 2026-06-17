@@ -2649,6 +2649,66 @@ p {
   text-transform: uppercase;
 }
 
+.engine-result-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.engine-result-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.engine-result-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--heading);
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.engine-result pre.engine-result-error {
+  border-color: rgba(184, 62, 62, 0.35);
+  background: rgba(184, 62, 62, 0.08);
+}
+
+.engine-action-previews {
+  display: grid;
+  gap: 8px;
+}
+
+.engine-action-previews h4 {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.engine-action-preview-list {
+  display: grid;
+  gap: 8px;
+}
+
+.engine-action-preview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 10px;
+  min-width: 0;
+}
+
+.engine-action-preview strong {
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.engine-result .engine-action-preview pre {
+  max-height: 180px;
+}
+
 .engine-result pre {
   max-height: 320px;
   overflow: auto;

@@ -74,6 +74,7 @@ const els = {
   engineType: document.querySelector("#engine-type"),
   engineProjectID: document.querySelector("#engine-project-id"),
   engineWorkbench: document.querySelector("#engine-workbench"),
+  engineResultSummary: document.querySelector("#engine-result-summary"),
   engineOutput: document.querySelector("#engine-output"),
   cronJobProject: document.querySelector("#cron-job-project"),
   cronJobForm: document.querySelector("#cron-job-form"),
@@ -4834,10 +4835,74 @@ function renderEngineFields() {
 }
 
 function renderEngineResult() {
+  renderEngineResultSummary();
   if (!els.engineOutput) {
     return;
   }
   els.engineOutput.textContent = JSON.stringify(state.engineResult || {}, null, 2);
+}
+
+function renderEngineResultSummary() {
+  if (!els.engineResultSummary) {
+    return;
+  }
+  els.engineResultSummary.replaceChildren();
+  const result = state.engineResult;
+  if (!result || !result.status) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Run an engine test to inspect output, logs, errors, and action previews.";
+    els.engineResultSummary.append(empty);
+    return;
+  }
+
+  const status = result.status || {};
+  const badges = document.createElement("div");
+  badges.className = "engine-result-badges";
+  badges.append(
+    engineBadge("state", status.state || "unknown"),
+    engineBadge("mode", status.mode || "executed")
+  );
+  if (status.engine && status.engine.type) {
+    badges.append(engineBadge("engine", status.engine.type));
+  }
+  els.engineResultSummary.append(badges);
+
+  if (status.error) {
+    const error = document.createElement("pre");
+    error.className = "engine-result-error";
+    error.textContent = status.error;
+    els.engineResultSummary.append(error);
+  }
+
+  const previews = Array.isArray(status.action_previews) ? status.action_previews : [];
+  if (previews.length > 0) {
+    const section = document.createElement("section");
+    section.className = "engine-action-previews";
+    const title = document.createElement("h4");
+    title.textContent = `Action previews (${previews.length})`;
+    const list = document.createElement("div");
+    list.className = "engine-action-preview-list";
+    previews.forEach((preview, index) => {
+      const item = document.createElement("article");
+      item.className = "engine-action-preview";
+      const heading = document.createElement("strong");
+      heading.textContent = preview.action || preview.type || `Action ${index + 1}`;
+      const payload = document.createElement("pre");
+      payload.textContent = JSON.stringify(preview, null, 2);
+      item.append(heading, payload);
+      list.append(item);
+    });
+    section.append(title, list);
+    els.engineResultSummary.append(section);
+  }
+}
+
+function engineBadge(label, value) {
+  const badge = document.createElement("span");
+  badge.className = "engine-result-badge";
+  badge.textContent = `${label}: ${value}`;
+  return badge;
 }
 
 function engineTestSpec(form) {

@@ -46,7 +46,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a custom-fields panel for listing, creating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
 - compact search with text/CEL filters plus saved-view list, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning;
-- an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`;
+- an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`, with state/mode badges, explicit action-preview display, and raw JSON output;
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
