@@ -142,6 +142,46 @@ func TestEngineTestEndpoint(t *testing.T) {
 		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
 	}
 
+	actionPreviewReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"engine": map[string]string{
+				"type": "lua",
+				"script": `
+return {
+  action_previews = {
+    { action = "create_ticket", title = input.title },
+    { action = "comment", body = "dry run only" },
+  }
+}
+`,
+			},
+			"input": map[string]string{"title": "Preview action"},
+		},
+	}))
+	actionPreviewReq.AddCookie(sessionCookie)
+	actionPreviewReq.AddCookie(csrfCookie)
+	actionPreviewReq.Header.Set("Content-Type", "application/json")
+	actionPreviewReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	actionPreviewRec := httptest.NewRecorder()
+	handler.ServeHTTP(actionPreviewRec, actionPreviewReq)
+	if actionPreviewRec.Code != http.StatusOK {
+		t.Fatalf("expected action preview engine status 200, got %d: %s", actionPreviewRec.Code, actionPreviewRec.Body.String())
+	}
+	var actionPreviewBody struct {
+		Status struct {
+			ActionPreviews []map[string]any `json:"action_previews"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(actionPreviewRec.Body.Bytes(), &actionPreviewBody); err != nil {
+		t.Fatalf("decode action preview engine response: %v", err)
+	}
+	if len(actionPreviewBody.Status.ActionPreviews) != 2 ||
+		actionPreviewBody.Status.ActionPreviews[0]["action"] != "create_ticket" ||
+		actionPreviewBody.Status.ActionPreviews[0]["title"] != "Preview action" ||
+		actionPreviewBody.Status.ActionPreviews[1]["action"] != "comment" {
+		t.Fatalf("expected action previews in engine response status, got %#v", actionPreviewBody.Status.ActionPreviews)
+	}
+
 	contextActorReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"context": map[string]any{"actor_user_id": actor.ID},

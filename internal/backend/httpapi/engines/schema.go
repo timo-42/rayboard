@@ -163,7 +163,11 @@ func runOutput(output map[string]any) map[string]any {
 }
 
 func actionPreviews(output map[string]any) []map[string]any {
-	raw, ok := output["action_previews"].([]any)
+	rawOutput, ok := output["output"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	raw, ok := rawOutput["action_previews"].([]any)
 	if !ok {
 		return nil
 	}
