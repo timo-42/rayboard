@@ -14,6 +14,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/engines"
 	attachmentapi "github.com/timo-42/rayboard/internal/backend/httpapi/attachments"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/authapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/boards"
@@ -22,6 +23,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/createpages"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/cronapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/customfields"
+	enginesapi "github.com/timo-42/rayboard/internal/backend/httpapi/engines"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/notificationsapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/openrouterapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/projects"
@@ -48,6 +50,7 @@ type Options struct {
 	Comments      *comments.Service
 	CreatePages   *tracker.CreatePageService
 	Cron          *cronjobs.Service
+	Engines       *engines.Service
 	Notifications *notifications.Service
 	OpenRouter    *openrouter.Service
 	Search        *search.Service
@@ -93,6 +96,7 @@ func NewHandler(options Options) http.Handler {
 	attachmentapi.Register(api, attachmentapi.Provider{Attachments: options.Attachments, Authenticator: authenticator})
 	searchapi.Register(api, searchapi.Provider{Search: options.Search, Authenticator: authenticator})
 	cronapi.Register(api, cronapi.Provider{Cron: options.Cron, Authenticator: authenticator})
+	enginesapi.Register(api, enginesapi.Provider{Engines: options.Engines, Authenticator: authenticator})
 	notificationsapi.Register(api, notificationsapi.Provider{Notifications: options.Notifications, Audit: options.Audit, Authenticator: authenticator})
 	openrouterapi.Register(api, openrouterapi.Provider{OpenRouter: options.OpenRouter, Audit: options.Audit, Authenticator: authenticator})
 	tickethooks.Register(api, tickethooks.Provider{Hooks: options.TicketHooks, Authenticator: authenticator})

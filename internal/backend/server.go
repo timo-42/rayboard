@@ -10,6 +10,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/engines"
 	"github.com/timo-42/rayboard/internal/backend/httpapi"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
@@ -31,6 +32,7 @@ type options struct {
 	comments      *comments.Service
 	createPages   *tracker.CreatePageService
 	cron          *cronjobs.Service
+	engines       *engines.Service
 	notifications *notifications.Service
 	openrouter    *openrouter.Service
 	search        *search.Service
@@ -85,6 +87,12 @@ func WithCreatePageService(service *tracker.CreatePageService) Option {
 func WithCronService(service *cronjobs.Service) Option {
 	return func(options *options) {
 		options.cron = service
+	}
+}
+
+func WithEngineService(service *engines.Service) Option {
+	return func(options *options) {
+		options.engines = service
 	}
 }
 
@@ -150,6 +158,7 @@ func NewHandler(opts ...Option) http.Handler {
 		Comments:      options.comments,
 		CreatePages:   options.createPages,
 		Cron:          options.cron,
+		Engines:       options.engines,
 		Notifications: options.notifications,
 		OpenRouter:    options.openrouter,
 		Search:        options.search,

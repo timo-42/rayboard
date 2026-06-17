@@ -1,6 +1,6 @@
 # Automation and Lua
 
-Automation public surfaces are partially implemented. The current implementation includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, automation run history persistence in `internal/backend/automation`, cron job CRUD/scheduler/manual run/history APIs, ticket-hook runner/CRUD/preview APIs, and incoming webhook CRUD/execution APIs.
+Automation public surfaces are partially implemented. The current implementation includes a shared Lua JSON sandbox foundation in `internal/backend/luasandbox`, automation run history persistence in `internal/backend/automation`, a generic `/api/engines/test` dry-run endpoint, cron job CRUD/scheduler/manual run/history APIs, ticket-hook runner/CRUD/preview APIs, and incoming webhook CRUD/execution APIs.
 
 Relevant upstream references:
 
@@ -18,6 +18,7 @@ Lua surfaces use one shared sandbox runtime package and one shared Go/Lua conver
 
 Lua-capable surfaces:
 
+- generic engine tests: dry-run Lua/AI execution with supplied JSON input, `context`, `input`, JSON helpers, `rayboard.log`, source redaction, and run history implemented;
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
 - custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;

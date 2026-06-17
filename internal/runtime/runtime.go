@@ -14,6 +14,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/engines"
 	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
@@ -68,6 +69,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
+	engineService := engines.NewService(db.SQL, authorizer, runStore, engines.WithOpenRouterService(openRouterService))
 	webhookService := webhooks.NewService(
 		db.SQL,
 		authorizer,
@@ -105,6 +107,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithCommentService(commentService),
 		backend.WithCreatePageService(createPageService),
 		backend.WithCronService(cronService),
+		backend.WithEngineService(engineService),
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),
@@ -143,6 +146,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
 	runStore := automation.NewRunStore(db.SQL)
+	engineService := engines.NewService(db.SQL, authorizer, runStore, engines.WithOpenRouterService(openRouterService))
 	webhookService := webhooks.NewService(
 		db.SQL,
 		authorizer,
@@ -180,6 +184,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithCommentService(commentService),
 		backend.WithCreatePageService(createPageService),
 		backend.WithCronService(cronService),
+		backend.WithEngineService(engineService),
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
 		backend.WithSearchService(searchService),

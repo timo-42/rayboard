@@ -510,6 +510,20 @@ Global admins configure OpenRouter provider references for AI automation. Provid
 
 Provider responses use `metadata`, `spec`, and `status`. `spec` contains name, default model, allowed model list, limits, and enabled state. `status.api_key_set` reports whether a secret is configured. OpenRouter provider create/update/delete writes security audit entries without storing the key in audit payloads.
 
+## Engine Test
+
+The generic engine test endpoint executes an inline Lua or OpenRouter AI engine against supplied JSON input before attaching that engine to cron jobs, hooks, webhooks, notification hooks, or custom create pages.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `POST` | `/api/engines/test` | `{"spec":{"surface":"generic","project_id":"","actor_user_id":"","engine":{"type":"lua","script":"return { ok = true }"},"input":{}}}` |
+
+Engine tests require `automations:manage` globally or for `spec.project_id`. Browser-session requests require CSRF like other mutating API calls. `actor_user_id` defaults to the current user and must reference an enabled user.
+
+The current endpoint is dry-run and mutation-free. Lua receives `context`, `input`, `json`, `rayboard.json`, and `rayboard.log(message)`, but it does not receive ticket/comment/search helper functions. AI tests append the supplied context/input to the prompt and call the selected OpenRouter provider in JSON-object mode.
+
+Responses use `metadata`, `spec`, and `status`. The response redacts `spec.engine.script` and `spec.engine.prompt`; run history stores the engine type, actor, surface, dry-run flag, and supplied input, not raw source or prompt. Runtime failures return a normal resource response with `status.state = "failed"` and `status.error`.
+
 ## Cron Jobs
 
 The cron automation API/scheduler slice exposes Lua and OpenRouter AI cron job management, manual execution, and run history. Cron jobs execute as their owner user and use the owner's current effective RBAC permissions at run time.
