@@ -97,8 +97,16 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/users/{user_id}/effective-permissions", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "scope"}, []string{"status"}, []string{"status", "permissions"})
 	assertRequestBodyFields(t, spec, "/api/groups", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "display_name"})
 	assertResponseBodyFields(t, spec, "/api/groups", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"status"})
+	assertResponseBodyFields(t, spec, "/api/roles/{role_name}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "permissions"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/role-bindings", http.MethodPost, []string{"spec"}, []string{"spec", "role_name"}, []string{"spec", "subject_type"}, []string{"spec", "subject_id"}, []string{"spec", "scope"})
 	assertResponseBodyFields(t, spec, "/api/role-bindings", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "role_name"}, []string{"status"}, []string{"status", "role_id"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/members", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/role-bindings", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
+	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/role-bindings", http.MethodPost, []string{"spec"}, []string{"spec", "role_name"}, []string{"spec", "subject_type"}, []string{"spec", "subject_id"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/role-bindings", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "role_name"}, []string{"spec", "project_id"}, []string{"status"}, []string{"status", "role_id"})
+	if !openAPIHasOperation(spec, "/api/projects/{project_id}/role-bindings/{binding_id}", http.MethodDelete) {
+		t.Fatalf("expected project role binding delete operation in OpenAPI")
+	}
 	assertRequestBodyFields(t, spec, "/api/projects", http.MethodPost, []string{"spec"}, []string{"spec", "key"}, []string{"spec", "name"}, []string{"spec", "description"}, []string{"spec", "lead_user_id"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "key"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"spec"}, []string{"spec", "title"}, []string{"spec", "labels"})
@@ -458,6 +466,19 @@ func assertOpenAPISecurity(t *testing.T, spec map[string]any) {
 			assertOperationSecurity(t, path, method, operation)
 		}
 	}
+}
+
+func openAPIHasOperation(spec map[string]any, path string, method string) bool {
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		return false
+	}
+	pathItem, ok := paths[path].(map[string]any)
+	if !ok {
+		return false
+	}
+	_, ok = pathItem[strings.ToLower(method)]
+	return ok
 }
 
 func assertNoAuthParameters(t *testing.T, path string, method string, operation map[string]any) {

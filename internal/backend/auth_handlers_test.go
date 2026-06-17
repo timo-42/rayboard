@@ -362,6 +362,194 @@ func TestGroupRoleBindingEndpointsAffectExistingSession(t *testing.T) {
 		t.Fatalf("expected create project binding status 201, got %d: %s", createProjectBinding.Code, createProjectBinding.Body.String())
 	}
 
+	getRoleReq := httptest.NewRequest(http.MethodGet, "/api/roles/"+string(authz.RoleProjectAdmin), nil)
+	getRoleReq.AddCookie(adminSession)
+	getRole := httptest.NewRecorder()
+	handler.ServeHTTP(getRole, getRoleReq)
+	if getRole.Code != http.StatusOK {
+		t.Fatalf("expected get role status 200, got %d: %s", getRole.Code, getRole.Body.String())
+	}
+	var role struct {
+		Spec struct {
+			Name        authz.RoleName     `json:"name"`
+			Permissions []authz.Permission `json:"permissions"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(getRole.Body.Bytes(), &role); err != nil {
+		t.Fatalf("decode role: %v", err)
+	}
+	if role.Spec.Name != authz.RoleProjectAdmin || !slices.Contains(role.Spec.Permissions, authz.PermissionRolesBind) {
+		t.Fatalf("unexpected role detail: %#v", role)
+	}
+
+	createProjectScopedBindingReq := httptest.NewRequest(http.MethodPost, "/api/projects/project-alpha/role-bindings", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"role_name":    authz.RoleProjectViewer,
+			"subject_type": authz.BindingTargetUser,
+			"subject_id":   createdUser.Metadata.ID,
+		},
+	}))
+	addSessionCSRF(createProjectScopedBindingReq, adminSession, adminCSRF)
+	createProjectScopedBinding := httptest.NewRecorder()
+	handler.ServeHTTP(createProjectScopedBinding, createProjectScopedBindingReq)
+	if createProjectScopedBinding.Code != http.StatusCreated {
+		t.Fatalf("expected create project-scoped binding status 201, got %d: %s", createProjectScopedBinding.Code, createProjectScopedBinding.Body.String())
+	}
+
+	createProjectAdminReq := httptest.NewRequest(http.MethodPost, "/api/users", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"username": "project-admin",
+		},
+	}))
+	addSessionCSRF(createProjectAdminReq, adminSession, adminCSRF)
+	createProjectAdmin := httptest.NewRecorder()
+	handler.ServeHTTP(createProjectAdmin, createProjectAdminReq)
+	if createProjectAdmin.Code != http.StatusCreated {
+		t.Fatalf("expected create project admin status 201, got %d: %s", createProjectAdmin.Code, createProjectAdmin.Body.String())
+	}
+	var projectAdminUser struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Spec struct {
+			Username string `json:"username"`
+		} `json:"spec"`
+		Status struct {
+			Password string `json:"password"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(createProjectAdmin.Body.Bytes(), &projectAdminUser); err != nil {
+		t.Fatalf("decode project admin user: %v", err)
+	}
+	createProjectAdminBindingReq := httptest.NewRequest(http.MethodPost, "/api/role-bindings", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"role_name":    authz.RoleProjectAdmin,
+			"subject_type": authz.BindingTargetUser,
+			"subject_id":   projectAdminUser.Metadata.ID,
+			"scope":        authz.ScopeKindProject,
+			"project_id":   "project-alpha",
+		},
+	}))
+	addSessionCSRF(createProjectAdminBindingReq, adminSession, adminCSRF)
+	createProjectAdminBinding := httptest.NewRecorder()
+	handler.ServeHTTP(createProjectAdminBinding, createProjectAdminBindingReq)
+	if createProjectAdminBinding.Code != http.StatusCreated {
+		t.Fatalf("expected project admin binding status 201, got %d: %s", createProjectAdminBinding.Code, createProjectAdminBinding.Body.String())
+	}
+	projectAdminLogin := postJSON(t, handler, "/api/login", map[string]string{
+		"username": projectAdminUser.Spec.Username,
+		"password": projectAdminUser.Status.Password,
+	}, nil)
+	projectAdminSession := responseCookie(t, projectAdminLogin.Result(), auth.SessionCookieName)
+	projectAdminCSRF := responseCookie(t, projectAdminLogin.Result(), csrfCookieName)
+
+	projectAdminCreateBindingReq := httptest.NewRequest(http.MethodPost, "/api/projects/project-alpha/role-bindings", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"role_name":    authz.RoleProjectViewer,
+			"subject_type": authz.BindingTargetUser,
+			"subject_id":   createdUser.Metadata.ID,
+		},
+	}))
+	addSessionCSRF(projectAdminCreateBindingReq, projectAdminSession, projectAdminCSRF)
+	projectAdminCreateBinding := httptest.NewRecorder()
+	handler.ServeHTTP(projectAdminCreateBinding, projectAdminCreateBindingReq)
+	if projectAdminCreateBinding.Code != http.StatusCreated {
+		t.Fatalf("expected project admin create project binding status 201, got %d: %s", projectAdminCreateBinding.Code, projectAdminCreateBinding.Body.String())
+	}
+	var projectAdminBinding struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(projectAdminCreateBinding.Body.Bytes(), &projectAdminBinding); err != nil {
+		t.Fatalf("decode project admin binding: %v", err)
+	}
+
+	projectAdminOwnerReq := httptest.NewRequest(http.MethodPost, "/api/projects/project-alpha/role-bindings", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"role_name":    authz.RoleProjectOwner,
+			"subject_type": authz.BindingTargetUser,
+			"subject_id":   createdUser.Metadata.ID,
+		},
+	}))
+	addSessionCSRF(projectAdminOwnerReq, projectAdminSession, projectAdminCSRF)
+	projectAdminOwner := httptest.NewRecorder()
+	handler.ServeHTTP(projectAdminOwner, projectAdminOwnerReq)
+	if projectAdminOwner.Code != http.StatusBadRequest {
+		t.Fatalf("expected project owner binding through project API status 400, got %d: %s", projectAdminOwner.Code, projectAdminOwner.Body.String())
+	}
+
+	projectAdminOtherProjectReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-beta/role-bindings", nil)
+	projectAdminOtherProjectReq.AddCookie(projectAdminSession)
+	projectAdminOtherProject := httptest.NewRecorder()
+	handler.ServeHTTP(projectAdminOtherProject, projectAdminOtherProjectReq)
+	if projectAdminOtherProject.Code != http.StatusForbidden {
+		t.Fatalf("expected project admin cross-project list status 403, got %d: %s", projectAdminOtherProject.Code, projectAdminOtherProject.Body.String())
+	}
+
+	projectAdminDeleteBindingReq := httptest.NewRequest(http.MethodDelete, "/api/projects/project-alpha/role-bindings/"+projectAdminBinding.Metadata.ID, nil)
+	addSessionCSRF(projectAdminDeleteBindingReq, projectAdminSession, projectAdminCSRF)
+	projectAdminDeleteBinding := httptest.NewRecorder()
+	handler.ServeHTTP(projectAdminDeleteBinding, projectAdminDeleteBindingReq)
+	if projectAdminDeleteBinding.Code != http.StatusNoContent {
+		t.Fatalf("expected project admin delete project binding status 204, got %d: %s", projectAdminDeleteBinding.Code, projectAdminDeleteBinding.Body.String())
+	}
+
+	listProjectBindingsReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-alpha/role-bindings", nil)
+	listProjectBindingsReq.AddCookie(adminSession)
+	listProjectBindings := httptest.NewRecorder()
+	handler.ServeHTTP(listProjectBindings, listProjectBindingsReq)
+	if listProjectBindings.Code != http.StatusOK {
+		t.Fatalf("expected list project role bindings status 200, got %d: %s", listProjectBindings.Code, listProjectBindings.Body.String())
+	}
+	var projectBindings struct {
+		Status struct {
+			Items []struct {
+				Spec struct {
+					ProjectID string `json:"project_id"`
+				} `json:"spec"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listProjectBindings.Body.Bytes(), &projectBindings); err != nil {
+		t.Fatalf("decode project bindings: %v", err)
+	}
+	if len(projectBindings.Status.Items) < 2 {
+		t.Fatalf("expected project role bindings, got %#v", projectBindings)
+	}
+	for _, item := range projectBindings.Status.Items {
+		if item.Spec.ProjectID != "project-alpha" {
+			t.Fatalf("expected project-scoped binding, got %#v", item)
+		}
+	}
+
+	listProjectMembersReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-alpha/members", nil)
+	listProjectMembersReq.AddCookie(adminSession)
+	listProjectMembers := httptest.NewRecorder()
+	handler.ServeHTTP(listProjectMembers, listProjectMembersReq)
+	if listProjectMembers.Code != http.StatusOK {
+		t.Fatalf("expected list project members status 200, got %d: %s", listProjectMembers.Code, listProjectMembers.Body.String())
+	}
+	var projectMembers struct {
+		Status struct {
+			Items []struct {
+				Metadata struct {
+					ID string `json:"id"`
+				} `json:"metadata"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listProjectMembers.Body.Bytes(), &projectMembers); err != nil {
+		t.Fatalf("decode project members: %v", err)
+	}
+	memberIDs := map[string]bool{}
+	for _, item := range projectMembers.Status.Items {
+		memberIDs[item.Metadata.ID] = true
+	}
+	if !memberIDs[createdUser.Metadata.ID] || !memberIDs[projectAdminUser.Metadata.ID] {
+		t.Fatalf("unexpected project members: %#v", projectMembers)
+	}
+
 	allowedReq := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	allowedReq.AddCookie(userSession)
 	allowed := httptest.NewRecorder()

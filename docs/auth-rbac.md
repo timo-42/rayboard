@@ -81,8 +81,8 @@ Built-in roles:
 | --- | --- |
 | `global_admin` | Grants `*`. |
 | `global_user_manager` | User, group, and role administration. |
-| `project_owner` | Full implemented project permissions plus project settings/automation/notification permissions. |
-| `project_admin` | Project read, tickets, comments, attachments, sprints, boards, fields, views, notifications, webhooks, automations. |
+| `project_owner` | Full implemented project permissions plus project role/member, settings, automation, and notification permissions. |
+| `project_admin` | Project read, project role/member management, tickets, comments, attachments, sprints, boards, fields, views, notifications, webhooks, automations. |
 | `project_member` | Project read, ticket read/write, comments, attachments. |
 | `project_viewer` | Project read and ticket read. |
 | `automation_manager` | Project read, automations, webhooks. |
@@ -102,4 +102,4 @@ Personal notification preferences require authentication but no RBAC permission 
 
 ## Current Limitations
 
-Inspect roles with `GET /api/roles`, bindings with `GET /api/role-bindings`, and computed grants with the effective-permissions endpoints. Project-scoped role assignment is implemented through the generic role binding endpoint.
+Inspect roles with `GET /api/roles` or `GET /api/roles/{role_name}`, global binding lists with `GET /api/role-bindings`, and computed grants with the effective-permissions endpoints. Project-scoped member inspection is available at `GET /api/projects/{project_id}/members`; project-scoped role bindings can be listed, created, and deleted at `/api/projects/{project_id}/role-bindings`. The project-scoped create route accepts project roles such as `project_admin`, `project_member`, `project_viewer`, `automation_manager`, and `notification_manager`; owner/global roles stay under global role administration.

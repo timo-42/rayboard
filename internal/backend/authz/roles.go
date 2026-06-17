@@ -71,6 +71,8 @@ var defaultBuiltInRoles = map[RoleName]Role{
 		Permissions: []Permission{
 			PermissionProjectsRead,
 			PermissionProjectsWrite,
+			PermissionRolesRead,
+			PermissionRolesBind,
 			PermissionTicketsWildcard,
 			PermissionCommentsWrite,
 			PermissionAttachmentsWrite,
@@ -90,6 +92,8 @@ var defaultBuiltInRoles = map[RoleName]Role{
 		Name: RoleProjectAdmin,
 		Permissions: []Permission{
 			PermissionProjectsRead,
+			PermissionRolesRead,
+			PermissionRolesBind,
 			PermissionTicketsWildcard,
 			PermissionCommentsWrite,
 			PermissionAttachmentsWrite,

@@ -77,13 +77,18 @@ Health response uses `metadata.id`, `spec.service`, and `status.state`.
 | `POST` | `/api/groups/{group_id}/members/{user_id}` | none |
 | `DELETE` | `/api/groups/{group_id}/members/{user_id}` | none |
 | `GET` | `/api/roles` | none |
+| `GET` | `/api/roles/{role_name}` | none |
 | `GET` | `/api/role-bindings` | none |
 | `POST` | `/api/role-bindings` | `{"spec":{"role_name":"project_member","subject_type":"group","subject_id":"group_...","scope":"project","project_id":"project_..."}}` |
 | `DELETE` | `/api/role-bindings/{binding_id}` | none |
+| `GET` | `/api/projects/{project_id}/members` | Lists users with direct or group project role bindings; requires project `roles:read`. |
+| `GET` | `/api/projects/{project_id}/role-bindings` | Lists role bindings scoped to one project; requires project `roles:read`. |
+| `POST` | `/api/projects/{project_id}/role-bindings` | `{"spec":{"role_name":"project_member","subject_type":"user","subject_id":"user_..."}}`; requires project `roles:bind`. |
+| `DELETE` | `/api/projects/{project_id}/role-bindings/{binding_id}` | Deletes a binding scoped to that project; requires project `roles:bind`. |
 
 Login and `/api/me` responses use `metadata.user_id`, `spec.username`, `spec.display_name`, and session/auth state under `status`. Effective-permission responses use `metadata.user_id`, requested scope under `spec`, and `status.permissions`. Token, user, group, role, and role-binding responses use `metadata`, `spec`, and `status`. Creating a user with an empty password generates a random password and returns it once in `status.password`. Created API token secrets are returned once in `status.token`.
 
-Effective-permission requests default to global scope when `scope` is omitted. `scope=global` rejects `project_id`; `scope=project` requires `project_id`. The embedded `/rbac` page can inspect user effective permissions with the admin endpoint when the signed-in user has global `roles:read`.
+Effective-permission requests default to global scope when `scope` is omitted. `scope=global` rejects `project_id`; `scope=project` requires `project_id`. The embedded `/rbac` page can inspect user effective permissions with the admin endpoint when the signed-in user has global `roles:read`. Project owner and project admin built-in roles include project-scoped `roles:read` and `roles:bind`, so they can use the project member and project role-binding endpoints without global role administration rights. Project-scoped role-binding creation accepts project roles such as `project_admin`, `project_member`, `project_viewer`, `automation_manager`, and `notification_manager`; owner/global roles must be assigned through global role administration.
 
 ## Projects and Tickets
 

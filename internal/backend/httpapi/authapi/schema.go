@@ -110,9 +110,37 @@ type GroupMemberInput struct {
 	UserID  string `path:"user_id"`
 }
 
+type RoleNameInput struct {
+	shared.AuthInput
+	RoleName authz.RoleName `path:"role_name"`
+}
+
+type ProjectIDInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+}
+
+type CreateProjectRoleBindingInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Body      shared.ResourceInput[ProjectRoleBindingSpec]
+}
+
+type ProjectRoleBindingIDInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	BindingID string `path:"binding_id"`
+}
+
 type CreateRoleBindingInput struct {
 	shared.AuthInput
 	Body shared.ResourceInput[RoleBindingSpec]
+}
+
+type ProjectRoleBindingSpec struct {
+	RoleName    authz.RoleName          `json:"role_name,omitempty"`
+	SubjectType authz.BindingTargetKind `json:"subject_type,omitempty"`
+	SubjectID   string                  `json:"subject_id,omitempty"`
 }
 
 type RoleBindingSpec struct {
@@ -238,6 +266,9 @@ type ListGroupsOutput = shared.ListOutput[GroupResource]
 type CreateGroupOutput = shared.CreatedOutput[GroupResource]
 type ListGroupMembersOutput = shared.ListOutput[UserResource]
 type ListRolesOutput = shared.ListOutput[RoleResource]
+type RoleOutput struct {
+	Body RoleResource
+}
 type ListRoleBindingsOutput = shared.ListOutput[RoleBindingResource]
 type CreateRoleBindingOutput = shared.CreatedOutput[RoleBindingResource]
 

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -36,9 +37,14 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/groups/{group_id}/members/{user_id}", "RBAC", "Add group member", http.StatusNoContent), provider.addGroupMember)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/groups/{group_id}/members/{user_id}", "RBAC", "Remove group member", http.StatusNoContent), provider.removeGroupMember)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/roles", "RBAC", "List roles"), provider.listRoles)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/roles/{role_name}", "RBAC", "Get role"), provider.getRole)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/role-bindings", "RBAC", "List role bindings"), provider.listRoleBindings)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/role-bindings", "RBAC", "Create role binding", http.StatusCreated), provider.createRoleBinding)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/role-bindings/{binding_id}", "RBAC", "Delete role binding", http.StatusNoContent), provider.deleteRoleBinding)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/members", "RBAC", "List project members"), provider.listProjectMembers)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/role-bindings", "RBAC", "List project role bindings"), provider.listProjectRoleBindings)
+	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/role-bindings", "RBAC", "Create project role binding", http.StatusCreated), provider.createProjectRoleBinding)
+	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/projects/{project_id}/role-bindings/{binding_id}", "RBAC", "Delete project role binding", http.StatusNoContent), provider.deleteProjectRoleBinding)
 }
 
 func (provider Provider) login(ctx context.Context, input *LoginInput) (*LoginOutput, error) {
@@ -512,6 +518,21 @@ func (provider Provider) listRoles(ctx context.Context, input *struct{ shared.Au
 	return &ListRolesOutput{Body: shared.NewListResource[RoleResource](roleResources(roles))}, nil
 }
 
+func (provider Provider) getRole(ctx context.Context, input *RoleNameInput) (*RoleOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesRead, authz.GlobalScope()); err != nil {
+		return nil, err
+	}
+	role, err := provider.roleByName(ctx, input.RoleName)
+	if err != nil {
+		return nil, err
+	}
+	return &RoleOutput{Body: roleResource(role)}, nil
+}
+
 func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ shared.AuthInput }) (*ListRoleBindingsOutput, error) {
 	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
 	if err != nil {
@@ -523,6 +544,62 @@ func (provider Provider) listRoleBindings(ctx context.Context, input *struct{ sh
 	bindings, err := provider.Auth.ListRoleBindings(ctx)
 	if err != nil {
 		return nil, shared.AuthServiceError(err)
+	}
+	return &ListRoleBindingsOutput{Body: shared.NewListResource[RoleBindingResource](roleBindingResources(bindings))}, nil
+}
+
+func (provider Provider) listProjectMembers(ctx context.Context, input *ProjectIDInput) (*ListGroupMembersOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesRead, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	bindings, err := provider.projectRoleBindings(ctx, input.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	usersByID := map[string]auth.User{}
+	for _, binding := range bindings {
+		switch binding.SubjectType {
+		case authz.BindingTargetUser:
+			user, err := provider.Auth.GetUser(ctx, binding.SubjectID)
+			if err != nil {
+				return nil, shared.AuthServiceError(err)
+			}
+			usersByID[user.ID] = user
+		case authz.BindingTargetGroup:
+			members, err := provider.Auth.ListGroupMembers(ctx, binding.SubjectID)
+			if err != nil {
+				return nil, shared.AuthServiceError(err)
+			}
+			for _, member := range members {
+				usersByID[member.ID] = member
+			}
+		}
+	}
+	users := make([]auth.User, 0, len(usersByID))
+	for _, user := range usersByID {
+		users = append(users, user)
+	}
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].Username < users[j].Username
+	})
+	return &ListGroupMembersOutput{Body: shared.NewListResource[UserResource](userResources(users))}, nil
+}
+
+func (provider Provider) listProjectRoleBindings(ctx context.Context, input *ProjectIDInput) (*ListRoleBindingsOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesRead, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	bindings, err := provider.projectRoleBindings(ctx, input.ProjectID)
+	if err != nil {
+		return nil, err
 	}
 	return &ListRoleBindingsOutput{Body: shared.NewListResource[RoleBindingResource](roleBindingResources(bindings))}, nil
 }
@@ -566,6 +643,81 @@ func (provider Provider) createRoleBinding(ctx context.Context, input *CreateRol
 	return &CreateRoleBindingOutput{Body: roleBindingResource(binding)}, nil
 }
 
+func (provider Provider) createProjectRoleBinding(ctx context.Context, input *CreateProjectRoleBindingInput) (*CreateRoleBindingOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesBind, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	if !projectAssignableRole(input.Body.Spec.RoleName) {
+		return nil, huma.Error400BadRequest("Role cannot be bound through the project role API")
+	}
+	binding, err := provider.Auth.CreateRoleBinding(ctx, auth.CreateRoleBindingInput{
+		RoleName:    input.Body.Spec.RoleName,
+		SubjectType: input.Body.Spec.SubjectType,
+		SubjectID:   input.Body.Spec.SubjectID,
+		Scope:       authz.ProjectScope(input.ProjectID),
+	})
+	if err != nil {
+		return nil, shared.AuthServiceError(err)
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.role_binding_created",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "role_binding",
+		SubjectID:   binding.ID,
+		Payload: map[string]any{
+			"binding_id":    binding.ID,
+			"role_id":       binding.RoleID,
+			"role_name":     binding.RoleName,
+			"subject_type":  binding.SubjectType,
+			"subject_id":    binding.SubjectID,
+			"resource_type": binding.ResourceType,
+			"resource_id":   binding.ResourceID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
+	return &CreateRoleBindingOutput{Body: roleBindingResource(binding)}, nil
+}
+
+func (provider Provider) deleteProjectRoleBinding(ctx context.Context, input *ProjectRoleBindingIDInput) (*shared.EmptyOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Authenticator.Require(principal, authz.PermissionRolesBind, authz.ProjectScope(input.ProjectID)); err != nil {
+		return nil, err
+	}
+	binding, err := provider.projectRoleBinding(ctx, input.ProjectID, input.BindingID)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Auth.DeleteRoleBinding(ctx, input.BindingID); err != nil {
+		return nil, shared.AuthServiceError(err)
+	}
+	actorID, authKind := auditActor(principal)
+	if err := provider.recordAudit(ctx, audit.RecordInput{
+		EventType:   "rbac.role_binding_deleted",
+		ActorID:     actorID,
+		AuthKind:    authKind,
+		SubjectType: "role_binding",
+		SubjectID:   input.BindingID,
+		Payload: map[string]any{
+			"binding_id":    input.BindingID,
+			"resource_type": binding.ResourceType,
+			"resource_id":   binding.ResourceID,
+		},
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("Could not write audit log")
+	}
+	return &shared.EmptyOutput{}, nil
+}
+
 func (provider Provider) deleteRoleBinding(ctx context.Context, input *RoleBindingIDInput) (*shared.EmptyOutput, error) {
 	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
 	if err != nil {
@@ -591,6 +743,59 @@ func (provider Provider) deleteRoleBinding(ctx context.Context, input *RoleBindi
 		return nil, huma.Error500InternalServerError("Could not write audit log")
 	}
 	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) roleByName(ctx context.Context, roleName authz.RoleName) (auth.Role, error) {
+	roles, err := provider.Auth.ListRoles(ctx)
+	if err != nil {
+		return auth.Role{}, shared.AuthServiceError(err)
+	}
+	for _, role := range roles {
+		if role.Name == roleName {
+			return role, nil
+		}
+	}
+	return auth.Role{}, huma.Error404NotFound("Role not found")
+}
+
+func (provider Provider) projectRoleBindings(ctx context.Context, projectID string) ([]auth.RoleBinding, error) {
+	bindings, err := provider.Auth.ListRoleBindings(ctx)
+	if err != nil {
+		return nil, shared.AuthServiceError(err)
+	}
+	filtered := make([]auth.RoleBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if binding.ResourceType == string(authz.ScopeKindProject) && binding.ResourceID == projectID {
+			filtered = append(filtered, binding)
+		}
+	}
+	return filtered, nil
+}
+
+func (provider Provider) projectRoleBinding(ctx context.Context, projectID string, bindingID string) (auth.RoleBinding, error) {
+	bindings, err := provider.projectRoleBindings(ctx, projectID)
+	if err != nil {
+		return auth.RoleBinding{}, err
+	}
+	for _, binding := range bindings {
+		if binding.ID == bindingID {
+			return binding, nil
+		}
+	}
+	return auth.RoleBinding{}, huma.Error404NotFound("Project role binding not found")
+}
+
+func projectAssignableRole(role authz.RoleName) bool {
+	switch role {
+	case authz.RoleProjectAdmin,
+		authz.RoleProjectMember,
+		authz.RoleProjectViewer,
+		authz.RoleAutomationManager,
+		authz.RoleNotificationManager:
+		return true
+	default:
+		return false
+	}
 }
 
 func requestScope(input RoleBindingSpec) authz.Scope {
