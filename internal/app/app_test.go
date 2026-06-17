@@ -8,8 +8,13 @@ import (
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend"
+	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/comments"
+	"github.com/timo-42/rayboard/internal/backend/cronjobs"
+	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -79,12 +84,27 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	hooks := tracker.NewHookService(db.SQL, authorizer)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hooks))
 	createPages := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
+	commentService := comments.NewService(db.SQL, authorizer)
+	attachmentService := attachments.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
+	cronService := cronjobs.NewService(
+		db.SQL,
+		authorizer,
+		automation.NewRunStore(db.SQL),
+		cronjobs.WithTrackerService(trackerService),
+		cronjobs.WithSearchService(searchService),
+		cronjobs.WithCommentService(commentService),
+	)
 	server := httptest.NewServer(backend.NewHandler(
 		backend.WithAuthService(auth.NewService(db.SQL)),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
 		backend.WithTicketHookService(hooks),
 		backend.WithCreatePageService(createPages),
+		backend.WithCommentService(commentService),
+		backend.WithAttachmentService(attachmentService),
+		backend.WithSearchService(searchService),
+		backend.WithCronService(cronService),
 	))
 	t.Cleanup(server.Close)
 
@@ -110,7 +130,12 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		!strings.Contains(output, "demo sprint:") ||
 		!strings.Contains(output, "demo ticket hook:") ||
 		!strings.Contains(output, "demo ticket create page:") ||
-		!strings.Contains(output, "demo ticket create page submission:") {
+		!strings.Contains(output, "demo ticket create page submission:") ||
+		!strings.Contains(output, "demo comment:") ||
+		!strings.Contains(output, "demo attachment:") ||
+		!strings.Contains(output, "demo saved view:") ||
+		!strings.Contains(output, "demo search:") ||
+		!strings.Contains(output, "demo cron job:") {
 		t.Fatalf("unexpected demo output: %s", output)
 	}
 	var createPageCount int
@@ -130,6 +155,22 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	}
 	if intakeSubmissionCount != 1 {
 		t.Fatalf("expected one intake submission ticket label, got %d", intakeSubmissionCount)
+	}
+	for table, want := range map[string]int{
+		"ticket_comments":     1,
+		"ticket_attachments":  1,
+		"saved_views":         1,
+		"cron_jobs":           1,
+		"automation_runs":     0,
+		"ticket_create_pages": 1,
+	} {
+		var got int
+		if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&got); err != nil {
+			t.Fatalf("count %s: %v", table, err)
+		}
+		if got != want {
+			t.Fatalf("expected %d rows in %s, got %d", want, table, got)
+		}
 	}
 }
 

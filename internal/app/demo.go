@@ -9,13 +9,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/search"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 	"github.com/timo-42/rayboard/internal/config"
 )
@@ -199,7 +202,7 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err != nil {
 		return err
 	}
-	if err := s.bindProjectAccess(ctx, groups["engineers"].id(), users["lead"].id(), project.ID); err != nil {
+	if err := s.bindProjectAccess(ctx, groups["engineers"].id(), groups["stakeholders"].id(), users["lead"].id(), project.ID); err != nil {
 		return err
 	}
 	assets, err := s.createProjectPlanning(ctx, project.ID, users)
@@ -212,7 +215,17 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err := s.createTicketCreatePage(ctx, project.ID, users, assets); err != nil {
 		return err
 	}
-	if err := s.createTickets(ctx, project.ID, assets); err != nil {
+	tickets, err := s.createTickets(ctx, project.ID, assets)
+	if err != nil {
+		return err
+	}
+	if err := s.createTicketActivityExamples(ctx, tickets); err != nil {
+		return err
+	}
+	if err := s.createSavedViews(ctx, project.ID); err != nil {
+		return err
+	}
+	if err := s.createCronJob(ctx, project.ID, users["lead"].id()); err != nil {
 		return err
 	}
 
@@ -317,7 +330,7 @@ func (s *demoSeeder) createProject(ctx context.Context, leadUserID string) (trac
 	}, nil
 }
 
-func (s *demoSeeder) bindProjectAccess(ctx context.Context, groupID string, leadUserID string, projectID string) error {
+func (s *demoSeeder) bindProjectAccess(ctx context.Context, engineerGroupID string, stakeholderGroupID string, leadUserID string, projectID string) error {
 	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
 		"spec": {
 			RoleName:    authz.RoleProjectOwner,
@@ -333,14 +346,25 @@ func (s *demoSeeder) bindProjectAccess(ctx context.Context, groupID string, lead
 		"spec": {
 			RoleName:    authz.RoleProjectMember,
 			SubjectType: authz.BindingTargetGroup,
-			SubjectID:   groupID,
+			SubjectID:   engineerGroupID,
 			Scope:       authz.ScopeKindProject,
 			ProjectID:   projectID,
 		},
 	}, nil); err != nil {
 		return fmt.Errorf("bind demo project members: %w", err)
 	}
-	fmt.Fprintln(s.stdout, "demo role binding: project owner/member")
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/role-bindings", map[string]demoRoleBinding{
+		"spec": {
+			RoleName:    authz.RoleProjectViewer,
+			SubjectType: authz.BindingTargetGroup,
+			SubjectID:   stakeholderGroupID,
+			Scope:       authz.ScopeKindProject,
+			ProjectID:   projectID,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("bind demo project viewers: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo role binding: project owner/member/viewer")
 	return nil
 }
 
@@ -509,7 +533,7 @@ func (s *demoSeeder) createTicketCreatePage(ctx context.Context, projectID strin
 	return nil
 }
 
-func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets demoPlanningAssets) error {
+func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets demoPlanningAssets) ([]demoTicketResource, error) {
 	epic, err := s.createDemoTicket(ctx, projectID, tracker.CreateTicketInput{
 		Title:       "Launch customer onboarding",
 		Description: "Epic for the seeded onboarding workflow.",
@@ -526,7 +550,7 @@ func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tickets := []tracker.CreateTicketInput{
@@ -571,14 +595,14 @@ func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets
 	for index, ticket := range tickets {
 		created, err := s.createDemoTicket(ctx, projectID, ticket)
 		if err != nil {
-			return fmt.Errorf("create demo ticket %d: %w", index+1, err)
+			return nil, fmt.Errorf("create demo ticket %d: %w", index+1, err)
 		}
 		createdTickets = append(createdTickets, created)
 		if index == 1 {
 			status := "in_progress"
 			update := tracker.UpdateTicketInput{Status: &status}
 			if err := s.apiJSON(ctx, http.MethodPatch, "/api/tickets/"+created.Metadata.ID, map[string]tracker.UpdateTicketInput{"spec": update}, nil); err != nil {
-				return fmt.Errorf("update demo ticket %s: %w", created.Status.Key, err)
+				return nil, fmt.Errorf("update demo ticket %s: %w", created.Status.Key, err)
 			}
 		}
 	}
@@ -589,9 +613,88 @@ func (s *demoSeeder) createTickets(ctx context.Context, projectID string, assets
 	if err := s.apiJSON(ctx, http.MethodPatch, "/api/projects/"+projectID+"/backlog", map[string]any{
 		"spec": map[string]any{"ticket_ids": reordered},
 	}, nil); err != nil {
-		return fmt.Errorf("reorder demo backlog: %w", err)
+		return nil, fmt.Errorf("reorder demo backlog: %w", err)
 	}
 	fmt.Fprintln(s.stdout, "demo backlog: reordered")
+	return createdTickets, nil
+}
+
+func (s *demoSeeder) createTicketActivityExamples(ctx context.Context, tickets []demoTicketResource) error {
+	if len(tickets) == 0 {
+		return nil
+	}
+	ticket := tickets[0]
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/tickets/"+ticket.id()+"/comments", map[string]any{
+		"spec": map[string]any{
+			"body": "Demo comment: link the onboarding epic to the release notes and customer rollout plan.",
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("create demo comment: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo comment: ticket=%s\n", ticket.Status.Key)
+
+	if err := s.uploadAttachment(ctx, ticket.id(), "demo-release-notes.txt", "text/plain", []byte("Demo release notes for Rayboard onboarding.\nSearchable attachment content: rollout checklist.\n")); err != nil {
+		return fmt.Errorf("upload demo attachment: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo attachment: ticket=%s file=demo-release-notes.txt\n", ticket.Status.Key)
+	return nil
+}
+
+func (s *demoSeeder) createSavedViews(ctx context.Context, projectID string) error {
+	var view demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/saved-views", map[string]any{
+		"spec": map[string]any{
+			"project_id":   projectID,
+			"scope_type":   search.SavedViewScopeProject,
+			"name":         "Pinned demo backlog",
+			"query":        map[string]any{"filter": `labels == "demo"`, "text": "onboarding"},
+			"sort":         []map[string]any{{"field": "priority", "direction": search.SortDirectionDesc}},
+			"columns":      []string{"key", "title", "status", "priority", "assignee_id"},
+			"display_mode": search.SavedViewDisplayBacklog,
+			"group_by":     "status",
+			"pinned":       true,
+		},
+	}, &view); err != nil {
+		return fmt.Errorf("create demo saved view: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo saved view: name=%q id=%s\n", "Pinned demo backlog", view.id())
+
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/search", map[string]any{
+		"spec": map[string]any{
+			"project_id": projectID,
+			"filter":     `labels == "demo"`,
+			"text":       "rollout",
+			"limit":      10,
+		},
+	}, nil); err != nil {
+		return fmt.Errorf("run demo search example: %w", err)
+	}
+	fmt.Fprintln(s.stdout, "demo search: CEL labels filter with FTS text")
+	return nil
+}
+
+func (s *demoSeeder) createCronJob(ctx context.Context, projectID string, ownerUserID string) error {
+	var job demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/cron-jobs", map[string]any{
+		"spec": map[string]any{
+			"owner_user_id": ownerUserID,
+			"project_id":    projectID,
+			"name":          "Demo stale ticket scan",
+			"schedule":      "0 9 * * 1",
+			"timezone":      "UTC",
+			"enabled":       false,
+			"engine": map[string]any{
+				"type": "lua",
+				"script": `
+local results = rayboard.search({ filter = 'labels == "demo"', text = 'onboarding', limit = 5 })
+return { checked = true, ticket_count = #(results.items or {}) }
+`,
+			},
+		},
+	}, &job); err != nil {
+		return fmt.Errorf("create demo cron job: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo cron job: name=%q id=%s enabled=false\n", "Demo stale ticket scan", job.id())
 	return nil
 }
 
@@ -643,6 +746,50 @@ func (s *demoSeeder) apiJSON(ctx context.Context, method string, path string, in
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil
+}
+
+func (s *demoSeeder) uploadAttachment(ctx context.Context, ticketID string, fileName string, contentType string, data []byte) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, escapeQuotes(fileName)))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return fmt.Errorf("create multipart file: %w", err)
+	}
+	if _, err := part.Write(data); err != nil {
+		return fmt.Errorf("write multipart file: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("close multipart body: %w", err)
+	}
+
+	target := s.baseURL.ResolveReference(&url.URL{Path: "/api/tickets/" + ticketID + "/attachments"})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), &body)
+	if err != nil {
+		return fmt.Errorf("build attachment request: %w", err)
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("X-CSRF-Token", s.csrf)
+
+	response, err := s.client.Do(request)
+	if err != nil {
+		return fmt.Errorf("POST attachment: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		responseData, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf("POST attachment returned %d: %s", response.StatusCode, strings.TrimSpace(string(responseData)))
+	}
+	return nil
+}
+
+func escapeQuotes(value string) string {
+	return strings.NewReplacer("\\", "\\\\", `"`, "\\\"").Replace(value)
 }
 
 func randomDemoSuffix() (string, error) {
