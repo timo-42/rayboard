@@ -252,6 +252,37 @@
         <div id="backlog" class="backlog-list"></div>
       </section>
 
+      <section id="workflow-panel" class="workflow-panel" hidden>
+        <header class="workflow-header">
+          <div>
+            <p class="eyebrow">Workflow</p>
+            <h2>Boards and Statuses</h2>
+          </div>
+        </header>
+
+        <div class="workflow-grid">
+          <section>
+            <h3>Statuses</h3>
+            <form id="status-form" class="status-form">
+              <textarea name="statuses" rows="5" placeholder='[{"slug":"todo","name":"To Do"},{"slug":"in_progress","name":"In Progress"},{"slug":"done","name":"Done"}]'></textarea>
+              <button type="submit">Replace</button>
+            </form>
+            <div id="workflow-statuses" class="status-list"></div>
+          </section>
+
+          <section>
+            <h3>Boards</h3>
+            <form id="board-form" class="board-form">
+              <input name="name" placeholder="Board name" required>
+              <input name="description" placeholder="Description">
+              <input name="status_slugs" placeholder="todo, in_progress, done">
+              <button type="submit">Create</button>
+            </form>
+            <div id="boards" class="board-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section id="release-panel" class="release-panel" hidden>
         <header class="release-header">
           <div>

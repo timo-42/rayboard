@@ -58,6 +58,10 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="backlog-panel"`) ||
 		!strings.Contains(body, `id="backlog"`) ||
+		!strings.Contains(body, `id="workflow-panel"`) ||
+		!strings.Contains(body, `id="status-form"`) ||
+		!strings.Contains(body, `id="board-form"`) ||
+		!strings.Contains(body, `id="boards"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
@@ -121,12 +125,16 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderSettings",
 		"renderAuditLog",
 		"renderBacklog",
+		"renderWorkflowPanel",
 		"renderTicketHooks",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadRBAC",
 		"loadSettingsPage",
 		"loadBacklog",
+		"loadWorkflowStatuses",
+		"loadBoards",
+		"loadBoardTickets",
 		"loadAuditLog",
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
@@ -146,6 +154,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"normalizeWebhook",
 		"normalizeTicketHook",
 		"normalizeCreatePage",
+		"normalizeWorkflowStatus",
+		"normalizeBoard",
+		"normalizeBoardTickets",
 		"cronJobSpec",
 		"webhookSpec",
 		"ticketHookSpec",
@@ -179,6 +190,11 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"data-delete-notification-hook-id",
 		"/api/projects/${state.selectedProject.id}/backlog",
 		"data-backlog-move-id",
+		"/api/projects/${state.selectedProject.id}/statuses",
+		"/api/projects/${state.selectedProject.id}/boards",
+		"/api/boards/${boardID}/tickets",
+		"data-select-board-id",
+		"data-delete-board-id",
 		"/api/cron-jobs?${query.toString()}",
 		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
 		"data-delete-cron-job-id",
@@ -222,6 +238,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-hook-preview",
 		".backlog-panel",
 		".backlog-list",
+		".workflow-panel",
+		".status-form",
+		".board-form",
+		".board-list",
 		".cron-job-form",
 		".cron-job-list",
 		".webhook-form",

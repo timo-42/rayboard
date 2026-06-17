@@ -8,6 +8,10 @@ const state = {
   recentTickets: [],
   activeSprints: [],
   backlog: [],
+  workflowStatuses: [],
+  boards: [],
+  selectedBoardID: "",
+  boardTickets: null,
   sprints: [],
   components: [],
   versions: [],
@@ -150,6 +154,11 @@ const els = {
   sprints: document.querySelector("#sprints"),
   backlogPanel: document.querySelector("#backlog-panel"),
   backlog: document.querySelector("#backlog"),
+  workflowPanel: document.querySelector("#workflow-panel"),
+  statusForm: document.querySelector("#status-form"),
+  workflowStatuses: document.querySelector("#workflow-statuses"),
+  boardForm: document.querySelector("#board-form"),
+  boards: document.querySelector("#boards"),
   releasePanel: document.querySelector("#release-panel"),
   componentForm: document.querySelector("#component-form"),
   versionForm: document.querySelector("#version-form"),
@@ -227,6 +236,10 @@ function bindEvents() {
       state.recentTickets = [];
       state.activeSprints = [];
       state.backlog = [];
+      state.workflowStatuses = [];
+      state.boards = [];
+      state.selectedBoardID = "";
+      state.boardTickets = null;
       state.sprints = [];
       state.components = [];
       state.versions = [];
@@ -714,6 +727,76 @@ function bindEvents() {
       state.backlog = listItems(data).map(normalizeTicket);
       renderBacklog();
     }, "Backlog reordered");
+  });
+
+  els.statusForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before replacing statuses");
+      return;
+    }
+    const form = event.currentTarget;
+    const data = formData(form);
+    const statuses = parseJSONArrayField(data.statuses, "Workflow statuses JSON")
+      .map((status) => ({
+        slug: String(status.slug || "").trim(),
+        name: String(status.name || "").trim()
+      }))
+      .filter((status) => status.slug && status.name);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/statuses`, {
+        method: "PUT",
+        body: { spec: { statuses } }
+      });
+      await loadWorkflowStatuses();
+      await loadBoards();
+      await loadTickets();
+    }, "Workflow statuses replaced");
+  });
+
+  els.boardForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a board");
+      return;
+    }
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      const board = normalizeBoard(await api(`/api/projects/${state.selectedProject.id}/boards`, {
+        method: "POST",
+        body: { spec: {
+          name: data.name || "",
+          description: data.description || "",
+          status_slugs: parseCommaList(data.status_slugs)
+        } }
+      }));
+      form.reset();
+      state.selectedBoardID = board ? board.id : "";
+      await loadBoards();
+    }, "Board created");
+  });
+
+  els.boards.addEventListener("click", async (event) => {
+    const select = event.target.closest("[data-select-board-id]");
+    if (select) {
+      state.selectedBoardID = select.dataset.selectBoardId;
+      await loadBoardTickets(state.selectedBoardID);
+      renderWorkflowPanel();
+      renderTickets();
+      return;
+    }
+    const remove = event.target.closest("[data-delete-board-id]");
+    if (!remove) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/boards/${remove.dataset.deleteBoardId}`, { method: "DELETE" });
+      if (state.selectedBoardID === remove.dataset.deleteBoardId) {
+        state.selectedBoardID = "";
+      }
+      await loadBoards();
+    }, "Board deleted");
   });
 
   els.componentForm.addEventListener("submit", async (event) => {
@@ -1722,6 +1805,57 @@ async function loadBacklog() {
   renderBacklog();
 }
 
+async function loadWorkflowStatuses() {
+  if (!state.user || !state.selectedProject) {
+    state.workflowStatuses = [];
+    renderWorkflowPanel();
+    renderTickets();
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/statuses`);
+  state.workflowStatuses = listItems(data).map(normalizeWorkflowStatus).filter(Boolean);
+  renderWorkflowPanel();
+  renderTickets();
+}
+
+async function loadBoards() {
+  if (!state.user || !state.selectedProject) {
+    state.boards = [];
+    state.selectedBoardID = "";
+    state.boardTickets = null;
+    renderWorkflowPanel();
+    renderTickets();
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/boards`);
+  state.boards = listItems(data).map(normalizeBoard).filter(Boolean);
+  if (!state.boards.some((board) => board.id === state.selectedBoardID)) {
+    state.selectedBoardID = state.boards.length ? state.boards[0].id : "";
+  }
+  if (state.selectedBoardID) {
+    await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
+  } else {
+    state.boardTickets = null;
+  }
+  renderWorkflowPanel();
+  renderTickets();
+}
+
+async function loadBoardTickets(boardID, options = {}) {
+  if (!boardID) {
+    state.boardTickets = null;
+    if (options.renderAfter !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/boards/${boardID}/tickets`);
+  state.boardTickets = normalizeBoardTickets(data);
+  if (options.renderAfter !== false) {
+    renderTickets();
+  }
+}
+
 async function loadComponents(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.components = [];
@@ -1800,6 +1934,8 @@ async function loadProjectDetails() {
   if (!state.selectedProject) {
     return;
   }
+  await loadWorkflowStatuses();
+  await loadBoards();
   await loadBacklog();
   await loadSprints({ renderTickets: false });
   await loadComponents({ renderTickets: false });
@@ -1843,6 +1979,10 @@ async function loadProjects(selectedID = "") {
   } else {
     state.tickets = [];
     state.backlog = [];
+    state.workflowStatuses = [];
+    state.boards = [];
+    state.selectedBoardID = "";
+    state.boardTickets = null;
     state.sprints = [];
     state.components = [];
     state.versions = [];
@@ -1931,6 +2071,9 @@ async function refreshTicketViews(ticketID, options = {}) {
     await loadRoadmap({ renderTickets: false });
   }
   await loadBacklog();
+  if (state.selectedBoardID) {
+    await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
+  }
   await loadTickets();
   if (state.selectedIssue && state.selectedIssue.id === ticketID) {
     await loadSelectedIssue(ticketID);
@@ -2255,6 +2398,7 @@ function render() {
   els.notificationInbox.hidden = !signedIn || route.page !== "dashboard";
   els.sprintPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.backlogPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.workflowPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.releasePanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.fieldPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.roadmapPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
@@ -2276,6 +2420,7 @@ function render() {
   renderIssue();
   renderNotifications();
   renderBacklog();
+  renderWorkflowPanel();
   renderSprints();
   renderComponents();
   renderVersions();
@@ -2502,6 +2647,118 @@ function backlogItemNode(ticket, index) {
   down.textContent = "Down";
 
   actions.append(up, down);
+  article.append(body, actions);
+  return article;
+}
+
+function renderWorkflowPanel() {
+  if (!els.workflowStatuses || !els.boards) {
+    return;
+  }
+  renderStatusForm();
+  renderWorkflowStatuses();
+  renderBoards();
+}
+
+function renderStatusForm() {
+  if (!els.statusForm || document.activeElement === els.statusForm.elements.statuses) {
+    return;
+  }
+  const statuses = state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses();
+  els.statusForm.elements.statuses.value = JSON.stringify(statuses.map((status) => ({
+    slug: status.slug,
+    name: status.name
+  })), null, 2);
+}
+
+function renderWorkflowStatuses() {
+  els.workflowStatuses.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage workflow statuses";
+    els.workflowStatuses.append(empty);
+    return;
+  }
+  if (!state.workflowStatuses.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No workflow statuses";
+    els.workflowStatuses.append(empty);
+    return;
+  }
+  for (const status of state.workflowStatuses) {
+    const item = document.createElement("article");
+    item.className = "status-item";
+
+    const title = document.createElement("p");
+    title.textContent = status.name || status.slug;
+
+    const meta = document.createElement("span");
+    meta.textContent = [status.slug, `position ${status.position || 0}`].filter(Boolean).join(" / ");
+
+    item.append(title, meta);
+    els.workflowStatuses.append(item);
+  }
+}
+
+function renderBoards() {
+  els.boards.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage boards";
+    els.boards.append(empty);
+    return;
+  }
+  if (!state.boards.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No boards";
+    els.boards.append(empty);
+    return;
+  }
+  for (const board of state.boards) {
+    els.boards.append(boardNode(board));
+  }
+}
+
+function boardNode(board) {
+  const article = document.createElement("article");
+  article.className = "board-item";
+  if (board.id === state.selectedBoardID) {
+    article.classList.add("is-active");
+  }
+
+  const body = document.createElement("div");
+  body.className = "board-item-body";
+
+  const title = document.createElement("p");
+  title.textContent = board.name || "Board";
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    board.description || "",
+    board.status_slugs.length ? board.status_slugs.join(", ") : "no columns"
+  ].filter(Boolean).join(" / ");
+
+  body.append(title, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "board-actions";
+
+  const select = document.createElement("button");
+  select.type = "button";
+  select.dataset.selectBoardId = board.id;
+  select.disabled = board.id === state.selectedBoardID;
+  select.textContent = board.id === state.selectedBoardID ? "Selected" : "Select";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteBoardId = board.id;
+  remove.textContent = "Delete";
+
+  actions.append(select, remove);
   article.append(body, actions);
   return article;
 }
@@ -4519,15 +4776,62 @@ function parseJSONArrayField(value, label) {
 
 function renderTickets() {
   els.selectedProject.textContent = state.selectedProject ? `${state.selectedProject.key} ${state.selectedProject.name}` : "No project selected";
-  const lists = els.ticketColumns.querySelectorAll(".ticket-list");
-  for (const list of lists) {
-    list.replaceChildren();
+  els.ticketColumns.replaceChildren();
+  const columns = ticketColumns();
+  for (const column of columns) {
+    els.ticketColumns.append(ticketColumnNode(column));
+  }
+  const byID = new Map(state.tickets.map((ticket) => [ticket.id, ticket]));
+  const rendered = new Set();
+  if (state.boardTickets && Array.isArray(state.boardTickets.columns)) {
+    for (const column of state.boardTickets.columns) {
+      const list = els.ticketColumns.querySelector(`[data-status="${cssEscape(column.slug)}"] .ticket-list`);
+      if (!list) {
+        continue;
+      }
+      for (const ticket of column.tickets) {
+        const fullTicket = byID.get(ticket.id) || ticket;
+        list.append(ticketNode(fullTicket));
+        rendered.add(fullTicket.id);
+      }
+    }
   }
   for (const ticket of state.tickets) {
-    const list = els.ticketColumns.querySelector(`[data-status="${ticket.status}"] .ticket-list`) ||
-      els.ticketColumns.querySelector('[data-status="todo"] .ticket-list');
-    list.append(ticketNode(ticket));
+    if (rendered.has(ticket.id)) {
+      continue;
+    }
+    const list = els.ticketColumns.querySelector(`[data-status="${cssEscape(ticket.status)}"] .ticket-list`) ||
+      els.ticketColumns.querySelector(".ticket-list");
+    if (list) {
+      list.append(ticketNode(ticket));
+    }
   }
+}
+
+function ticketColumns() {
+  if (state.boardTickets && Array.isArray(state.boardTickets.columns) && state.boardTickets.columns.length) {
+    return state.boardTickets.columns.map((column) => ({
+      slug: column.slug,
+      name: column.name || statusName(column.slug)
+    }));
+  }
+  const statuses = state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses();
+  return statuses.map((status) => ({ slug: status.slug, name: status.name }));
+}
+
+function ticketColumnNode(column) {
+  const section = document.createElement("section");
+  section.className = "column";
+  section.dataset.status = column.slug;
+
+  const heading = document.createElement("h3");
+  heading.textContent = column.name || column.slug;
+
+  const list = document.createElement("div");
+  list.className = "ticket-list";
+
+  section.append(heading, list);
+  return section;
 }
 
 function renderIssue() {
@@ -5015,6 +5319,11 @@ function activityDataLabel(data) {
 }
 
 function statusActions(status) {
+  if (state.workflowStatuses.length > 1) {
+    return state.workflowStatuses
+      .filter((item) => item.slug !== status)
+      .map((item) => ({ label: item.name || item.slug, status: item.slug }));
+  }
   switch (status) {
     case "todo":
       return [{ label: "Start", status: "in_progress" }, { label: "Done", status: "done" }];
@@ -5025,6 +5334,26 @@ function statusActions(status) {
     default:
       return [{ label: "Todo", status: "todo" }];
   }
+}
+
+function statusName(slug) {
+  const status = state.workflowStatuses.find((item) => item.slug === slug);
+  return status ? status.name : slug;
+}
+
+function defaultWorkflowStatuses() {
+  return [
+    { slug: "todo", name: "Todo", position: 0 },
+    { slug: "in_progress", name: "In Progress", position: 1 },
+    { slug: "done", name: "Done", position: 2 }
+  ];
+}
+
+function cssEscape(value) {
+  if (window.CSS && typeof window.CSS.escape === "function") {
+    return window.CSS.escape(String(value || ""));
+  }
+  return String(value || "").replace(/"/g, '\\"');
 }
 
 function formData(form) {
@@ -5275,6 +5604,55 @@ function normalizeTicket(ticket) {
     };
   }
   return ticket;
+}
+
+function normalizeWorkflowStatus(status) {
+  if (!status) {
+    return null;
+  }
+  if (status.metadata && status.spec) {
+    return {
+      id: status.metadata.id,
+      project_id: status.metadata.project_id,
+      slug: status.spec.slug || "",
+      name: status.spec.name || "",
+      position: Number(status.spec.position || 0)
+    };
+  }
+  return status;
+}
+
+function normalizeBoard(board) {
+  if (!board) {
+    return null;
+  }
+  if (board.metadata && board.spec && board.status) {
+    return {
+      id: board.metadata.id,
+      project_id: board.metadata.project_id,
+      name: board.spec.name || "",
+      description: board.spec.description || "",
+      status_slugs: board.spec.status_slugs || [],
+      columns: board.status.columns || []
+    };
+  }
+  return board;
+}
+
+function normalizeBoardTickets(data) {
+  if (!data || !data.metadata || !data.status) {
+    return null;
+  }
+  return {
+    id: data.metadata.id,
+    project_id: data.metadata.project_id,
+    board: data.spec && data.spec.board ? normalizeBoard(data.spec.board) : null,
+    columns: (data.status.columns || []).map((column) => ({
+      slug: column.column ? column.column.status_slug : "",
+      name: column.column ? column.column.name : "",
+      tickets: (column.tickets || []).map(normalizeTicket).filter(Boolean)
+    }))
+  };
 }
 
 function normalizeAttachment(attachment) {

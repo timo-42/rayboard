@@ -50,12 +50,13 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
+- basic project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/deletion, and board-backed ticket columns through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, and `/api/boards/{board_id}/tickets`.
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/delivery history, and custom create-page rendering/submission are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/delivery history, and custom create-page rendering/submission are API-only for now.
 
-Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, custom create-page rendering/submission, and advanced release planning are **Planned**.
+Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, custom create-page rendering/submission, and advanced release planning are **Planned**.
 
 ## Design Variants
 
