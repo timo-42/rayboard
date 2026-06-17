@@ -518,6 +518,40 @@ func TestTrackerEndpointsDenyUnprivilegedMutations(t *testing.T) {
 	if createProject.Code != http.StatusForbidden {
 		t.Fatalf("expected create project status 403, got %d: %s", createProject.Code, createProject.Body.String())
 	}
+	forbidden := decodeAPIError(t, createProject.Body.Bytes())
+	if forbidden.Error.Code != "forbidden" || forbidden.Error.Message == "" || len(forbidden.Error.Fields) != 0 {
+		t.Fatalf("unexpected forbidden error envelope: %#v", forbidden)
+	}
+}
+
+func TestTrackerEndpointValidationErrorEnvelope(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	handler := newTrackerTestHandler(db.SQL)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	createProjectReq := httptest.NewRequest(http.MethodPost, "/api/projects", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"key":  "bad-key",
+			"name": "",
+		},
+	}))
+	addSessionCSRF(createProjectReq, session, csrf)
+	createProject := httptest.NewRecorder()
+	handler.ServeHTTP(createProject, createProjectReq)
+	if createProject.Code != http.StatusBadRequest {
+		t.Fatalf("expected create project status 400, got %d: %s", createProject.Code, createProject.Body.String())
+	}
+	envelope := decodeAPIError(t, createProject.Body.Bytes())
+	if envelope.Error.Code != "validation_failed" || envelope.Error.Message == "" || envelope.Error.Fields["key"] == "" || envelope.Error.Fields["name"] == "" {
+		t.Fatalf("unexpected validation error envelope: %#v", envelope)
+	}
 }
 
 func newTrackerTestHandler(db *sql.DB) http.Handler {
@@ -529,6 +563,24 @@ func newTrackerTestHandler(db *sql.DB) http.Handler {
 		WithAuthorizer(authorizer),
 		WithTrackerService(trackerService),
 	)
+}
+
+type apiErrorBody struct {
+	Error struct {
+		Code    string            `json:"code"`
+		Message string            `json:"message"`
+		Fields  map[string]string `json:"fields"`
+	} `json:"error"`
+}
+
+func decodeAPIError(t *testing.T, data []byte) apiErrorBody {
+	t.Helper()
+
+	var body apiErrorBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode API error: %v", err)
+	}
+	return body
 }
 
 type sprintResourceBody struct {

@@ -31,7 +31,7 @@ func engineError(err error) error {
 	var validation *engines.ValidationError
 	switch {
 	case errors.As(err, &validation):
-		return huma.Error400BadRequest(validation.Message)
+		return shared.NewError(http.StatusBadRequest, "validation_failed", validation.Message, validation.Fields)
 	case errors.Is(err, engines.ErrValidation):
 		return huma.Error400BadRequest("Validation failed")
 	case errors.Is(err, engines.ErrNotFound):

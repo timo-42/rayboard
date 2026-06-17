@@ -108,6 +108,7 @@ func TestOpenAPIJSON(t *testing.T) {
 		t.Fatalf("expected project role binding delete operation in OpenAPI")
 	}
 	assertRequestBodyFields(t, spec, "/api/projects", http.MethodPost, []string{"spec"}, []string{"spec", "key"}, []string{"spec", "name"}, []string{"spec", "description"}, []string{"spec", "lead_user_id"})
+	assertResponseBodyFields(t, spec, "/api/projects", http.MethodPost, "default", []string{"error"}, []string{"error", "code"}, []string{"error", "message"}, []string{"error", "fields"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "key"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"spec"}, []string{"spec", "title"}, []string{"spec", "labels"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "title"}, []string{"status"}, []string{"status", "key"})

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/audit"
@@ -60,6 +61,24 @@ func TestAuthEndpointsLoginMeAndLogout(t *testing.T) {
 	handler.ServeHTTP(loggedOut, logout)
 	if loggedOut.Code != http.StatusNoContent {
 		t.Fatalf("expected logout status 204, got %d: %s", loggedOut.Code, loggedOut.Body.String())
+	}
+}
+
+func TestAuthEndpointMalformedJSONUsesErrorEnvelope(t *testing.T) {
+	ctx := context.Background()
+	db, _ := openBackendTestDB(t, ctx)
+	handler := NewHandler(WithAuthService(auth.NewService(db.SQL)))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"spec":`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected malformed login status 400/422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	envelope := decodeAPIError(t, rec.Body.Bytes())
+	if envelope.Error.Code != "validation_failed" || envelope.Error.Message == "" || len(envelope.Error.Fields) == 0 {
+		t.Fatalf("unexpected malformed JSON error envelope: %#v", envelope)
 	}
 }
 

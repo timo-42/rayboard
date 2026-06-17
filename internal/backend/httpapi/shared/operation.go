@@ -19,7 +19,7 @@ func Operation(method string, path string, tag string, summary string) huma.Oper
 			"default": {
 				Description: "Error response",
 				Content: map[string]*huma.MediaType{
-					"application/json": {Schema: &huma.Schema{Type: "object"}},
+					"application/json": {Schema: ErrorResponseSchema()},
 				},
 			},
 		},

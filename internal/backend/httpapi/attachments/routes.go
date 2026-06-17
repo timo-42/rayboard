@@ -198,7 +198,7 @@ func writeError(api huma.API, ctx huma.Context, err error) {
 
 	var status huma.StatusError
 	if errors.As(err, &status) {
-		_ = huma.WriteErr(api, ctx, status.GetStatus(), status.Error())
+		writeOutput(api, ctx, status.GetStatus(), status)
 		return
 	}
 	_ = huma.WriteErr(api, ctx, http.StatusInternalServerError, "Request failed")
