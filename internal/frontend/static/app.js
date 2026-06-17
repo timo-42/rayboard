@@ -10,6 +10,8 @@ const state = {
   searchResults: [],
   savedViews: [],
   lastSearchSpec: { text: "", filter: "" },
+  tokens: [],
+  createdToken: null,
   engineResult: null
 };
 
@@ -34,6 +36,11 @@ const els = {
   searchResults: document.querySelector("#search-results"),
   searchResultCount: document.querySelector("#search-result-count"),
   savedViews: document.querySelector("#saved-views"),
+  accountPanel: document.querySelector("#account-panel"),
+  accountUser: document.querySelector("#account-user"),
+  tokenForm: document.querySelector("#token-form"),
+  createdToken: document.querySelector("#created-token"),
+  apiTokens: document.querySelector("#api-tokens"),
   projectCreate: document.querySelector("#project-create"),
   logoutButton: document.querySelector("#logout-button"),
   signedOut: document.querySelector("#signed-out"),
@@ -75,6 +82,8 @@ function bindEvents() {
       state.searchResults = [];
       state.savedViews = [];
       state.lastSearchSpec = { text: "", filter: "" };
+      state.tokens = [];
+      state.createdToken = null;
       render();
     }, "Signed out");
   });
@@ -214,6 +223,30 @@ function bindEvents() {
     }
   });
 
+  els.tokenForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      const created = await api("/api/tokens", { method: "POST", body: { spec: { name: data.name || "api-token" } } });
+      state.createdToken = normalizeToken(created);
+      event.currentTarget.reset();
+      await loadTokens();
+      renderTokens();
+    }, "API token created");
+  });
+
+  els.apiTokens.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-revoke-token-id]");
+    if (!button) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/tokens/${button.dataset.revokeTokenId}`, { method: "DELETE" });
+      state.createdToken = null;
+      await loadTokens();
+    }, "API token revoked");
+  });
+
   els.ticketColumns.addEventListener("click", async (event) => {
     const deleteComment = event.target.closest("[data-delete-comment-id]");
     if (deleteComment) {
@@ -296,6 +329,7 @@ async function refreshSession() {
     };
     await loadProjects();
     await loadNotifications();
+    await loadTokens();
   } catch (error) {
     state.user = null;
     render();
@@ -312,6 +346,18 @@ async function loadNotifications() {
   const data = await api(`/api/notifications${query}`);
   state.notifications = listItems(data).map(normalizeNotification);
   renderNotifications();
+}
+
+async function loadTokens() {
+  if (!state.user) {
+    state.tokens = [];
+    state.createdToken = null;
+    renderTokens();
+    return;
+  }
+  const data = await api("/api/tokens");
+  state.tokens = listItems(data).map(normalizeToken);
+  renderTokens();
 }
 
 async function loadSavedViews() {
@@ -459,6 +505,7 @@ function render() {
   els.projectCreate.hidden = !signedIn;
   els.notificationInbox.hidden = !signedIn;
   els.searchPanel.hidden = !signedIn;
+  els.accountPanel.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn;
@@ -470,6 +517,7 @@ function render() {
   renderNotifications();
   renderSearchResults();
   renderSavedViews();
+  renderTokens();
   renderEngineFields();
   renderEngineResult();
 }
@@ -592,6 +640,78 @@ function savedViewNode(view) {
 
   actions.append(apply, remove);
   article.append(name, meta, actions);
+  return article;
+}
+
+function renderTokens() {
+  if (!els.accountUser || !els.apiTokens || !els.createdToken) {
+    return;
+  }
+  if (!state.user) {
+    els.accountUser.textContent = "Signed out";
+    els.createdToken.hidden = true;
+    els.createdToken.replaceChildren();
+    els.apiTokens.replaceChildren();
+    return;
+  }
+
+  const displayName = state.user.display_name || state.user.username || state.user.id;
+  els.accountUser.textContent = state.user.id ? `${displayName} (${state.user.id})` : displayName;
+
+  els.createdToken.replaceChildren();
+  if (state.createdToken && state.createdToken.token) {
+    const label = document.createElement("p");
+    label.textContent = "Shown once. Store this token before leaving the page.";
+    const secret = document.createElement("pre");
+    secret.textContent = state.createdToken.token;
+    els.createdToken.append(label, secret);
+    els.createdToken.hidden = false;
+  } else {
+    els.createdToken.hidden = true;
+  }
+
+  els.apiTokens.replaceChildren();
+  if (!state.tokens.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No API tokens";
+    els.apiTokens.append(empty);
+    return;
+  }
+  for (const token of state.tokens) {
+    els.apiTokens.append(tokenNode(token));
+  }
+}
+
+function tokenNode(token) {
+  const article = document.createElement("article");
+  article.className = "token-item";
+  if (token.revoked_at) {
+    article.classList.add("is-revoked");
+  }
+
+  const body = document.createElement("div");
+  body.className = "token-item-body";
+
+  const name = document.createElement("p");
+  name.textContent = token.name || "API token";
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    token.created_at ? `created ${formatDateTime(token.created_at)}` : "",
+    token.last_used_at ? `last used ${formatDateTime(token.last_used_at)}` : "never used",
+    token.revoked_at ? `revoked ${formatDateTime(token.revoked_at)}` : ""
+  ].filter(Boolean).join(" / ");
+
+  body.append(name, meta);
+
+  const revoke = document.createElement("button");
+  revoke.type = "button";
+  revoke.dataset.revokeTokenId = token.id;
+  revoke.disabled = Boolean(token.revoked_at);
+  revoke.textContent = token.revoked_at ? "Revoked" : "Revoke";
+
+  article.append(body, revoke);
   return article;
 }
 
@@ -1008,6 +1128,24 @@ function normalizeSavedView(view) {
   return view;
 }
 
+function normalizeToken(token) {
+  if (!token) {
+    return null;
+  }
+  if (token.metadata && token.spec && token.status) {
+    return {
+      id: token.metadata.id,
+      name: token.spec.name || "",
+      created_at: token.status.created_at || "",
+      last_used_at: token.status.last_used_at || "",
+      expires_at: token.status.expires_at || "",
+      revoked_at: token.status.revoked_at || "",
+      token: token.status.token || ""
+    };
+  }
+  return token;
+}
+
 function normalizeComment(comment) {
   if (!comment) {
     return null;
@@ -1034,6 +1172,17 @@ function formatBytes(bytes) {
     return `${(value / 1024).toFixed(1)} KB`;
   }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
 }
 
 function cookieValue(name) {

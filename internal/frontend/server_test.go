@@ -28,6 +28,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
+		!strings.Contains(body, `id="account-panel"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
 		!strings.Contains(body, `href="/1"`) ||
 		!strings.Contains(body, `href="/5"`) {
@@ -165,6 +166,41 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".search-panel",
 		".search-results",
 		".saved-view-list",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsAPITokens(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadTokens",
+		"renderTokens",
+		"normalizeToken",
+		"/api/tokens",
+		"data-revoke-token-id",
+		"createdToken",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".account-panel",
+		".token-list",
+		".token-item",
+		".created-token",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

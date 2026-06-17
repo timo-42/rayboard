@@ -189,6 +189,36 @@
         </div>
       </section>
 
+      <section id="account-panel" class="account-panel" hidden>
+        <header class="account-header">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h2>API Tokens</h2>
+          </div>
+        </header>
+
+        <div class="account-grid">
+          <section class="account-summary">
+            <h3>Current User</h3>
+            <p id="account-user">Signed out</p>
+          </section>
+
+          <section class="token-tool">
+            <h3>Create Token</h3>
+            <form id="token-form" class="token-form">
+              <input name="name" placeholder="local-script" required>
+              <button type="submit">Create</button>
+            </form>
+            <div id="created-token" class="created-token" hidden></div>
+          </section>
+        </div>
+
+        <section>
+          <h3>Existing Tokens</h3>
+          <div id="api-tokens" class="token-list"></div>
+        </section>
+      </section>
+
       <section id="engine-workbench" class="engine-workbench" hidden>
         <header class="workbench-header">
           <div>

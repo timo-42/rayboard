@@ -12,8 +12,11 @@ Implemented browser workflows:
 - ticket comment list, creation, and deletion from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
 - notification inbox listing with unread filter, read/unread toggle, refresh, and mark-all-read;
+- Account/API Tokens panel for viewing token metadata, creating tokens, and revoking your own tokens;
 - text/CEL search plus saved-view list, create, apply, and delete;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines.
+
+API token secrets are shown once when created and are not listed later.
 
 Implemented API-only user workflows:
 

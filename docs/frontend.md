@@ -25,10 +25,13 @@ The current UI is a small vanilla JavaScript board shell. It supports:
 - ticket comment listing, creation, and deletion on ticket cards;
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
+- an Account/API Tokens panel where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
 - compact search with text/CEL filters plus saved-view list, create, apply, and delete controls;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`.
 
-It does not currently expose all backend endpoints. User/group/RBAC administration, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, component CRUD, version/release CRUD, ticket component/version assignment, roadmap data, custom field management, ticket custom-field values, and saved automation management screens are API-only for now.
+Token secrets are shown only when created and are not listed later.
+
+It does not currently expose all backend endpoints. User/group/RBAC administration beyond self-service API tokens, advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, component CRUD, version/release CRUD, ticket component/version assignment, roadmap data, custom field management, ticket custom-field values, and saved automation management screens are API-only for now.
 
 Sprint CRUD, start/complete actions, and ticket sprint assignment/removal are also API-only for now. Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint/report screens, release reports, roadmap timeline UI, component/version UI screens, custom-field screens, and advanced release planning are **Planned**.
 

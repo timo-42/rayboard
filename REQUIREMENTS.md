@@ -48,6 +48,10 @@ internal/backend/httpapi/
     routes.go
     schema.go
     provider.go
+  engines/
+    routes.go
+    schema.go
+    provider.go
   tickets/
     routes.go
     schema.go
@@ -63,6 +67,7 @@ internal/backend/httpapi/
   - request DTOs use the `Input` suffix; response DTOs use the `Output` suffix.
   - `provider.go` contains dependency wiring and helpers for that resource package.
   - `/api/projects` and closely project-scoped settings can live under the project route package.
+  - `/api/engines/test` lives under the engine route package because it is shared infrastructure for cron jobs, hooks, webhooks, custom create pages, notification hooks, and future automation surfaces.
   - top-level resources such as `/api/tickets/{ticket_id}`, `/api/boards/{board_id}`, and `/api/sprints/{sprint_id}` should have their own route packages.
   - avoid deeply recursive package trees unless a subresource becomes large enough to justify its own package.
   - migrate toward this layout incrementally; the existing tracker service can remain during the transition.
@@ -188,6 +193,7 @@ internal/backend/httpapi/
   - provide Lua examples for JSON encode/decode, `json.null`, API function calls, validation errors, and safe payload transformation.
 - Add an automation engine test/workbench endpoint:
   - expose a backend-owned endpoint under `POST /api/engines/test` for testing shared engine definitions before attaching them to cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, or notification hooks.
+  - implement this endpoint in `internal/backend/httpapi/engines` with `routes.go`, `schema.go`, and `provider.go`, using Huma schemas so OpenAPI shows the exact engine discriminator and request/response body.
   - expose the endpoint as the canonical way to test out automation engines interactively from the UI and programmatically from API clients.
   - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
   - support `engine.type=lua`, `engine.type=ai`, and initial `engine.type=wasm` workbench tests.
@@ -197,6 +203,58 @@ internal/backend/httpapi/
   - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and wasm modules without choosing a real automation surface.
   - `spec.context` supplies the project, ticket, webhook, cron job, notification, actor, or other resource context needed to evaluate RBAC and surface-specific output schemas.
   - `spec.input` is arbitrary JSON passed to the engine using the same JSON/table conversion and validation rules used by real automation runs.
+  - example Lua request shape:
+
+```json
+{
+  "spec": {
+    "engine": {
+      "type": "lua",
+      "script": "return { ok = true, title = input.title }"
+    },
+    "surface": "scratch",
+    "context": {},
+    "input": { "title": "Example ticket" },
+    "dry_run": true
+  }
+}
+```
+
+  - example AI request shape:
+
+```json
+{
+  "spec": {
+    "engine": {
+      "type": "ai",
+      "provider_id": "openrouter-default",
+      "prompt": "Validate and normalize this ticket input as JSON."
+    },
+    "surface": "scratch",
+    "context": {},
+    "input": { "title": "Example ticket" },
+    "dry_run": true
+  }
+}
+```
+
+  - example WASM request shape:
+
+```json
+{
+  "spec": {
+    "engine": {
+      "type": "wasm",
+      "module_base64": "..."
+    },
+    "surface": "scratch",
+    "context": {},
+    "input": { "title": "Example ticket" },
+    "dry_run": true
+  }
+}
+```
+
   - return a resource-like output with `metadata`, the normalized request `spec`, and `status` containing validated output, action previews, logs, duration, engine metadata, validation errors, runtime errors, limit errors, and redacted provider/runtime diagnostics.
   - execute tests with the same sandbox, owner/actor principal, RBAC checks, timeout, memory/log/payload limits, JSON/table conversion, output-schema validation, secret redaction, and run-history/audit behavior as the corresponding real automation surface.
   - test runs must never persist ticket/project mutations by default; mutation-capable previews require explicit dry-run/action-plan behavior that reports intended actions without committing them.
