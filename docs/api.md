@@ -405,7 +405,7 @@ Preference responses use `metadata`, `spec`, and `status`. The scope and subject
 
 ## Notification Destinations
 
-Admins and project notification managers can configure named Shoutrrr destinations for later reuse by notification hooks and delivery policies. Destination create/update uses the standard `spec` body. The Shoutrrr URL is write-only: create/update accepts `spec.shoutrrr_url`, but responses only expose `status.url_set` and `spec.type`.
+Admins and project notification managers can configure named Shoutrrr destinations for later reuse by notification hooks and delivery policies through the API or browser `/settings` page. Destination create/update uses the standard `spec` body. The Shoutrrr URL is write-only: create/update accepts `spec.shoutrrr_url`, but responses only expose `status.url_set` and `spec.type`.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

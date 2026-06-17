@@ -29,7 +29,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, and creating/deleting role bindings when the signed-in user has permission;
-- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management and security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
+- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - project listing and project creation;
@@ -51,7 +51,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, Shoutrrr destination management, project notification defaults/policies/delivery history, cron job management, webhook management, notification-hook management, custom create-page management, and richer automation management screens beyond basic project ticket hooks are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/policies/delivery history, cron job management, webhook management, notification-hook management, custom create-page management, and richer automation management screens beyond basic project ticket hooks are API-only for now.
 
 Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
 

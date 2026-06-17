@@ -623,7 +623,9 @@ p {
 .preference-form,
 .audit-form,
 .openrouter-provider-form,
-.openrouter-provider-edit-form {
+.openrouter-provider-edit-form,
+.notification-destination-form,
+.notification-destination-edit-form {
   display: grid;
   gap: 10px;
 }
@@ -644,17 +646,27 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.notification-destination-card {
+  grid-column: 1 / -1;
+}
+
+.notification-destination-form {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .openrouter-provider-form textarea,
 .openrouter-provider-edit-form textarea {
   resize: vertical;
 }
 
-.openrouter-provider-list {
+.openrouter-provider-list,
+.notification-destination-list {
   display: grid;
   gap: 8px;
 }
 
-.openrouter-provider-item {
+.openrouter-provider-item,
+.notification-destination-item {
   display: grid;
   gap: 8px;
   border: 1px solid var(--border);
@@ -664,27 +676,31 @@ p {
   padding: 10px;
 }
 
-.openrouter-provider-header {
+.openrouter-provider-header,
+.notification-destination-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.openrouter-provider-item p {
+.openrouter-provider-item p,
+.notification-destination-item p {
   color: var(--heading);
   font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.openrouter-provider-item span {
+.openrouter-provider-item span,
+.notification-destination-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
-.provider-state {
+.provider-state,
+.destination-state {
   border-radius: 999px;
   background: var(--primary-soft);
   color: var(--primary-strong) !important;
@@ -692,13 +708,27 @@ p {
   font-weight: 700;
 }
 
-.provider-state.is-disabled {
+.provider-state.is-disabled,
+.destination-state.is-disabled {
   background: var(--subtle-bg);
   color: var(--muted) !important;
 }
 
-.openrouter-provider-edit-form {
+.openrouter-provider-edit-form,
+.notification-destination-edit-form {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.destination-error {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--danger);
+  padding: 8px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .audit-log {
@@ -767,7 +797,9 @@ p {
 .preference-form button,
 .audit-form button,
 .openrouter-provider-form button,
-.openrouter-provider-edit-form button {
+.openrouter-provider-edit-form button,
+.notification-destination-form button,
+.notification-destination-edit-form button {
   justify-self: start;
 }
 
@@ -2178,7 +2210,9 @@ p {
   .preference-form,
   .audit-form,
   .openrouter-provider-form,
-  .openrouter-provider-edit-form {
+  .openrouter-provider-edit-form,
+  .notification-destination-form,
+  .notification-destination-edit-form {
     grid-template-columns: 1fr;
   }
 

@@ -526,6 +526,26 @@
             <div id="openrouter-providers" class="openrouter-provider-list"></div>
           </section>
 
+          <section class="settings-card notification-destination-card">
+            <h3>Notification Destinations</h3>
+            <form id="notification-destination-form" class="notification-destination-form">
+              <input name="name" placeholder="ops" required>
+              <select id="notification-destination-scope" name="scope_type">
+                <option value="global">Global</option>
+                <option value="project">Project</option>
+              </select>
+              <select id="notification-destination-project" name="project_id"></select>
+              <input name="shoutrrr_url" type="password" placeholder="logger://" autocomplete="off" required>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+              <button type="submit">Create destination</button>
+            </form>
+            <div id="notification-destination-status" class="settings-status"></div>
+            <div id="notification-destinations" class="notification-destination-list"></div>
+          </section>
+
           <section class="settings-card audit-card">
             <h3>Security Audit Log</h3>
             <form id="audit-form" class="audit-form">

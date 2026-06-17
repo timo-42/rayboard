@@ -27,9 +27,11 @@ const state = {
   notificationPreferences: null,
   auditLog: [],
   openRouterProviders: [],
+  notificationDestinations: [],
   settingsError: "",
   auditLogError: "",
   openRouterProvidersError: "",
+  notificationDestinationsError: "",
   ticketHooks: [],
   ticketHooksError: "",
   ticketHookPreview: null,
@@ -85,6 +87,11 @@ const els = {
   openRouterProviderForm: document.querySelector("#openrouter-provider-form"),
   openRouterProviderStatus: document.querySelector("#openrouter-provider-status"),
   openRouterProviders: document.querySelector("#openrouter-providers"),
+  notificationDestinationForm: document.querySelector("#notification-destination-form"),
+  notificationDestinationScope: document.querySelector("#notification-destination-scope"),
+  notificationDestinationProject: document.querySelector("#notification-destination-project"),
+  notificationDestinationStatus: document.querySelector("#notification-destination-status"),
+  notificationDestinations: document.querySelector("#notification-destinations"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
   notificationInbox: document.querySelector("#notification-inbox"),
@@ -192,9 +199,11 @@ function bindEvents() {
       state.notificationPreferences = null;
       state.auditLog = [];
       state.openRouterProviders = [];
+      state.notificationDestinations = [];
       state.settingsError = "";
       state.auditLogError = "";
       state.openRouterProvidersError = "";
+      state.notificationDestinationsError = "";
       state.ticketHooks = [];
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
@@ -833,6 +842,87 @@ function bindEvents() {
     }, "OpenRouter provider saved");
   });
 
+  els.notificationDestinationScope.addEventListener("change", async () => {
+    renderNotificationDestinationProjectOptions();
+    await runAction(async () => {
+      await loadNotificationDestinations();
+    }, "Notification destinations refreshed");
+  });
+
+  els.notificationDestinationProject.addEventListener("change", async () => {
+    const project = state.projects.find((item) => item.id === els.notificationDestinationProject.value);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await runAction(async () => {
+      await loadNotificationDestinations();
+    }, "Notification destinations refreshed");
+  });
+
+  els.notificationDestinationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = formData(form);
+    const scopeType = data.scope_type || "global";
+    const projectID = data.project_id || selectedNotificationDestinationProjectID();
+    if (scopeType === "project" && !projectID) {
+      setActionStatus("Choose a project for project destinations");
+      return;
+    }
+    await runAction(async () => {
+      await api(notificationDestinationCollectionPath(scopeType, projectID), {
+        method: "POST",
+        body: { spec: notificationDestinationSpec(form) }
+      });
+      form.reset();
+      setFormChecked(form, "enabled", true);
+      renderNotificationDestinationProjectOptions();
+      await loadNotificationDestinations();
+    }, "Notification destination created");
+  });
+
+  els.notificationDestinations.addEventListener("click", async (event) => {
+    const test = event.target.closest("[data-test-notification-destination-id]");
+    if (test) {
+      const form = test.closest("[data-notification-destination-form]");
+      const data = form ? formData(form) : {};
+      await runAction(async () => {
+        await api(`/api/notification-destinations/${test.dataset.testNotificationDestinationId}/test-send`, {
+          method: "POST",
+          body: { spec: { message: data.test_message || "" } }
+        });
+        await loadNotificationDestinations();
+      }, "Notification test sent");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-notification-destination-id]");
+    if (remove) {
+      if (!window.confirm("Delete this notification destination?")) {
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/notification-destinations/${remove.dataset.deleteNotificationDestinationId}`, { method: "DELETE" });
+        await loadNotificationDestinations();
+      }, "Notification destination deleted");
+    }
+  });
+
+  els.notificationDestinations.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-notification-destination-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/notification-destinations/${form.dataset.notificationDestinationForm}`, {
+        method: "PATCH",
+        body: { spec: notificationDestinationUpdateSpec(form) }
+      });
+      await loadNotificationDestinations();
+    }, "Notification destination saved");
+  });
+
   document.addEventListener("click", async (event) => {
     if (!event.target.closest("#ticket-columns, #issue-detail")) {
       return;
@@ -1404,7 +1494,8 @@ async function loadSettingsPage() {
     loadGlobalSettings(),
     loadNotificationPreferences(),
     loadAuditLog(),
-    loadOpenRouterProviders()
+    loadOpenRouterProviders(),
+    loadNotificationDestinations()
   ]);
 }
 
@@ -1444,6 +1535,26 @@ async function loadOpenRouterProviders() {
     state.openRouterProviders = [];
     state.openRouterProvidersError = error.message || "OpenRouter providers are not available";
   }
+  renderSettings();
+}
+
+async function loadNotificationDestinations(projectID = selectedNotificationDestinationProjectID()) {
+  const destinations = [];
+  const errors = [];
+  try {
+    destinations.push(...listItems(await api("/api/notification-destinations")).map(normalizeNotificationDestination));
+  } catch (error) {
+    errors.push(error.message || "Global destinations are not available");
+  }
+  if (projectID) {
+    try {
+      destinations.push(...listItems(await api(`/api/projects/${projectID}/notification-destinations`)).map(normalizeNotificationDestination));
+    } catch (error) {
+      errors.push(error.message || "Project destinations are not available");
+    }
+  }
+  state.notificationDestinations = destinations.filter(Boolean);
+  state.notificationDestinationsError = errors.length && !destinations.length ? errors.join(" / ") : "";
   renderSettings();
 }
 
@@ -2286,7 +2397,7 @@ function renderBindingSubjectOptions() {
 }
 
 function renderSettings() {
-  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm) {
+  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm || !els.notificationDestinationForm) {
     return;
   }
 
@@ -2321,6 +2432,7 @@ function renderSettings() {
 
   renderAuditLog();
   renderOpenRouterProviders();
+  renderNotificationDestinations();
 }
 
 function renderOpenRouterProviders() {
@@ -2411,6 +2523,119 @@ function openRouterProviderNode(provider) {
   form.append(name, model, allowed, timeout, tokens, key, enabled, save, remove);
   article.append(header, meta, form);
   return article;
+}
+
+function renderNotificationDestinations() {
+  if (!els.notificationDestinationStatus || !els.notificationDestinations) {
+    return;
+  }
+  renderNotificationDestinationProjectOptions();
+  els.notificationDestinations.replaceChildren();
+  if (state.notificationDestinationsError) {
+    els.notificationDestinationForm.hidden = true;
+    els.notificationDestinationStatus.textContent = state.notificationDestinationsError;
+    return;
+  }
+  els.notificationDestinationForm.hidden = false;
+  els.notificationDestinationStatus.textContent = state.notificationDestinations.length
+    ? `${state.notificationDestinations.length} notification destinations`
+    : "No notification destinations";
+  if (!state.notificationDestinations.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Create a Shoutrrr destination for notification hooks and policies";
+    els.notificationDestinations.append(empty);
+    return;
+  }
+  for (const destination of state.notificationDestinations) {
+    els.notificationDestinations.append(notificationDestinationNode(destination));
+  }
+}
+
+function renderNotificationDestinationProjectOptions() {
+  if (!els.notificationDestinationProject) {
+    return;
+  }
+  replaceSelectOptions(
+    els.notificationDestinationProject,
+    "Project",
+    state.projects,
+    (project) => `${project.key} ${project.name}`
+  );
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.notificationDestinationProject.value = state.selectedProject.id;
+  }
+  const scopeType = els.notificationDestinationScope ? els.notificationDestinationScope.value : "global";
+  els.notificationDestinationProject.disabled = scopeType !== "project";
+}
+
+function notificationDestinationNode(destination) {
+  const article = document.createElement("article");
+  article.className = "notification-destination-item";
+
+  const header = document.createElement("div");
+  header.className = "notification-destination-header";
+  const title = document.createElement("p");
+  title.textContent = destination.name || destination.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = destination.enabled ? "destination-state" : "destination-state is-disabled";
+  stateLabel.textContent = destination.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    destination.scope_type === "project" ? `project ${projectLabel(destination.project_id)}` : "global",
+    destination.type || "unknown service",
+    destination.url_set ? "url set" : "missing url",
+    destination.last_delivery_status ? `last ${destination.last_delivery_status}` : "",
+    destination.last_delivery_at ? formatDateTime(destination.last_delivery_at) : ""
+  ].filter(Boolean).join(" / ");
+
+  const form = document.createElement("form");
+  form.className = "notification-destination-edit-form";
+  form.dataset.notificationDestinationForm = destination.id;
+  form.dataset.notificationDestinationScope = destination.scope_type;
+
+  const name = inputNode("name", destination.name, "name");
+  const url = inputNode("shoutrrr_url", "", "rotate Shoutrrr URL", "password");
+  url.autocomplete = "off";
+  const testMessage = inputNode("test_message", "", "test message");
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = destination.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+
+  const test = document.createElement("button");
+  test.type = "button";
+  test.dataset.testNotificationDestinationId = destination.id;
+  test.textContent = "Test";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteNotificationDestinationId = destination.id;
+  remove.textContent = "Delete";
+
+  form.append(name, url, testMessage, enabled, save, test, remove);
+  article.append(header, meta, form);
+  if (destination.last_error) {
+    const error = document.createElement("pre");
+    error.className = "destination-error";
+    error.textContent = destination.last_error;
+    article.append(error);
+  }
+  return article;
+}
+
+function projectLabel(projectID) {
+  const project = state.projects.find((item) => item.id === projectID);
+  return project ? `${project.key} ${project.name}` : projectID;
 }
 
 function inputNode(name, value, placeholder, type = "text") {
@@ -2670,6 +2895,20 @@ function selectedTicketHookProjectID() {
     return els.ticketHookProject.value;
   }
   return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function selectedNotificationDestinationProjectID() {
+  if (els.notificationDestinationProject && els.notificationDestinationProject.value) {
+    return els.notificationDestinationProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function notificationDestinationCollectionPath(scopeType, projectID) {
+  if (scopeType === "project") {
+    return `/api/projects/${projectID}/notification-destinations`;
+  }
+  return "/api/notification-destinations";
 }
 
 function ticketHookSpec(form) {
@@ -3395,6 +3634,23 @@ function openRouterProviderUpdateSpec(form) {
   return spec;
 }
 
+function notificationDestinationSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    shoutrrr_url: data.shoutrrr_url || "",
+    enabled: Boolean(data.enabled)
+  };
+}
+
+function notificationDestinationUpdateSpec(form) {
+  const spec = notificationDestinationSpec(form);
+  if (!spec.shoutrrr_url) {
+    delete spec.shoutrrr_url;
+  }
+  return spec;
+}
+
 function searchSpecFromForm(form) {
   const data = formData(form);
   return {
@@ -3816,6 +4072,31 @@ function normalizeOpenRouterProvider(provider) {
     };
   }
   return provider;
+}
+
+function normalizeNotificationDestination(destination) {
+  if (!destination) {
+    return null;
+  }
+  if (destination.metadata && destination.spec && destination.status) {
+    return {
+      id: destination.metadata.id || "",
+      scope_type: destination.metadata.scope_type || "global",
+      project_id: destination.metadata.project_id || "",
+      dashboard_id: destination.metadata.dashboard_id || "",
+      created_at: destination.metadata.created_at || "",
+      updated_at: destination.metadata.updated_at || "",
+      name: destination.spec.name || "",
+      type: destination.spec.type || "",
+      enabled: Boolean(destination.spec.enabled),
+      url_set: Boolean(destination.status.url_set),
+      last_delivery_status: destination.status.last_delivery_status || "",
+      last_delivery_at: destination.status.last_delivery_at || "",
+      last_error: destination.status.last_error || "",
+      deleted: Boolean(destination.status.deleted)
+    };
+  }
+  return destination;
 }
 
 function normalizeComment(comment) {

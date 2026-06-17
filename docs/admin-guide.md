@@ -16,7 +16,7 @@ Admin workflows currently available through the API:
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.
 
-The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, personal notification preferences, and security audit inspection. Shoutrrr destination management, lower-level automation, webhook, and notification policy administration remain API-first while the POC UI grows.
+The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, Shoutrrr destination management, personal notification preferences, and security audit inspection. Lower-level automation, webhook, and notification policy administration remain API-first while the POC UI grows.
 
 Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 
@@ -54,7 +54,7 @@ Project notification defaults are currently API-only at `/api/projects/{project_
 
 Notification policy CRUD is currently API-only. Global policies live under `/api/notification-policies`; project policies live under `/api/projects/{project_id}/notification-policies`. Policies validate event types and destination visibility. Delivery history is available under `/api/notification-deliveries` and `/api/projects/{project_id}/notification-deliveries`, with manual retry at `/api/notification-deliveries/{delivery_id}/retry`.
 
-Shoutrrr destination configuration is currently API-only. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only, can be rotated with `PATCH`, and can be verified with `POST /api/notification-destinations/{destination_id}/test-send`.
+Shoutrrr destination configuration is available in the browser `/settings` page and through the API. Global destinations live under `/api/notification-destinations` and require global `notifications:manage`; project destinations live under `/api/projects/{project_id}/notification-destinations` and require project `notifications:manage`. Destination URLs are write-only, can be rotated from the settings UI or with `PATCH`, and can be verified with settings test-send controls or `POST /api/notification-destinations/{destination_id}/test-send`.
 
 Incoming and outgoing webhook definitions are currently API-only. Project webhooks live under `/api/projects/{project_id}/webhooks` and require project `webhooks:manage`. Incoming webhook tokens are returned once on create or rotation, stored only as hashes, and accepted at `/api/webhooks/incoming/{webhook_id}` with `Authorization: Bearer <webhook-token>`. Outgoing webhook definitions do not have tokens; they subscribe to domain event names through `spec.event_types`, persist queued deliveries, shape outbound requests with Lua/AI, and send relative paths below the configured `--outgoing-webhook-base-url`. Queued delivery history is available at `/api/webhook-definitions/{webhook_id}/deliveries` and `/api/webhook-deliveries/{delivery_id}`; failed/canceled deliveries can be requeued at `/api/webhook-deliveries/{delivery_id}/retry`.
 
@@ -62,6 +62,6 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 ## Notifications
 
-The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, API-only notification policy CRUD, API-only Shoutrrr destination CRUD for global and project scopes, delivery history/manual retry, Lua/AI notification hooks, saved-hook preview, hook run history, and a backend worker that sends due queued deliveries.
+The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, browser and API Shoutrrr destination CRUD/test-send for global and project scopes, API-only notification policy CRUD, delivery history/manual retry, Lua/AI notification hooks, saved-hook preview, hook run history, and a backend worker that sends due queued deliveries.
 
-Browser notification management screens are **Planned**.
+Broader browser notification policy, delivery, and hook management screens are **Planned**.
