@@ -177,12 +177,13 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/ticket-hooks/{hook_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "enabled"}, []string{"spec", "position"}, []string{"spec", "engine"})
 	assertRequestBodyFields(t, spec, "/api/ticket-hooks/{hook_id}/preview", http.MethodPost, []string{"spec"}, []string{"spec", "ticket"}, []string{"spec", "current"})
 	assertResponseBodyFields(t, spec, "/api/ticket-hooks/{hook_id}/preview", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "hook_id"}, []string{"metadata", "project_id"}, []string{"spec"}, []string{"spec", "ticket"}, []string{"status"}, []string{"status", "output"}, []string{"status", "logs"}, []string{"status", "error"})
-	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "slug"}, []string{"spec", "enabled"}, []string{"spec", "target_type"}, []string{"spec", "target_status"}, []string{"spec", "field_layout"}, []string{"spec", "defaults"}, []string{"spec", "form_lua_script"}, []string{"spec", "owner_user_id"})
-	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "metadata", "project_id"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "field_layout"}, []string{"status", "items", "status"})
-	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "project_id"}, []string{"spec"}, []string{"spec", "slug"}, []string{"spec", "defaults"}, []string{"status"})
-	assertResponseBodyFields(t, spec, "/api/ticket-create-pages/{page_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "owner_user_id"}, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "form_lua_script"}, []string{"spec", "owner_user_id"}, []string{"status"}, []string{"status", "deleted_at"})
-	assertRequestBodyFields(t, spec, "/api/ticket-create-pages/{page_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "slug"}, []string{"spec", "enabled"}, []string{"spec", "form_lua_script"}, []string{"spec", "owner_user_id"})
+	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "slug"}, []string{"spec", "enabled"}, []string{"spec", "target_type"}, []string{"spec", "target_status"}, []string{"spec", "field_layout"}, []string{"spec", "defaults"}, []string{"spec", "form_lua_script"}, []string{"spec", "form_ai_prompt"}, []string{"spec", "form_ai_provider_id"}, []string{"spec", "owner_user_id"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "metadata", "project_id"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "field_layout"}, []string{"status", "items", "spec", "form_ai_prompt"}, []string{"status", "items", "spec", "form_ai_provider_id"}, []string{"status", "items", "status"})
+	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "project_id"}, []string{"spec"}, []string{"spec", "slug"}, []string{"spec", "defaults"}, []string{"spec", "form_ai_prompt"}, []string{"spec", "form_ai_provider_id"}, []string{"status"})
+	assertResponseBodyFields(t, spec, "/api/ticket-create-pages/{page_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "owner_user_id"}, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "form_lua_script"}, []string{"spec", "form_ai_prompt"}, []string{"spec", "form_ai_provider_id"}, []string{"spec", "owner_user_id"}, []string{"status"}, []string{"status", "deleted_at"})
+	assertRequestBodyFields(t, spec, "/api/ticket-create-pages/{page_id}", http.MethodPatch, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "slug"}, []string{"spec", "enabled"}, []string{"spec", "form_lua_script"}, []string{"spec", "form_ai_prompt"}, []string{"spec", "form_ai_provider_id"}, []string{"spec", "owner_user_id"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages/{slug}/schema", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "page_id"}, []string{"metadata", "project_id"}, []string{"metadata", "slug"}, []string{"spec"}, []string{"spec", "field_layout"}, []string{"spec", "defaults"}, []string{"status"}, []string{"status", "enabled"})
+	assertResponseBodyOmitsFields(t, spec, "/api/projects/{project_id}/ticket-create-pages/{slug}/schema", http.MethodGet, "200", []string{"spec", "form_lua_script"}, []string{"spec", "form_ai_prompt"}, []string{"spec", "form_ai_provider_id"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages/{slug}/submit", http.MethodPost, []string{"spec"}, []string{"spec", "ticket"}, []string{"spec", "ticket", "title"}, []string{"spec", "ticket", "custom_fields"})
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}/ticket-create-pages/{slug}/submit", http.MethodPost, "201", []string{"metadata"}, []string{"metadata", "id"}, []string{"metadata", "project_id"}, []string{"spec"}, []string{"spec", "title"}, []string{"status"}, []string{"status", "key"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/sprints", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "goal"}, []string{"spec", "start_date"}, []string{"spec", "end_date"})
@@ -275,6 +276,17 @@ func assertResponseBodyFields(t *testing.T, spec map[string]any, path string, me
 	schema := responseBodySchema(t, spec, path, method, status)
 	for _, fieldPath := range fieldPaths {
 		assertSchemaField(t, spec, schema, fieldPath)
+	}
+}
+
+func assertResponseBodyOmitsFields(t *testing.T, spec map[string]any, path string, method string, status string, fieldPaths ...[]string) {
+	t.Helper()
+
+	schema := responseBodySchema(t, spec, path, method, status)
+	for _, fieldPath := range fieldPaths {
+		if schemaHasField(t, spec, schema, fieldPath) {
+			t.Fatalf("expected %s %s response %s to omit schema field path %v", method, path, status, fieldPath)
+		}
 	}
 }
 

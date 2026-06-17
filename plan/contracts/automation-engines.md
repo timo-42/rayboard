@@ -192,8 +192,12 @@ Ticket hooks:
 
 Custom create pages:
 
-- return form schema/defaults/options
+- saved form logic may use Lua or OpenRouter AI to return form schema/defaults/options
+- output may include `field_layout`, `defaults`, and/or `description`
+- `field_layout` must be an array of objects, with nested `fields` arrays validated recursively
+- `defaults` must be an object and `description` must be a string
 - never raw HTML
+- management responses may expose saved Lua source or AI prompt/provider references to authorized managers, but public schema responses must redact `form_lua_script`, `form_ai_prompt`, and `form_ai_provider_id`
 
 Incoming webhooks:
 

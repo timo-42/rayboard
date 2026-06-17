@@ -11,27 +11,30 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	lua "github.com/yuin/gopher-lua"
 )
 
 type CreatePage struct {
-	ID            string
-	ProjectID     string
-	Name          string
-	Slug          string
-	Description   string
-	Enabled       bool
-	TargetType    string
-	TargetStatus  string
-	FieldLayout   []map[string]any
-	Defaults      map[string]any
-	FormLuaScript string
-	OwnerUserID   string
-	CreatedBy     string
-	UpdatedBy     string
-	DeletedAt     *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID               string
+	ProjectID        string
+	Name             string
+	Slug             string
+	Description      string
+	Enabled          bool
+	TargetType       string
+	TargetStatus     string
+	FieldLayout      []map[string]any
+	Defaults         map[string]any
+	FormLuaScript    string
+	FormAIPrompt     string
+	FormAIProviderID string
+	OwnerUserID      string
+	CreatedBy        string
+	UpdatedBy        string
+	DeletedAt        *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type ListCreatePagesInput struct {
@@ -42,30 +45,34 @@ type ListCreatePagesInput struct {
 }
 
 type CreateCreatePageInput struct {
-	ProjectID     string
-	Name          string
-	Slug          string
-	Description   string
-	Enabled       bool
-	TargetType    string
-	TargetStatus  string
-	FieldLayout   []map[string]any
-	Defaults      map[string]any
-	FormLuaScript string
-	OwnerUserID   string
+	ProjectID        string
+	Name             string
+	Slug             string
+	Description      string
+	Enabled          bool
+	TargetType       string
+	TargetStatus     string
+	FieldLayout      []map[string]any
+	Defaults         map[string]any
+	FormLuaScript    string
+	FormAIPrompt     string
+	FormAIProviderID string
+	OwnerUserID      string
 }
 
 type UpdateCreatePageInput struct {
-	Name          *string
-	Slug          *string
-	Description   *string
-	Enabled       *bool
-	TargetType    *string
-	TargetStatus  *string
-	FieldLayout   *[]map[string]any
-	Defaults      *map[string]any
-	FormLuaScript *string
-	OwnerUserID   *string
+	Name             *string
+	Slug             *string
+	Description      *string
+	Enabled          *bool
+	TargetType       *string
+	TargetStatus     *string
+	FieldLayout      *[]map[string]any
+	Defaults         *map[string]any
+	FormLuaScript    *string
+	FormAIPrompt     *string
+	FormAIProviderID *string
+	OwnerUserID      *string
 }
 
 type SubmitCreatePageInput struct {
@@ -76,16 +83,29 @@ type CreatePageService struct {
 	db         *sql.DB
 	tracker    *Service
 	authorizer authz.Evaluator
+	openrouter *openrouter.Service
 	now        func() time.Time
 }
 
-func NewCreatePageService(db *sql.DB, trackerService *Service, authorizer authz.Evaluator) *CreatePageService {
-	return &CreatePageService{
+type CreatePageOption func(*CreatePageService)
+
+func WithCreatePageOpenRouterService(openRouterService *openrouter.Service) CreatePageOption {
+	return func(service *CreatePageService) {
+		service.openrouter = openRouterService
+	}
+}
+
+func NewCreatePageService(db *sql.DB, trackerService *Service, authorizer authz.Evaluator, opts ...CreatePageOption) *CreatePageService {
+	service := &CreatePageService{
 		db:         db,
 		tracker:    trackerService,
 		authorizer: authorizer,
 		now:        func() time.Time { return time.Now().UTC() },
 	}
+	for _, opt := range opts {
+		opt(service)
+	}
+	return service
 }
 
 func (s *CreatePageService) List(ctx context.Context, principal authz.Principal, input ListCreatePagesInput) ([]CreatePage, error) {
@@ -109,7 +129,8 @@ func (s *CreatePageService) List(ctx context.Context, principal authz.Principal,
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(form_ai_prompt, ''),
+			COALESCE(form_ai_provider_id, ''), COALESCE(owner_user_id, ''),
 			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE `+strings.Join(where, " AND ")+`
@@ -153,12 +174,14 @@ func (s *CreatePageService) Create(ctx context.Context, principal authz.Principa
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO ticket_create_pages (
 			id, project_id, name, slug, description, enabled, target_type, target_status,
-			field_layout_json, defaults_json, form_lua_script, owner_user_id, created_by, updated_by, created_at, updated_at
+			field_layout_json, defaults_json, form_lua_script, form_ai_prompt, form_ai_provider_id,
+			owner_user_id, created_by, updated_by, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, page.ID, page.ProjectID, page.Name, page.Slug, nullableString(page.Description), page.Enabled,
 		nullableString(page.TargetType), nullableString(page.TargetStatus), layout, defaults,
-		nullableString(page.FormLuaScript), nullableString(page.OwnerUserID), nullableString(page.CreatedBy), nullableString(page.UpdatedBy),
+		nullableString(page.FormLuaScript), nullableString(page.FormAIPrompt), nullableString(page.FormAIProviderID),
+		nullableString(page.OwnerUserID), nullableString(page.CreatedBy), nullableString(page.UpdatedBy),
 		formatTime(page.CreatedAt), formatTime(page.UpdatedAt)); err != nil {
 		if isUniqueConstraint(err) {
 			return CreatePage{}, conflict("ticket_create_page", "slug", page.Slug)
@@ -190,7 +213,7 @@ func (s *CreatePageService) Resolve(ctx context.Context, principal authz.Princip
 	if err := s.requireProjectRead(principal, page.ProjectID); err != nil {
 		return CreatePage{}, err
 	}
-	return s.applyFormLua(ctx, principal, page)
+	return s.applyFormLogic(ctx, principal, page)
 }
 
 func (s *CreatePageService) Update(ctx context.Context, principal authz.Principal, pageID string, input UpdateCreatePageInput) (CreatePage, error) {
@@ -229,6 +252,12 @@ func (s *CreatePageService) Update(ctx context.Context, principal authz.Principa
 	if input.FormLuaScript != nil {
 		updated.FormLuaScript = strings.TrimSpace(*input.FormLuaScript)
 	}
+	if input.FormAIPrompt != nil {
+		updated.FormAIPrompt = strings.TrimSpace(*input.FormAIPrompt)
+	}
+	if input.FormAIProviderID != nil {
+		updated.FormAIProviderID = strings.TrimSpace(*input.FormAIProviderID)
+	}
 	if input.OwnerUserID != nil {
 		updated.OwnerUserID = strings.TrimSpace(*input.OwnerUserID)
 	}
@@ -244,11 +273,13 @@ func (s *CreatePageService) Update(ctx context.Context, principal authz.Principa
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE ticket_create_pages
 		SET name = ?, slug = ?, description = ?, enabled = ?, target_type = ?, target_status = ?,
-			field_layout_json = ?, defaults_json = ?, form_lua_script = ?, owner_user_id = ?, updated_by = ?, updated_at = ?
+			field_layout_json = ?, defaults_json = ?, form_lua_script = ?, form_ai_prompt = ?,
+			form_ai_provider_id = ?, owner_user_id = ?, updated_by = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`, updated.Name, updated.Slug, nullableString(updated.Description), updated.Enabled,
 		nullableString(updated.TargetType), nullableString(updated.TargetStatus), layout, defaults,
-		nullableString(updated.FormLuaScript), nullableString(updated.OwnerUserID), nullableString(updated.UpdatedBy), formatTime(updated.UpdatedAt), updated.ID)
+		nullableString(updated.FormLuaScript), nullableString(updated.FormAIPrompt), nullableString(updated.FormAIProviderID),
+		nullableString(updated.OwnerUserID), nullableString(updated.UpdatedBy), formatTime(updated.UpdatedAt), updated.ID)
 	if err != nil {
 		if isUniqueConstraint(err) {
 			return CreatePage{}, conflict("ticket_create_page", "slug", updated.Slug)
@@ -308,22 +339,24 @@ func (s *CreatePageService) buildCreatePage(principal authz.Principal, input Cre
 	}
 	now := s.now().UTC()
 	return CreatePage{
-		ID:            id,
-		ProjectID:     strings.TrimSpace(input.ProjectID),
-		Name:          strings.TrimSpace(input.Name),
-		Slug:          normalizeSlug(input.Slug),
-		Description:   strings.TrimSpace(input.Description),
-		Enabled:       input.Enabled,
-		TargetType:    normalizeSlug(input.TargetType),
-		TargetStatus:  normalizeSlug(input.TargetStatus),
-		FieldLayout:   normalizeCreatePageLayout(input.FieldLayout),
-		Defaults:      normalizeCreatePageDefaults(input.Defaults),
-		FormLuaScript: strings.TrimSpace(input.FormLuaScript),
-		OwnerUserID:   strings.TrimSpace(input.OwnerUserID),
-		CreatedBy:     actorID(principal),
-		UpdatedBy:     actorID(principal),
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:               id,
+		ProjectID:        strings.TrimSpace(input.ProjectID),
+		Name:             strings.TrimSpace(input.Name),
+		Slug:             normalizeSlug(input.Slug),
+		Description:      strings.TrimSpace(input.Description),
+		Enabled:          input.Enabled,
+		TargetType:       normalizeSlug(input.TargetType),
+		TargetStatus:     normalizeSlug(input.TargetStatus),
+		FieldLayout:      normalizeCreatePageLayout(input.FieldLayout),
+		Defaults:         normalizeCreatePageDefaults(input.Defaults),
+		FormLuaScript:    strings.TrimSpace(input.FormLuaScript),
+		FormAIPrompt:     strings.TrimSpace(input.FormAIPrompt),
+		FormAIProviderID: strings.TrimSpace(input.FormAIProviderID),
+		OwnerUserID:      strings.TrimSpace(input.OwnerUserID),
+		CreatedBy:        actorID(principal),
+		UpdatedBy:        actorID(principal),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}, nil
 }
 
@@ -362,6 +395,23 @@ func (s *CreatePageService) validate(ctx context.Context, page CreatePage) error
 	if len(page.FormLuaScript) > 64*1024 {
 		fields["form_lua_script"] = "Must be at most 65536 bytes"
 	}
+	if strings.TrimSpace(page.FormLuaScript) != "" && strings.TrimSpace(page.FormAIPrompt) != "" {
+		fields["form_engine"] = "Use either form_lua_script or form_ai_prompt, not both"
+	}
+	if len(page.FormAIPrompt) > 64*1024 {
+		fields["form_ai_prompt"] = "Must be at most 65536 bytes"
+	}
+	if strings.TrimSpace(page.FormAIPrompt) != "" {
+		if strings.TrimSpace(page.FormAIProviderID) == "" {
+			fields["form_ai_provider_id"] = "Required when form_ai_prompt is set"
+		} else if _, ok := fields["form_ai_provider_id"]; !ok {
+			if err := s.validateFormAIProvider(ctx, page.FormAIProviderID); err != nil {
+				fields["form_ai_provider_id"] = err.Error()
+			}
+		}
+	} else if strings.TrimSpace(page.FormAIProviderID) != "" {
+		fields["form_ai_prompt"] = "Required when form_ai_provider_id is set"
+	}
 	if len(fields) > 0 {
 		return validationFailed(fields)
 	}
@@ -376,7 +426,8 @@ func (s *CreatePageService) get(ctx context.Context, pageID string) (CreatePage,
 	page, err := scanCreatePage(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(form_ai_prompt, ''),
+			COALESCE(form_ai_provider_id, ''), COALESCE(owner_user_id, ''),
 			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE id = ? AND deleted_at IS NULL
@@ -399,7 +450,8 @@ func (s *CreatePageService) getBySlug(ctx context.Context, projectID string, slu
 	page, err := scanCreatePage(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(form_ai_prompt, ''),
+			COALESCE(form_ai_provider_id, ''), COALESCE(owner_user_id, ''),
 			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE project_id = ? AND slug = ? AND deleted_at IS NULL
@@ -427,6 +479,32 @@ func (s *CreatePageService) requireProjectRead(principal authz.Principal, projec
 	return s.authorizer.Require(principal, authz.PermissionProjectsRead, authz.ProjectScope(projectID))
 }
 
+func (s *CreatePageService) validateFormAIProvider(ctx context.Context, providerID string) error {
+	if s.openrouter == nil {
+		return errors.New("OpenRouter service is not configured")
+	}
+	provider, err := s.openrouter.GetExecutionProvider(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	if !provider.Enabled {
+		return errors.New("OpenRouter provider is disabled")
+	}
+	if strings.TrimSpace(provider.APIKey) == "" {
+		return errors.New("OpenRouter provider API key is not configured")
+	}
+	if strings.TrimSpace(provider.DefaultModel) == "" {
+		return errors.New("OpenRouter provider default model is required")
+	}
+	if provider.DefaultTimeoutSeconds <= 0 {
+		return errors.New("OpenRouter provider timeout must be greater than zero")
+	}
+	if provider.MaxOutputTokens <= 0 {
+		return errors.New("OpenRouter provider max output tokens must be greater than zero")
+	}
+	return nil
+}
+
 func createTicketInputFromCreatePage(page CreatePage, submitted CreateTicketInput) CreateTicketInput {
 	merged := createTicketInputFromDefaults(page.ProjectID, page.Defaults)
 	if page.TargetType != "" {
@@ -438,6 +516,16 @@ func createTicketInputFromCreatePage(page CreatePage, submitted CreateTicketInpu
 	mergeCreateTicketInput(&merged, submitted)
 	merged.ProjectID = page.ProjectID
 	return merged
+}
+
+func (s *CreatePageService) applyFormLogic(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
+	if strings.TrimSpace(page.FormLuaScript) != "" {
+		return s.applyFormLua(ctx, principal, page)
+	}
+	if strings.TrimSpace(page.FormAIPrompt) != "" {
+		return s.applyFormAI(ctx, principal, page)
+	}
+	return page, nil
 }
 
 func (s *CreatePageService) applyFormLua(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
@@ -493,6 +581,53 @@ func (s *CreatePageService) applyFormLua(ctx context.Context, principal authz.Pr
 		return CreatePage{}, validationFailed(map[string]string{"form_lua_script": "Must return a table/object"})
 	}
 	return applyCreatePageFormOutput(page, output)
+}
+
+func (s *CreatePageService) applyFormAI(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
+	if s.openrouter == nil {
+		return CreatePage{}, validationFailed(map[string]string{"form_ai_provider_id": "OpenRouter service is not configured"})
+	}
+	prompt, err := createPageAIPrompt(principal, page)
+	if err != nil {
+		return CreatePage{}, err
+	}
+	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
+		ProviderID: page.FormAIProviderID,
+		Prompt:     prompt,
+	})
+	if err != nil {
+		return CreatePage{}, validationFailed(map[string]string{"form_ai_prompt": err.Error()})
+	}
+	return applyCreatePageFormOutput(page, result.Output)
+}
+
+func createPageAIPrompt(principal authz.Principal, page CreatePage) (string, error) {
+	pagePayload, err := createPageLuaPayload(page)
+	if err != nil {
+		return "", err
+	}
+	payload := map[string]any{
+		"context": map[string]any{
+			"project_id": page.ProjectID,
+			"page_id":    page.ID,
+			"slug":       page.Slug,
+			"user_id":    principal.UserID,
+		},
+		"page": pagePayload,
+		"instructions": []string{
+			"Return only a JSON object.",
+			"Allowed keys are field_layout, defaults, and description.",
+			"field_layout must be an array of objects and must not contain raw html fields.",
+			"defaults must be an object.",
+			"description must be a string.",
+			"Do not create, update, or delete Rayboard resources.",
+		},
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode create page AI prompt context: %w", err)
+	}
+	return strings.TrimSpace(page.FormAIPrompt) + "\n\nRayboard custom create page input:\n" + string(encoded), nil
 }
 
 func createPageLuaPayload(page CreatePage) (map[string]any, error) {
@@ -646,6 +781,8 @@ func scanCreatePage(scanner interface{ Scan(...any) error }) (CreatePage, error)
 		&layout,
 		&defaults,
 		&page.FormLuaScript,
+		&page.FormAIPrompt,
+		&page.FormAIProviderID,
 		&page.OwnerUserID,
 		&page.CreatedBy,
 		&page.UpdatedBy,

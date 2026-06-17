@@ -2,10 +2,15 @@ package tracker_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -239,6 +244,219 @@ func TestCreatePageLuaSchemaRejectsRawHTML(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("create page: %v", err)
+	}
+	if _, err := pageService.Resolve(ctx, principal("user-member"), project.ID, page.Slug); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected raw HTML validation failure, got %v", err)
+	}
+}
+
+func TestCreatePageAISchemaTransform(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	var receivedAuth string
+	var receivedPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode OpenRouter request: %v", err)
+		}
+		if len(body.Messages) > 1 {
+			receivedPrompt = body.Messages[1].Content
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "gen_create_page",
+			"choices": []map[string]any{{
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": `{"description":"AI resolved","field_layout":[{"key":"title","type":"text","required":true},{"key":"priority","type":"single-select","options":["High","Medium"]}],"defaults":{"priority":"High","labels":["ai-form"]}}`,
+				},
+			}},
+			"usage": map[string]any{"prompt_tokens": 11, "completion_tokens": 7},
+		})
+	}))
+	defer server.Close()
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:                  "Default",
+		DefaultModel:          "openai/gpt-4.1-mini",
+		APIKey:                "sk-or-secret",
+		DefaultTimeoutSeconds: 10,
+		MaxOutputTokens:       300,
+		Enabled:               true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+	trackerService := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	pageService := tracker.NewCreatePageService(db.SQL, trackerService, evaluator, tracker.WithCreatePageOpenRouterService(openRouterService))
+	admin := principal("user-admin")
+	project, err := trackerService.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "AIF", Name: "AI Forms"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+
+	page, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID:        project.ID,
+		Name:             "AI Intake",
+		Slug:             "ai-intake",
+		Description:      "base",
+		Enabled:          true,
+		FormAIPrompt:     "Adapt this form for the current user.",
+		FormAIProviderID: provider.ID,
+	})
+	if err != nil {
+		t.Fatalf("create AI page: %v", err)
+	}
+
+	resolved, err := pageService.Resolve(ctx, principal("user-member"), project.ID, page.Slug)
+	if err != nil {
+		t.Fatalf("resolve AI page: %v", err)
+	}
+	if receivedAuth != "Bearer sk-or-secret" {
+		t.Fatalf("unexpected OpenRouter auth header: %q", receivedAuth)
+	}
+	if !strings.Contains(receivedPrompt, "Adapt this form for the current user.") || !strings.Contains(receivedPrompt, `"page"`) {
+		t.Fatalf("unexpected AI prompt: %s", receivedPrompt)
+	}
+	if strings.Contains(receivedPrompt, "sk-or-secret") {
+		t.Fatalf("AI prompt leaked OpenRouter secret: %s", receivedPrompt)
+	}
+	if len(resolved.FieldLayout) != 2 || resolved.FieldLayout[1]["key"] != "priority" || resolved.Defaults["priority"] != "High" || resolved.Description != "AI resolved" {
+		t.Fatalf("unexpected resolved page: %#v", resolved)
+	}
+
+	submitted, err := pageService.Submit(ctx, principal("user-member"), project.ID, page.Slug, tracker.SubmitCreatePageInput{
+		Ticket: tracker.CreateTicketInput{Title: "AI dynamic default"},
+	})
+	if err != nil {
+		t.Fatalf("submit AI page: %v", err)
+	}
+	if submitted.Priority != "high" || !slicesEqual(submitted.Labels, []string{"ai-form"}) {
+		t.Fatalf("expected AI dynamic defaults on submitted ticket, got %#v", submitted)
+	}
+}
+
+func TestCreatePageAIValidation(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	trackerService := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	pageService := tracker.NewCreatePageService(db.SQL, trackerService, evaluator)
+	admin := principal("user-admin")
+	project, err := trackerService.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "AIV", Name: "AI Validation"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	if _, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID:        project.ID,
+		Name:             "AI Intake",
+		Slug:             "ai-intake",
+		Enabled:          true,
+		FormAIPrompt:     "Return JSON.",
+		FormAIProviderID: "missing",
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected missing OpenRouter service validation, got %v", err)
+	}
+
+	openRouterService := openrouter.NewService(db.SQL)
+	disabledProvider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:         "Disabled",
+		DefaultModel: "openai/gpt-4.1-mini",
+		APIKey:       "sk-or-secret",
+		Enabled:      false,
+	})
+	if err != nil {
+		t.Fatalf("create disabled provider: %v", err)
+	}
+	pageService = tracker.NewCreatePageService(db.SQL, trackerService, evaluator, tracker.WithCreatePageOpenRouterService(openRouterService))
+	if _, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID:        project.ID,
+		Name:             "Disabled AI",
+		Slug:             "disabled-ai",
+		Enabled:          true,
+		FormAIPrompt:     "Return JSON.",
+		FormAIProviderID: disabledProvider.ID,
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected disabled provider validation, got %v", err)
+	}
+}
+
+func TestCreatePageAISchemaRejectsRawHTML(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "gen_bad_create_page",
+			"choices": []map[string]any{{
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": `{"field_layout":[{"html":"<strong>no</strong>"}]}`,
+				},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:                  "Default",
+		DefaultModel:          "openai/gpt-4.1-mini",
+		APIKey:                "sk-or-secret",
+		DefaultTimeoutSeconds: 10,
+		MaxOutputTokens:       300,
+		Enabled:               true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+	trackerService := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	pageService := tracker.NewCreatePageService(db.SQL, trackerService, evaluator, tracker.WithCreatePageOpenRouterService(openRouterService))
+	admin := principal("user-admin")
+	project, err := trackerService.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "AIR", Name: "AI Rejections"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+
+	page, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID:        project.ID,
+		Name:             "Bad AI Intake",
+		Slug:             "bad-ai-intake",
+		Enabled:          true,
+		FormAIPrompt:     "Return bad JSON.",
+		FormAIProviderID: provider.ID,
+	})
+	if err != nil {
+		t.Fatalf("create AI page: %v", err)
 	}
 	if _, err := pageService.Resolve(ctx, principal("user-member"), project.ID, page.Slug); !errors.Is(err, tracker.ErrValidation) {
 		t.Fatalf("expected raw HTML validation failure, got %v", err)
