@@ -73,6 +73,86 @@ func TestCommentEndpointsLifecycle(t *testing.T) {
 	}
 }
 
+func TestCommentCreateRequiresCSRFForSession(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authorizer),
+		WithTrackerService(tracker.NewService(db.SQL, authorizer)),
+		WithCommentService(comments.NewService(db.SQL, authorizer)),
+	)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	project := createCommentTestProject(t, handler, session, csrf)
+	ticket := createCommentTestTicket(t, handler, session, csrf, project.ID)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tickets/"+ticket.ID+"/comments", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"body": "Missing CSRF",
+		},
+	}))
+	req.AddCookie(session)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF comment status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCommentDeleteRequiresCSRFForSession(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authorizer),
+		WithTrackerService(tracker.NewService(db.SQL, authorizer)),
+		WithCommentService(comments.NewService(db.SQL, authorizer)),
+	)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	project := createCommentTestProject(t, handler, session, csrf)
+	ticket := createCommentTestTicket(t, handler, session, csrf, project.ID)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/tickets/"+ticket.ID+"/comments", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"body": "Delete me",
+		},
+	}))
+	addSessionCSRF(createReq, session, csrf)
+	create := httptest.NewRecorder()
+	handler.ServeHTTP(create, createReq)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("expected create comment status 201, got %d: %s", create.Code, create.Body.String())
+	}
+	var comment commentResourceBody
+	if err := json.Unmarshal(create.Body.Bytes(), &comment); err != nil {
+		t.Fatalf("decode comment: %v", err)
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/comments/"+comment.Metadata.ID, nil)
+	deleteReq.AddCookie(session)
+	deleted := httptest.NewRecorder()
+	handler.ServeHTTP(deleted, deleteReq)
+	if deleted.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF delete status 403, got %d: %s", deleted.Code, deleted.Body.String())
+	}
+}
+
 type commentResourceBody struct {
 	Metadata struct {
 		ID       string `json:"id"`

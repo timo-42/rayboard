@@ -453,6 +453,7 @@ p {
   font-size: 13px;
 }
 
+.ticket-comments,
 .ticket-attachments {
   display: grid;
   gap: 7px;
@@ -460,6 +461,7 @@ p {
   padding-top: 8px;
 }
 
+.comment-heading,
 .attachment-heading {
   color: var(--heading);
   font-size: 12px;
@@ -467,9 +469,35 @@ p {
   text-transform: uppercase;
 }
 
+.comment-list,
 .attachment-list {
   display: grid;
   gap: 6px;
+}
+
+.comment-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 7px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 7px;
+  font-size: 12px;
+}
+
+.comment-item p {
+  grid-column: 1 / -1;
+  color: var(--text);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.comment-item span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .attachment-item {
@@ -496,7 +524,9 @@ p {
   white-space: nowrap;
 }
 
+.comment-item button,
 .attachment-item button,
+.comment-form button,
 .attachment-form button {
   min-height: 28px;
   border-color: var(--border-strong);
@@ -506,17 +536,27 @@ p {
   font-size: 12px;
 }
 
+.comment-item button:hover,
 .attachment-item button:hover,
+.comment-form button:hover,
 .attachment-form button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
+.comment-form,
 .attachment-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
+}
+
+.comment-form textarea {
+  min-height: 54px;
+  padding: 7px;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .attachment-form input[type="file"] {
@@ -646,6 +686,7 @@ p {
   .columns,
   .engine-form-row,
   .engine-json-grid,
+  .comment-form,
   .attachment-form {
     grid-template-columns: 1fr;
   }

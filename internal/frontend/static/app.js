@@ -4,6 +4,7 @@ const state = {
   selectedProject: null,
   tickets: [],
   attachments: {},
+  comments: {},
   engineResult: null
 };
 
@@ -51,6 +52,7 @@ function bindEvents() {
       state.selectedProject = null;
       state.tickets = [];
       state.attachments = {};
+      state.comments = {};
       render();
     }, "Signed out");
   });
@@ -93,6 +95,15 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
+    const deleteComment = event.target.closest("[data-delete-comment-id]");
+    if (deleteComment) {
+      await runAction(async () => {
+        await api(`/api/comments/${deleteComment.dataset.deleteCommentId}`, { method: "DELETE" });
+        await loadComments(deleteComment.dataset.ticketId);
+      }, "Comment deleted");
+      return;
+    }
+
     const deleteAttachment = event.target.closest("[data-delete-attachment-id]");
     if (deleteAttachment) {
       await runAction(async () => {
@@ -116,6 +127,24 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("submit", async (event) => {
+    const commentForm = event.target.closest("[data-comment-form]");
+    if (commentForm) {
+      event.preventDefault();
+      const ticketID = commentForm.dataset.ticketId;
+      const textarea = commentForm.querySelector("textarea[name='body']");
+      const body = textarea ? textarea.value.trim() : "";
+      if (!ticketID || !body) {
+        setNotice("Write a comment first");
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${ticketID}/comments`, { method: "POST", body: { spec: { body } } });
+        commentForm.reset();
+        await loadComments(ticketID);
+      }, "Comment added");
+      return;
+    }
+
     const form = event.target.closest("[data-attachment-form]");
     if (!form) {
       return;
@@ -167,6 +196,7 @@ async function loadProjects(selectedID = "") {
   } else {
     state.tickets = [];
     state.attachments = {};
+    state.comments = {};
   }
   render();
 }
@@ -180,13 +210,25 @@ async function loadTickets() {
   const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
   state.tickets = listItems(data).map(normalizeTicket);
   state.attachments = {};
-  await Promise.all(state.tickets.map((ticket) => loadAttachments(ticket.id, { renderAfter: false })));
+  state.comments = {};
+  await Promise.all(state.tickets.flatMap((ticket) => [
+    loadAttachments(ticket.id, { renderAfter: false }),
+    loadComments(ticket.id, { renderAfter: false })
+  ]));
   render();
 }
 
 async function loadAttachments(ticketID, options = {}) {
   const data = await api(`/api/tickets/${ticketID}/attachments`);
   state.attachments[ticketID] = listItems(data).map(normalizeAttachment);
+  if (options.renderAfter !== false) {
+    renderTickets();
+  }
+}
+
+async function loadComments(ticketID, options = {}) {
+  const data = await api(`/api/tickets/${ticketID}/comments`);
+  state.comments[ticketID] = listItems(data).map(normalizeComment);
   if (options.renderAfter !== false) {
     renderTickets();
   }
@@ -396,8 +438,70 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, attachmentNode(ticket), actions);
+  article.append(key, title, meta, commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function commentNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-comments";
+  section.setAttribute("aria-label", `${ticket.key} comments`);
+
+  const comments = state.comments[ticket.id] || [];
+  const heading = document.createElement("p");
+  heading.className = "comment-heading";
+  heading.textContent = `Comments (${comments.length})`;
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "comment-list";
+  if (!comments.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No comments";
+    list.append(empty);
+  } else {
+    for (const comment of comments) {
+      const row = document.createElement("article");
+      row.className = "comment-item";
+
+      const body = document.createElement("p");
+      body.textContent = comment.body;
+
+      const meta = document.createElement("span");
+      meta.textContent = comment.author_id ? `by ${comment.author_id}` : "comment";
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.deleteCommentId = comment.id;
+      remove.dataset.ticketId = ticket.id;
+      remove.setAttribute("aria-label", "Delete comment");
+      remove.textContent = "Delete";
+
+      row.append(body, meta, remove);
+      list.append(row);
+    }
+  }
+  section.append(list);
+
+  const form = document.createElement("form");
+  form.className = "comment-form";
+  form.dataset.commentForm = "true";
+  form.dataset.ticketId = ticket.id;
+
+  const textarea = document.createElement("textarea");
+  textarea.name = "body";
+  textarea.rows = 2;
+  textarea.placeholder = "Add a comment";
+  textarea.required = true;
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Comment";
+
+  form.append(textarea, submit);
+  section.append(form);
+  return section;
 }
 
 function attachmentNode(ticket) {
@@ -552,6 +656,23 @@ function normalizeAttachment(attachment) {
     };
   }
   return attachment;
+}
+
+function normalizeComment(comment) {
+  if (!comment) {
+    return null;
+  }
+  if (comment.metadata && comment.spec && comment.status) {
+    return {
+      id: comment.metadata.id,
+      ticket_id: comment.metadata.ticket_id,
+      created_at: comment.metadata.created_at,
+      updated_at: comment.metadata.updated_at,
+      body: comment.spec.body,
+      author_id: comment.status.author_id || ""
+    };
+  }
+  return comment;
 }
 
 function formatBytes(bytes) {
