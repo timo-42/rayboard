@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	lua "github.com/yuin/gopher-lua"
@@ -97,6 +98,7 @@ type HookPreview struct {
 type HookService struct {
 	db         *sql.DB
 	authorizer authz.Evaluator
+	runs       *automation.RunStore
 	openrouter *openrouter.Service
 	now        func() time.Time
 }
@@ -118,6 +120,12 @@ func NewHookService(db *sql.DB, authorizer authz.Evaluator, options ...HookOptio
 func WithHookOpenRouterService(openRouterService *openrouter.Service) HookOption {
 	return func(service *HookService) {
 		service.openrouter = openRouterService
+	}
+}
+
+func WithHookRunStore(runStore *automation.RunStore) HookOption {
+	return func(service *HookService) {
+		service.runs = runStore
 	}
 }
 
@@ -359,6 +367,23 @@ func (s *HookService) Preview(ctx context.Context, principal authz.Principal, ho
 	return preview, nil
 }
 
+func (s *HookService) ListRuns(ctx context.Context, principal authz.Principal, hookID string, limit int, offset int) ([]automation.Run, error) {
+	hook, err := s.Get(ctx, principal, hookID)
+	if err != nil {
+		return nil, err
+	}
+	if s.runs == nil {
+		return []automation.Run{}, nil
+	}
+	return s.runs.List(ctx, automation.ListInput{
+		TriggerType: "ticket_hook",
+		TriggerRef:  hook.ID,
+		ProjectID:   hook.ProjectID,
+		Limit:       limit,
+		Offset:      offset,
+	})
+}
+
 func (s *HookService) RunBeforeCreate(ctx context.Context, principal authz.Principal, input CreateTicketInput) (CreateTicketInput, []HookResult, error) {
 	results, transformed, err := s.run(ctx, principal, input.ProjectID, HookEventTicketCreate, HookPhaseBefore, map[string]any{
 		"ticket": createTicketInputMap(input),
@@ -414,7 +439,7 @@ func (s *HookService) run(ctx context.Context, principal authz.Principal, projec
 	results := make([]HookResult, 0, len(hooks))
 	current := copyHookMap(input)
 	for _, hook := range hooks {
-		result, err := s.execute(ctx, principal, hook, current)
+		result, err := s.executeRecorded(ctx, principal, hook, current)
 		results = append(results, result)
 		lastError := ""
 		if err != nil {
@@ -431,6 +456,44 @@ func (s *HookService) run(ctx context.Context, principal authz.Principal, projec
 		}
 	}
 	return results, current, nil
+}
+
+func (s *HookService) executeRecorded(ctx context.Context, principal authz.Principal, hook Hook, input map[string]any) (HookResult, error) {
+	if s.runs == nil {
+		return s.execute(ctx, principal, hook, input)
+	}
+	run, err := s.runs.Start(ctx, automation.StartInput{
+		TriggerType: "ticket_hook",
+		TriggerRef:  hook.ID,
+		ProjectID:   hook.ProjectID,
+		TicketID:    hookTicketID(input),
+		Engine:      hook.Engine.Type,
+		ActorUserID: principal.UserID,
+		Input:       copyHookMap(input),
+	})
+	if err != nil {
+		return HookResult{Output: map[string]any{}, Logs: nil}, err
+	}
+	result, execErr := s.execute(ctx, principal, hook, input)
+	status := automation.StatusSucceeded
+	errorMessage := ""
+	if execErr != nil {
+		status = automation.StatusFailed
+		errorMessage = execErr.Error()
+	}
+	if result.Output == nil {
+		result.Output = map[string]any{}
+	}
+	_, finishErr := s.runs.Finish(ctx, run.ID, automation.FinishInput{
+		Status: status,
+		Output: result.Output,
+		Error:  errorMessage,
+		Logs:   result.Logs,
+	})
+	if finishErr != nil {
+		return result, finishErr
+	}
+	return result, execErr
 }
 
 func (s *HookService) execute(ctx context.Context, principal authz.Principal, hook Hook, input map[string]any) (HookResult, error) {
@@ -757,6 +820,20 @@ func ticketMap(ticket Ticket) map[string]any {
 		return map[string]any{}
 	}
 	return decoded
+}
+
+func hookTicketID(input map[string]any) string {
+	for _, key := range []string{"ticket", "current"} {
+		object, ok := input[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := object["id"].(string)
+		if strings.TrimSpace(id) != "" {
+			return strings.TrimSpace(id)
+		}
+	}
+	return ""
 }
 
 func createTicketInputFromMap(input map[string]any, fallback CreateTicketInput) CreateTicketInput {

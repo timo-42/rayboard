@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -38,6 +39,13 @@ type PreviewHookInput struct {
 	shared.AuthInput
 	HookID string `path:"hook_id" doc:"Ticket hook ID."`
 	Body   shared.ResourceInput[PreviewHookSpec]
+}
+
+type ListHookRunsInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Ticket hook ID."`
+	Limit  int    `query:"limit" doc:"Maximum number of runs to return."`
+	Offset int    `query:"offset" doc:"Number of runs to skip."`
 }
 
 type HookMetadata struct {
@@ -110,11 +118,34 @@ type PreviewHookStatus struct {
 	Error  string         `json:"error,omitempty"`
 }
 
+type HookRunMetadata struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type HookRunSpec struct {
+	TriggerType string         `json:"trigger_type"`
+	TriggerRef  string         `json:"trigger_ref,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	TicketID    string         `json:"ticket_id,omitempty"`
+	Input       map[string]any `json:"input"`
+}
+
+type HookRunStatus struct {
+	State      string         `json:"state"`
+	Output     map[string]any `json:"output"`
+	Error      string         `json:"error,omitempty"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
+}
+
 type HookResource = shared.Resource[HookMetadata, HookSpec, HookStatus]
 type PreviewHookResource = shared.Resource[PreviewHookMetadata, PreviewHookSpec, PreviewHookStatus]
+type HookRunResource = shared.Resource[HookRunMetadata, HookRunSpec, HookRunStatus]
 
 type ListHooksOutput = shared.ListOutput[HookResource]
 type CreateHookOutput = shared.CreatedOutput[HookResource]
+type ListHookRunsOutput = shared.ListOutput[HookRunResource]
 
 type HookOutput struct {
 	Body HookResource
@@ -228,6 +259,37 @@ func previewResource(preview tracker.HookPreview) PreviewHookResource {
 			Error:  preview.Error,
 		},
 	}
+}
+
+func hookRunResource(run automation.Run) HookRunResource {
+	return HookRunResource{
+		Metadata: HookRunMetadata{
+			ID:        run.ID,
+			CreatedAt: run.CreatedAt,
+		},
+		Spec: HookRunSpec{
+			TriggerType: run.TriggerType,
+			TriggerRef:  run.TriggerRef,
+			ProjectID:   run.ProjectID,
+			TicketID:    run.TicketID,
+			Input:       run.Input,
+		},
+		Status: HookRunStatus{
+			State:      run.Status,
+			Output:     run.Output,
+			Error:      run.Error,
+			StartedAt:  run.StartedAt,
+			FinishedAt: run.FinishedAt,
+		},
+	}
+}
+
+func hookRunResources(runs []automation.Run) []HookRunResource {
+	resources := make([]HookRunResource, 0, len(runs))
+	for _, run := range runs {
+		resources = append(resources, hookRunResource(run))
+	}
+	return resources
 }
 
 func objectFromPreviewInput(input map[string]any, key string) map[string]any {

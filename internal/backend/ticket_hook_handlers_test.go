@@ -10,6 +10,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -19,10 +20,13 @@ func TestTicketHookEndpointsLifecycle(t *testing.T) {
 	db, bootstrap := openBackendTestDB(t, ctx)
 	authService := auth.NewService(db.SQL)
 	authorizer := authz.NewSQLEvaluator(db.SQL)
-	hookService := tracker.NewHookService(db.SQL, authorizer)
+	runStore := automation.NewRunStore(db.SQL)
+	hookService := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookRunStore(runStore))
+	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hookService))
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authorizer),
+		WithTrackerService(trackerService),
 		WithTicketHookService(hookService),
 	)
 	seedTicketHookHandlerProject(t, ctx, db, "project-1")
@@ -84,6 +88,35 @@ func TestTicketHookEndpointsLifecycle(t *testing.T) {
 	}
 	if previewed.Status.Error != "" || len(previewed.Status.Logs) != 0 || previewed.Status.Ticket["title"] != "Preview" {
 		t.Fatalf("unexpected preview result: %#v", previewed)
+	}
+	if runs, err := hookService.ListRuns(ctx, authz.Principal{UserID: bootstrap.UserID}, created.Metadata.ID, 10, 0); err != nil || len(runs) != 0 {
+		t.Fatalf("preview should not persist runs, runs=%#v err=%v", runs, err)
+	}
+
+	if _, err := trackerService.CreateTicket(ctx, authz.Principal{UserID: bootstrap.UserID}, tracker.CreateTicketInput{
+		ProjectID: "project-1",
+		Title:     "Run history",
+	}); err != nil {
+		t.Fatalf("create hooked ticket: %v", err)
+	}
+	runsReq := httptest.NewRequest(http.MethodGet, "/api/ticket-hooks/"+created.Metadata.ID+"/runs", nil)
+	runsReq.AddCookie(session)
+	runsRec := httptest.NewRecorder()
+	handler.ServeHTTP(runsRec, runsReq)
+	if runsRec.Code != http.StatusOK {
+		t.Fatalf("expected ticket hook runs status 200, got %d: %s", runsRec.Code, runsRec.Body.String())
+	}
+	runs := decodeTicketHookRunList(t, runsRec.Body.Bytes())
+	if runs.Metadata.Count != 1 || len(runs.Status.Items) != 1 {
+		t.Fatalf("unexpected ticket hook runs: %#v", runs)
+	}
+	run := runs.Status.Items[0]
+	if run.Spec.TriggerType != "ticket_hook" || run.Spec.TriggerRef != created.Metadata.ID || run.Spec.ProjectID != "project-1" || run.Status.State != automation.StatusSucceeded {
+		t.Fatalf("unexpected ticket hook run: %#v", run)
+	}
+	output, _ := run.Status.Output["output"].(map[string]any)
+	if output["ticket"] == nil || run.Spec.Input["input"] == nil {
+		t.Fatalf("expected ticket hook run input/output, got %#v", run)
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/projects/project-1/ticket-hooks?event=ticket_create&phase=before", nil)
@@ -295,6 +328,33 @@ type ticketHookPreviewBody struct {
 	} `json:"status"`
 }
 
+type ticketHookRunListBody struct {
+	Metadata struct {
+		Count int `json:"count"`
+	} `json:"metadata"`
+	Status struct {
+		Items []ticketHookRunBody `json:"items"`
+	} `json:"status"`
+}
+
+type ticketHookRunBody struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Spec struct {
+		TriggerType string         `json:"trigger_type"`
+		TriggerRef  string         `json:"trigger_ref"`
+		ProjectID   string         `json:"project_id"`
+		TicketID    string         `json:"ticket_id"`
+		Input       map[string]any `json:"input"`
+	} `json:"spec"`
+	Status struct {
+		State  string         `json:"state"`
+		Output map[string]any `json:"output"`
+		Error  string         `json:"error"`
+	} `json:"status"`
+}
+
 func decodeTicketHookResource(t *testing.T, data []byte) ticketHookResourceBody {
 	t.Helper()
 
@@ -321,6 +381,16 @@ func decodeTicketHookPreview(t *testing.T, data []byte) ticketHookPreviewBody {
 	var body ticketHookPreviewBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode ticket hook preview: %v", err)
+	}
+	return body
+}
+
+func decodeTicketHookRunList(t *testing.T, data []byte) ticketHookRunListBody {
+	t.Helper()
+
+	var body ticketHookRunListBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode ticket hook run list: %v", err)
 	}
 	return body
 }

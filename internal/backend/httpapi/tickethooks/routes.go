@@ -16,6 +16,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/ticket-hooks/{hook_id}", "Ticket Hooks", "Update ticket hook"), provider.updateHook)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/ticket-hooks/{hook_id}", "Ticket Hooks", "Delete ticket hook", http.StatusNoContent), provider.deleteHook)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/ticket-hooks/{hook_id}/preview", "Ticket Hooks", "Preview ticket hook"), provider.previewHook)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/ticket-hooks/{hook_id}/runs", "Ticket Hooks", "List ticket hook runs"), provider.listHookRuns)
 }
 
 func (provider Provider) listProjectHooks(ctx context.Context, input *ProjectHooksInput) (*ListHooksOutput, error) {
@@ -93,4 +94,16 @@ func (provider Provider) previewHook(ctx context.Context, input *PreviewHookInpu
 		return nil, shared.TrackerError(err)
 	}
 	return &PreviewHookOutput{Body: previewResource(preview)}, nil
+}
+
+func (provider Provider) listHookRuns(ctx context.Context, input *ListHookRunsInput) (*ListHookRunsOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := provider.Hooks.ListRuns(ctx, principal, input.HookID, input.Limit, input.Offset)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListHookRunsOutput{Body: shared.NewListResource[HookRunResource](hookRunResources(runs))}, nil
 }
