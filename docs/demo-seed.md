@@ -24,7 +24,8 @@ The command:
 - creates one demo project;
 - binds a demo lead as `project_owner` and the demo engineers group as `project_member` for that project;
 - replaces project workflow statuses and creates a delivery board;
-- creates a component, version/release target, required custom field, sprint, and Lua ticket hook;
+- creates a component, version/release target, required custom field, sprint, Lua ticket hook, and custom ticket create page;
+- submits one ticket through the custom ticket create page;
 - creates an epic plus three child tickets with labels, component/version/sprint assignment, roadmap dates, and custom-field values;
 - moves one ticket to `in_progress`;
 - reorders the backlog;
@@ -34,4 +35,4 @@ The command exercises normal backend validation, permissions, and activity behav
 
 ## Planned Expansion
 
-The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, comments, attachments, saved CEL query examples, Lua cron jobs, custom create pages, incoming/outgoing webhooks, notification examples, and AI-backed automation examples when OpenRouter is configured.
+The larger requirements target is **Planned**. Future demo seed work should add destructive reset semantics gated by `--fresh-reset`, more groups, global role bindings, comments, attachments, saved CEL query examples, Lua cron jobs, incoming/outgoing webhooks, notification examples, and AI-backed automation examples when OpenRouter is configured.

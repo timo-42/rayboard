@@ -50,11 +50,13 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 	authorizer := authz.NewSQLEvaluator(db.SQL)
 	hooks := tracker.NewHookService(db.SQL, authorizer)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithHookService(hooks))
+	createPages := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
 	server := httptest.NewServer(backend.NewHandler(
 		backend.WithAuthService(auth.NewService(db.SQL)),
 		backend.WithAuthorizer(authorizer),
 		backend.WithTrackerService(trackerService),
 		backend.WithTicketHookService(hooks),
+		backend.WithCreatePageService(createPages),
 	))
 	t.Cleanup(server.Close)
 
@@ -78,8 +80,28 @@ func TestDemoSeedPopulatesBackend(t *testing.T) {
 		!strings.Contains(output, "demo workflow:") ||
 		!strings.Contains(output, "demo board:") ||
 		!strings.Contains(output, "demo sprint:") ||
-		!strings.Contains(output, "demo ticket hook:") {
+		!strings.Contains(output, "demo ticket hook:") ||
+		!strings.Contains(output, "demo ticket create page:") ||
+		!strings.Contains(output, "demo ticket create page submission:") {
 		t.Fatalf("unexpected demo output: %s", output)
+	}
+	var createPageCount int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM ticket_create_pages").Scan(&createPageCount); err != nil {
+		t.Fatalf("count ticket create pages: %v", err)
+	}
+	if createPageCount != 1 {
+		t.Fatalf("expected one demo ticket create page, got %d", createPageCount)
+	}
+	var intakeSubmissionCount int
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ticket_labels
+		WHERE label = 'intake-submission'
+	`).Scan(&intakeSubmissionCount); err != nil {
+		t.Fatalf("count intake submission labels: %v", err)
+	}
+	if intakeSubmissionCount != 1 {
+		t.Fatalf("expected one intake submission ticket label, got %d", intakeSubmissionCount)
 	}
 }
 

@@ -209,6 +209,9 @@ func (s *demoSeeder) seed(ctx context.Context, adminUser string, adminPassword s
 	if err := s.createTicketHook(ctx, project.ID); err != nil {
 		return err
 	}
+	if err := s.createTicketCreatePage(ctx, project.ID, users, assets); err != nil {
+		return err
+	}
 	if err := s.createTickets(ctx, project.ID, assets); err != nil {
 		return err
 	}
@@ -451,6 +454,58 @@ return { ticket = ticket }
 		return fmt.Errorf("create demo ticket hook: %w", err)
 	}
 	fmt.Fprintln(s.stdout, "demo ticket hook: demo-label")
+	return nil
+}
+
+func (s *demoSeeder) createTicketCreatePage(ctx context.Context, projectID string, users map[string]demoCreatedUser, assets demoPlanningAssets) error {
+	slug := "bug-intake-" + strings.ToLower(s.suffix)
+	var page demoIDResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/ticket-create-pages", map[string]any{
+		"spec": map[string]any{
+			"name":          "Bug Intake " + s.suffix,
+			"slug":          slug,
+			"description":   "Seeded intake page for customer-reported issues",
+			"enabled":       true,
+			"target_type":   "bug",
+			"target_status": "todo",
+			"owner_user_id": users["lead"].id(),
+			"field_layout": []map[string]any{
+				{"key": "title", "label": "Summary", "type": "text", "required": true},
+				{"key": "description", "label": "Details", "type": "textarea", "required": true},
+				{"key": "custom_fields.severity", "label": "Severity", "type": "single_select", "required": true},
+			},
+			"defaults": map[string]any{
+				"priority":     "Medium",
+				"labels":       []string{"demo", "intake"},
+				"component_id": assets.ComponentID,
+				"version_id":   assets.VersionID,
+				"sprint_id":    assets.SprintID,
+				"custom_fields": map[string]any{
+					"severity": "Medium",
+				},
+			},
+		},
+	}, &page); err != nil {
+		return fmt.Errorf("create demo ticket create page: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo ticket create page: slug=%s id=%s\n", slug, page.id())
+
+	var ticket demoTicketResource
+	if err := s.apiJSON(ctx, http.MethodPost, "/api/projects/"+projectID+"/ticket-create-pages/"+slug+"/submit", map[string]any{
+		"spec": map[string]any{
+			"ticket": map[string]any{
+				"title":       "Customer cannot complete SSO login",
+				"description": "Submitted through the seeded custom create page.",
+				"labels":      []string{"demo", "intake-submission"},
+				"custom_fields": map[string]any{
+					"severity": "High",
+				},
+			},
+		},
+	}, &ticket); err != nil {
+		return fmt.Errorf("submit demo ticket create page: %w", err)
+	}
+	fmt.Fprintf(s.stdout, "demo ticket create page submission: key=%s title=%q\n", ticket.Status.Key, ticket.Spec.Title)
 	return nil
 }
 
