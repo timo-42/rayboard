@@ -133,7 +133,7 @@ if err then return { error = err.message } end
 
 local matching, search_err = rayboard.search({
   project_id = "project_...",
-  filter = 'labels == "automation"',
+  filter = '"automation" in labels && due_date <= today()',
   limit = 10
 })
 if search_err then return { error = search_err.message } end

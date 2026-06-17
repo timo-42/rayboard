@@ -162,6 +162,8 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Status:      "todo",
 		AssigneeID:  "user-member",
 		Labels:      []string{"backend", "auth"},
+		StartDate:   "2026-06-15",
+		DueDate:     "2026-06-16",
 		UpdatedAt:   fixedNow().Add(-3 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
@@ -171,6 +173,8 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Title:     "Billing issue",
 		Status:    "done",
 		Labels:    []string{"docs"},
+		StartDate: "2026-06-10",
+		DueDate:   "2026-06-15",
 		UpdatedAt: fixedNow().Add(-2 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
@@ -183,6 +187,12 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Labels:      []string{"backend"},
 		UpdatedAt:   fixedNow().Add(-1 * time.Hour),
 	})
+	seedCustomField(t, ctx, db.SQL, "field-severity", "project-core", "severity", "single_select")
+	seedCustomField(t, ctx, db.SQL, "field-impact", "project-core", "impact", "number")
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-1", "field-severity", `"critical"`)
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-1", "field-impact", `8`)
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-2", "field-severity", `"low"`)
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-2", "field-impact", `3`)
 	seedComment(t, ctx, db.SQL, "comment-core-2", "ticket-core-2", "panic also appears in a comment")
 	seedAttachment(t, ctx, db.SQL, "attachment-core-2", "ticket-core-2", "runbook-panic-notes.txt", "text/plain")
 	seedAttachment(t, ctx, db.SQL, "attachment-ops-1", "ticket-ops-1", "secret-ops-runbook.pdf", "application/pdf")
@@ -263,6 +273,15 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		t.Fatalf("unexpected backend label result labels: %#v", backendLabel.Tickets[0].Labels)
 	}
 
+	labelMembership, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `"auth" in labels`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search label membership: %v", err)
+	}
+	assertTicketIDs(t, labelMembership.Tickets, "ticket-core-1")
+
 	notBackendLabel, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
 		Filter: `labels != "backend"`,
 		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
@@ -271,6 +290,37 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		t.Fatalf("search not label: %v", err)
 	}
 	assertTicketIDs(t, notBackendLabel.Tickets, "ticket-core-2")
+
+	complexCEL, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `(status == "todo" || key == "CORE-2") && due_date <= today() && title.contains("i")`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search complex CEL: %v", err)
+	}
+	assertTicketIDs(t, complexCEL.Tickets, "ticket-core-1", "ticket-core-2")
+
+	inList, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `key in ["CORE-1", "OPS-1"]`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search in list: %v", err)
+	}
+	assertTicketIDs(t, inList.Tickets, "ticket-core-1")
+
+	customFiltered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `custom.severity == "critical" && custom.impact >= 8`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search custom fields: %v", err)
+	}
+	assertTicketIDs(t, customFiltered.Tickets, "ticket-core-1")
+
+	if _, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{Filter: `size(labels) > 0`}); !errors.Is(err, search.ErrValidation) {
+		t.Fatalf("expected unsupported function validation, got %v", err)
+	}
 
 	if _, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{ProjectID: "project-ops", Text: "panic"}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected project search forbidden, got %v", err)
@@ -382,6 +432,8 @@ type testTicket struct {
 	Status      string
 	AssigneeID  string
 	Labels      []string
+	StartDate   string
+	DueDate     string
 	UpdatedAt   time.Time
 }
 
@@ -492,10 +544,11 @@ func seedTicket(t *testing.T, ctx context.Context, db *sql.DB, ticket testTicket
 	}
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO tickets (
-			id, project_id, key, title, description, status, assignee_id, created_at, updated_at
+			id, project_id, key, title, description, status, assignee_id,
+			start_date, due_date, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, ticket.Description, ticket.Status, nullableString(ticket.AssigneeID), formatTime(fixedNow()), formatTime(ticket.UpdatedAt))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, ticket.Description, ticket.Status, nullableString(ticket.AssigneeID), nullableString(ticket.StartDate), nullableString(ticket.DueDate), formatTime(fixedNow()), formatTime(ticket.UpdatedAt))
 	if err != nil {
 		t.Fatalf("seed ticket %s: %v", ticket.ID, err)
 	}
@@ -507,6 +560,32 @@ func seedTicket(t *testing.T, ctx context.Context, db *sql.DB, ticket testTicket
 		if err != nil {
 			t.Fatalf("seed ticket label %s/%s: %v", ticket.ID, label, err)
 		}
+	}
+}
+
+func seedCustomField(t *testing.T, ctx context.Context, db *sql.DB, fieldID string, projectID string, key string, fieldType string) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO custom_field_definitions (
+			id, project_id, key, name, field_type, required, created_at, updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+	`, fieldID, projectID, key, key, fieldType, formatTime(fixedNow()), formatTime(fixedNow()))
+	if err != nil {
+		t.Fatalf("seed custom field %s: %v", fieldID, err)
+	}
+}
+
+func seedCustomFieldValue(t *testing.T, ctx context.Context, db *sql.DB, ticketID string, fieldID string, valueJSON string) {
+	t.Helper()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO ticket_custom_field_values (ticket_id, field_id, value_json, updated_at)
+		VALUES (?, ?, ?, ?)
+	`, ticketID, fieldID, valueJSON, formatTime(fixedNow()))
+	if err != nil {
+		t.Fatalf("seed custom field value %s/%s: %v", ticketID, fieldID, err)
 	}
 }
 

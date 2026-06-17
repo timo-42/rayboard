@@ -197,7 +197,7 @@ Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap lis
 
 ## Custom Fields
 
-The first custom-field API slice is backend/API-only. It supports project-scoped custom field definitions, select options, typed ticket values, and server-side validation during ticket create/update. Browser field management UI, custom-field search/CEL integration, custom create page layouts, and richer field schemas are **Planned**.
+The first custom-field API slice is backend/API-only. It supports project-scoped custom field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. Browser field management UI, custom create page layouts, and richer field schemas are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -302,11 +302,28 @@ Search returns:
 }
 ```
 
-Current filter support is a constrained expression parser, not full CEL yet. Supported fields are `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `labels`, `start_date`, and `due_date`. Supported operators are `==`, `!=`, and `&&`. Values are string literals or `currentUser()`. Parentheses are only parsed as part of function calls.
+Filters are CEL expressions parsed and type-checked with cel-go, then translated to parameterized SQLite. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
+
+Current Rayboard CEL filter support:
+
+- fields: `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `labels`, `start_date`, `due_date`, `created_at`, and `updated_at`;
+- custom fields through `custom.<field_key>`, for example `custom.severity == "critical"` or `custom.impact >= 8`;
+- operators: `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, parentheses, and `in` against literal lists or labels;
+- string helpers on string ticket fields: `contains`, `startsWith`, and `endsWith`;
+- approved functions: `currentUser()`, `today()`, and `now()`.
+
+Examples:
+
+```cel
+(status == "todo" || key in ["CORE-12", "CORE-13"]) && assignee_id == currentUser()
+"backend" in labels && due_date <= today()
+custom.severity == "critical" && custom.impact >= 8
+title.contains("login")
+```
+
+CEL filters do not expose direct SQL, arbitrary host functions, or an unrestricted function registry. Sorting and pagination remain separate API inputs.
 
 Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, `priority`, `start_date`, and `due_date`.
-
-Full CEL support is **Planned**. See CEL at https://cel.dev/ and cel-go at https://github.com/google/cel-go.
 
 Full-text search uses SQLite FTS5 virtual tables for ticket title/description, comments, and attachment metadata such as filename and content type. See https://www.sqlite.org/fts5.html. Current text input is tokenized into quoted FTS terms; it is not raw FTS syntax.
 

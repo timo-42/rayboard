@@ -191,7 +191,7 @@ func (s *Service) UpdateSavedView(ctx context.Context, principal authz.Principal
 	if input.Pinned != nil {
 		next.Pinned = *input.Pinned
 	}
-	next, err = normalizeAndValidateSavedViewConfig(principal, next)
+	next, err = s.normalizeAndValidateSavedViewConfig(principal, next)
 	if err != nil {
 		return SavedView{}, err
 	}
@@ -272,7 +272,7 @@ func (s *Service) buildSavedView(ctx context.Context, principal authz.Principal,
 		return SavedView{}, err
 	}
 	var err error
-	view, err = normalizeAndValidateSavedViewConfig(principal, view)
+	view, err = s.normalizeAndValidateSavedViewConfig(principal, view)
 	if err != nil {
 		return SavedView{}, err
 	}
@@ -322,7 +322,7 @@ func (s *Service) validateSavedViewScope(ctx context.Context, principal authz.Pr
 	return nil
 }
 
-func normalizeAndValidateSavedViewConfig(principal authz.Principal, view SavedView) (SavedView, error) {
+func (s *Service) normalizeAndValidateSavedViewConfig(principal authz.Principal, view SavedView) (SavedView, error) {
 	fields := map[string]string{}
 	view.Query = normalizeSavedViewQuery(view.Query)
 	if view.Name == "" {
@@ -330,7 +330,7 @@ func normalizeAndValidateSavedViewConfig(principal authz.Principal, view SavedVi
 	} else if len(view.Name) > maxNameLength {
 		fields["name"] = fmt.Sprintf("Must be %d characters or fewer", maxNameLength)
 	}
-	if err := validateSavedViewQuery(view.Query, principal); err != nil {
+	if err := s.validateSavedViewQuery(view.Query, principal); err != nil {
 		fields["query"] = err.Error()
 	}
 	view.DisplayMode = strings.ToLower(strings.TrimSpace(view.DisplayMode))
@@ -383,12 +383,12 @@ func validSavedViewGroupBy(groupBy string) bool {
 	}
 }
 
-func validateSavedViewQuery(query SavedViewQuery, principal authz.Principal) error {
+func (s *Service) validateSavedViewQuery(query SavedViewQuery, principal authz.Principal) error {
 	if len(query.Filter) > maxFilterLength {
 		return fmt.Errorf("filter must be %d characters or fewer", maxFilterLength)
 	}
 	if strings.TrimSpace(query.Filter) != "" {
-		if _, err := compileTicketFilter(query.Filter, principal); err != nil {
+		if _, err := compileTicketFilter(query.Filter, principal, s.now().UTC()); err != nil {
 			return err
 		}
 	}
@@ -415,7 +415,7 @@ func (s *Service) buildTicketSearchQuery(ctx context.Context, principal authz.Pr
 		fields["text"] = fmt.Sprintf("Must be %d characters or fewer", maxTextLength)
 	}
 
-	filter, err := compileTicketFilter(filterText, principal)
+	filter, err := compileTicketFilter(filterText, principal, s.now().UTC())
 	if err != nil {
 		fields["filter"] = err.Error()
 	}
