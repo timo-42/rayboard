@@ -25,17 +25,92 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `href="/api/docs"`) ||
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
 		!strings.Contains(body, "Engine Workbench") ||
+		!strings.Contains(body, `id="app-nav"`) ||
+		!strings.Contains(body, `id="dashboard-view"`) ||
+		!strings.Contains(body, `id="issue-view"`) ||
+		!strings.Contains(body, `id="rbac-panel"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
+		!strings.Contains(body, `id="field-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
 		!strings.Contains(body, `id="account-panel"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
 		!strings.Contains(body, `href="/1"`) ||
 		!strings.Contains(body, `href="/5"`) {
 		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestAppPageRoutesRenderShell(t *testing.T) {
+	for _, path := range []string{
+		"/projects",
+		"/projects/project_demo",
+		"/issues/ticket_demo",
+		"/profile",
+		"/rbac",
+		"/admin/rbac",
+		"/search",
+		"/automation",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+
+			NewHandler("http://backend.test").ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+			body := rec.Body.String()
+			for _, expected := range []string{"Rayboard", `id="app-nav"`, `id="dashboard-view"`, `id="issue-view"`} {
+				if !strings.Contains(body, expected) {
+					t.Fatalf("expected body to contain %q: %s", expected, body)
+				}
+			}
+		})
+	}
+}
+
+func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"currentRoute",
+		"navigate",
+		"renderDashboard",
+		"renderIssue",
+		"renderRBAC",
+		"loadDashboardSummaries",
+		"loadSelectedIssue",
+		"loadRBAC",
+		"/api/users",
+		"/api/role-bindings",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".app-nav",
+		".dashboard-view",
+		".metric-grid",
+		".issue-view",
+		".rbac-panel",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
 	}
 }
 
@@ -312,6 +387,43 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 		".ticket-labels",
 		".label-chips",
 		".ticket-label-controls",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadCustomFields",
+		"renderCustomFields",
+		"normalizeCustomField",
+		"parseCustomFields",
+		"/api/projects/${state.selectedProject.id}/custom-fields",
+		"/api/custom-fields/${remove.dataset.deleteFieldId}",
+		"data-ticket-custom-field-control",
+		"data-update-custom-fields-id",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".field-panel",
+		".field-form",
+		".field-list",
+		".ticket-custom-fields",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

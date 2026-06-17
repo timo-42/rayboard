@@ -2,10 +2,15 @@ const state = {
   user: null,
   projects: [],
   selectedProject: null,
+  selectedIssue: null,
   tickets: [],
+  projectSummaries: [],
+  recentTickets: [],
+  activeSprints: [],
   sprints: [],
   components: [],
   versions: [],
+  customFields: [],
   roadmap: [],
   attachments: {},
   comments: {},
@@ -16,10 +21,12 @@ const state = {
   lastSearchSpec: { text: "", filter: "" },
   tokens: [],
   createdToken: null,
+  rbac: { users: [], groups: [], roles: [], bindings: [] },
   engineResult: null
 };
 
 const els = {
+  appNav: document.querySelector("#app-nav"),
   loginForm: document.querySelector("#login-form"),
   projectForm: document.querySelector("#project-form"),
   ticketForm: document.querySelector("#ticket-form"),
@@ -28,6 +35,24 @@ const els = {
   engineProjectID: document.querySelector("#engine-project-id"),
   engineWorkbench: document.querySelector("#engine-workbench"),
   engineOutput: document.querySelector("#engine-output"),
+  dashboardView: document.querySelector("#dashboard-view"),
+  metricProjects: document.querySelector("#metric-projects"),
+  metricOpenTickets: document.querySelector("#metric-open-tickets"),
+  metricDoneTickets: document.querySelector("#metric-done-tickets"),
+  metricUnread: document.querySelector("#metric-unread"),
+  recentTickets: document.querySelector("#recent-tickets"),
+  bigProjects: document.querySelector("#big-projects"),
+  dashboardSprints: document.querySelector("#dashboard-sprints"),
+  issueView: document.querySelector("#issue-view"),
+  issueTitle: document.querySelector("#issue-title"),
+  issueProjectLink: document.querySelector("#issue-project-link"),
+  issueDetail: document.querySelector("#issue-detail"),
+  rbacPanel: document.querySelector("#rbac-panel"),
+  rbacRefresh: document.querySelector("#rbac-refresh"),
+  rbacUsers: document.querySelector("#rbac-users"),
+  rbacGroups: document.querySelector("#rbac-groups"),
+  rbacRoles: document.querySelector("#rbac-roles"),
+  rbacBindings: document.querySelector("#rbac-bindings"),
   notificationInbox: document.querySelector("#notification-inbox"),
   notificationCount: document.querySelector("#notification-count"),
   notificationUnreadOnly: document.querySelector("#notifications-unread-only"),
@@ -42,6 +67,9 @@ const els = {
   versionForm: document.querySelector("#version-form"),
   components: document.querySelector("#components"),
   versions: document.querySelector("#versions"),
+  fieldPanel: document.querySelector("#field-panel"),
+  fieldForm: document.querySelector("#field-form"),
+  customFields: document.querySelector("#custom-fields"),
   roadmapPanel: document.querySelector("#roadmap-panel"),
   roadmap: document.querySelector("#roadmap"),
   ticketParentID: document.querySelector("#ticket-parent-id"),
@@ -75,12 +103,26 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindEvents() {
+  window.addEventListener("popstate", () => {
+    handleRouteChange();
+  });
+
+  els.appNav.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || link.origin !== window.location.origin) {
+      return;
+    }
+    event.preventDefault();
+    navigate(link.pathname);
+  });
+
   els.loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       await api("/api/login", { method: "POST", body: { spec: data } });
-      event.currentTarget.reset();
+      form.reset();
       await refreshSession();
     }, "Signed in");
   });
@@ -91,10 +133,15 @@ function bindEvents() {
       state.user = null;
       state.projects = [];
       state.selectedProject = null;
+      state.selectedIssue = null;
       state.tickets = [];
+      state.projectSummaries = [];
+      state.recentTickets = [];
+      state.activeSprints = [];
       state.sprints = [];
       state.components = [];
       state.versions = [];
+      state.customFields = [];
       state.roadmap = [];
       state.attachments = {};
       state.comments = {};
@@ -105,17 +152,20 @@ function bindEvents() {
       state.lastSearchSpec = { text: "", filter: "" };
       state.tokens = [];
       state.createdToken = null;
+      state.rbac = { users: [], groups: [], roles: [], bindings: [] };
       render();
     }, "Signed out");
   });
 
   els.projectForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       const project = normalizeProject(await api("/api/projects", { method: "POST", body: { spec: data } }));
-      event.currentTarget.reset();
+      form.reset();
       await loadProjects(project.id);
+      await navigate(`/projects/${project.id}`);
     }, "Project created");
   });
 
@@ -124,11 +174,13 @@ function bindEvents() {
     if (!state.selectedProject) {
       return;
     }
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     data.labels = parseLabels(data.labels);
+    data.custom_fields = parseCustomFields(data.custom_fields);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
-      event.currentTarget.reset();
+      form.reset();
       await loadRoadmap({ renderTickets: false });
       await loadTickets();
     }, "Ticket created");
@@ -140,8 +192,9 @@ function bindEvents() {
 
   els.engineForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const form = event.currentTarget;
     await runAction(async () => {
-      const spec = engineTestSpec(event.currentTarget);
+      const spec = engineTestSpec(form);
       const result = await api("/api/engines/test", { method: "POST", body: { spec } });
       state.engineResult = result;
       renderEngineResult();
@@ -172,7 +225,8 @@ function bindEvents() {
       setNotice("Select a project before creating a sprint");
       return;
     }
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/sprints`, {
         method: "POST",
@@ -185,7 +239,7 @@ function bindEvents() {
           }
         }
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadSprints();
     }, "Sprint created");
   });
@@ -225,13 +279,14 @@ function bindEvents() {
       setNotice("Select a project before creating a component");
       return;
     }
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/components`, {
         method: "POST",
         body: { spec: { name: data.name || "", description: data.description || "" } }
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadComponents();
     }, "Component created");
   });
@@ -242,7 +297,8 @@ function bindEvents() {
       setNotice("Select a project before creating a version");
       return;
     }
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/versions`, {
         method: "POST",
@@ -255,7 +311,7 @@ function bindEvents() {
           }
         }
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadVersions();
     }, "Version created");
   });
@@ -296,6 +352,44 @@ function bindEvents() {
     }, "Version deleted");
   });
 
+  els.fieldForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a custom field");
+      return;
+    }
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/custom-fields`, {
+        method: "POST",
+        body: {
+          spec: {
+            key: data.key || "",
+            name: data.name || "",
+            field_type: data.field_type || "text",
+            required: Boolean(data.required),
+            options: parseOptions(data.options)
+          }
+        }
+      });
+      form.reset();
+      await loadCustomFields();
+    }, "Custom field created");
+  });
+
+  els.customFields.addEventListener("click", async (event) => {
+    const remove = event.target.closest("[data-delete-field-id]");
+    if (!remove) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/custom-fields/${remove.dataset.deleteFieldId}`, { method: "DELETE" });
+      await loadCustomFields();
+      await loadTickets();
+    }, "Custom field deleted");
+  });
+
   els.notifications.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-notification-read-state]");
     if (!button) {
@@ -310,19 +404,21 @@ function bindEvents() {
 
   els.searchForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const form = event.currentTarget;
     await runAction(async () => {
-      await runSearch(searchSpecFromForm(event.currentTarget));
+      await runSearch(searchSpecFromForm(form));
     }, "Search complete");
   });
 
   els.savedViewForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.selectedProject && event.currentTarget.elements.scope_type.value === "project") {
+    const form = event.currentTarget;
+    if (!state.selectedProject && form.elements.scope_type.value === "project") {
       setNotice("Select a project before saving a project view");
       return;
     }
     await runAction(async () => {
-      const data = formData(event.currentTarget);
+      const data = formData(form);
       const scopeType = data.scope_type || "user";
       const currentSearch = searchSpecFromForm(els.searchForm);
       await api("/api/saved-views", {
@@ -344,7 +440,7 @@ function bindEvents() {
           }
         }
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadSavedViews();
     }, "Saved view created");
   });
@@ -378,11 +474,12 @@ function bindEvents() {
 
   els.tokenForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = formData(form);
     await runAction(async () => {
       const created = await api("/api/tokens", { method: "POST", body: { spec: { name: data.name || "api-token" } } });
       state.createdToken = normalizeToken(created);
-      event.currentTarget.reset();
+      form.reset();
       await loadTokens();
       renderTokens();
     }, "API token created");
@@ -400,7 +497,16 @@ function bindEvents() {
     }, "API token revoked");
   });
 
-  els.ticketColumns.addEventListener("click", async (event) => {
+  els.rbacRefresh.addEventListener("click", async () => {
+    await runAction(async () => {
+      await loadRBAC();
+    }, "RBAC refreshed");
+  });
+
+  document.addEventListener("click", async (event) => {
+    if (!event.target.closest("#ticket-columns, #issue-detail")) {
+      return;
+    }
     const updateLabels = event.target.closest("[data-update-labels-id]");
     if (updateLabels) {
       const control = updateLabels.closest("[data-ticket-label-control]");
@@ -413,6 +519,21 @@ function bindEvents() {
         await loadRoadmap({ renderTickets: false });
         await loadTickets();
       }, "Ticket labels updated");
+      return;
+    }
+
+    const updateCustomFields = event.target.closest("[data-update-custom-fields-id]");
+    if (updateCustomFields) {
+      const control = updateCustomFields.closest("[data-ticket-custom-field-control]");
+      const input = control ? control.querySelector("textarea[name='custom_fields']") : null;
+      await runAction(async () => {
+        await api(`/api/tickets/${updateCustomFields.dataset.updateCustomFieldsId}`, {
+          method: "PATCH",
+          body: { spec: { custom_fields: parseCustomFields(input ? input.value : "") } }
+        });
+        await loadRoadmap({ renderTickets: false });
+        await loadTickets();
+      }, "Ticket custom fields updated");
       return;
     }
 
@@ -497,7 +618,10 @@ function bindEvents() {
     }, "Ticket updated");
   });
 
-  els.ticketColumns.addEventListener("submit", async (event) => {
+  document.addEventListener("submit", async (event) => {
+    if (!event.target.closest("#ticket-columns, #issue-detail")) {
+      return;
+    }
     const commentForm = event.target.closest("[data-comment-form]");
     if (commentForm) {
       event.preventDefault();
@@ -537,6 +661,70 @@ function bindEvents() {
   });
 }
 
+async function navigate(path) {
+  if (window.location.pathname !== path) {
+    window.history.pushState({}, "", path);
+  }
+  await handleRouteChange();
+}
+
+async function handleRouteChange() {
+  if (!state.user) {
+    render();
+    return;
+  }
+  await loadRouteData();
+  render();
+}
+
+function currentRoute() {
+  const path = window.location.pathname;
+  if (path === "/profile") {
+    return { page: "profile" };
+  }
+  if (path === "/rbac" || path === "/admin/rbac") {
+    return { page: "rbac" };
+  }
+  if (path === "/search") {
+    return { page: "search" };
+  }
+  if (path === "/automation") {
+    return { page: "automation" };
+  }
+  if (path === "/projects") {
+    return { page: "projects" };
+  }
+  if (path.startsWith("/projects/")) {
+    return { page: "projects", projectID: decodeURIComponent(path.slice("/projects/".length)) };
+  }
+  if (path.startsWith("/issues/")) {
+    return { page: "issue", ticketID: decodeURIComponent(path.slice("/issues/".length)) };
+  }
+  return { page: "dashboard" };
+}
+
+async function loadRouteData() {
+  const route = currentRoute();
+  if (route.page === "projects") {
+    if (route.projectID) {
+      state.selectedProject = state.projects.find((project) => project.id === route.projectID) || state.selectedProject;
+    } else if (!state.selectedProject && state.projects.length) {
+      state.selectedProject = state.projects[0];
+    }
+    if (state.selectedProject) {
+      await loadProjectDetails();
+    }
+    return;
+  }
+  if (route.page === "issue" && route.ticketID) {
+    await loadSelectedIssue(route.ticketID);
+    return;
+  }
+  if (route.page === "rbac") {
+    await loadRBAC();
+  }
+}
+
 async function refreshSession() {
   try {
     const data = await api("/api/me");
@@ -548,6 +736,7 @@ async function refreshSession() {
     await loadProjects();
     await loadNotifications();
     await loadTokens();
+    await loadRouteData();
   } catch (error) {
     state.user = null;
     render();
@@ -645,6 +834,23 @@ async function loadVersions(options = {}) {
   }
 }
 
+async function loadCustomFields(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.customFields = [];
+    renderCustomFields();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/custom-fields`);
+  state.customFields = listItems(data).map(normalizeCustomField);
+  renderCustomFields();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
 async function loadRoadmap(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.roadmap = [];
@@ -664,6 +870,19 @@ async function loadRoadmap(options = {}) {
   }
 }
 
+async function loadProjectDetails() {
+  if (!state.selectedProject) {
+    return;
+  }
+  await loadSprints({ renderTickets: false });
+  await loadComponents({ renderTickets: false });
+  await loadVersions({ renderTickets: false });
+  await loadCustomFields({ renderTickets: false });
+  await loadRoadmap({ renderTickets: false });
+  await loadTickets();
+  await loadSavedViews();
+}
+
 async function runSearch(spec) {
   const normalized = {
     project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
@@ -681,25 +900,25 @@ async function runSearch(spec) {
 async function loadProjects(selectedID = "") {
   const data = await api("/api/projects");
   state.projects = listItems(data).map(normalizeProject);
-  if (selectedID) {
+  const route = currentRoute();
+  if (route.projectID) {
+    state.selectedProject = state.projects.find((project) => project.id === route.projectID) || null;
+  } else if (selectedID) {
     state.selectedProject = state.projects.find((project) => project.id === selectedID) || null;
   } else if (!state.selectedProject && state.projects.length > 0) {
     state.selectedProject = state.projects[0];
   } else if (state.selectedProject) {
     state.selectedProject = state.projects.find((project) => project.id === state.selectedProject.id) || null;
   }
-  if (state.selectedProject) {
-    await loadSprints({ renderTickets: false });
-    await loadComponents({ renderTickets: false });
-    await loadVersions({ renderTickets: false });
-    await loadRoadmap({ renderTickets: false });
-    await loadTickets();
-    await loadSavedViews();
+  await loadDashboardSummaries();
+  if (state.selectedProject && route.page === "projects") {
+    await loadProjectDetails();
   } else {
     state.tickets = [];
     state.sprints = [];
     state.components = [];
     state.versions = [];
+    state.customFields = [];
     state.roadmap = [];
     state.attachments = {};
     state.comments = {};
@@ -707,6 +926,38 @@ async function loadProjects(selectedID = "") {
     state.savedViews = [];
   }
   render();
+}
+
+async function loadDashboardSummaries() {
+  const summaries = await Promise.all(state.projects.map(async (project) => {
+    try {
+      const [ticketData, sprintData] = await Promise.all([
+        api(`/api/projects/${project.id}/tickets?limit=50`),
+        api(`/api/projects/${project.id}/sprints`)
+      ]);
+      const tickets = listItems(ticketData).map(normalizeTicket);
+      const sprints = listItems(sprintData).map(normalizeSprint);
+      return {
+        project,
+        tickets,
+        sprints,
+        count: tickets.length,
+        open: tickets.filter((ticket) => ticket.status !== "done").length,
+        done: tickets.filter((ticket) => ticket.status === "done").length
+      };
+    } catch (_) {
+      return { project, tickets: [], sprints: [], count: 0, open: 0, done: 0 };
+    }
+  }));
+  state.projectSummaries = summaries;
+  state.recentTickets = summaries
+    .flatMap((summary) => summary.tickets)
+    .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))
+    .slice(0, 3);
+  state.activeSprints = summaries
+    .flatMap((summary) => summary.sprints.map((sprint) => ({ ...sprint, project: summary.project })))
+    .filter((sprint) => sprint.state === "active")
+    .slice(0, 3);
 }
 
 async function loadTickets() {
@@ -726,6 +977,24 @@ async function loadTickets() {
   render();
 }
 
+async function loadSelectedIssue(ticketID) {
+  const ticket = normalizeTicket(await api(`/api/tickets/${ticketID}`));
+  state.selectedIssue = ticket;
+  state.selectedProject = state.projects.find((project) => project.id === ticket.project_id) || state.selectedProject;
+  if (state.selectedProject) {
+    await Promise.all([
+      loadSprints({ renderTickets: false }),
+      loadComponents({ renderTickets: false }),
+      loadVersions({ renderTickets: false }),
+      loadCustomFields({ renderTickets: false })
+    ]);
+  }
+  await Promise.all([
+    loadAttachments(ticket.id, { renderAfter: false }),
+    loadComments(ticket.id, { renderAfter: false })
+  ]);
+}
+
 async function loadAttachments(ticketID, options = {}) {
   const data = await api(`/api/tickets/${ticketID}/attachments`);
   state.attachments[ticketID] = listItems(data).map(normalizeAttachment);
@@ -740,6 +1009,22 @@ async function loadComments(ticketID, options = {}) {
   if (options.renderAfter !== false) {
     renderTickets();
   }
+}
+
+async function loadRBAC() {
+  const [users, groups, roles, bindings] = await Promise.all([
+    api("/api/users").catch(() => null),
+    api("/api/groups").catch(() => null),
+    api("/api/roles").catch(() => null),
+    api("/api/role-bindings").catch(() => null)
+  ]);
+  state.rbac = {
+    users: listItems(users).map(normalizeUser),
+    groups: listItems(groups).map(normalizeGroup),
+    roles: listItems(roles).map(normalizeRole),
+    bindings: listItems(bindings).map(normalizeRoleBinding)
+  };
+  renderRBAC();
 }
 
 async function api(path, options = {}) {
@@ -800,34 +1085,142 @@ async function runAction(action, success) {
 
 function render() {
   const signedIn = Boolean(state.user);
+  const route = currentRoute();
   els.loginForm.hidden = signedIn;
   els.logoutButton.hidden = !signedIn;
+  els.appNav.hidden = !signedIn;
   els.projectCreate.hidden = !signedIn;
-  els.notificationInbox.hidden = !signedIn;
-  els.sprintPanel.hidden = !signedIn || !state.selectedProject;
-  els.releasePanel.hidden = !signedIn || !state.selectedProject;
-  els.roadmapPanel.hidden = !signedIn || !state.selectedProject;
-  els.searchPanel.hidden = !signedIn;
-  els.accountPanel.hidden = !signedIn;
-  els.engineWorkbench.hidden = !signedIn;
+  els.dashboardView.hidden = !signedIn || route.page !== "dashboard";
+  els.notificationInbox.hidden = !signedIn || route.page !== "dashboard";
+  els.sprintPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.releasePanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.fieldPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.roadmapPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.searchPanel.hidden = !signedIn || route.page !== "search";
+  els.accountPanel.hidden = !signedIn || route.page !== "profile";
+  els.rbacPanel.hidden = !signedIn || route.page !== "rbac";
+  els.engineWorkbench.hidden = !signedIn || route.page !== "automation";
   els.signedOut.hidden = signedIn;
-  els.boardView.hidden = !signedIn;
-  els.ticketForm.hidden = !signedIn || !state.selectedProject;
+  els.boardView.hidden = !signedIn || route.page !== "projects";
+  els.issueView.hidden = !signedIn || route.page !== "issue";
+  els.ticketForm.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.sessionState.textContent = signedIn ? state.user.username : "Signed out";
 
+  renderNavigation(route);
+  renderDashboard();
   renderProjects();
   renderTickets();
+  renderIssue();
   renderNotifications();
   renderSprints();
   renderComponents();
   renderVersions();
+  renderCustomFields();
   renderRoadmap();
   renderTicketFormOptions();
   renderSearchResults();
   renderSavedViews();
   renderTokens();
+  renderRBAC();
   renderEngineFields();
   renderEngineResult();
+}
+
+function renderNavigation(route) {
+  if (!els.appNav) {
+    return;
+  }
+  els.appNav.querySelectorAll("a[href]").forEach((link) => {
+    const target = link.getAttribute("href");
+    const active =
+      (route.page === "dashboard" && target === "/") ||
+      (route.page === "projects" && target === "/projects") ||
+      (route.page === "search" && target === "/search") ||
+      (route.page === "automation" && target === "/automation") ||
+      (route.page === "rbac" && target === "/rbac") ||
+      (route.page === "profile" && target === "/profile");
+    if (active) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+}
+
+function renderDashboard() {
+  if (!els.dashboardView) {
+    return;
+  }
+  const totals = state.projectSummaries.reduce((acc, summary) => {
+    acc.open += summary.open;
+    acc.done += summary.done;
+    return acc;
+  }, { open: 0, done: 0 });
+  els.metricProjects.textContent = String(state.projects.length);
+  els.metricOpenTickets.textContent = String(totals.open);
+  els.metricDoneTickets.textContent = String(totals.done);
+  els.metricUnread.textContent = String(state.notifications.filter((notification) => !notification.read_at).length);
+
+  renderSummaryList(els.recentTickets, state.recentTickets, (ticket) => ticketSummaryNode(ticket));
+  renderSummaryList(
+    els.bigProjects,
+    [...state.projectSummaries].sort((a, b) => b.count - a.count).slice(0, 3),
+    (summary) => projectSummaryNode(summary)
+  );
+  renderSummaryList(els.dashboardSprints, state.activeSprints, (sprint) => sprintSummaryNode(sprint));
+}
+
+function renderSummaryList(container, items, nodeFactory) {
+  if (!container) {
+    return;
+  }
+  container.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Nothing to show";
+    container.append(empty);
+    return;
+  }
+  for (const item of items) {
+    container.append(nodeFactory(item));
+  }
+}
+
+function ticketSummaryNode(ticket) {
+  const row = document.createElement("a");
+  row.className = "summary-item";
+  row.href = `/issues/${ticket.id}`;
+  const title = document.createElement("p");
+  title.textContent = `${ticket.key} ${ticket.title}`;
+  const meta = document.createElement("span");
+  meta.textContent = [projectName(ticket.project_id), ticket.status, ticket.priority].filter(Boolean).join(" / ");
+  row.append(title, meta);
+  return row;
+}
+
+function projectSummaryNode(summary) {
+  const row = document.createElement("a");
+  row.className = "summary-item";
+  row.href = `/projects/${summary.project.id}`;
+  const title = document.createElement("p");
+  title.textContent = `${summary.project.key} ${summary.project.name}`;
+  const meta = document.createElement("span");
+  meta.textContent = `${summary.count} tickets / ${summary.open} open / ${summary.done} done`;
+  row.append(title, meta);
+  return row;
+}
+
+function sprintSummaryNode(sprint) {
+  const row = document.createElement("a");
+  row.className = "summary-item";
+  row.href = sprint.project ? `/projects/${sprint.project.id}` : "/projects";
+  const title = document.createElement("p");
+  title.textContent = sprint.name;
+  const meta = document.createElement("span");
+  meta.textContent = [sprint.project ? sprint.project.key : "", dateRange(sprint.start_date, sprint.end_date)].filter(Boolean).join(" / ");
+  row.append(title, meta);
+  return row;
 }
 
 function renderNotifications() {
@@ -1073,6 +1466,60 @@ function versionNode(version) {
   return article;
 }
 
+function renderCustomFields() {
+  if (!els.customFields) {
+    return;
+  }
+  els.customFields.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage custom fields";
+    els.customFields.append(empty);
+    return;
+  }
+  if (!state.customFields.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No custom fields";
+    els.customFields.append(empty);
+    return;
+  }
+  for (const field of state.customFields) {
+    els.customFields.append(customFieldNode(field));
+  }
+}
+
+function customFieldNode(field) {
+  const article = document.createElement("article");
+  article.className = "field-item";
+  article.dataset.fieldType = field.field_type || "text";
+
+  const body = document.createElement("div");
+  body.className = "field-item-body";
+
+  const name = document.createElement("p");
+  name.textContent = field.name || field.key;
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    field.key,
+    field.field_type,
+    field.required ? "required" : "optional",
+    field.options.length ? `options: ${field.options.join(", ")}` : ""
+  ].filter(Boolean).join(" / ");
+
+  body.append(name, meta);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteFieldId = field.id;
+  remove.textContent = "Delete";
+
+  article.append(body, remove);
+  return article;
+}
+
 function renderTicketFormOptions() {
   replaceSelectOptions(els.ticketParentID, "Parent epic", roadmapEpics(), (epic) => `${epic.key} ${epic.title}`);
   replaceSelectOptions(els.ticketComponentID, "Component", state.components, (component) => component.name);
@@ -1310,6 +1757,55 @@ function tokenNode(token) {
   return article;
 }
 
+function renderRBAC() {
+  if (!els.rbacUsers) {
+    return;
+  }
+  renderAdminList(els.rbacUsers, state.rbac.users, (user) => {
+    const meta = [user.display_name, user.disabled ? "disabled" : "enabled"].filter(Boolean).join(" / ");
+    return adminItemNode(user.username || user.id, meta);
+  });
+  renderAdminList(els.rbacGroups, state.rbac.groups, (group) => {
+    return adminItemNode(group.display_name || group.name || group.id, group.name || group.id);
+  });
+  renderAdminList(els.rbacRoles, state.rbac.roles, (role) => {
+    return adminItemNode(role.name, `${role.permissions.length} permissions`);
+  });
+  renderAdminList(els.rbacBindings, state.rbac.bindings, (binding) => {
+    const subject = `${binding.subject_type}:${binding.subject_id}`;
+    const scope = binding.scope === "project" ? `project ${binding.project_id}` : "global";
+    return adminItemNode(binding.role_name, `${subject} / ${scope}`);
+  });
+}
+
+function renderAdminList(container, items, nodeFactory) {
+  if (!container) {
+    return;
+  }
+  container.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No accessible records";
+    container.append(empty);
+    return;
+  }
+  for (const item of items) {
+    container.append(nodeFactory(item));
+  }
+}
+
+function adminItemNode(titleText, metaText) {
+  const row = document.createElement("article");
+  row.className = "admin-item";
+  const title = document.createElement("p");
+  title.textContent = titleText || "Untitled";
+  const meta = document.createElement("span");
+  meta.textContent = metaText || "";
+  row.append(title, meta);
+  return row;
+}
+
 function renderProjects() {
   els.projects.replaceChildren();
   if (!state.projects.length) {
@@ -1331,12 +1827,7 @@ function renderProjects() {
       if (els.engineProjectID && !els.engineProjectID.value) {
         els.engineProjectID.value = project.id;
       }
-      await loadSprints({ renderTickets: false });
-      await loadComponents({ renderTickets: false });
-      await loadVersions({ renderTickets: false });
-      await loadRoadmap({ renderTickets: false });
-      await loadTickets();
-      await loadSavedViews();
+      await navigate(`/projects/${project.id}`);
     });
 
     const key = document.createElement("span");
@@ -1420,6 +1911,67 @@ function renderTickets() {
   }
 }
 
+function renderIssue() {
+  if (!els.issueDetail) {
+    return;
+  }
+  const ticket = state.selectedIssue;
+  els.issueDetail.replaceChildren();
+  if (!ticket) {
+    els.issueTitle.textContent = "No issue selected";
+    els.issueProjectLink.href = "/projects";
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Choose an issue from a project or dashboard.";
+    els.issueDetail.append(empty);
+    return;
+  }
+
+  els.issueTitle.textContent = `${ticket.key} ${ticket.title}`;
+  els.issueProjectLink.href = `/projects/${ticket.project_id}`;
+  els.issueProjectLink.textContent = projectName(ticket.project_id) || "Project";
+
+  const overview = document.createElement("section");
+  overview.className = "issue-overview";
+  for (const [label, value] of [
+    ["Status", ticket.status],
+    ["Priority", ticket.priority || "None"],
+    ["Type", ticket.type || "None"],
+    ["Project", projectName(ticket.project_id)],
+    ["Sprint", ticket.sprint_id ? sprintName(ticket.sprint_id) : "None"],
+    ["Component", ticket.component_id ? componentName(ticket.component_id) : "None"],
+    ["Version", ticket.version_id ? versionName(ticket.version_id) : "None"],
+    ["Updated", ticket.updated_at ? formatDateTime(ticket.updated_at) : ""]
+  ]) {
+    const item = document.createElement("article");
+    const key = document.createElement("span");
+    key.textContent = label;
+    const val = document.createElement("strong");
+    val.textContent = value || "None";
+    item.append(key, val);
+    overview.append(item);
+  }
+
+  const description = document.createElement("section");
+  description.className = "issue-section";
+  const descriptionTitle = document.createElement("h3");
+  descriptionTitle.textContent = "Description";
+  const descriptionBody = document.createElement("p");
+  descriptionBody.textContent = ticket.description || "No description";
+  description.append(descriptionTitle, descriptionBody);
+
+  els.issueDetail.append(
+    overview,
+    description,
+    labelControlNode(ticket),
+    customFieldControlNode(ticket),
+    planningControlNode(ticket),
+    sprintControlNode(ticket),
+    commentNode(ticket),
+    attachmentNode(ticket)
+  );
+}
+
 function ticketNode(ticket) {
   const article = document.createElement("article");
   article.className = "ticket";
@@ -1429,7 +1981,10 @@ function ticketNode(ticket) {
   key.textContent = ticket.key;
 
   const title = document.createElement("h4");
-  title.textContent = ticket.title;
+  const titleLink = document.createElement("a");
+  titleLink.href = `/issues/${ticket.id}`;
+  titleLink.textContent = ticket.title;
+  title.append(titleLink);
 
   const meta = document.createElement("p");
   meta.className = "ticket-meta";
@@ -1446,7 +2001,7 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, labelControlNode(ticket), planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
 }
 
@@ -1522,6 +2077,52 @@ function planningControlNode(ticket) {
 
   controls.append(componentSelect, versionSelect, assign);
   section.append(heading, controls);
+  return section;
+}
+
+function customFieldControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-custom-fields";
+  section.setAttribute("data-ticket-custom-field-control", "true");
+  section.setAttribute("aria-label", `${ticket.key} custom fields`);
+
+  const heading = document.createElement("p");
+  heading.className = "custom-field-heading";
+  heading.textContent = state.customFields.length ? `Custom fields (${state.customFields.length})` : "Custom fields";
+
+  const summary = document.createElement("div");
+  summary.className = "custom-field-summary";
+  const entries = Object.entries(ticket.custom_fields || {});
+  if (entries.length) {
+    for (const [key, value] of entries) {
+      const row = document.createElement("span");
+      row.textContent = `${key}: ${customFieldValueLabel(value)}`;
+      summary.append(row);
+    }
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No custom values";
+    summary.append(empty);
+  }
+
+  const controls = document.createElement("div");
+  controls.className = "ticket-custom-field-controls";
+
+  const input = document.createElement("textarea");
+  input.name = "custom_fields";
+  input.rows = 3;
+  input.value = formatCustomFields(ticket.custom_fields);
+  input.placeholder = customFieldPlaceholder();
+  input.setAttribute("aria-label", "Custom fields JSON");
+
+  const update = document.createElement("button");
+  update.type = "button";
+  update.dataset.updateCustomFieldsId = ticket.id;
+  update.textContent = "Fields";
+
+  controls.append(input, update);
+  section.append(heading, summary, controls);
   return section;
 }
 
@@ -1720,6 +2321,81 @@ function parseLabels(value) {
     .filter(Boolean);
 }
 
+function parseOptions(value) {
+  return String(value || "")
+    .split(",")
+    .map((option) => option.trim())
+    .filter(Boolean);
+}
+
+function parseCustomFields(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error("Custom fields must be a JSON object");
+    }
+    return parsed;
+  } catch (error) {
+    if (error.message && error.message.includes("must be a JSON object")) {
+      throw error;
+    }
+    throw new Error("Custom fields JSON is not valid");
+  }
+}
+
+function formatCustomFields(value) {
+  const fields = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (!Object.keys(fields).length) {
+    return "";
+  }
+  return JSON.stringify(fields, null, 2);
+}
+
+function customFieldValueLabel(value) {
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function customFieldPlaceholder() {
+  if (!state.customFields.length) {
+    return "{}";
+  }
+  const example = {};
+  for (const field of state.customFields.slice(0, 3)) {
+    example[field.key] = customFieldExampleValue(field);
+  }
+  return JSON.stringify(example);
+}
+
+function customFieldExampleValue(field) {
+  switch (field.field_type) {
+    case "number":
+      return 1;
+    case "boolean":
+      return true;
+    case "date":
+      return "2026-06-17";
+    case "multi_select":
+      return field.options.length ? [field.options[0]] : [];
+    case "single_select":
+      return field.options[0] || "";
+    default:
+      return "";
+  }
+}
+
 function searchSpecFromForm(form) {
   const data = formData(form);
   return {
@@ -1774,6 +2450,8 @@ function normalizeTicket(ticket) {
     return {
       id: ticket.metadata.id,
       project_id: ticket.metadata.project_id,
+      created_at: ticket.metadata.created_at,
+      updated_at: ticket.metadata.updated_at,
       key: ticket.status.key,
       title: ticket.spec.title,
       description: ticket.spec.description || "",
@@ -1919,6 +2597,26 @@ function normalizeVersion(version) {
   return version;
 }
 
+function normalizeCustomField(field) {
+  if (!field) {
+    return null;
+  }
+  if (field.metadata && field.spec) {
+    return {
+      id: field.metadata.id,
+      project_id: field.metadata.project_id,
+      created_at: field.metadata.created_at,
+      updated_at: field.metadata.updated_at,
+      key: field.spec.key || "",
+      name: field.spec.name || "",
+      field_type: field.spec.field_type || "text",
+      required: Boolean(field.spec.required),
+      options: field.spec.options || []
+    };
+  }
+  return field;
+}
+
 function normalizeRoadmapItem(item) {
   if (!item) {
     return null;
@@ -1950,6 +2648,67 @@ function normalizeToken(token) {
     };
   }
   return token;
+}
+
+function normalizeUser(user) {
+  if (!user) {
+    return null;
+  }
+  if (user.metadata && user.spec && user.status) {
+    return {
+      id: user.metadata.id,
+      username: user.spec.username || "",
+      display_name: user.spec.display_name || "",
+      disabled: Boolean(user.status.disabled || user.spec.disabled)
+    };
+  }
+  return user;
+}
+
+function normalizeGroup(group) {
+  if (!group) {
+    return null;
+  }
+  if (group.metadata && group.spec) {
+    return {
+      id: group.metadata.id,
+      name: group.spec.name || "",
+      display_name: group.spec.display_name || ""
+    };
+  }
+  return group;
+}
+
+function normalizeRole(role) {
+  if (!role) {
+    return null;
+  }
+  if (role.metadata && role.spec) {
+    return {
+      id: role.metadata.id,
+      name: role.spec.name || "",
+      description: role.spec.description || "",
+      permissions: role.spec.permissions || []
+    };
+  }
+  return role;
+}
+
+function normalizeRoleBinding(binding) {
+  if (!binding) {
+    return null;
+  }
+  if (binding.metadata && binding.spec) {
+    return {
+      id: binding.metadata.id,
+      role_name: binding.spec.role_name || "",
+      subject_type: binding.spec.subject_type || "",
+      subject_id: binding.spec.subject_id || "",
+      scope: binding.spec.scope || "global",
+      project_id: binding.spec.project_id || ""
+    };
+  }
+  return binding;
 }
 
 function normalizeComment(comment) {
@@ -1994,6 +2753,11 @@ function formatDateTime(value) {
 function sprintName(id) {
   const sprint = state.sprints.find((item) => item.id === id);
   return sprint ? sprint.name : id;
+}
+
+function projectName(id) {
+  const project = state.projects.find((item) => item.id === id);
+  return project ? `${project.key} ${project.name}` : id;
 }
 
 function componentName(id) {

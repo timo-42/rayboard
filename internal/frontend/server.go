@@ -81,9 +81,26 @@ func NewHandler(backendURL string) http.Handler {
 			index(w, backendURL, r.URL.Path)
 			return
 		}
+		if isAppRoute(r.URL.Path) {
+			index(w, backendURL, "")
+			return
+		}
 		http.NotFound(w, r)
 	})
 	return mux
+}
+
+func isAppRoute(path string) bool {
+	switch path {
+	case "/projects", "/profile", "/rbac", "/admin/rbac", "/search", "/automation", "/settings":
+		return true
+	}
+	for _, prefix := range []string{"/projects/", "/issues/"} {
+		if len(path) > len(prefix) && path[:len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 func isDesignVariantPath(path string) bool {

@@ -33,12 +33,18 @@ jobs:
       - name: Cross-build
         run: make build-cross
 
-      - name: Upload workflow artifacts
+      - name: Upload macOS arm64 workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rayboard-crossbuild-${{ github.sha }}
-          path: |
-            dist/rayboard-darwin-arm64
-            dist/rayboard-linux-amd64
+          name: rayboard-mac-arm64-${{ github.sha }}
+          path: dist/rayboard-darwin-arm64
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux amd64 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rayboard-linux-amd64-${{ github.sha }}
+          path: dist/rayboard-linux-amd64
           if-no-files-found: error
           retention-days: 14

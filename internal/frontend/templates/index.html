@@ -40,6 +40,15 @@
         </nav>
       </section>
 
+      <nav id="app-nav" class="app-nav" aria-label="Application" hidden>
+        <a href="/">Dashboard</a>
+        <a href="/projects">Projects</a>
+        <a href="/search">Search</a>
+        <a href="/automation">Automation</a>
+        <a href="/rbac">RBAC</a>
+        <a href="/profile">Profile</a>
+      </nav>
+
       <section id="project-create" class="tool-block" hidden>
         <h2>New Project</h2>
         <form id="project-form">
@@ -78,6 +87,49 @@
         <h2>Sign in to Rayboard</h2>
       </section>
 
+      <section id="dashboard-view" class="dashboard-view" hidden>
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h2>Dashboard</h2>
+          </div>
+        </header>
+
+        <div class="metric-grid">
+          <article>
+            <span>Projects</span>
+            <strong id="metric-projects">0</strong>
+          </article>
+          <article>
+            <span>Open Tickets</span>
+            <strong id="metric-open-tickets">0</strong>
+          </article>
+          <article>
+            <span>Done Tickets</span>
+            <strong id="metric-done-tickets">0</strong>
+          </article>
+          <article>
+            <span>Unread</span>
+            <strong id="metric-unread">0</strong>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <section>
+            <h3>Recently Modified</h3>
+            <div id="recent-tickets" class="summary-list"></div>
+          </section>
+          <section>
+            <h3>Biggest Projects</h3>
+            <div id="big-projects" class="summary-list"></div>
+          </section>
+          <section>
+            <h3>Active Sprints</h3>
+            <div id="dashboard-sprints" class="summary-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section id="board-view" class="board-view" hidden>
         <nav class="project-list" aria-label="Projects">
           <h2>Projects</h2>
@@ -113,6 +165,7 @@
             <input name="start_date" type="date" aria-label="Start date">
             <input name="due_date" type="date" aria-label="Due date">
             <input name="labels" placeholder="labels: backend, auth">
+            <textarea id="ticket-custom-fields" name="custom_fields" rows="2" placeholder='{"severity":"High"}' aria-label="Custom fields JSON"></textarea>
             <select id="ticket-component-id" name="component_id">
               <option value="">Component</option>
             </select>
@@ -137,6 +190,17 @@
             </section>
           </div>
         </section>
+      </section>
+
+      <section id="issue-view" class="issue-view" hidden>
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Issue</p>
+            <h2 id="issue-title">No issue selected</h2>
+          </div>
+          <a id="issue-project-link" class="text-link" href="/projects">Project</a>
+        </header>
+        <div id="issue-detail" class="issue-detail"></div>
       </section>
 
       <section id="notification-inbox" class="notification-inbox" hidden>
@@ -219,6 +283,37 @@
         <div id="roadmap" class="roadmap-list"></div>
       </section>
 
+      <section id="field-panel" class="field-panel" hidden>
+        <header class="field-header">
+          <div>
+            <p class="eyebrow">Project Settings</p>
+            <h2>Custom Fields</h2>
+          </div>
+        </header>
+
+        <form id="field-form" class="field-form">
+          <input name="key" placeholder="severity" required>
+          <input name="name" placeholder="Severity" required>
+          <select name="field_type">
+            <option value="text">Text</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+            <option value="date">Date</option>
+            <option value="single_select">Single select</option>
+            <option value="multi_select">Multi select</option>
+            <option value="user">User</option>
+          </select>
+          <label class="inline-toggle">
+            <input name="required" type="checkbox">
+            Required
+          </label>
+          <input name="options" placeholder="options: Low, High">
+          <button type="submit">Create</button>
+        </form>
+
+        <div id="custom-fields" class="field-list"></div>
+      </section>
+
       <section id="search-panel" class="search-panel" hidden>
         <header class="search-header">
           <div>
@@ -267,8 +362,8 @@
       <section id="account-panel" class="account-panel" hidden>
         <header class="account-header">
           <div>
-            <p class="eyebrow">Account</p>
-            <h2>API Tokens</h2>
+            <p class="eyebrow">Profile</p>
+            <h2>Account and API Tokens</h2>
           </div>
         </header>
 
@@ -292,6 +387,35 @@
           <h3>Existing Tokens</h3>
           <div id="api-tokens" class="token-list"></div>
         </section>
+      </section>
+
+      <section id="rbac-panel" class="rbac-panel" hidden>
+        <header class="rbac-header">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h2>RBAC</h2>
+          </div>
+          <button id="rbac-refresh" type="button">Refresh</button>
+        </header>
+
+        <div class="rbac-grid">
+          <section>
+            <h3>Users</h3>
+            <div id="rbac-users" class="admin-list"></div>
+          </section>
+          <section>
+            <h3>Groups</h3>
+            <div id="rbac-groups" class="admin-list"></div>
+          </section>
+          <section>
+            <h3>Roles</h3>
+            <div id="rbac-roles" class="admin-list"></div>
+          </section>
+          <section>
+            <h3>Role Bindings</h3>
+            <div id="rbac-bindings" class="admin-list"></div>
+          </section>
+        </div>
       </section>
 
       <section id="engine-workbench" class="engine-workbench" hidden>

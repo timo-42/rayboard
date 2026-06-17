@@ -153,6 +153,19 @@ internal/backend/httpapi/
   - global admin settings cover auth/session policy, attachment limits, notification destinations, webhook allowlists, OpenRouter, demo mode warning, backup/export controls, and system health.
   - project settings cover members, roles, workflow, fields, boards, components, versions, sprints, hooks, webhooks, custom create pages, notifications, saved views, and future CSS override metadata.
   - user settings cover profile, sessions, API tokens, notification preferences, and saved views.
+- Replace the single-page catch-all board UI with a proper embedded website:
+  - `/` is a signed-in overview dashboard, not the full workbench.
+  - the overview dashboard shows operational summaries such as recently modified tickets, the biggest projects by ticket count, open/done ticket counts, active sprints, unread notifications, and quick links into the deeper pages.
+  - expose dedicated browser pages for project detail, issue/ticket detail, profile, RBAC administration, search/views, automation, and settings instead of placing every control on the home dashboard.
+  - project pages live under routes such as `/projects/{project_id}` and show project summary, tickets, sprints, releases/components, roadmap epics, custom fields, and project-scoped settings/actions.
+  - issue pages live under routes such as `/issues/{ticket_id}` and show one ticket with metadata, comments, attachments, labels, sprint/release/component planning, custom fields, activity/history, and related work.
+  - profile pages live under `/profile` and show the current user's username, display name, effective permissions, sessions/preferences where available, and self-service API token creation/revocation.
+  - RBAC pages live under `/rbac` or `/admin/rbac` and expose users, groups, roles, role bindings, and effective-permission inspection using the backend RBAC APIs.
+  - the navigation should be persistent, with clear links for Dashboard, Projects, Search, Automation, RBAC, Profile, Docs, Swagger, and Redoc.
+  - deep links must work when loaded directly in combined or frontend-only mode; the frontend server should render the embedded app shell for these UI routes and keep `/api/*`, `/docs/*`, `/static/*`, and health routes separate.
+  - keep all HTML templates, CSS, JavaScript, docs, and any frontend assets embedded in the Go binary.
+  - the old five UI design variants under `/1` through `/5` can remain as design previews, but production navigation should use the proper website routes.
+  - mobile and desktop layouts must avoid overlapping text, avoid putting every admin/control panel on the dashboard, and use stable dimensions for repeated summaries, cards, tables, and issue panels.
 - Add sprint support now:
   - implement sprint CRUD, start/complete states, sprint goal, date range, ticket assignment, and backlog ordering.
   - defer sprint reports such as burndown, velocity, and burnup until later.
