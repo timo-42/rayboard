@@ -4,8 +4,10 @@ Common commands:
 
 ```bash
 make test
+make verify-docs
 make build
 make build-cross
+go run ./cmd/rayboard verify docs
 ```
 
 Equivalent direct commands:
@@ -15,6 +17,7 @@ go test ./...
 go build -o dist/rayboard ./cmd/rayboard
 GOOS=darwin GOARCH=arm64 go build -o dist/rayboard-darwin-arm64 ./cmd/rayboard
 GOOS=linux GOARCH=amd64 go build -o dist/rayboard-linux-amd64 ./cmd/rayboard
+go run ./cmd/rayboard verify docs
 ```
 
 Run locally:
@@ -56,6 +59,7 @@ Migrations are embedded and applied at backend startup. New schema changes shoul
 ## Release Checklist
 
 - Run `go test ./...`.
+- Run `make verify-docs` or `go run ./cmd/rayboard verify docs`.
 - Build the local binary with `make build`.
 - For distributable artifacts, run `make build-cross`.
 - Start `rayboard combined` against a fresh database and confirm the admin bootstrap password is printed.

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/timo-42/rayboard/internal/config"
+	"github.com/timo-42/rayboard/internal/docscheck"
 	"github.com/timo-42/rayboard/internal/runtime"
 )
 
@@ -32,6 +33,8 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runRuntime(ctx, runtime.ModeFrontend, args[1:], stdout, stderr)
 	case "demo":
 		return runDemo(ctx, args[1:], stdout, stderr)
+	case "verify":
+		return runVerify(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return 0
@@ -67,6 +70,32 @@ func runDemo(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	return runDemoSeed(ctx, args, stdout, stderr)
 }
 
+func runVerify(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: rayboard verify docs")
+		return 2
+	}
+	switch args[0] {
+	case "docs":
+		report := docscheck.Check()
+		if len(report.Errors) != 0 {
+			for _, err := range report.Errors {
+				fmt.Fprintf(stderr, "docs check: %s\n", err)
+			}
+			return 1
+		}
+		fmt.Fprintf(stdout, "docs check passed: files=%d local_links=%d\n", report.FilesChecked, report.LinksChecked)
+		return 0
+	case "-h", "--help", "help":
+		fmt.Fprintln(stdout, "usage: rayboard verify docs")
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown verify command %q\n\n", args[0])
+		fmt.Fprintln(stderr, "usage: rayboard verify docs")
+		return 2
+	}
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, `usage: rayboard <command> [flags]
 
@@ -74,5 +103,7 @@ commands:
   combined   run frontend and backend in one process
   backend    run only the backend API
   frontend   run only the frontend server
-  demo seed  populate a running backend with demo data`)
+  demo seed  populate a running backend with demo data
+  verify docs
+             check embedded documentation links and required references`)
 }

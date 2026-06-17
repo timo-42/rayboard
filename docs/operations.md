@@ -38,7 +38,7 @@ Audit payloads are JSON metadata for operations and must not include plaintext A
 Migrations run at backend startup. For now:
 
 - back up SQLite before upgrading;
-- run `go test ./...` and `make build-cross` before producing release artifacts;
+- run `go test ./...`, `make verify-docs`, and `make build-cross` before producing release artifacts;
 - start a fresh `combined` instance and verify login, project creation, ticket creation, and demo seed;
 - review [Development](development.md) release checks before tagging.
 

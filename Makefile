@@ -6,6 +6,10 @@ DIST := dist
 test:
 	go test ./...
 
+.PHONY: verify-docs
+verify-docs:
+	go run $(CMD) verify docs
+
 .PHONY: build
 build:
 	mkdir -p $(DIST)

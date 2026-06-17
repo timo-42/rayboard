@@ -238,6 +238,10 @@ internal/backend/httpapi/
   - generated OpenAPI schemas for automation engines use `oneOf` with an OpenAPI discriminator on `engine.type`, requiring Lua-specific or AI-specific fields as appropriate.
   - `engine.provider_id` references an admin-managed OpenRouter provider configuration containing model, API key/secret material, limits, and defaults.
   - reuse this engine object for cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, and notification hooks.
+  - expose a backend-owned engine test endpoint, initially under `/api/engines/test`, so admins and authorized project automation managers can execute an engine definition against supplied input before attaching it to cron jobs, hooks, webhooks, notification hooks, or custom create pages.
+  - the engine test endpoint accepts the shared `engine` object plus a surface/context selector and arbitrary JSON input, then returns a resource-like response with validated output, logs, duration, engine metadata, and any validation/runtime error in `status`.
+  - engine test execution must use the same sandbox, owner/actor principal, RBAC evaluation, timeout, size limits, JSON/table conversion, output-schema validation, secret redaction, and audit/run-history behavior as the corresponding real automation surface.
+  - test runs must never persist ticket/project mutations by default; mutation-capable previews require an explicit dry-run/action-plan mode that shows intended actions without committing them.
   - OpenRouter is the only supported AI provider in the first version.
   - global admins configure the OpenRouter API key, default model, allowed models, default timeout, and usage limits.
   - store the OpenRouter API key securely and never expose it to project users.

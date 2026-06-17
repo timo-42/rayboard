@@ -28,6 +28,34 @@ func TestMainUnknownCommand(t *testing.T) {
 	}
 }
 
+func TestVerifyDocs(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"verify", "docs"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "docs check passed:") {
+		t.Fatalf("unexpected stdout: %s", stdout.String())
+	}
+}
+
+func TestVerifyUnknownCommand(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"verify", "missing"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "unknown verify command") {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
 func TestDemoSeedRequiresFreshReset(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

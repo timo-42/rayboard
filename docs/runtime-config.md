@@ -6,9 +6,12 @@ Rayboard runs as one binary with three runtime modes:
 rayboard combined [flags]
 rayboard backend [flags]
 rayboard frontend [flags]
+rayboard verify docs
 ```
 
 `combined` opens SQLite, runs migrations, bootstraps the POC admin user, starts the backend API, and starts the frontend server in one process. `backend` starts only the backend API and owns SQLite. `frontend` starts only the embedded frontend and proxies API calls to a backend URL; it does not open SQLite.
+
+`verify docs` checks the markdown documentation embedded in the binary. It verifies required guide files, the documentation index, required upstream references, and local markdown links.
 
 ## Flags and Environment
 
