@@ -35,6 +35,18 @@ type ListWebhookRunsInput struct {
 	Offset    int    `query:"offset" doc:"Number of runs to skip."`
 }
 
+type ListOutgoingWebhookDeliveriesInput struct {
+	shared.AuthInput
+	WebhookID string `path:"webhook_id" doc:"Webhook ID."`
+	Limit     int    `query:"limit" doc:"Maximum number of deliveries to return."`
+	Offset    int    `query:"offset" doc:"Number of deliveries to skip."`
+}
+
+type OutgoingWebhookDeliveryIDInput struct {
+	shared.AuthInput
+	DeliveryID string `path:"delivery_id" doc:"Outgoing webhook delivery ID."`
+}
+
 type IncomingWebhookInput struct {
 	WebhookID     string `path:"webhook_id" doc:"Incoming webhook ID."`
 	Authorization string `header:"Authorization" doc:"Bearer webhook token."`
@@ -135,14 +147,44 @@ type WebhookRunStatus struct {
 	FinishedAt *time.Time     `json:"finished_at,omitempty"`
 }
 
+type OutgoingWebhookDeliveryMetadata struct {
+	ID             string    `json:"id"`
+	WebhookID      string    `json:"webhook_id,omitempty"`
+	WebhookName    string    `json:"webhook_name,omitempty"`
+	DomainEventID  string    `json:"domain_event_id,omitempty"`
+	IdempotencyKey string    `json:"idempotency_key,omitempty"`
+	ProjectID      string    `json:"project_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type OutgoingWebhookDeliverySpec struct {
+	EventType   string         `json:"event_type"`
+	SubjectType string         `json:"subject_type,omitempty"`
+	SubjectID   string         `json:"subject_id,omitempty"`
+	Payload     map[string]any `json:"payload"`
+	MaxAttempts int            `json:"max_attempts"`
+}
+
+type OutgoingWebhookDeliveryStatus struct {
+	State         string     `json:"state"`
+	AttemptCount  int        `json:"attempt_count"`
+	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
+	LastAttemptAt *time.Time `json:"last_attempt_at,omitempty"`
+	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
+}
+
 type WebhookResource = shared.Resource[WebhookMetadata, WebhookSpec, WebhookStatus]
 type CreatedWebhookResource = shared.Resource[WebhookMetadata, WebhookSpec, CreatedWebhookStatus]
 type IncomingWebhookResource = shared.Resource[WebhookRunMetadata, IncomingWebhookSpec, WebhookRunStatus]
 type WebhookRunResource = shared.Resource[WebhookRunMetadata, WebhookRunSpec, WebhookRunStatus]
+type OutgoingWebhookDeliveryResource = shared.Resource[OutgoingWebhookDeliveryMetadata, OutgoingWebhookDeliverySpec, OutgoingWebhookDeliveryStatus]
 
 type ListWebhooksOutput = shared.ListOutput[WebhookResource]
 type CreateWebhookOutput = shared.CreatedOutput[CreatedWebhookResource]
 type ListWebhookRunsOutput = shared.ListOutput[WebhookRunResource]
+type ListOutgoingWebhookDeliveriesOutput = shared.ListOutput[OutgoingWebhookDeliveryResource]
 
 type WebhookOutput struct {
 	Body WebhookResource
@@ -154,6 +196,10 @@ type RotateWebhookTokenOutput struct {
 
 type IncomingWebhookOutput struct {
 	Body IncomingWebhookResource
+}
+
+type OutgoingWebhookDeliveryOutput struct {
+	Body OutgoingWebhookDeliveryResource
 }
 
 func (spec WebhookSpec) createInput(projectID string) webhooks.CreateInput {
@@ -289,6 +335,44 @@ func runResources(runs []automation.Run) []WebhookRunResource {
 	resources := make([]WebhookRunResource, 0, len(runs))
 	for _, run := range runs {
 		resources = append(resources, runResource(run))
+	}
+	return resources
+}
+
+func outgoingDeliveryResource(delivery webhooks.OutgoingDelivery) OutgoingWebhookDeliveryResource {
+	return OutgoingWebhookDeliveryResource{
+		Metadata: OutgoingWebhookDeliveryMetadata{
+			ID:             delivery.ID,
+			WebhookID:      delivery.WebhookID,
+			WebhookName:    delivery.WebhookName,
+			DomainEventID:  delivery.DomainEventID,
+			IdempotencyKey: delivery.IdempotencyKey,
+			ProjectID:      delivery.ProjectID,
+			CreatedAt:      delivery.CreatedAt,
+			UpdatedAt:      delivery.UpdatedAt,
+		},
+		Spec: OutgoingWebhookDeliverySpec{
+			EventType:   delivery.EventType,
+			SubjectType: delivery.SubjectType,
+			SubjectID:   delivery.SubjectID,
+			Payload:     delivery.Payload,
+			MaxAttempts: delivery.MaxAttempts,
+		},
+		Status: OutgoingWebhookDeliveryStatus{
+			State:         delivery.Status,
+			AttemptCount:  delivery.AttemptCount,
+			NextAttemptAt: delivery.NextAttemptAt,
+			LastAttemptAt: delivery.LastAttemptAt,
+			DeliveredAt:   delivery.DeliveredAt,
+			LastError:     delivery.LastError,
+		},
+	}
+}
+
+func outgoingDeliveryResources(deliveries []webhooks.OutgoingDelivery) []OutgoingWebhookDeliveryResource {
+	resources := make([]OutgoingWebhookDeliveryResource, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		resources = append(resources, outgoingDeliveryResource(delivery))
 	}
 	return resources
 }

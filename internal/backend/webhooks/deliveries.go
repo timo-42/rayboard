@@ -106,6 +106,24 @@ func (s *Service) ListOutgoingDeliveries(ctx context.Context, principal authz.Pr
 	return deliveries, nil
 }
 
+func (s *Service) GetOutgoingDelivery(ctx context.Context, principal authz.Principal, deliveryID string) (OutgoingDelivery, error) {
+	deliveryID = strings.TrimSpace(deliveryID)
+	if deliveryID == "" {
+		return OutgoingDelivery{}, fmt.Errorf("%w: delivery id is required", ErrValidation)
+	}
+	delivery, err := s.getOutgoingDelivery(ctx, deliveryID)
+	if err != nil {
+		return OutgoingDelivery{}, err
+	}
+	if delivery.WebhookID == "" {
+		return OutgoingDelivery{}, ErrNotFound
+	}
+	if _, err := s.Get(ctx, principal, delivery.WebhookID); err != nil {
+		return OutgoingDelivery{}, err
+	}
+	return delivery, nil
+}
+
 func (s *Service) enabledOutgoingWebhooks(ctx context.Context, projectID string, eventType string) ([]Webhook, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, name, direction, enabled, actor_user_id, engine_type,
@@ -192,6 +210,24 @@ func (s *Service) enqueueOutgoingDelivery(ctx context.Context, hook Webhook, eve
 		return false, fmt.Errorf("insert outgoing webhook delivery: %w", err)
 	}
 	return true, nil
+}
+
+func (s *Service) getOutgoingDelivery(ctx context.Context, deliveryID string) (OutgoingDelivery, error) {
+	delivery, err := scanOutgoingDelivery(s.db.QueryRowContext(ctx, `
+		SELECT id, webhook_id, COALESCE(webhook_name, ''), domain_event_id, idempotency_key, project_id, event_type,
+			subject_type, subject_id, payload_json, status, attempt_count, max_attempts,
+			next_attempt_at, last_attempt_at, delivered_at, COALESCE(last_error, ''),
+			created_at, updated_at
+		FROM outgoing_webhook_deliveries
+		WHERE id = ?
+	`, deliveryID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return OutgoingDelivery{}, ErrNotFound
+		}
+		return OutgoingDelivery{}, err
+	}
+	return delivery, nil
 }
 
 func (s *Service) getOutgoingDeliveryByIdempotencyKey(ctx context.Context, key string) (OutgoingDelivery, error) {

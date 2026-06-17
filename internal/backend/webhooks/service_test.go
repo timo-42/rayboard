@@ -301,6 +301,17 @@ func TestOutgoingWebhookDeliveryEnqueue(t *testing.T) {
 	if delivery.WebhookID != matching.ID || delivery.WebhookName != matching.Name || delivery.DomainEventID != pending[0].ID || delivery.Status != OutgoingDeliveryStatusQueued || delivery.NextAttemptAt == nil {
 		t.Fatalf("unexpected delivery: %#v", delivery)
 	}
+	gotDelivery, err := service.GetOutgoingDelivery(ctx, principal, delivery.ID)
+	if err != nil {
+		t.Fatalf("get outgoing delivery: %v", err)
+	}
+	if gotDelivery.ID != delivery.ID || gotDelivery.WebhookID != matching.ID {
+		t.Fatalf("unexpected outgoing delivery get result: %#v", gotDelivery)
+	}
+	viewer := authz.Principal{UserID: "viewer", AuthKind: authz.AuthKindSession}
+	if _, err := service.GetOutgoingDelivery(ctx, viewer, delivery.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden outgoing delivery get, got %v", err)
+	}
 	eventPayload, ok := delivery.Payload["event"].(map[string]any)
 	if !ok || eventPayload["type"] != "ticket.updated" || eventPayload["project_id"] != "project-1" {
 		t.Fatalf("unexpected delivery event payload: %#v", delivery.Payload)

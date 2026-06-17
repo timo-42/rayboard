@@ -11,6 +11,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/webhooks"
 )
@@ -221,6 +222,55 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("expected outgoing webhook list to include created webhook: %s", outgoingList.Body.String())
 	}
 
+	eventStore := events.NewStore(db.SQL)
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   actor.ID,
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data:      map[string]any{"status": "done"},
+	}); err != nil {
+		t.Fatalf("append outgoing webhook event: %v", err)
+	}
+	pendingEvents, err := eventStore.ListPending(ctx, 10, "ticket.updated")
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if len(pendingEvents) != 1 {
+		t.Fatalf("expected one pending event, got %#v", pendingEvents)
+	}
+	if enqueued, err := webhookService.EnqueueOutgoingDeliveriesForEvent(ctx, pendingEvents[0]); err != nil || enqueued != 1 {
+		t.Fatalf("enqueue outgoing delivery = %d, %v", enqueued, err)
+	}
+
+	deliveriesReq := httptest.NewRequest(http.MethodGet, "/api/webhook-definitions/"+createdOutgoing.Metadata.ID+"/deliveries", nil)
+	deliveriesReq.AddCookie(session)
+	deliveries := httptest.NewRecorder()
+	handler.ServeHTTP(deliveries, deliveriesReq)
+	if deliveries.Code != http.StatusOK {
+		t.Fatalf("expected outgoing webhook deliveries status 200, got %d: %s", deliveries.Code, deliveries.Body.String())
+	}
+	deliveryList := decodeOutgoingWebhookDeliveryList(t, deliveries.Body.Bytes())
+	if len(deliveryList.Status.Items) != 1 {
+		t.Fatalf("expected one outgoing webhook delivery, got %#v", deliveryList)
+	}
+	delivery := deliveryList.Status.Items[0]
+	if delivery.Metadata.WebhookID != createdOutgoing.Metadata.ID || delivery.Spec.EventType != "ticket.updated" || delivery.Status.State != webhooks.OutgoingDeliveryStatusQueued {
+		t.Fatalf("unexpected outgoing webhook delivery: %#v", delivery)
+	}
+
+	getDeliveryReq := httptest.NewRequest(http.MethodGet, "/api/webhook-deliveries/"+delivery.Metadata.ID, nil)
+	getDeliveryReq.AddCookie(session)
+	getDelivery := httptest.NewRecorder()
+	handler.ServeHTTP(getDelivery, getDeliveryReq)
+	if getDelivery.Code != http.StatusOK {
+		t.Fatalf("expected outgoing webhook delivery get status 200, got %d: %s", getDelivery.Code, getDelivery.Body.String())
+	}
+	gotDelivery := decodeOutgoingWebhookDelivery(t, getDelivery.Body.Bytes())
+	if gotDelivery.Metadata.ID != delivery.Metadata.ID || gotDelivery.Metadata.DomainEventID != pendingEvents[0].ID || gotDelivery.Spec.Payload["event"] == nil {
+		t.Fatalf("unexpected outgoing webhook delivery get response: %#v", gotDelivery)
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/webhook-definitions/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, session, csrf)
 	deleted := httptest.NewRecorder()
@@ -311,6 +361,49 @@ func decodeIncomingRunResource(t *testing.T, data []byte) incomingRunResourceBod
 	var body incomingRunResourceBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode incoming run resource: %v", err)
+	}
+	return body
+}
+
+type outgoingWebhookDeliveryListBody struct {
+	Status struct {
+		Items []outgoingWebhookDeliveryBody `json:"items"`
+	} `json:"status"`
+}
+
+type outgoingWebhookDeliveryBody struct {
+	Metadata struct {
+		ID            string `json:"id"`
+		WebhookID     string `json:"webhook_id"`
+		DomainEventID string `json:"domain_event_id"`
+		ProjectID     string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		EventType string         `json:"event_type"`
+		Payload   map[string]any `json:"payload"`
+	} `json:"spec"`
+	Status struct {
+		State        string `json:"state"`
+		AttemptCount int    `json:"attempt_count"`
+	} `json:"status"`
+}
+
+func decodeOutgoingWebhookDeliveryList(t *testing.T, data []byte) outgoingWebhookDeliveryListBody {
+	t.Helper()
+
+	var body outgoingWebhookDeliveryListBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode outgoing webhook delivery list: %v: %s", err, string(data))
+	}
+	return body
+}
+
+func decodeOutgoingWebhookDelivery(t *testing.T, data []byte) outgoingWebhookDeliveryBody {
+	t.Helper()
+
+	var body outgoingWebhookDeliveryBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode outgoing webhook delivery: %v: %s", err, string(data))
 	}
 	return body
 }

@@ -22,7 +22,7 @@ Lua-capable surfaces:
 - ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
 - custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua validation/logging, constrained Rayboard actions, and run history implemented;
-- outgoing webhooks: definition CRUD and event-triggered delivery persistence implemented; Lua request shaping, retries, and outbound HTTP still **Planned**;
+- outgoing webhooks: definition CRUD, event-triggered delivery persistence, and delivery history API implemented; Lua request shaping, retries, and outbound HTTP still **Planned**;
 - notification hooks: **Planned**.
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
@@ -184,7 +184,7 @@ return {
 
 ## Webhooks
 
-Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua validation/logging, constrained Rayboard actions, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment` run as the configured actor user through normal RBAC. Disabled or deleted actor users cause execution to fail before Lua runs. Outgoing webhook definitions are implemented with `event_types`, and matching domain events can be persisted as queued outgoing delivery rows that snapshot event and webhook context. Lua request shaping, controlled outbound requests, allowlists, timeouts, max payload sizes, retries, and delivery history APIs are still **Planned**.
+Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua validation/logging, constrained Rayboard actions, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment` run as the configured actor user through normal RBAC. Disabled or deleted actor users cause execution to fail before Lua runs. Outgoing webhook definitions are implemented with `event_types`, and matching domain events can be persisted as queued outgoing delivery rows that snapshot event and webhook context. Delivery history is available through `GET /api/webhook-definitions/{webhook_id}/deliveries` and `GET /api/webhook-deliveries/{delivery_id}`. Lua request shaping, controlled outbound requests, allowlists, timeouts, max payload sizes, retries, and manual redelivery are still **Planned**.
 
 Incoming example shape:
 

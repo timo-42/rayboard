@@ -428,7 +428,7 @@ Dashboard/view notification policies, recipient rules, notification hooks, outgo
 
 ## Webhooks
 
-The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Lua request shaping, outbound HTTP sending, retries, manual redelivery, and delivery inspection endpoints are planned follow-up work.
+The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Queued outgoing delivery history can be inspected through the API. Lua request shaping, outbound HTTP sending, retries, and manual redelivery are planned follow-up work.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -438,12 +438,16 @@ The webhook slice implements project-scoped incoming and outgoing webhook defini
 | `PATCH` | `/api/webhook-definitions/{webhook_id}` | Any subset of `name`, `enabled`, `actor_user_id`, `event_types`, and `engine`. |
 | `POST` | `/api/webhook-definitions/{webhook_id}/rotate-token` | Rotates an incoming webhook bearer token and returns the new token once in `status.token`. |
 | `GET` | `/api/webhook-definitions/{webhook_id}/runs` | Lists Lua/AI run history for an incoming webhook. |
+| `GET` | `/api/webhook-definitions/{webhook_id}/deliveries` | Lists queued outgoing webhook deliveries for one webhook definition. |
+| `GET` | `/api/webhook-deliveries/{delivery_id}` | Gets one outgoing webhook delivery record. |
 | `DELETE` | `/api/webhook-definitions/{webhook_id}` | Soft-deletes the webhook and clears its token hash. |
 | `POST` | `/api/webhooks/incoming/{webhook_id}` | Authenticates with `Authorization: Bearer <webhook-token>`, accepts `{"spec":{"payload":{...},"headers":{},"query":{}}}`, executes the webhook engine, and returns a run resource. |
 
 Webhook definition responses use `metadata` for IDs/timestamps, `spec` for direction, actor user, enabled state, `event_types`, and engine configuration, and `status` for `token_set`, `token_rotated_at`, and `last_error`. Incoming create and rotate responses are the only responses that include `status.token`. Outgoing webhook definitions do not have bearer tokens, so `status.token_set` is false and token rotation returns a validation error. Outgoing webhooks require at least one `event_types` entry; values are domain event names such as `ticket.updated` or `comment.created`.
 
-Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the webhook's configured actor user. Disabled or deleted actor users cause incoming execution to fail before the script runs. Outgoing webhook Lua execution is not wired yet.
+Outgoing delivery responses use `metadata` for delivery ID, webhook snapshot, domain event ID, idempotency key, project ID, and timestamps; `spec` for event type, subject, payload, and max attempts; and `status` for queue state, attempt count, attempt timestamps, delivery timestamp, and last error. Delivery inspection requires project `webhooks:manage` through the owning webhook.
+
+Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the webhook's configured actor user. Disabled or deleted actor users cause incoming execution to fail before the script runs. Outgoing webhook Lua execution and outbound delivery sending are not wired yet.
 
 ## Ticket Hooks
 
