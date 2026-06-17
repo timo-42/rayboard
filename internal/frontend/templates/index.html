@@ -840,6 +840,62 @@
           </section>
         </section>
 
+        <section class="ticket-hook-panel">
+          <header class="ticket-hook-header">
+            <div>
+              <p class="eyebrow">Project Forms</p>
+              <h3>Ticket Create Pages</h3>
+            </div>
+            <label>
+              Project
+              <select id="create-page-project" name="create_page_project"></select>
+            </label>
+          </header>
+
+          <form id="create-page-form" class="create-page-form">
+            <div class="create-page-grid">
+              <input name="name" placeholder="Bug Intake" required>
+              <input name="slug" placeholder="bug-intake" required>
+              <input name="target_type" placeholder="bug">
+              <input name="target_status" placeholder="todo">
+              <input name="owner_user_id" placeholder="owner user id">
+              <select name="logic_type" id="create-page-logic-type">
+                <option value="none">Static</option>
+                <option value="lua">Lua</option>
+                <option value="ai">OpenRouter AI</option>
+              </select>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+            </div>
+            <textarea name="description" rows="2" placeholder="Short page description"></textarea>
+            <textarea name="field_layout" rows="4" spellcheck="false">[{"key":"title","type":"text","required":true}]</textarea>
+            <textarea name="defaults" rows="4" spellcheck="false">{"priority":"High"}</textarea>
+
+            <label data-create-page-logic-field="lua" hidden>
+              Lua Form Logic
+              <textarea name="form_lua_script" rows="5" spellcheck="false">return { defaults = page.defaults }</textarea>
+            </label>
+
+            <div data-create-page-logic-field="ai" hidden>
+              <label>
+                AI Prompt
+                <textarea name="form_ai_prompt" rows="4">Return JSON with field_layout and defaults for this intake page.</textarea>
+              </label>
+              <label>
+                Provider ID
+                <input name="form_ai_provider_id" placeholder="openrouter_provider_...">
+              </label>
+            </div>
+
+            <button type="submit">Create page</button>
+          </form>
+
+          <div id="create-page-status" class="ticket-hook-status"></div>
+          <div id="create-pages" class="create-page-list"></div>
+        </section>
+
         <form id="engine-form" class="engine-form">
           <div class="engine-form-row">
             <label>

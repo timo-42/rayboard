@@ -2071,14 +2071,16 @@ p {
 .cron-job-form,
 .webhook-form,
 .ticket-hook-form,
-.ticket-hook-preview-form {
+.ticket-hook-preview-form,
+.create-page-form {
   display: grid;
   gap: 10px;
 }
 
 .cron-job-grid,
 .webhook-grid,
-.ticket-hook-grid {
+.ticket-hook-grid,
+.create-page-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
@@ -2088,7 +2090,9 @@ p {
 .webhook-form textarea,
 .ticket-hook-form textarea,
 .ticket-hook-preview-form textarea,
-.ticket-hook-preview pre {
+.ticket-hook-preview pre,
+.create-page-form textarea,
+.create-page-config {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   line-height: 1.45;
@@ -2112,14 +2116,16 @@ p {
 
 .cron-job-list,
 .webhook-list,
-.ticket-hook-list {
+.ticket-hook-list,
+.create-page-list {
   display: grid;
   gap: 8px;
 }
 
 .cron-job-item,
 .webhook-item,
-.ticket-hook-item {
+.ticket-hook-item,
+.create-page-item {
   display: grid;
   gap: 6px;
   border: 1px solid var(--border);
@@ -2136,14 +2142,16 @@ p {
   gap: 10px;
 }
 
-.ticket-hook-item p {
+.ticket-hook-item p,
+.create-page-item p {
   color: var(--heading);
   font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.ticket-hook-item span {
+.ticket-hook-item span,
+.create-page-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
@@ -2200,6 +2208,18 @@ p {
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.create-page-config {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
 }
 
 .cron-run-item {
@@ -2357,7 +2377,9 @@ p {
   .cron-job-grid,
   .webhook-grid,
   .ticket-hook-grid,
+  .create-page-grid,
   .ticket-hook-preview-form,
+  .create-page-form,
   .comment-form,
   .attachment-form,
   .ticket-custom-field-controls {

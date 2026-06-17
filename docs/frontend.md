@@ -53,9 +53,9 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/delivery history, and custom create-page management are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/delivery history, and custom create-page rendering/submission are API-only for now.
 
-Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
+Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, custom create-page rendering/submission, and advanced release planning are **Planned**.
 
 ## Design Variants
 

@@ -49,6 +49,8 @@ const state = {
   ticketHooks: [],
   ticketHooksError: "",
   ticketHookPreview: null,
+  createPages: [],
+  createPagesError: "",
   engineResult: null
 };
 
@@ -79,6 +81,11 @@ const els = {
   ticketHookStatus: document.querySelector("#ticket-hook-status"),
   ticketHooks: document.querySelector("#ticket-hooks"),
   ticketHookPreviewOutput: document.querySelector("#ticket-hook-preview-output"),
+  createPageProject: document.querySelector("#create-page-project"),
+  createPageForm: document.querySelector("#create-page-form"),
+  createPageLogicType: document.querySelector("#create-page-logic-type"),
+  createPageStatus: document.querySelector("#create-page-status"),
+  createPages: document.querySelector("#create-pages"),
   dashboardView: document.querySelector("#dashboard-view"),
   metricProjects: document.querySelector("#metric-projects"),
   metricOpenTickets: document.querySelector("#metric-open-tickets"),
@@ -258,6 +265,8 @@ function bindEvents() {
       state.ticketHooks = [];
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
+      state.createPages = [];
+      state.createPagesError = "";
       render();
     }, "Signed out");
   });
@@ -309,7 +318,7 @@ function bindEvents() {
     if (project) {
       state.selectedProject = project;
     }
-    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
     renderEngineFields();
   });
 
@@ -379,7 +388,7 @@ function bindEvents() {
     if (project) {
       state.selectedProject = project;
     }
-    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
     renderEngineFields();
   });
 
@@ -470,7 +479,7 @@ function bindEvents() {
   els.ticketHookProject.addEventListener("change", async () => {
     const projectID = els.ticketHookProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
-    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
   });
 
   els.ticketHookForm.addEventListener("submit", async (event) => {
@@ -528,6 +537,71 @@ function bindEvents() {
         }
         await loadTicketHooks();
       }, "Ticket hook deleted");
+    }
+  });
+
+  els.createPageLogicType.addEventListener("change", () => {
+    renderCreatePageLogicFields();
+  });
+
+  els.createPageProject.addEventListener("change", async () => {
+    const projectID = els.createPageProject.value;
+    state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
+  });
+
+  els.createPageForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const projectID = selectedCreatePageProjectID();
+    if (!projectID) {
+      setNotice("Choose a project for create pages");
+      return;
+    }
+    const form = event.currentTarget;
+    await runAction(async () => {
+      await api(`/api/projects/${projectID}/ticket-create-pages`, {
+        method: "POST",
+        body: { spec: createPageSpec(form) }
+      });
+      form.reset();
+      setFormChecked(form, "enabled", true);
+      setFormValue(form, "field_layout", `[{"key":"title","type":"text","required":true}]`);
+      setFormValue(form, "defaults", `{"priority":"High"}`);
+      renderCreatePageLogicFields();
+      await loadCreatePages(projectID);
+    }, "Create page saved");
+  });
+
+  els.createPages.addEventListener("click", async (event) => {
+    const schema = event.target.closest("[data-load-create-page-schema-id]");
+    if (schema) {
+      await runAction(async () => {
+        await loadCreatePageSchema(schema.dataset.loadCreatePageSchemaId, schema.dataset.createPageProjectId, schema.dataset.createPageSlug);
+      }, "Create page schema loaded");
+      return;
+    }
+
+    const toggle = event.target.closest("[data-toggle-create-page-id]");
+    if (toggle) {
+      await runAction(async () => {
+        await api(`/api/ticket-create-pages/${toggle.dataset.toggleCreatePageId}`, {
+          method: "PATCH",
+          body: { spec: { enabled: toggle.dataset.createPageEnabled === "true" } }
+        });
+        await loadCreatePages();
+      }, "Create page updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-create-page-id]");
+    if (remove) {
+      if (!window.confirm("Delete this create page?")) {
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/ticket-create-pages/${remove.dataset.deleteCreatePageId}`, { method: "DELETE" });
+        await loadCreatePages();
+      }, "Create page deleted");
     }
   });
 
@@ -1534,7 +1608,7 @@ async function loadRouteData() {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
     }
-    await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks()]);
+    await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
   }
 }
 
@@ -2049,6 +2123,29 @@ async function loadTicketHooks(projectID = selectedTicketHookProjectID()) {
   renderTicketHooks();
 }
 
+async function loadCreatePages(projectID = selectedCreatePageProjectID()) {
+  if (!projectID) {
+    state.createPages = [];
+    state.createPagesError = "Choose a project to manage create pages";
+    renderCreatePages();
+    return;
+  }
+  try {
+    state.createPages = listItems(await api(`/api/projects/${projectID}/ticket-create-pages?include_disabled=true&limit=100`)).map(normalizeCreatePage);
+    state.createPagesError = "";
+  } catch (error) {
+    state.createPages = [];
+    state.createPagesError = error.message || "Create pages are not available";
+  }
+  renderCreatePages();
+}
+
+async function loadCreatePageSchema(pageID, projectID, slug) {
+  const schema = await api(`/api/projects/${projectID}/ticket-create-pages/${encodeURIComponent(slug)}/schema`);
+  state.createPages = state.createPages.map((page) => page.id === pageID ? { ...page, schema } : page);
+  renderCreatePages();
+}
+
 async function api(path, options = {}) {
   const request = {
     method: options.method || "GET",
@@ -2149,6 +2246,7 @@ function render() {
   renderCronJobs();
   renderWebhooks();
   renderTicketHooks();
+  renderCreatePages();
   renderEngineFields();
   renderEngineResult();
 }
@@ -3862,6 +3960,115 @@ function ticketHookNode(hook) {
   return article;
 }
 
+function renderCreatePages() {
+  if (!els.createPages || !els.createPageProject) {
+    return;
+  }
+  replaceSelectOptions(els.createPageProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.createPageProject.value = state.selectedProject.id;
+  }
+  renderCreatePageLogicFields();
+
+  els.createPages.replaceChildren();
+  if (state.createPagesError) {
+    els.createPageStatus.textContent = state.createPagesError;
+    return;
+  }
+  const projectID = selectedCreatePageProjectID();
+  els.createPageStatus.textContent = projectID
+    ? `${state.createPages.length} create pages`
+    : "Choose a project to manage create pages";
+  if (!projectID || !state.createPages.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = projectID ? "No create pages for this project" : "Select a project first";
+    els.createPages.append(empty);
+    return;
+  }
+  for (const page of state.createPages) {
+    els.createPages.append(createPageNode(page));
+  }
+}
+
+function renderCreatePageLogicFields() {
+  const type = els.createPageLogicType ? els.createPageLogicType.value : "none";
+  document.querySelectorAll("[data-create-page-logic-field]").forEach((field) => {
+    field.hidden = field.dataset.createPageLogicField !== type;
+  });
+}
+
+function createPageNode(page) {
+  const article = document.createElement("article");
+  article.className = "create-page-item";
+
+  const header = document.createElement("div");
+  header.className = "ticket-hook-item-header";
+  const title = document.createElement("p");
+  title.textContent = page.name || page.slug || page.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = page.enabled ? "hook-state" : "hook-state is-disabled";
+  stateLabel.textContent = page.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    page.slug ? `/${page.slug}` : "",
+    page.target_type ? `type ${page.target_type}` : "",
+    page.target_status ? `status ${page.target_status}` : "",
+    page.owner_user_id ? `owner ${page.owner_user_id}` : "",
+    page.has_lua ? "Lua form logic" : "",
+    page.has_ai ? "AI form logic" : ""
+  ].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "ticket-hook-actions";
+
+  const schema = document.createElement("button");
+  schema.type = "button";
+  schema.dataset.loadCreatePageSchemaId = page.id;
+  schema.dataset.createPageProjectId = page.project_id;
+  schema.dataset.createPageSlug = page.slug;
+  schema.textContent = "Schema";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.toggleCreatePageId = page.id;
+  toggle.dataset.createPageEnabled = page.enabled ? "false" : "true";
+  toggle.textContent = page.enabled ? "Disable" : "Enable";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteCreatePageId = page.id;
+  remove.textContent = "Delete";
+
+  actions.append(schema, toggle, remove);
+  article.append(header, meta, actions);
+
+  if (page.description) {
+    const description = document.createElement("p");
+    description.className = "muted";
+    description.textContent = page.description;
+    article.append(description);
+  }
+
+  const config = document.createElement("pre");
+  config.className = "create-page-config";
+  config.textContent = JSON.stringify({
+    field_layout: page.field_layout,
+    defaults: page.defaults
+  }, null, 2);
+  article.append(config);
+
+  if (page.schema) {
+    const schemaOutput = document.createElement("pre");
+    schemaOutput.className = "create-page-config";
+    schemaOutput.textContent = JSON.stringify(page.schema, null, 2);
+    article.append(schemaOutput);
+  }
+  return article;
+}
+
 function renderEngineFields() {
   const type = els.engineType ? els.engineType.value : "lua";
   document.querySelectorAll("[data-engine-field]").forEach((field) => {
@@ -3918,6 +4125,13 @@ function selectedCronJobProjectID() {
 function selectedWebhookProjectID() {
   if (els.webhookProject && els.webhookProject.value) {
     return els.webhookProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function selectedCreatePageProjectID() {
+  if (els.createPageProject && els.createPageProject.value) {
+    return els.createPageProject.value;
   }
   return state.selectedProject ? state.selectedProject.id : "";
 }
@@ -4086,6 +4300,34 @@ function notificationHookPreviewSpec() {
   return spec;
 }
 
+function createPageSpec(form) {
+  const data = formData(form);
+  const logicType = data.logic_type || "none";
+  const spec = {
+    name: data.name || "",
+    slug: data.slug || "",
+    description: data.description || "",
+    enabled: Boolean(data.enabled),
+    target_type: data.target_type || "",
+    target_status: data.target_status || "",
+    owner_user_id: data.owner_user_id || "",
+    field_layout: parseJSONArrayField(data.field_layout, "Field layout JSON"),
+    defaults: parseJSONField(data.defaults, "Defaults JSON")
+  };
+  if (logicType === "lua") {
+    spec.form_lua_script = data.form_lua_script || "";
+  } else if (logicType === "ai") {
+    spec.form_ai_prompt = data.form_ai_prompt || "";
+    spec.form_ai_provider_id = data.form_ai_provider_id || "";
+  }
+  for (const key of ["target_type", "target_status", "owner_user_id", "form_lua_script", "form_ai_prompt", "form_ai_provider_id"]) {
+    if (!spec[key]) {
+      delete spec[key];
+    }
+  }
+  return spec;
+}
+
 function ticketHookSpec(form) {
   const data = formData(form);
   return {
@@ -4138,6 +4380,25 @@ function parseJSONField(value, label) {
     return parsed;
   } catch (error) {
     if (error.message && error.message.includes("must be a JSON object")) {
+      throw error;
+    }
+    throw new Error(`${label} is not valid JSON`);
+  }
+}
+
+function parseJSONArrayField(value, label) {
+  const text = (value || "").trim();
+  if (!text) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${label} must be a JSON array`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error.message && error.message.includes("must be a JSON array")) {
       throw error;
     }
     throw new Error(`${label} is not valid JSON`);
@@ -5225,6 +5486,34 @@ function normalizeTicketHook(hook) {
     };
   }
   return hook;
+}
+
+function normalizeCreatePage(page) {
+  if (!page) {
+    return null;
+  }
+  if (page.metadata && page.spec && page.status) {
+    return {
+      id: page.metadata.id || "",
+      project_id: page.metadata.project_id || "",
+      owner_user_id: page.metadata.owner_user_id || page.spec.owner_user_id || "",
+      created_at: page.metadata.created_at || "",
+      updated_at: page.metadata.updated_at || "",
+      name: page.spec.name || "",
+      slug: page.spec.slug || "",
+      description: page.spec.description || "",
+      enabled: Boolean(page.spec.enabled),
+      target_type: page.spec.target_type || "",
+      target_status: page.spec.target_status || "",
+      field_layout: page.spec.field_layout || [],
+      defaults: page.spec.defaults || {},
+      has_lua: Boolean(page.spec.form_lua_script),
+      has_ai: Boolean(page.spec.form_ai_prompt || page.spec.form_ai_provider_id),
+      deleted_at: page.status.deleted_at || "",
+      schema: null
+    };
+  }
+  return page;
 }
 
 function normalizeCronJob(job) {

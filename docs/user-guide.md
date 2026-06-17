@@ -42,13 +42,13 @@ Implemented API-only user workflows:
 - project notification defaults;
 - notification delivery history/manual retry;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
-- custom ticket create-page definition, schema resolution, and submission APIs.
+- custom ticket create-page schema resolution and submission APIs.
 
 See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, workflow status APIs, board definition CRUD, board ticket listing, saved-view metadata, notification delivery history, and custom create pages are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, custom create-page rendering/settings screens, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Backlog list/reorder, workflow status APIs, board definition CRUD, board ticket listing, saved-view metadata, notification delivery history, and rendered custom create-page intake flows are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, custom create-page rendering/submission screens, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 

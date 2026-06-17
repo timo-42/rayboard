@@ -53,6 +53,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="ticket-hook-form"`) ||
 		!strings.Contains(body, `id="ticket-hooks"`) ||
 		!strings.Contains(body, `id="ticket-hook-preview-output"`) ||
+		!strings.Contains(body, `id="create-page-form"`) ||
+		!strings.Contains(body, `id="create-pages"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
@@ -129,6 +131,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadCronJobs",
 		"loadWebhooks",
 		"loadTicketHooks",
+		"loadCreatePages",
 		"normalizeAuditEntry",
 		"normalizeOpenRouterProvider",
 		"normalizeNotificationDestination",
@@ -138,10 +141,12 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"normalizeCronJob",
 		"normalizeWebhook",
 		"normalizeTicketHook",
+		"normalizeCreatePage",
 		"cronJobSpec",
 		"webhookSpec",
 		"ticketHookSpec",
 		"ticketHookPreviewSpec",
+		"createPageSpec",
 		"rbacUserForm",
 		"rbacGroupForm",
 		"rbacMemberForm",
@@ -177,6 +182,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/projects/${projectID}/ticket-hooks?limit=100",
 		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
 		"data-delete-ticket-hook-id",
+		"/api/projects/${projectID}/ticket-create-pages?include_disabled=true&limit=100",
+		"/api/ticket-create-pages/${toggle.dataset.toggleCreatePageId}",
+		"data-delete-create-page-id",
 		"/api/me/notification-preferences",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -212,6 +220,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".webhook-list",
 		".ticket-hook-panel",
 		".ticket-hook-list",
+		".create-page-form",
+		".create-page-list",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
