@@ -546,6 +546,27 @@
             <div id="notification-destinations" class="notification-destination-list"></div>
           </section>
 
+          <section class="settings-card notification-policy-card">
+            <h3>Notification Policies</h3>
+            <form id="notification-policy-form" class="notification-policy-form">
+              <input name="name" placeholder="ops alerts" required>
+              <select id="notification-policy-scope" name="scope_type">
+                <option value="global">Global</option>
+                <option value="project">Project</option>
+              </select>
+              <select id="notification-policy-project" name="project_id"></select>
+              <textarea name="event_types" rows="2" placeholder="ticket_assigned, comment_added"></textarea>
+              <textarea name="destination_ids" rows="2" placeholder="destination ids"></textarea>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+              <button type="submit">Create policy</button>
+            </form>
+            <div id="notification-policy-status" class="settings-status"></div>
+            <div id="notification-policies" class="notification-policy-list"></div>
+          </section>
+
           <section class="settings-card audit-card">
             <h3>Security Audit Log</h3>
             <form id="audit-form" class="audit-form">

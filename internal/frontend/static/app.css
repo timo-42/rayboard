@@ -625,7 +625,9 @@ p {
 .openrouter-provider-form,
 .openrouter-provider-edit-form,
 .notification-destination-form,
-.notification-destination-edit-form {
+.notification-destination-edit-form,
+.notification-policy-form,
+.notification-policy-edit-form {
   display: grid;
   gap: 10px;
 }
@@ -646,27 +648,33 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.notification-destination-card {
+.notification-destination-card,
+.notification-policy-card {
   grid-column: 1 / -1;
 }
 
-.notification-destination-form {
+.notification-destination-form,
+.notification-policy-form {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .openrouter-provider-form textarea,
-.openrouter-provider-edit-form textarea {
+.openrouter-provider-edit-form textarea,
+.notification-policy-form textarea,
+.notification-policy-edit-form textarea {
   resize: vertical;
 }
 
 .openrouter-provider-list,
-.notification-destination-list {
+.notification-destination-list,
+.notification-policy-list {
   display: grid;
   gap: 8px;
 }
 
 .openrouter-provider-item,
-.notification-destination-item {
+.notification-destination-item,
+.notification-policy-item {
   display: grid;
   gap: 8px;
   border: 1px solid var(--border);
@@ -677,7 +685,8 @@ p {
 }
 
 .openrouter-provider-header,
-.notification-destination-header {
+.notification-destination-header,
+.notification-policy-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -685,7 +694,8 @@ p {
 }
 
 .openrouter-provider-item p,
-.notification-destination-item p {
+.notification-destination-item p,
+.notification-policy-item p {
   color: var(--heading);
   font-size: 14px;
   font-weight: 700;
@@ -693,14 +703,16 @@ p {
 }
 
 .openrouter-provider-item span,
-.notification-destination-item span {
+.notification-destination-item span,
+.notification-policy-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
 .provider-state,
-.destination-state {
+.destination-state,
+.policy-state {
   border-radius: 999px;
   background: var(--primary-soft);
   color: var(--primary-strong) !important;
@@ -709,7 +721,8 @@ p {
 }
 
 .provider-state.is-disabled,
-.destination-state.is-disabled {
+.destination-state.is-disabled,
+.policy-state.is-disabled {
   background: var(--subtle-bg);
   color: var(--muted) !important;
 }
@@ -717,6 +730,10 @@ p {
 .openrouter-provider-edit-form,
 .notification-destination-edit-form {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.notification-policy-edit-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .destination-error {
@@ -799,7 +816,9 @@ p {
 .openrouter-provider-form button,
 .openrouter-provider-edit-form button,
 .notification-destination-form button,
-.notification-destination-edit-form button {
+.notification-destination-edit-form button,
+.notification-policy-form button,
+.notification-policy-edit-form button {
   justify-self: start;
 }
 
@@ -2267,7 +2286,9 @@ p {
   .openrouter-provider-form,
   .openrouter-provider-edit-form,
   .notification-destination-form,
-  .notification-destination-edit-form {
+  .notification-destination-edit-form,
+  .notification-policy-form,
+  .notification-policy-edit-form {
     grid-template-columns: 1fr;
   }
 

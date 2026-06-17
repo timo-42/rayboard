@@ -40,6 +40,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="openrouter-providers"`) ||
 		!strings.Contains(body, `id="notification-destination-form"`) ||
 		!strings.Contains(body, `id="notification-destinations"`) ||
+		!strings.Contains(body, `id="notification-policy-form"`) ||
+		!strings.Contains(body, `id="notification-policies"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="cron-job-form"`) ||
 		!strings.Contains(body, `id="cron-jobs"`) ||
@@ -119,12 +121,14 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadAuditLog",
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
+		"loadNotificationPolicies",
 		"loadCronJobs",
 		"loadWebhooks",
 		"loadTicketHooks",
 		"normalizeAuditEntry",
 		"normalizeOpenRouterProvider",
 		"normalizeNotificationDestination",
+		"normalizeNotificationPolicy",
 		"normalizeCronJob",
 		"normalizeWebhook",
 		"normalizeTicketHook",
@@ -151,6 +155,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/projects/${projectID}/notification-destinations",
 		"data-test-notification-destination-id",
 		"data-delete-notification-destination-id",
+		"/api/notification-policies",
+		"/api/projects/${projectID}/notification-policies",
+		"data-delete-notification-policy-id",
 		"/api/cron-jobs?${query.toString()}",
 		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
 		"data-delete-cron-job-id",
@@ -184,6 +191,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".openrouter-provider-list",
 		".notification-destination-form",
 		".notification-destination-list",
+		".notification-policy-form",
+		".notification-policy-list",
 		".cron-job-form",
 		".cron-job-list",
 		".webhook-form",

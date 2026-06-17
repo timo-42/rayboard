@@ -422,7 +422,7 @@ Destination responses use `metadata`, `spec`, and `status`. Scope identity and t
 
 ## Notification Policies
 
-Notification policies define which event types should route to named destinations. Policy CRUD is API-only in this slice. When the durable notification processor handles supported domain events, enabled matching global and project policies enqueue idempotent delivery rows for their destinations. Delivery queue rows are represented separately so workers can process or retry them without exposing destination secrets.
+Notification policies define which event types should route to named destinations. Policy CRUD is available through the API and the embedded Settings page. When the durable notification processor handles supported domain events, enabled matching global and project policies enqueue idempotent delivery rows for their destinations. Delivery queue rows are represented separately so workers can process or retry them without exposing destination secrets.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
