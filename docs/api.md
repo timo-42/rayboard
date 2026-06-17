@@ -424,11 +424,11 @@ Notification deliveries are the durable queue/history foundation for external no
 
 Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error.
 
-Dashboard/view notification policies, recipient rules, notification hooks, outgoing webhook delivery, and AI/Lua notification hooks are **Planned**.
+Dashboard/view notification policies, recipient rules, notification hooks, and AI/Lua notification hooks are **Planned**.
 
 ## Webhooks
 
-The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua or AI execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Queued outgoing delivery history can be inspected through the API. Outgoing Lua/AI request shaping, outbound HTTP sending, retries, and manual redelivery are planned follow-up work.
+The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua or AI execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Due outgoing deliveries can be shaped by Lua or AI, sent through a controlled HTTP client to the configured outgoing webhook base URL, retried with backoff, inspected through the API, and manually requeued after failure.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -440,14 +440,15 @@ The webhook slice implements project-scoped incoming and outgoing webhook defini
 | `GET` | `/api/webhook-definitions/{webhook_id}/runs` | Lists Lua/AI run history for an incoming webhook. |
 | `GET` | `/api/webhook-definitions/{webhook_id}/deliveries` | Lists queued outgoing webhook deliveries for one webhook definition. |
 | `GET` | `/api/webhook-deliveries/{delivery_id}` | Gets one outgoing webhook delivery record. |
+| `POST` | `/api/webhook-deliveries/{delivery_id}/retry` | Requeues a failed or canceled outgoing webhook delivery. |
 | `DELETE` | `/api/webhook-definitions/{webhook_id}` | Soft-deletes the webhook and clears its token hash. |
 | `POST` | `/api/webhooks/incoming/{webhook_id}` | Authenticates with `Authorization: Bearer <webhook-token>`, accepts `{"spec":{"payload":{...},"headers":{},"query":{}}}`, executes the webhook engine, and returns a run resource. |
 
 Webhook definition responses use `metadata` for IDs/timestamps, `spec` for direction, actor user, enabled state, `event_types`, and engine configuration, and `status` for `token_set`, `token_rotated_at`, and `last_error`. Incoming create and rotate responses are the only responses that include `status.token`. Outgoing webhook definitions do not have bearer tokens, so `status.token_set` is false and token rotation returns a validation error. Outgoing webhooks require at least one `event_types` entry; values are domain event names such as `ticket.updated` or `comment.created`.
 
-Outgoing delivery responses use `metadata` for delivery ID, webhook snapshot, domain event ID, idempotency key, project ID, and timestamps; `spec` for event type, subject, payload, and max attempts; and `status` for queue state, attempt count, attempt timestamps, delivery timestamp, and last error. Delivery inspection requires project `webhooks:manage` through the owning webhook.
+Outgoing delivery responses use `metadata` for delivery ID, webhook snapshot, domain event ID, idempotency key, project ID, and timestamps; `spec` for event type, subject, payload, and max attempts; and `status` for queue state, attempt count, attempt timestamps, delivery timestamp, and last error. Delivery inspection and retry require project `webhooks:manage` through the owning webhook.
 
-Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. AI incoming webhooks use the same actor/RBAC path through a JSON `actions` array with action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; AI can also return `reject` to fail the webhook before actions are applied. Disabled or deleted actor users cause incoming execution to fail before Lua or AI runs. Outgoing webhook Lua/AI execution and outbound delivery sending are not wired yet.
+Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. AI incoming webhooks use the same actor/RBAC path through a JSON `actions` array with action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; AI can also return `reject` to fail the webhook before actions are applied. Disabled or deleted actor users cause incoming execution to fail before Lua or AI runs. Outgoing Lua scripts receive `event`, `webhook`, and `delivery` tables and must return a request object with `method`, relative `path`, optional `query`, optional `headers`, and optional JSON `body`. AI outgoing webhooks receive the same context in the prompt and must return the same request object. Outgoing delivery accepts only relative paths and sends them under `--outgoing-webhook-base-url`; arbitrary hosts, URL credentials, unsupported methods, `Host`, and `Content-Length` headers are rejected.
 
 ## Ticket Hooks
 
@@ -527,4 +528,4 @@ AI cron jobs use the same `engine` object with an OpenRouter provider reference:
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, outgoing webhook execution/delivery, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. Outgoing webhook Lua/AI shapes controlled outbound HTTP requests from domain-event context. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, and notification hooks are **Planned**.

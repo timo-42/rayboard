@@ -270,6 +270,24 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	if gotDelivery.Metadata.ID != delivery.Metadata.ID || gotDelivery.Metadata.DomainEventID != pendingEvents[0].ID || gotDelivery.Spec.Payload["event"] == nil {
 		t.Fatalf("unexpected outgoing webhook delivery get response: %#v", gotDelivery)
 	}
+	if _, err := db.SQL.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, last_error = 'failed', next_attempt_at = NULL
+		WHERE id = ?
+	`, webhooks.OutgoingDeliveryStatusFailed, delivery.Metadata.ID); err != nil {
+		t.Fatalf("mark outgoing delivery failed: %v", err)
+	}
+	retryDeliveryReq := httptest.NewRequest(http.MethodPost, "/api/webhook-deliveries/"+delivery.Metadata.ID+"/retry", nil)
+	addSessionCSRF(retryDeliveryReq, session, csrf)
+	retryDelivery := httptest.NewRecorder()
+	handler.ServeHTTP(retryDelivery, retryDeliveryReq)
+	if retryDelivery.Code != http.StatusOK {
+		t.Fatalf("expected outgoing webhook delivery retry status 200, got %d: %s", retryDelivery.Code, retryDelivery.Body.String())
+	}
+	retriedDelivery := decodeOutgoingWebhookDelivery(t, retryDelivery.Body.Bytes())
+	if retriedDelivery.Status.State != webhooks.OutgoingDeliveryStatusQueued || retriedDelivery.Status.LastError != "" {
+		t.Fatalf("unexpected retried outgoing delivery: %#v", retriedDelivery)
+	}
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/webhook-definitions/"+created.Metadata.ID, nil)
 	addSessionCSRF(deleteReq, session, csrf)
@@ -385,6 +403,7 @@ type outgoingWebhookDeliveryBody struct {
 	Status struct {
 		State        string `json:"state"`
 		AttemptCount int    `json:"attempt_count"`
+		LastError    string `json:"last_error"`
 	} `json:"status"`
 }
 

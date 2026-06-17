@@ -76,10 +76,11 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		webhooks.WithSearchService(searchService),
 		webhooks.WithCommentService(commentService),
 		webhooks.WithOpenRouterService(openRouterService),
+		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
-	group.startWorker("notifications", func() error {
-		return runNotificationProcessor(ctx, notificationService, stderr)
+	group.startWorker("automation-deliveries", func() error {
+		return runAutomationDeliveryProcessor(ctx, eventStore, notificationService, webhookService, stderr)
 	})
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -150,10 +151,11 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		webhooks.WithSearchService(searchService),
 		webhooks.WithCommentService(commentService),
 		webhooks.WithOpenRouterService(openRouterService),
+		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
 	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
-	group.startWorker("notifications", func() error {
-		return runNotificationProcessor(ctx, notificationService, stderr)
+	group.startWorker("automation-deliveries", func() error {
+		return runAutomationDeliveryProcessor(ctx, eventStore, notificationService, webhookService, stderr)
 	})
 	cronService := cronjobs.NewService(
 		db.SQL,
@@ -208,16 +210,28 @@ func openAndMigrate(ctx context.Context, cfg config.Config, stdout io.Writer) (*
 	return db, nil
 }
 
-func runNotificationProcessor(ctx context.Context, service *notifications.Service, stderr io.Writer) error {
-	if service == nil {
+func runAutomationDeliveryProcessor(ctx context.Context, eventStore *events.Store, notificationService *notifications.Service, webhookService *webhooks.Service, stderr io.Writer) error {
+	if notificationService == nil && webhookService == nil {
 		return nil
 	}
 	process := func() {
-		if _, err := service.ProcessPendingDomainEvents(ctx, 100); err != nil {
-			fmt.Fprintf(stderr, "notification processor error: %v\n", err)
+		if webhookService != nil {
+			if _, err := webhookService.ProcessPendingDomainEvents(ctx, eventStore, 100); err != nil {
+				fmt.Fprintf(stderr, "webhook event processor error: %v\n", err)
+			}
 		}
-		if _, err := service.ProcessPendingDeliveries(ctx, notifications.ProcessDeliveriesInput{Limit: 100}); err != nil {
-			fmt.Fprintf(stderr, "notification delivery processor error: %v\n", err)
+		if notificationService != nil {
+			if _, err := notificationService.ProcessPendingDomainEvents(ctx, 100); err != nil {
+				fmt.Fprintf(stderr, "notification processor error: %v\n", err)
+			}
+			if _, err := notificationService.ProcessPendingDeliveries(ctx, notifications.ProcessDeliveriesInput{Limit: 100}); err != nil {
+				fmt.Fprintf(stderr, "notification delivery processor error: %v\n", err)
+			}
+		}
+		if webhookService != nil {
+			if _, err := webhookService.ProcessPendingDeliveries(ctx, webhooks.ProcessDeliveriesInput{Limit: 100}); err != nil {
+				fmt.Fprintf(stderr, "outgoing webhook delivery processor error: %v\n", err)
+			}
 		}
 	}
 	process()

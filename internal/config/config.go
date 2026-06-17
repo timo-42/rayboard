@@ -11,18 +11,20 @@ const (
 )
 
 type Config struct {
-	FrontendAddr string
-	BackendAddr  string
-	BackendURL   string
-	DBPath       string
+	FrontendAddr           string
+	BackendAddr            string
+	BackendURL             string
+	DBPath                 string
+	OutgoingWebhookBaseURL string
 }
 
 func Default() Config {
 	return Config{
-		FrontendAddr: DefaultFrontendAddr,
-		BackendAddr:  DefaultBackendAddr,
-		BackendURL:   DefaultBackendURL,
-		DBPath:       DefaultDBPath,
+		FrontendAddr:           DefaultFrontendAddr,
+		BackendAddr:            DefaultBackendAddr,
+		BackendURL:             DefaultBackendURL,
+		DBPath:                 DefaultDBPath,
+		OutgoingWebhookBaseURL: "",
 	}
 }
 
@@ -40,6 +42,9 @@ func FromEnv() Config {
 	if value := os.Getenv("RAYBOARD_DB"); value != "" {
 		cfg.DBPath = value
 	}
+	if value := os.Getenv("RAYBOARD_OUTGOING_WEBHOOK_BASE_URL"); value != "" {
+		cfg.OutgoingWebhookBaseURL = value
+	}
 	return cfg
 }
 
@@ -48,4 +53,5 @@ func (c *Config) BindRuntimeFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.BackendAddr, "backend-addr", c.BackendAddr, "backend API server address")
 	flags.StringVar(&c.BackendURL, "backend-url", c.BackendURL, "backend API base URL used by the frontend")
 	flags.StringVar(&c.DBPath, "db", c.DBPath, "SQLite database path")
+	flags.StringVar(&c.OutgoingWebhookBaseURL, "outgoing-webhook-base-url", c.OutgoingWebhookBaseURL, "base URL allowed for outgoing webhook delivery")
 }

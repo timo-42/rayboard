@@ -1,16 +1,23 @@
 package webhooks
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/events"
+	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
+	lua "github.com/yuin/gopher-lua"
 )
 
 const (
@@ -43,6 +50,18 @@ type OutgoingDelivery struct {
 	UpdatedAt      time.Time
 }
 
+type ProcessDeliveriesInput struct {
+	Limit int
+}
+
+type outgoingRequest struct {
+	Method  string
+	Path    string
+	Query   map[string]string
+	Headers map[string]string
+	Body    any
+}
+
 func (s *Service) EnqueueOutgoingDeliveriesForEvent(ctx context.Context, event events.StoredEvent) (int, error) {
 	if s == nil || s.db == nil {
 		return 0, errors.New("webhooks: database is required")
@@ -66,6 +85,433 @@ func (s *Service) EnqueueOutgoingDeliveriesForEvent(ctx context.Context, event e
 		}
 	}
 	return enqueued, nil
+}
+
+func (s *Service) ProcessPendingDomainEvents(ctx context.Context, eventStore *events.Store, limit int) (int, error) {
+	if s == nil || eventStore == nil {
+		return 0, nil
+	}
+	pending, err := eventStore.ListPending(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	processed := 0
+	var firstErr error
+	for _, event := range pending {
+		if _, err := s.EnqueueOutgoingDeliveriesForEvent(ctx, event); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		processed++
+	}
+	return processed, firstErr
+}
+
+func (s *Service) RetryOutgoingDelivery(ctx context.Context, principal authz.Principal, deliveryID string) (OutgoingDelivery, error) {
+	delivery, err := s.GetOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		return OutgoingDelivery{}, err
+	}
+	if delivery.Status != OutgoingDeliveryStatusFailed && delivery.Status != OutgoingDeliveryStatusCanceled {
+		return OutgoingDelivery{}, fmt.Errorf("%w: only failed or canceled deliveries can be retried", ErrValidation)
+	}
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, next_attempt_at = ?, last_error = NULL, updated_at = ?
+		WHERE id = ?
+	`, OutgoingDeliveryStatusQueued, formatTime(now), formatTime(now), delivery.ID)
+	if err != nil {
+		return OutgoingDelivery{}, fmt.Errorf("retry outgoing webhook delivery: %w", err)
+	}
+	if err := requireRowsAffected(result, "outgoing webhook delivery retry"); err != nil {
+		return OutgoingDelivery{}, err
+	}
+	return s.GetOutgoingDelivery(ctx, principal, delivery.ID)
+}
+
+func (s *Service) ProcessPendingDeliveries(ctx context.Context, input ProcessDeliveriesInput) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, nil
+	}
+	limit := input.Limit
+	if limit == 0 {
+		limit = 25
+	}
+	if limit < 0 || limit > 100 {
+		return 0, fmt.Errorf("%w: delivery process limit must be between 1 and 100", ErrValidation)
+	}
+	if err := s.requeueStaleOutgoingDeliveries(ctx); err != nil {
+		return 0, err
+	}
+	now := s.now().UTC()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id
+		FROM outgoing_webhook_deliveries
+		WHERE status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+		ORDER BY next_attempt_at ASC, created_at ASC, id ASC
+		LIMIT ?
+	`, OutgoingDeliveryStatusQueued, formatTime(now), limit)
+	if err != nil {
+		return 0, fmt.Errorf("list pending outgoing webhook deliveries: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return 0, fmt.Errorf("scan pending outgoing webhook delivery: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close pending outgoing webhook deliveries: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate pending outgoing webhook deliveries: %w", err)
+	}
+
+	processed := 0
+	var firstErr error
+	for _, id := range ids {
+		ok, err := s.claimOutgoingDelivery(ctx, id)
+		if err != nil {
+			return processed, err
+		}
+		if !ok {
+			continue
+		}
+		if err := s.processOutgoingDelivery(ctx, id); err != nil && firstErr == nil {
+			firstErr = err
+		}
+		processed++
+	}
+	return processed, firstErr
+}
+
+func (s *Service) claimOutgoingDelivery(ctx context.Context, deliveryID string) (bool, error) {
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, updated_at = ?
+		WHERE id = ? AND status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+	`, OutgoingDeliveryStatusSending, formatTime(now), deliveryID, OutgoingDeliveryStatusQueued, formatTime(now))
+	if err != nil {
+		return false, fmt.Errorf("claim outgoing webhook delivery: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("check outgoing webhook delivery claim: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (s *Service) requeueStaleOutgoingDeliveries(ctx context.Context) error {
+	now := s.now().UTC()
+	staleBefore := now.Add(-15 * time.Minute)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, next_attempt_at = ?, last_error = ?, updated_at = ?
+		WHERE status = ? AND updated_at <= ?
+	`, OutgoingDeliveryStatusQueued, formatTime(now), "requeued after stale sending state", formatTime(now),
+		OutgoingDeliveryStatusSending, formatTime(staleBefore))
+	if err != nil {
+		return fmt.Errorf("requeue stale outgoing webhook deliveries: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) processOutgoingDelivery(ctx context.Context, deliveryID string) error {
+	delivery, err := s.getOutgoingDelivery(ctx, deliveryID)
+	if err != nil {
+		return err
+	}
+	hook, err := s.get(ctx, delivery.WebhookID)
+	if err != nil {
+		failure := fmt.Errorf("webhook definition is not available")
+		if markErr := s.markOutgoingDeliveryFailed(ctx, delivery, failure, true); markErr != nil {
+			return markErr
+		}
+		return failure
+	}
+	if hook.Direction != DirectionOutgoing || !hook.Enabled {
+		failure := fmt.Errorf("outgoing webhook is disabled")
+		if markErr := s.markOutgoingDeliveryFailed(ctx, delivery, failure, true); markErr != nil {
+			return markErr
+		}
+		return failure
+	}
+	if err := s.requireActiveActor(ctx, hook.ActorUserID); err != nil {
+		if markErr := s.markOutgoingDeliveryFailed(ctx, delivery, err, true); markErr != nil {
+			return markErr
+		}
+		return err
+	}
+	request, err := s.shapeOutgoingRequest(ctx, hook, delivery)
+	if err != nil {
+		if markErr := s.markOutgoingDeliveryFailed(ctx, delivery, err, true); markErr != nil {
+			return markErr
+		}
+		_ = s.recordRunResult(ctx, hook.ID, "failed", err.Error())
+		return err
+	}
+	if err := s.sendOutgoingRequest(ctx, request); err != nil {
+		if markErr := s.markOutgoingDeliveryFailed(ctx, delivery, err, false); markErr != nil {
+			return markErr
+		}
+		_ = s.recordRunResult(ctx, hook.ID, "failed", err.Error())
+		return err
+	}
+	if err := s.markOutgoingDeliveryDelivered(ctx, delivery); err != nil {
+		return err
+	}
+	return s.recordRunResult(ctx, hook.ID, "succeeded", "")
+}
+
+func (s *Service) shapeOutgoingRequest(ctx context.Context, hook Webhook, delivery OutgoingDelivery) (outgoingRequest, error) {
+	switch hook.Engine.Type {
+	case EngineTypeLua:
+		return s.shapeOutgoingLua(ctx, hook, delivery)
+	case EngineTypeAI:
+		return s.shapeOutgoingAI(ctx, hook, delivery)
+	default:
+		return outgoingRequest{}, fmt.Errorf("%w: unsupported engine", ErrValidation)
+	}
+}
+
+func (s *Service) shapeOutgoingLua(ctx context.Context, hook Webhook, delivery OutgoingDelivery) (outgoingRequest, error) {
+	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	sandbox := luasandbox.New(luasandbox.DefaultJSONLimits())
+	defer sandbox.Close()
+	sandbox.L.SetContext(runCtx)
+
+	payload := nonNilMap(delivery.Payload)
+	eventValue, err := sandbox.JSON.FromGo(nonNilMapFromAny(payload["event"]))
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	webhookValue, err := sandbox.JSON.FromGo(nonNilMapFromAny(payload["webhook"]))
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	deliveryValue, err := sandbox.JSON.FromGo(outgoingDeliveryContext(delivery))
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	sandbox.L.SetGlobal("event", eventValue)
+	sandbox.L.SetGlobal("webhook", webhookValue)
+	sandbox.L.SetGlobal("delivery", deliveryValue)
+
+	fn, err := sandbox.L.LoadString(hook.Engine.Script)
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	top := sandbox.L.GetTop()
+	sandbox.L.Push(fn)
+	if err := sandbox.L.PCall(0, lua.MultRet, nil); err != nil {
+		return outgoingRequest{}, err
+	}
+	if sandbox.L.GetTop() <= top {
+		return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook script must return a request object", ErrValidation)
+	}
+	value, err := sandbox.JSON.ToGo(sandbox.L.Get(-1))
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook script must return an object", ErrValidation)
+	}
+	return outgoingRequestFromMap(object)
+}
+
+func (s *Service) shapeOutgoingAI(ctx context.Context, hook Webhook, delivery OutgoingDelivery) (outgoingRequest, error) {
+	if s.openrouter == nil {
+		return outgoingRequest{}, fmt.Errorf("%w: OpenRouter service is not configured", ErrValidation)
+	}
+	prompt, err := outgoingAIPrompt(hook, delivery)
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
+		ProviderID: hook.Engine.ProviderID,
+		Prompt:     prompt,
+	})
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	request, err := outgoingRequestFromMap(result.Output)
+	if err != nil {
+		return outgoingRequest{}, err
+	}
+	return request, nil
+}
+
+func outgoingAIPrompt(hook Webhook, delivery OutgoingDelivery) (string, error) {
+	payload := map[string]any{
+		"context": map[string]any{
+			"direction":   hook.Direction,
+			"project_id":  hook.ProjectID,
+			"webhook_id":  hook.ID,
+			"delivery_id": delivery.ID,
+			"user_id":     hook.ActorUserID,
+		},
+		"event":    nonNilMapFromAny(delivery.Payload["event"]),
+		"webhook":  nonNilMapFromAny(delivery.Payload["webhook"]),
+		"delivery": outgoingDeliveryContext(delivery),
+		"instructions": []string{
+			"Return only a JSON object describing one outbound HTTP request.",
+			"Allowed fields are method, path, query, headers, and body.",
+			"path must be a relative URL path beginning with /; do not return scheme, host, userinfo, or credentials.",
+			"Allowed methods are POST, PUT, PATCH, DELETE, and GET.",
+		},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode outgoing webhook AI input: %w", err)
+	}
+	return strings.TrimSpace(hook.Engine.Prompt) + "\n\nRayboard outgoing webhook input:\n" + string(data), nil
+}
+
+func outgoingRequestFromMap(input map[string]any) (outgoingRequest, error) {
+	request := outgoingRequest{
+		Method:  strings.ToUpper(strings.TrimSpace(stringValue(input, "method"))),
+		Path:    strings.TrimSpace(stringValue(input, "path")),
+		Query:   stringMapValue(input, "query"),
+		Headers: stringMapValue(input, "headers"),
+		Body:    input["body"],
+	}
+	if request.Method == "" {
+		request.Method = http.MethodPost
+	}
+	switch request.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodGet:
+	default:
+		return outgoingRequest{}, fmt.Errorf("%w: unsupported outgoing webhook method", ErrValidation)
+	}
+	if request.Path == "" {
+		return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook path is required", ErrValidation)
+	}
+	parsed, err := url.Parse(request.Path)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil || !strings.HasPrefix(parsed.Path, "/") {
+		return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook path must be a relative path", ErrValidation)
+	}
+	if parsed.RawQuery != "" {
+		return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook query must use the query object", ErrValidation)
+	}
+	for key := range request.Headers {
+		normalized := http.CanonicalHeaderKey(strings.TrimSpace(key))
+		switch strings.ToLower(normalized) {
+		case "host", "content-length":
+			return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook header %q is not allowed", ErrValidation, key)
+		}
+		if strings.ContainsAny(key, "\r\n") || strings.ContainsAny(request.Headers[key], "\r\n") {
+			return outgoingRequest{}, fmt.Errorf("%w: outgoing webhook headers must not contain newlines", ErrValidation)
+		}
+	}
+	return request, nil
+}
+
+func (s *Service) sendOutgoingRequest(ctx context.Context, shaped outgoingRequest) error {
+	base, err := url.Parse(strings.TrimSpace(s.outgoingBaseURL))
+	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil {
+		return fmt.Errorf("%w: outgoing webhook base URL is not configured", ErrValidation)
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return fmt.Errorf("%w: outgoing webhook base URL must use http or https", ErrValidation)
+	}
+	relative, err := url.Parse(shaped.Path)
+	if err != nil {
+		return fmt.Errorf("%w: outgoing webhook path is invalid", ErrValidation)
+	}
+	target := base.ResolveReference(relative)
+	query := target.Query()
+	for key, value := range shaped.Query {
+		query.Set(key, value)
+	}
+	target.RawQuery = query.Encode()
+
+	body, err := json.Marshal(shaped.Body)
+	if err != nil {
+		return fmt.Errorf("encode outgoing webhook body: %w", err)
+	}
+	if shaped.Body == nil || shaped.Method == http.MethodGet {
+		body = nil
+	}
+	if len(body) > 1<<20 {
+		return fmt.Errorf("%w: outgoing webhook body exceeds 1048576 bytes", ErrValidation)
+	}
+	request, err := http.NewRequestWithContext(ctx, shaped.Method, target.String(), bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create outgoing webhook request: %w", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range shaped.Headers {
+		request.Header.Set(key, value)
+	}
+	resp, err := s.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("send outgoing webhook request: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 256<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: outgoing webhook returned HTTP %d", ErrDelivery, resp.StatusCode)
+	}
+	return nil
+}
+
+func (s *Service) markOutgoingDeliveryDelivered(ctx context.Context, delivery OutgoingDelivery) error {
+	now := s.now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, attempt_count = attempt_count + 1, last_attempt_at = ?,
+			delivered_at = ?, next_attempt_at = NULL, last_error = NULL, updated_at = ?
+		WHERE id = ?
+	`, OutgoingDeliveryStatusDelivered, formatTime(now), formatTime(now), formatTime(now), delivery.ID)
+	if err != nil {
+		return fmt.Errorf("mark outgoing webhook delivery delivered: %w", err)
+	}
+	return requireRowsAffected(result, "outgoing webhook delivery delivered")
+}
+
+func (s *Service) markOutgoingDeliveryFailed(ctx context.Context, delivery OutgoingDelivery, failure error, final bool) error {
+	now := s.now().UTC()
+	attemptCount := delivery.AttemptCount + 1
+	status := OutgoingDeliveryStatusQueued
+	var nextAttemptAt any = formatTime(nextOutgoingDeliveryAttemptAt(now, attemptCount))
+	if final || attemptCount >= delivery.MaxAttempts {
+		status = OutgoingDeliveryStatusFailed
+		nextAttemptAt = nil
+	}
+	message := failure.Error()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, attempt_count = ?, last_attempt_at = ?, next_attempt_at = ?,
+			last_error = ?, updated_at = ?
+		WHERE id = ?
+	`, status, attemptCount, formatTime(now), nextAttemptAt, message, formatTime(now), delivery.ID)
+	if err != nil {
+		return fmt.Errorf("mark outgoing webhook delivery failed: %w", err)
+	}
+	return requireRowsAffected(result, "outgoing webhook delivery failed")
+}
+
+func nextOutgoingDeliveryAttemptAt(now time.Time, attemptCount int) time.Time {
+	switch {
+	case attemptCount <= 1:
+		return now.Add(1 * time.Minute)
+	case attemptCount == 2:
+		return now.Add(5 * time.Minute)
+	default:
+		return now.Add(15 * time.Minute)
+	}
 }
 
 func (s *Service) ListOutgoingDeliveries(ctx context.Context, principal authz.Principal, webhookID string, limit int, offset int) ([]OutgoingDelivery, error) {
@@ -268,6 +714,47 @@ func outgoingDeliveryPayload(event events.StoredEvent, hook Webhook) map[string]
 			"project_id": hook.ProjectID,
 		},
 	}
+}
+
+func outgoingDeliveryContext(delivery OutgoingDelivery) map[string]any {
+	return map[string]any{
+		"id":              delivery.ID,
+		"webhook_id":      delivery.WebhookID,
+		"domain_event_id": delivery.DomainEventID,
+		"event_type":      delivery.EventType,
+		"subject_type":    delivery.SubjectType,
+		"subject_id":      delivery.SubjectID,
+		"attempt_count":   delivery.AttemptCount,
+		"max_attempts":    delivery.MaxAttempts,
+	}
+}
+
+func nonNilMapFromAny(value any) map[string]any {
+	object, ok := value.(map[string]any)
+	if !ok || object == nil {
+		return map[string]any{}
+	}
+	return object
+}
+
+func stringMapValue(input map[string]any, key string) map[string]string {
+	value, ok := input[key]
+	if !ok || value == nil {
+		return nil
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	result := make(map[string]string, len(object))
+	for itemKey, itemValue := range object {
+		text, ok := itemValue.(string)
+		if !ok {
+			continue
+		}
+		result[itemKey] = text
+	}
+	return result
 }
 
 func eventTypeMatches(allowed []string, eventType string) bool {

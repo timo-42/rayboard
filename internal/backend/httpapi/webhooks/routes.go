@@ -19,6 +19,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/webhook-definitions/{webhook_id}/runs", "Webhooks", "List webhook runs"), provider.listWebhookRuns)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/webhook-definitions/{webhook_id}/deliveries", "Webhook Deliveries", "List outgoing webhook deliveries"), provider.listOutgoingWebhookDeliveries)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/webhook-deliveries/{delivery_id}", "Webhook Deliveries", "Get outgoing webhook delivery"), provider.getOutgoingWebhookDelivery)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/webhook-deliveries/{delivery_id}/retry", "Webhook Deliveries", "Retry outgoing webhook delivery"), provider.retryOutgoingWebhookDelivery)
 	huma.Register(api, shared.PublicOperation(http.MethodPost, "/api/webhooks/incoming/{webhook_id}", "Webhooks", "Receive incoming webhook"), provider.receiveIncomingWebhook)
 }
 
@@ -128,6 +129,18 @@ func (provider Provider) getOutgoingWebhookDelivery(ctx context.Context, input *
 		return nil, err
 	}
 	delivery, err := provider.Webhooks.GetOutgoingDelivery(ctx, principal, input.DeliveryID)
+	if err != nil {
+		return nil, shared.WebhookError(err)
+	}
+	return &OutgoingWebhookDeliveryOutput{Body: outgoingDeliveryResource(delivery)}, nil
+}
+
+func (provider Provider) retryOutgoingWebhookDelivery(ctx context.Context, input *OutgoingWebhookDeliveryIDInput) (*OutgoingWebhookDeliveryOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	delivery, err := provider.Webhooks.RetryOutgoingDelivery(ctx, principal, input.DeliveryID)
 	if err != nil {
 		return nil, shared.WebhookError(err)
 	}

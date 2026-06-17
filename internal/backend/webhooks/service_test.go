@@ -338,6 +338,198 @@ func TestOutgoingWebhookDeliveryEnqueue(t *testing.T) {
 	}
 }
 
+func TestProcessPendingOutgoingWebhookDeliveriesSendsLuaRequest(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	var gotMethod string
+	var gotPath string
+	var gotHeader string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.String()
+		gotHeader = r.Header.Get("X-Rayboard")
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode outgoing request body: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+		WithOutgoingBaseURL(server.URL),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+	hook, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "sender",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine: EngineSpec{Type: EngineTypeLua, Script: `
+return {
+  method = "POST",
+  path = "/events",
+  query = { source = "rayboard" },
+  headers = { ["X-Rayboard"] = "webhook" },
+  body = { event_type = event.type, webhook_id = webhook.id, attempt = delivery.attempt_count }
+}
+`},
+	})
+	if err != nil {
+		t.Fatalf("create outgoing webhook: %v", err)
+	}
+	eventStore := events.NewStore(db.SQL)
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   "actor",
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data:      map[string]any{"status": "done"},
+	}); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	pending, err := eventStore.ListPending(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if _, err := service.EnqueueOutgoingDeliveriesForEvent(ctx, pending[0]); err != nil {
+		t.Fatalf("enqueue outgoing delivery: %v", err)
+	}
+	staleSendingAt := time.Now().UTC().Add(-20 * time.Minute)
+	if _, err := db.SQL.ExecContext(ctx, `
+		UPDATE outgoing_webhook_deliveries
+		SET status = ?, updated_at = ?
+		WHERE webhook_id = ?
+	`, OutgoingDeliveryStatusSending, formatTime(staleSendingAt), hook.ID); err != nil {
+		t.Fatalf("mark delivery stale sending: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("process outgoing delivery: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("expected one processed delivery, got %d", processed)
+	}
+	deliveries, err := service.ListOutgoingDeliveries(ctx, principal, hook.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list outgoing deliveries: %v", err)
+	}
+	if len(deliveries) != 1 || deliveries[0].Status != OutgoingDeliveryStatusDelivered || deliveries[0].AttemptCount != 1 || deliveries[0].DeliveredAt == nil {
+		t.Fatalf("unexpected delivered outgoing delivery: %#v", deliveries)
+	}
+	if gotMethod != http.MethodPost || gotPath != "/events?source=rayboard" || gotHeader != "webhook" {
+		t.Fatalf("unexpected outgoing request: method=%s path=%s header=%s", gotMethod, gotPath, gotHeader)
+	}
+	if gotBody["event_type"] != "ticket.updated" || gotBody["webhook_id"] != hook.ID || gotBody["attempt"] != float64(0) {
+		t.Fatalf("unexpected outgoing request body: %#v", gotBody)
+	}
+}
+
+func TestProcessPendingOutgoingWebhookDeliveriesRetriesAndCanBeManuallyQueued(t *testing.T) {
+	ctx := context.Background()
+	db := openWebhookTestDB(t, ctx)
+	seedWebhookProject(t, ctx, db, "project-1")
+	seedWebhookUser(t, ctx, db, "actor", false)
+	seedWebhookUser(t, ctx, db, "admin", false)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	service := NewService(
+		db.SQL,
+		authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("admin", authz.RoleProjectOwner, authz.ProjectScope("project-1")))),
+		WithOutgoingBaseURL(server.URL),
+		WithNow(func() time.Time { return now }),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+	hook, err := service.Create(ctx, principal, CreateInput{
+		ProjectID:   "project-1",
+		Name:        "sender",
+		Direction:   DirectionOutgoing,
+		Enabled:     true,
+		ActorUserID: "actor",
+		EventTypes:  []string{"ticket.updated"},
+		Engine:      EngineSpec{Type: EngineTypeLua, Script: `return { method = "POST", path = "/events", body = event }`},
+	})
+	if err != nil {
+		t.Fatalf("create outgoing webhook: %v", err)
+	}
+	eventStore := events.NewStore(db.SQL, events.WithNow(func() time.Time { return now }))
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:      "ticket.updated",
+		ActorID:   "actor",
+		ProjectID: "project-1",
+		ObjectID:  "ticket-1",
+		Data:      map[string]any{"status": "done"},
+	}); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	pending, err := eventStore.ListPending(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending events: %v", err)
+	}
+	if _, err := service.EnqueueOutgoingDeliveriesForEvent(ctx, pending[0]); err != nil {
+		t.Fatalf("enqueue outgoing delivery: %v", err)
+	}
+	deliveries, err := service.ListOutgoingDeliveries(ctx, principal, hook.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list outgoing deliveries: %v", err)
+	}
+	if len(deliveries) != 1 {
+		t.Fatalf("expected one outgoing delivery, got %#v", deliveries)
+	}
+	deliveryID := deliveries[0].ID
+	if _, err := db.SQL.ExecContext(ctx, `UPDATE outgoing_webhook_deliveries SET max_attempts = 2 WHERE id = ?`, deliveryID); err != nil {
+		t.Fatalf("set max attempts: %v", err)
+	}
+
+	processed, err := service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if processed != 1 || !errors.Is(err, ErrDelivery) {
+		t.Fatalf("expected one retryable delivery failure, got processed=%d err=%v", processed, err)
+	}
+	failedOnce, err := service.GetOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		t.Fatalf("get failed-once delivery: %v", err)
+	}
+	if failedOnce.Status != OutgoingDeliveryStatusQueued || failedOnce.AttemptCount != 1 || failedOnce.NextAttemptAt == nil || failedOnce.LastAttemptAt == nil {
+		t.Fatalf("unexpected first failure state: %#v", failedOnce)
+	}
+	if _, err := db.SQL.ExecContext(ctx, `UPDATE outgoing_webhook_deliveries SET next_attempt_at = ? WHERE id = ?`, formatTime(now), deliveryID); err != nil {
+		t.Fatalf("reset next attempt: %v", err)
+	}
+
+	processed, err = service.ProcessPendingDeliveries(ctx, ProcessDeliveriesInput{Limit: 10})
+	if processed != 1 || !errors.Is(err, ErrDelivery) {
+		t.Fatalf("expected final delivery failure, got processed=%d err=%v", processed, err)
+	}
+	failed, err := service.GetOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		t.Fatalf("get failed delivery: %v", err)
+	}
+	if failed.Status != OutgoingDeliveryStatusFailed || failed.AttemptCount != 2 || failed.NextAttemptAt != nil || failed.LastError == "" {
+		t.Fatalf("unexpected final failure state: %#v", failed)
+	}
+	retried, err := service.RetryOutgoingDelivery(ctx, principal, deliveryID)
+	if err != nil {
+		t.Fatalf("retry outgoing delivery: %v", err)
+	}
+	if retried.Status != OutgoingDeliveryStatusQueued || retried.NextAttemptAt == nil || retried.LastError != "" {
+		t.Fatalf("unexpected retried delivery: %#v", retried)
+	}
+}
+
 func TestIncomingWebhookReceiveRunsLuaAndRecordsHistory(t *testing.T) {
 	ctx := context.Background()
 	db := openWebhookTestDB(t, ctx)

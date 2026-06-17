@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -33,17 +34,24 @@ const (
 var (
 	ErrNotFound   = errors.New("webhooks: not found")
 	ErrValidation = errors.New("webhooks: validation failed")
+	ErrDelivery   = errors.New("webhooks: delivery failed")
 )
 
 type Service struct {
-	db         *sql.DB
-	authorizer authz.Evaluator
-	runs       *automation.RunStore
-	tracker    *tracker.Service
-	search     *search.Service
-	comments   *comments.Service
-	openrouter *openrouter.Service
-	now        func() time.Time
+	db              *sql.DB
+	authorizer      authz.Evaluator
+	runs            *automation.RunStore
+	tracker         *tracker.Service
+	search          *search.Service
+	comments        *comments.Service
+	openrouter      *openrouter.Service
+	httpClient      httpClient
+	outgoingBaseURL string
+	now             func() time.Time
+}
+
+type httpClient interface {
+	Do(*http.Request) (*http.Response, error)
 }
 
 type Option func(*Service)
@@ -52,6 +60,7 @@ func NewService(db *sql.DB, authorizer authz.Evaluator, options ...Option) *Serv
 	service := &Service{
 		db:         db,
 		authorizer: authorizer,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 		now:        func() time.Time { return time.Now().UTC() },
 	}
 	for _, option := range options {
@@ -95,6 +104,20 @@ func WithCommentService(commentService *comments.Service) Option {
 func WithOpenRouterService(openRouterService *openrouter.Service) Option {
 	return func(service *Service) {
 		service.openrouter = openRouterService
+	}
+}
+
+func WithHTTPClient(client httpClient) Option {
+	return func(service *Service) {
+		if client != nil {
+			service.httpClient = client
+		}
+	}
+}
+
+func WithOutgoingBaseURL(baseURL string) Option {
+	return func(service *Service) {
+		service.outgoingBaseURL = strings.TrimSpace(baseURL)
 	}
 }
 

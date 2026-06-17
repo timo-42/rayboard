@@ -22,7 +22,7 @@ Lua-capable surfaces:
 - ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
 - custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
-- outgoing webhooks: definition CRUD, event-triggered delivery persistence, and delivery history API implemented; Lua request shaping, retries, and outbound HTTP still **Planned**;
+- outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
 - notification hooks: **Planned**.
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
@@ -188,7 +188,25 @@ return {
 
 ## Webhooks
 
-Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua/AI validation/logging, constrained Rayboard actions, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment` run as the configured actor user through normal RBAC. AI incoming webhooks receive the same request context in the prompt and may return `reject` or an `actions` array using action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; returned actions are capped and execute as the configured actor user through normal service/RBAC paths. Disabled or deleted actor users cause execution to fail before Lua or AI runs. Outgoing webhook definitions are implemented with `event_types`, and matching domain events can be persisted as queued outgoing delivery rows that snapshot event and webhook context. Delivery history is available through `GET /api/webhook-definitions/{webhook_id}/deliveries` and `GET /api/webhook-deliveries/{delivery_id}`. Outgoing Lua/AI request shaping, controlled outbound requests, allowlists, timeouts, max payload sizes, retries, and manual redelivery are still **Planned**.
+Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua/AI validation/logging, constrained Rayboard actions, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment` run as the configured actor user through normal RBAC. AI incoming webhooks receive the same request context in the prompt and may return `reject` or an `actions` array using action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; returned actions are capped and execute as the configured actor user through normal service/RBAC paths. Disabled or deleted actor users cause execution to fail before Lua or AI runs. Outgoing webhook definitions are implemented with `event_types`, and matching domain events are persisted as queued outgoing delivery rows that snapshot event and webhook context. Delivery history is available through `GET /api/webhook-definitions/{webhook_id}/deliveries` and `GET /api/webhook-deliveries/{delivery_id}`; failed/canceled deliveries can be requeued with `POST /api/webhook-deliveries/{delivery_id}/retry`.
+
+Outgoing Lua scripts receive `event`, `webhook`, and `delivery` tables and return a controlled outbound request shape:
+
+```lua
+return {
+  method = "POST",
+  path = "/events",
+  query = { source = "rayboard" },
+  headers = { ["X-Rayboard-Event"] = event.type },
+  body = {
+    event = event,
+    webhook_id = webhook.id,
+    delivery_id = delivery.id
+  }
+}
+```
+
+Outgoing AI webhooks receive the same context in the prompt and must return the same JSON request object. Outgoing requests are sent only under the configured `--outgoing-webhook-base-url`; relative paths are required, unsupported methods are rejected, request bodies are JSON, and `Host`/`Content-Length` headers cannot be set by automation.
 
 Incoming example shape:
 
@@ -240,7 +258,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
-AI execution is implemented for cron jobs, ticket hooks, and incoming webhooks as validated JSON-object output. AI cron action execution, custom create pages, outgoing webhooks, and notification hooks are still **Planned**.
+AI execution is implemented for cron jobs, ticket hooks, incoming webhooks, and outgoing webhook request shaping as validated JSON-object output. AI cron action execution, custom create pages, and notification hooks are still **Planned**.
 
 ## Future WebAssembly Engine
 
