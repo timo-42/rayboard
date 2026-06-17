@@ -353,6 +353,7 @@ internal/backend/httpapi/
   - global admin settings endpoints, project settings endpoints, and user settings endpoints
   - admin OpenRouter settings endpoints
   - automation engine selection for cron jobs, ticket hooks, custom create pages, and webhooks using the shared `engine` object
+  - generic engine test endpoint: `POST /api/engines/test` accepts a shared `engine` object, surface/context selector, and JSON input, then returns validated output, logs, metadata, duration, and non-persistent action previews
   - test/validate AI prompt endpoints for each automation surface
   - admin-only demo reset endpoint and demo seed support endpoints only if normal CRUD endpoints are insufficient
 - Frontend:
@@ -593,6 +594,7 @@ Rules:
 - Notification delivery tests verify queued delivery, retry/backoff, failure history, and named destination resolution at queue processing time.
 - OpenRouter config tests verify only global admins can configure the API key/model allowlist and secrets are not exposed.
 - Automation engine selection tests verify each Lua-capable surface can use the shared nested `engine` object with `engine.type` set to `lua` or `ai`.
+- Generic engine endpoint tests verify `POST /api/engines/test` can dry-run Lua and AI engine definitions with supplied JSON input, returns validated output/logs/status metadata, enforces RBAC and sandbox limits, and does not persist mutations.
 - AI schema tests verify valid structured output is accepted and invalid/free-text output is rejected.
 - AI surface tests verify AI cron jobs, ticket hooks, custom create pages, incoming webhooks, and outgoing webhooks follow the same authorization and validation paths as Lua.
 - AI limit tests verify timeout, payload limits, action-count limits, and missing/disabled OpenRouter config behavior.
