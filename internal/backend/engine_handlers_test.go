@@ -169,17 +169,19 @@ return {
 	}
 	var actionPreviewBody struct {
 		Status struct {
+			Mode           string           `json:"mode"`
 			ActionPreviews []map[string]any `json:"action_previews"`
 		} `json:"status"`
 	}
 	if err := json.Unmarshal(actionPreviewRec.Body.Bytes(), &actionPreviewBody); err != nil {
 		t.Fatalf("decode action preview engine response: %v", err)
 	}
-	if len(actionPreviewBody.Status.ActionPreviews) != 2 ||
+	if actionPreviewBody.Status.Mode != "previewed" ||
+		len(actionPreviewBody.Status.ActionPreviews) != 2 ||
 		actionPreviewBody.Status.ActionPreviews[0]["action"] != "create_ticket" ||
 		actionPreviewBody.Status.ActionPreviews[0]["title"] != "Preview action" ||
 		actionPreviewBody.Status.ActionPreviews[1]["action"] != "comment" {
-		t.Fatalf("expected action previews in engine response status, got %#v", actionPreviewBody.Status.ActionPreviews)
+		t.Fatalf("expected preview mode and action previews in engine response status, got %#v", actionPreviewBody.Status)
 	}
 
 	contextActorReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{

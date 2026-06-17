@@ -152,6 +152,9 @@ func runMode(run automation.Run) string {
 			return "validated"
 		}
 	}
+	if len(actionPreviews(run.Output)) > 0 {
+		return "previewed"
+	}
 	return "executed"
 }
 
