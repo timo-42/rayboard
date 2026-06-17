@@ -19,6 +19,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/httpapi/boards"
 	commentapi "github.com/timo-42/rayboard/internal/backend/httpapi/comments"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/components"
+	"github.com/timo-42/rayboard/internal/backend/httpapi/createpages"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/cronapi"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/customfields"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/notificationsapi"
@@ -45,6 +46,7 @@ type Options struct {
 	Tracker       *tracker.Service
 	Attachments   *attachments.Service
 	Comments      *comments.Service
+	CreatePages   *tracker.CreatePageService
 	Cron          *cronjobs.Service
 	Notifications *notifications.Service
 	OpenRouter    *openrouter.Service
@@ -87,6 +89,7 @@ func NewHandler(options Options) http.Handler {
 	versions.Register(api, versions.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	customfields.Register(api, customfields.Provider{Tracker: options.Tracker, Authenticator: authenticator})
 	commentapi.Register(api, commentapi.Provider{Comments: options.Comments, Authenticator: authenticator})
+	createpages.Register(api, createpages.Provider{CreatePages: options.CreatePages, Authenticator: authenticator})
 	attachmentapi.Register(api, attachmentapi.Provider{Attachments: options.Attachments, Authenticator: authenticator})
 	searchapi.Register(api, searchapi.Provider{Search: options.Search, Authenticator: authenticator})
 	cronapi.Register(api, cronapi.Provider{Cron: options.Cron, Authenticator: authenticator})

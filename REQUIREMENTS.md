@@ -232,7 +232,7 @@ internal/backend/httpapi/
   - enforce timeout, max script size, max log size, max request/response body size, and max generated action count.
 - Add OpenRouter AI automation alongside Lua:
   - everywhere Rayboard supports Lua automation, also support AI automation with the same reusable engine object.
-  - automation definitions use `engine.type` as the discriminator with `lua` and `ai` values.
+  - automation definitions use `engine.type` as the discriminator with `lua` and `ai` values in the first implementation.
   - Lua engine definitions use `engine.script`.
   - AI engine definitions use `engine.prompt` and `engine.provider_id`.
   - generated OpenAPI schemas for automation engines use `oneOf` with an OpenAPI discriminator on `engine.type`, requiring Lua-specific or AI-specific fields as appropriate.
@@ -255,6 +255,15 @@ internal/backend/httpapi/
   - AI output never bypasses normal backend validation, custom field validation, ticket hooks, or authorization.
   - record prompt input summary, OpenRouter model, usage metadata when available, validated output, errors, and resulting actions in run history.
   - provide test/preview execution for every AI automation before enabling.
+- Add WebAssembly automation as a later engine:
+  - add `wasm` as a future `engine.type` after the Lua and OpenRouter AI surfaces are implemented.
+  - use `github.com/wazero/wazero` as the pure-Go WebAssembly runtime so Rayboard remains a single binary without CGO.
+  - WebAssembly modules should be stored as Rayboard-managed artifacts or references and executed through the same owner/actor, RBAC, timeout, memory, log, payload-size, and action-count limits as Lua/AI for the same surface.
+  - expose only the same constrained Rayboard host functions available to the equivalent Lua surface; do not expose filesystem, shell, raw sockets, arbitrary HTTP, direct SQLite, raw Go pointers, Shoutrrr secrets, or OpenRouter keys.
+  - WebAssembly output must be validated against the same structured output schema for the automation surface before Rayboard applies transformations, actions, outbound requests, or form schemas.
+  - support languages that compile to WebAssembly, subject to the stable Rayboard host ABI.
+  - keep room for a future internal Lua-to-WASM compilation path to improve Lua performance while preserving existing Lua semantics.
+  - treat WebAssembly as the last automation engine piece in the current roadmap, after Lua and OpenRouter AI behavior are complete.
 - Use a lightweight embedded frontend:
   - build the UI with server-rendered Go `html/template` views plus HTMX-enhanced interactions.
   - use plain CSS and small vanilla JavaScript modules for local behavior.
@@ -394,6 +403,7 @@ internal/backend/httpapi/
   - CEL overview: https://cel.dev/
   - CEL Go implementation and examples: https://github.com/google/cel-go
   - GopherLua: https://github.com/yuin/gopher-lua
+  - wazero: https://github.com/wazero/wazero
   - robfig cron: https://pkg.go.dev/github.com/robfig/cron/v3
   - HTMX: https://htmx.org/
   - SortableJS: https://sortablejs.github.io/Sortable/

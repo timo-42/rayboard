@@ -62,6 +62,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	authService := auth.NewService(db.SQL)
 	hookService := tracker.NewHookService(db.SQL, authorizer)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
+	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
@@ -99,6 +100,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithCreatePageService(createPageService),
 		backend.WithCronService(cronService),
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),
@@ -132,6 +134,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	authService := auth.NewService(db.SQL)
 	hookService := tracker.NewHookService(db.SQL, authorizer)
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
+	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
@@ -169,6 +172,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		backend.WithTrackerService(trackerService),
 		backend.WithAttachmentService(attachmentService),
 		backend.WithCommentService(commentService),
+		backend.WithCreatePageService(createPageService),
 		backend.WithCronService(cronService),
 		backend.WithNotificationService(notificationService),
 		backend.WithOpenRouterService(openRouterService),

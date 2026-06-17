@@ -29,6 +29,7 @@ type options struct {
 	tracker       *tracker.Service
 	attachments   *attachments.Service
 	comments      *comments.Service
+	createPages   *tracker.CreatePageService
 	cron          *cronjobs.Service
 	notifications *notifications.Service
 	openrouter    *openrouter.Service
@@ -72,6 +73,12 @@ func WithAttachmentService(service *attachments.Service) Option {
 func WithCommentService(service *comments.Service) Option {
 	return func(options *options) {
 		options.comments = service
+	}
+}
+
+func WithCreatePageService(service *tracker.CreatePageService) Option {
+	return func(options *options) {
+		options.createPages = service
 	}
 }
 
@@ -141,6 +148,7 @@ func NewHandler(opts ...Option) http.Handler {
 		Tracker:       options.tracker,
 		Attachments:   options.attachments,
 		Comments:      options.comments,
+		CreatePages:   options.createPages,
 		Cron:          options.cron,
 		Notifications: options.notifications,
 		OpenRouter:    options.openrouter,

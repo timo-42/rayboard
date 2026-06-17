@@ -224,6 +224,22 @@ Ticket custom-field values use field keys:
 }
 ```
 
+## Custom Ticket Create Pages
+
+The first custom create-page slice is backend/API-only. It lets project owners/admins define project-scoped ticket intake pages with a slug, optional target ticket type/status, a structured field layout, and default ticket values. Submissions create tickets through the normal backend path as the submitting user, so RBAC, ticket validation, custom-field validation, and before ticket hooks still apply. Dynamic Lua/AI form logic and browser rendering are **Planned**.
+
+| Method | Path | Body or Query |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}/ticket-create-pages` | Optional `include_disabled=true`, `limit`, `offset`; requires project `automations:manage`. |
+| `POST` | `/api/projects/{project_id}/ticket-create-pages` | `{"spec":{"name":"Bug Intake","slug":"bug-intake","enabled":true,"target_type":"bug","target_status":"todo","field_layout":[{"key":"title","required":true}],"defaults":{"priority":"high"},"owner_user_id":"user_..."}}` |
+| `GET` | `/api/ticket-create-pages/{page_id}` | none; requires project `automations:manage`. |
+| `PATCH` | `/api/ticket-create-pages/{page_id}` | `{"spec":{...}}` with any subset of `name`, `slug`, `description`, `enabled`, `target_type`, `target_status`, `field_layout`, `defaults`, `owner_user_id`. |
+| `DELETE` | `/api/ticket-create-pages/{page_id}` | none |
+| `GET` | `/api/projects/{project_id}/ticket-create-pages/{slug}/schema` | Resolves an enabled page for an authenticated project reader. |
+| `POST` | `/api/projects/{project_id}/ticket-create-pages/{slug}/submit` | `{"spec":{"ticket":{"title":"Broken login","description":"...","labels":["customer"],"custom_fields":{}}}}` |
+
+Create-page responses use `metadata` for page/project/owner/timestamps, `spec` for the page definition, and `status.deleted_at` for soft-delete state. Schema responses use `metadata.page_id`, `metadata.project_id`, and `metadata.slug`, return the renderable page definition in `spec`, and expose `status.enabled`. Disabled pages are not resolvable by slug. Submit responses return the normal ticket resource shape.
+
 ## Comments and Attachments
 
 | Method | Path | Body |
@@ -507,4 +523,4 @@ The planned AI form uses the same `engine` object with an OpenRouter provider re
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. OpenRouter AI automation, custom create pages, outgoing webhooks, and notification hooks are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. OpenRouter AI automation, Lua/AI dynamic custom create-page logic, outgoing webhooks, and notification hooks are **Planned**.

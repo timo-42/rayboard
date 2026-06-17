@@ -96,7 +96,7 @@ Personal notification preferences require authentication but no RBAC permission 
 
 `webhooks:manage` is required to create, list, update, delete, rotate, and inspect run history for project webhook definitions. Incoming webhook receiver calls authenticate with a webhook-specific bearer token rather than a user session or API token. Lua execution records run history and logs, and constrained Rayboard helpers run as the configured actor user. Disabled or deleted actor users cannot execute incoming webhook scripts.
 
-`automations:manage` is required to create, list, update, and delete project ticket hooks. Hooks execute during normal ticket service calls and receive the authenticated principal that triggered the ticket operation.
+`automations:manage` is required to create, list, update, and delete project ticket hooks and custom ticket create pages. Hooks execute during normal ticket service calls and receive the authenticated principal that triggered the ticket operation. Custom create-page submissions use the submitter's normal ticket permissions.
 
 ## Current Limitations
 

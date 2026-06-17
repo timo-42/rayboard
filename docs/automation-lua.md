@@ -5,6 +5,7 @@ Automation public surfaces are partially implemented. The current implementation
 Relevant upstream references:
 
 - GopherLua: https://github.com/yuin/gopher-lua
+- wazero: https://github.com/wazero/wazero
 - robfig cron: https://pkg.go.dev/github.com/robfig/cron/v3
 - robfig cron source: https://github.com/robfig/cron
 - OpenRouter docs: https://openrouter.ai/docs
@@ -19,7 +20,7 @@ Lua-capable surfaces:
 
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
-- custom ticket create pages: **Planned**;
+- custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: **Planned**;
 - notification hooks: **Planned**.
@@ -163,9 +164,9 @@ end
 return { ticket = ticket }
 ```
 
-## Planned Custom Create Pages
+## Custom Create Pages
 
-Custom create pages return validated form schema/defaults/options. Lua must never return raw HTML.
+Custom create pages currently expose static project-scoped definitions and submit tickets through the normal backend ticket-create path. The planned Lua layer will compute validated form schema/defaults/options. Lua must never return raw HTML.
 
 ```lua
 return {
@@ -236,3 +237,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
 Actual AI execution for cron jobs, ticket hooks, custom create pages, webhooks, and notification hooks is still **Planned**.
+
+## Future WebAssembly Engine
+
+WebAssembly automation is planned as a later engine after Lua and OpenRouter AI behavior are complete. The planned runtime is wazero (`https://github.com/wazero/wazero`) so Rayboard can keep a pure-Go, single-binary deployment model. WASM modules will use the same owner/actor, RBAC, timeout, memory, log, payload-size, and action-count limits as the equivalent Lua/AI surface, and will only receive constrained Rayboard host functions. Filesystem, shell, raw sockets, unrestricted HTTP, direct SQLite, raw Go pointers, Shoutrrr secrets, and OpenRouter keys must remain unavailable. Outputs must validate against the same structured schema before Rayboard applies ticket transformations, actions, outbound requests, or form definitions.
