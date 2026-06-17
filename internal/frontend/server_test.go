@@ -56,6 +56,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="create-page-form"`) ||
 		!strings.Contains(body, `id="create-pages"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
+		!strings.Contains(body, `id="backlog-panel"`) ||
+		!strings.Contains(body, `id="backlog"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
@@ -118,11 +120,13 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderRBAC",
 		"renderSettings",
 		"renderAuditLog",
+		"renderBacklog",
 		"renderTicketHooks",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
 		"loadRBAC",
 		"loadSettingsPage",
+		"loadBacklog",
 		"loadAuditLog",
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
@@ -173,6 +177,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/projects/${projectID}/notification-hooks",
 		"/api/notification-hooks/${preview.dataset.previewNotificationHookId}/preview",
 		"data-delete-notification-hook-id",
+		"/api/projects/${state.selectedProject.id}/backlog",
+		"data-backlog-move-id",
 		"/api/cron-jobs?${query.toString()}",
 		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
 		"data-delete-cron-job-id",
@@ -214,6 +220,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-hook-form",
 		".notification-hook-list",
 		".notification-hook-preview",
+		".backlog-panel",
+		".backlog-list",
 		".cron-job-form",
 		".cron-job-list",
 		".webhook-form",

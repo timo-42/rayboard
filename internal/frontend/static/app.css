@@ -1397,6 +1397,92 @@ p {
   font-size: 12px;
 }
 
+.backlog-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.backlog-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.backlog-header h2 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.backlog-list {
+  display: grid;
+  gap: 8px;
+}
+
+.backlog-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.backlog-item-body {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.backlog-item a {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.backlog-item a:hover {
+  color: var(--primary-strong);
+}
+
+.backlog-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.backlog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.backlog-actions button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.backlog-actions button:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.backlog-actions button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
 .release-panel {
   display: grid;
   gap: 12px;
@@ -2365,6 +2451,7 @@ p {
   .saved-view-form,
   .search-grid,
   .sprint-form,
+  .backlog-item,
   .release-grid,
   .component-form,
   .version-form,

@@ -112,7 +112,7 @@ Ticket activity responses use a list resource with `metadata.count` and `status.
 
 ## Backlog
 
-The first backlog API slice is backend/API-only. It lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. Browser drag/drop, board UI, richer backlog planning, and reports are **Planned**.
+The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a basic backlog list with up/down reorder controls. Browser drag/drop, board UI, richer backlog planning, and reports are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

@@ -7,6 +7,7 @@ const state = {
   projectSummaries: [],
   recentTickets: [],
   activeSprints: [],
+  backlog: [],
   sprints: [],
   components: [],
   versions: [],
@@ -147,6 +148,8 @@ const els = {
   sprintPanel: document.querySelector("#sprint-panel"),
   sprintForm: document.querySelector("#sprint-form"),
   sprints: document.querySelector("#sprints"),
+  backlogPanel: document.querySelector("#backlog-panel"),
+  backlog: document.querySelector("#backlog"),
   releasePanel: document.querySelector("#release-panel"),
   componentForm: document.querySelector("#component-form"),
   versionForm: document.querySelector("#version-form"),
@@ -223,6 +226,7 @@ function bindEvents() {
       state.projectSummaries = [];
       state.recentTickets = [];
       state.activeSprints = [];
+      state.backlog = [];
       state.sprints = [];
       state.components = [];
       state.versions = [];
@@ -686,6 +690,30 @@ function bindEvents() {
         await loadTickets();
       }, "Sprint deleted");
     }
+  });
+
+  els.backlog.addEventListener("click", async (event) => {
+    const move = event.target.closest("[data-backlog-move-id]");
+    if (!move || !state.selectedProject) {
+      return;
+    }
+    const direction = move.dataset.backlogMoveDirection;
+    const index = state.backlog.findIndex((ticket) => ticket.id === move.dataset.backlogMoveId);
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || targetIndex < 0 || targetIndex >= state.backlog.length) {
+      return;
+    }
+    const reordered = state.backlog.slice();
+    const [ticket] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, ticket);
+    await runAction(async () => {
+      const data = await api(`/api/projects/${state.selectedProject.id}/backlog`, {
+        method: "PATCH",
+        body: { spec: { ticket_ids: reordered.map((item) => item.id) } }
+      });
+      state.backlog = listItems(data).map(normalizeTicket);
+      renderBacklog();
+    }, "Backlog reordered");
   });
 
   els.componentForm.addEventListener("submit", async (event) => {
@@ -1683,6 +1711,17 @@ async function loadSprints(options = {}) {
   }
 }
 
+async function loadBacklog() {
+  if (!state.user || !state.selectedProject) {
+    state.backlog = [];
+    renderBacklog();
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/backlog`);
+  state.backlog = listItems(data).map(normalizeTicket);
+  renderBacklog();
+}
+
 async function loadComponents(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.components = [];
@@ -1761,6 +1800,7 @@ async function loadProjectDetails() {
   if (!state.selectedProject) {
     return;
   }
+  await loadBacklog();
   await loadSprints({ renderTickets: false });
   await loadComponents({ renderTickets: false });
   await loadVersions({ renderTickets: false });
@@ -1802,6 +1842,7 @@ async function loadProjects(selectedID = "") {
     await loadProjectDetails();
   } else {
     state.tickets = [];
+    state.backlog = [];
     state.sprints = [];
     state.components = [];
     state.versions = [];
@@ -1889,6 +1930,7 @@ async function refreshTicketViews(ticketID, options = {}) {
   if (options.roadmap !== false) {
     await loadRoadmap({ renderTickets: false });
   }
+  await loadBacklog();
   await loadTickets();
   if (state.selectedIssue && state.selectedIssue.id === ticketID) {
     await loadSelectedIssue(ticketID);
@@ -2212,6 +2254,7 @@ function render() {
   els.dashboardView.hidden = !signedIn || route.page !== "dashboard";
   els.notificationInbox.hidden = !signedIn || route.page !== "dashboard";
   els.sprintPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.backlogPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.releasePanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.fieldPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.roadmapPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
@@ -2232,6 +2275,7 @@ function render() {
   renderTickets();
   renderIssue();
   renderNotifications();
+  renderBacklog();
   renderSprints();
   renderComponents();
   renderVersions();
@@ -2391,6 +2435,74 @@ function notificationNode(notification) {
   button.textContent = notification.read_at ? "Unread" : "Read";
 
   article.append(body, meta, button);
+  return article;
+}
+
+function renderBacklog() {
+  if (!els.backlog) {
+    return;
+  }
+  els.backlog.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to view backlog";
+    els.backlog.append(empty);
+    return;
+  }
+  if (!state.backlog.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No backlog tickets";
+    els.backlog.append(empty);
+    return;
+  }
+  state.backlog.forEach((ticket, index) => {
+    els.backlog.append(backlogItemNode(ticket, index));
+  });
+}
+
+function backlogItemNode(ticket, index) {
+  const article = document.createElement("article");
+  article.className = "backlog-item";
+
+  const body = document.createElement("div");
+  body.className = "backlog-item-body";
+
+  const title = document.createElement("a");
+  title.href = `/issues/${encodeURIComponent(ticket.id)}`;
+  title.textContent = `${ticket.key || ticket.id} ${ticket.title || "Untitled"}`;
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    ticket.type || "task",
+    ticket.status || "todo",
+    ticket.priority || "",
+    ticket.sprint_id ? sprintName(ticket.sprint_id) : "",
+    ticket.assignee_id ? `assignee ${ticket.assignee_id}` : ""
+  ].filter(Boolean).join(" / ");
+
+  body.append(title, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "backlog-actions";
+
+  const up = document.createElement("button");
+  up.type = "button";
+  up.dataset.backlogMoveId = ticket.id;
+  up.dataset.backlogMoveDirection = "up";
+  up.disabled = index === 0;
+  up.textContent = "Up";
+
+  const down = document.createElement("button");
+  down.type = "button";
+  down.dataset.backlogMoveId = ticket.id;
+  down.dataset.backlogMoveDirection = "down";
+  down.disabled = index === state.backlog.length - 1;
+  down.textContent = "Down";
+
+  actions.append(up, down);
+  article.append(body, actions);
   return article;
 }
 
