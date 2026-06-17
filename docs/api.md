@@ -138,7 +138,7 @@ Board ticket responses use `metadata` for the board view identity, `spec.board` 
 
 ## Sprints
 
-The first sprint API slice is backend/API-only. It supports sprint CRUD within a project, starting and completing sprints, and assigning or removing a ticket from a sprint. Browser backlog planning, board drag/drop, and sprint report screens are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete and ticket assignment/removal for the selected project. Browser backlog planning, board drag/drop, detailed sprint editing, sprint filtering, and sprint report screens are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

@@ -3,6 +3,7 @@ const state = {
   projects: [],
   selectedProject: null,
   tickets: [],
+  sprints: [],
   attachments: {},
   comments: {},
   notifications: [],
@@ -30,6 +31,9 @@ const els = {
   notificationRefresh: document.querySelector("#notifications-refresh"),
   notificationReadAll: document.querySelector("#notifications-read-all"),
   notifications: document.querySelector("#notifications"),
+  sprintPanel: document.querySelector("#sprint-panel"),
+  sprintForm: document.querySelector("#sprint-form"),
+  sprints: document.querySelector("#sprints"),
   searchPanel: document.querySelector("#search-panel"),
   searchForm: document.querySelector("#search-form"),
   savedViewForm: document.querySelector("#saved-view-form"),
@@ -75,6 +79,7 @@ function bindEvents() {
       state.projects = [];
       state.selectedProject = null;
       state.tickets = [];
+      state.sprints = [];
       state.attachments = {};
       state.comments = {};
       state.notifications = [];
@@ -141,6 +146,59 @@ function bindEvents() {
       await api("/api/notifications/read-all", { method: "POST" });
       await loadNotifications();
     }, "Notifications marked read");
+  });
+
+  els.sprintForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a sprint");
+      return;
+    }
+    const data = formData(event.currentTarget);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/sprints`, {
+        method: "POST",
+        body: {
+          spec: {
+            name: data.name || "",
+            goal: data.goal || "",
+            start_date: data.start_date || "",
+            end_date: data.end_date || ""
+          }
+        }
+      });
+      event.currentTarget.reset();
+      await loadSprints();
+    }, "Sprint created");
+  });
+
+  els.sprints.addEventListener("click", async (event) => {
+    const start = event.target.closest("[data-start-sprint-id]");
+    if (start) {
+      await runAction(async () => {
+        await api(`/api/sprints/${start.dataset.startSprintId}/start`, { method: "POST" });
+        await loadSprints();
+      }, "Sprint started");
+      return;
+    }
+
+    const complete = event.target.closest("[data-complete-sprint-id]");
+    if (complete) {
+      await runAction(async () => {
+        await api(`/api/sprints/${complete.dataset.completeSprintId}/complete`, { method: "POST" });
+        await loadSprints();
+      }, "Sprint completed");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-sprint-id]");
+    if (remove) {
+      await runAction(async () => {
+        await api(`/api/sprints/${remove.dataset.deleteSprintId}`, { method: "DELETE" });
+        await loadSprints();
+        await loadTickets();
+      }, "Sprint deleted");
+    }
   });
 
   els.notifications.addEventListener("click", async (event) => {
@@ -248,6 +306,34 @@ function bindEvents() {
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
+    const assignSprint = event.target.closest("[data-assign-sprint-id]");
+    if (assignSprint) {
+      const control = assignSprint.closest("[data-ticket-sprint-control]");
+      const select = control ? control.querySelector("select") : null;
+      const sprintID = select ? select.value : "";
+      if (!sprintID) {
+        setNotice("Choose a sprint first");
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${assignSprint.dataset.assignSprintId}/sprint`, {
+          method: "PUT",
+          body: { spec: { sprint_id: sprintID } }
+        });
+        await loadTickets();
+      }, "Ticket assigned to sprint");
+      return;
+    }
+
+    const removeSprint = event.target.closest("[data-remove-sprint-id]");
+    if (removeSprint) {
+      await runAction(async () => {
+        await api(`/api/tickets/${removeSprint.dataset.removeSprintId}/sprint`, { method: "DELETE" });
+        await loadTickets();
+      }, "Ticket removed from sprint");
+      return;
+    }
+
     const deleteComment = event.target.closest("[data-delete-comment-id]");
     if (deleteComment) {
       await runAction(async () => {
@@ -372,6 +458,23 @@ async function loadSavedViews() {
   renderSavedViews();
 }
 
+async function loadSprints(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.sprints = [];
+    renderSprints();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/sprints`);
+  state.sprints = listItems(data).map(normalizeSprint);
+  renderSprints();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
 async function runSearch(spec) {
   const normalized = {
     project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
@@ -397,10 +500,12 @@ async function loadProjects(selectedID = "") {
     state.selectedProject = state.projects.find((project) => project.id === state.selectedProject.id) || null;
   }
   if (state.selectedProject) {
+    await loadSprints({ renderTickets: false });
     await loadTickets();
     await loadSavedViews();
   } else {
     state.tickets = [];
+    state.sprints = [];
     state.attachments = {};
     state.comments = {};
     state.searchResults = [];
@@ -504,6 +609,7 @@ function render() {
   els.logoutButton.hidden = !signedIn;
   els.projectCreate.hidden = !signedIn;
   els.notificationInbox.hidden = !signedIn;
+  els.sprintPanel.hidden = !signedIn || !state.selectedProject;
   els.searchPanel.hidden = !signedIn;
   els.accountPanel.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
@@ -515,6 +621,7 @@ function render() {
   renderProjects();
   renderTickets();
   renderNotifications();
+  renderSprints();
   renderSearchResults();
   renderSavedViews();
   renderTokens();
@@ -564,6 +671,80 @@ function notificationNode(notification) {
   button.textContent = notification.read_at ? "Unread" : "Read";
 
   article.append(body, meta, button);
+  return article;
+}
+
+function renderSprints() {
+  if (!els.sprints) {
+    return;
+  }
+  els.sprints.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage sprints";
+    els.sprints.append(empty);
+    return;
+  }
+  if (!state.sprints.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No sprints";
+    els.sprints.append(empty);
+    return;
+  }
+  for (const sprint of state.sprints) {
+    els.sprints.append(sprintNode(sprint));
+  }
+}
+
+function sprintNode(sprint) {
+  const article = document.createElement("article");
+  article.className = "sprint-item";
+  article.dataset.sprintState = sprint.state || "planned";
+
+  const body = document.createElement("div");
+  body.className = "sprint-item-body";
+
+  const name = document.createElement("p");
+  name.textContent = sprint.name || "Sprint";
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    sprint.state || "planned",
+    dateRange(sprint.start_date, sprint.end_date),
+    sprint.goal
+  ].filter(Boolean).join(" / ");
+
+  body.append(name, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "sprint-actions";
+
+  if (sprint.state === "planned") {
+    const start = document.createElement("button");
+    start.type = "button";
+    start.dataset.startSprintId = sprint.id;
+    start.textContent = "Start";
+    actions.append(start);
+  }
+
+  if (sprint.state === "active") {
+    const complete = document.createElement("button");
+    complete.type = "button";
+    complete.dataset.completeSprintId = sprint.id;
+    complete.textContent = "Complete";
+    actions.append(complete);
+  }
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteSprintId = sprint.id;
+  remove.disabled = sprint.state === "active";
+  remove.textContent = "Delete";
+  actions.append(remove);
+
+  article.append(body, actions);
   return article;
 }
 
@@ -736,6 +917,7 @@ function renderProjects() {
       if (els.engineProjectID && !els.engineProjectID.value) {
         els.engineProjectID.value = project.id;
       }
+      await loadSprints({ renderTickets: false });
       await loadTickets();
       await loadSavedViews();
     });
@@ -847,8 +1029,55 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function sprintControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-sprint";
+  section.setAttribute("data-ticket-sprint-control", "true");
+  section.setAttribute("aria-label", `${ticket.key} sprint`);
+
+  const heading = document.createElement("p");
+  heading.className = "sprint-heading";
+  heading.textContent = ticket.sprint_id ? `Sprint: ${sprintName(ticket.sprint_id)}` : "Sprint";
+
+  const controls = document.createElement("div");
+  controls.className = "ticket-sprint-controls";
+
+  const select = document.createElement("select");
+  select.setAttribute("aria-label", "Sprint");
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Choose sprint";
+  select.append(empty);
+  for (const sprint of state.sprints) {
+    if (sprint.state === "completed" && sprint.id !== ticket.sprint_id) {
+      continue;
+    }
+    const option = document.createElement("option");
+    option.value = sprint.id;
+    option.textContent = `${sprint.name} (${sprint.state})`;
+    option.selected = sprint.id === ticket.sprint_id;
+    select.append(option);
+  }
+
+  const assign = document.createElement("button");
+  assign.type = "button";
+  assign.dataset.assignSprintId = ticket.id;
+  assign.textContent = "Assign";
+  assign.disabled = !state.sprints.length;
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.removeSprintId = ticket.id;
+  remove.textContent = "Remove";
+  remove.disabled = !ticket.sprint_id;
+
+  controls.append(select, assign, remove);
+  section.append(heading, controls);
+  return section;
 }
 
 function commentNode(ticket) {
@@ -1128,6 +1357,28 @@ function normalizeSavedView(view) {
   return view;
 }
 
+function normalizeSprint(sprint) {
+  if (!sprint) {
+    return null;
+  }
+  if (sprint.metadata && sprint.spec && sprint.status) {
+    return {
+      id: sprint.metadata.id,
+      project_id: sprint.metadata.project_id,
+      created_at: sprint.metadata.created_at,
+      updated_at: sprint.metadata.updated_at,
+      name: sprint.spec.name || "",
+      goal: sprint.spec.goal || "",
+      start_date: sprint.spec.start_date || "",
+      end_date: sprint.spec.end_date || "",
+      state: sprint.status.state || "planned",
+      started_at: sprint.status.started_at || "",
+      completed_at: sprint.status.completed_at || ""
+    };
+  }
+  return sprint;
+}
+
 function normalizeToken(token) {
   if (!token) {
     return null;
@@ -1183,6 +1434,18 @@ function formatDateTime(value) {
     return value;
   }
   return date.toLocaleString();
+}
+
+function sprintName(id) {
+  const sprint = state.sprints.find((item) => item.id === id);
+  return sprint ? sprint.name : id;
+}
+
+function dateRange(start, end) {
+  if (start && end) {
+    return `${start} to ${end}`;
+  }
+  return start || end || "";
 }
 
 function cookieValue(name) {

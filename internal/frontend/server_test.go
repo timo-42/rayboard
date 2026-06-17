@@ -27,6 +27,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, "Engine Workbench") ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
+		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
 		!strings.Contains(body, `id="account-panel"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
@@ -166,6 +167,43 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".search-panel",
 		".search-results",
 		".saved-view-list",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsSprints(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadSprints",
+		"renderSprints",
+		"normalizeSprint",
+		"/api/projects/${state.selectedProject.id}/sprints",
+		"/api/sprints/${start.dataset.startSprintId}/start",
+		"/api/sprints/${complete.dataset.completeSprintId}/complete",
+		"/api/tickets/${assignSprint.dataset.assignSprintId}/sprint",
+		"data-ticket-sprint-control",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".sprint-panel",
+		".sprint-form",
+		".sprint-item",
+		".ticket-sprint",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

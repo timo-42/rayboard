@@ -689,6 +689,123 @@ p {
   background: var(--primary-soft);
 }
 
+.sprint-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.sprint-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sprint-header h2 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.sprint-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.2fr) 150px 150px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.sprint-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sprint-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.sprint-item[data-sprint-state="active"] {
+  border-left-color: var(--primary-strong);
+  background: var(--primary-soft);
+}
+
+.sprint-item[data-sprint-state="completed"] {
+  border-left-color: var(--muted);
+  opacity: 0.78;
+}
+
+.sprint-item-body {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.sprint-item p,
+.sprint-heading {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.sprint-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sprint-actions,
+.ticket-sprint-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sprint-actions button,
+.ticket-sprint-controls button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.sprint-actions button:hover:not(:disabled),
+.ticket-sprint-controls button:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.sprint-actions button:disabled,
+.ticket-sprint-controls button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.ticket-sprint {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.ticket-sprint-controls select {
+  min-width: 0;
+  flex: 1 1 150px;
+  min-height: 30px;
+  font-size: 12px;
+}
+
 .search-panel {
   display: grid;
   gap: 12px;
@@ -1043,6 +1160,7 @@ p {
   .search-form,
   .saved-view-form,
   .search-grid,
+  .sprint-form,
   .account-grid,
   .token-form,
   .engine-form-row,
