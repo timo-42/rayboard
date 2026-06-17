@@ -74,10 +74,13 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
 	}
-	for _, scheme := range []string{"bearerToken", "sessionCookie"} {
+	for _, scheme := range []string{"bearerToken"} {
 		if _, ok := body.Components.SecuritySchemes[scheme]; !ok {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
+	}
+	if _, ok := body.Components.SecuritySchemes["sessionCookie"]; ok {
+		t.Fatalf("sessionCookie should not be a Swagger authorization scheme; browser cookies are sent automatically")
 	}
 	if _, ok := body.Components.SecuritySchemes["csrfToken"]; ok {
 		t.Fatalf("csrfToken should not be a Swagger authorization scheme; it is auto-sent from the CSRF cookie for session auth")
@@ -497,7 +500,6 @@ func assertOperationSecurity(t *testing.T, path string, method string, operation
 		t.Fatalf("expected %s %s to declare auth security", strings.ToUpper(method), path)
 	}
 	hasBearerOnly := false
-	hasSessionOnly := false
 	for _, item := range security {
 		requirement, ok := item.(map[string]any)
 		if !ok {
@@ -509,18 +511,15 @@ func assertOperationSecurity(t *testing.T, path string, method string, operation
 		if hasBearer && hasCSRF {
 			t.Fatalf("expected %s %s bearer auth not to require CSRF: %#v", strings.ToUpper(method), path, security)
 		}
+		if hasSession || hasCSRF {
+			t.Fatalf("expected %s %s Swagger auth to expose only bearer tokens; browser cookies and CSRF are automatic: %#v", strings.ToUpper(method), path, security)
+		}
 		if hasBearer && !hasSession && !hasCSRF {
 			hasBearerOnly = true
-		}
-		if hasSession && !hasBearer && !hasCSRF {
-			hasSessionOnly = true
 		}
 	}
 	if !hasBearerOnly {
 		t.Fatalf("expected %s %s to allow bearer-token auth without CSRF: %#v", strings.ToUpper(method), path, security)
-	}
-	if !hasSessionOnly {
-		t.Fatalf("expected %s %s to allow session-cookie auth; mutating session requests enforce CSRF in middleware: %#v", strings.ToUpper(method), path, security)
 	}
 }
 

@@ -560,6 +560,41 @@
             <div id="preference-status" class="settings-status"></div>
           </section>
 
+          <section class="settings-card notification-admin-card">
+            <h3>Project Notifications</h3>
+            <form id="project-preference-form" class="preference-form">
+              <label>
+                Project
+                <select id="project-preference-project" name="project_id"></select>
+              </label>
+              <label class="inline-toggle"><input name="in_app_enabled" type="checkbox"> In-app</label>
+              <label class="inline-toggle"><input name="external_enabled" type="checkbox"> External</label>
+              <label class="inline-toggle"><input name="assignment_enabled" type="checkbox"> Assignments</label>
+              <label class="inline-toggle"><input name="comment_enabled" type="checkbox"> Comments</label>
+              <label class="inline-toggle"><input name="status_change_enabled" type="checkbox"> Status changes</label>
+              <label class="inline-toggle"><input name="sprint_change_enabled" type="checkbox"> Sprint changes</label>
+              <label class="inline-toggle"><input name="release_change_enabled" type="checkbox"> Release changes</label>
+              <label class="inline-toggle"><input name="automation_failure_enabled" type="checkbox"> Automation failures</label>
+              <button type="submit">Save project defaults</button>
+            </form>
+            <form id="notification-delivery-form" class="notification-delivery-form">
+              <select id="notification-delivery-project" name="project_id"></select>
+              <select name="status">
+                <option value="">Any status</option>
+                <option value="pending">Pending</option>
+                <option value="claimed">Claimed</option>
+                <option value="delivered">Delivered</option>
+                <option value="failed">Failed</option>
+                <option value="canceled">Canceled</option>
+              </select>
+              <input name="policy_id" placeholder="policy id">
+              <input name="destination_id" placeholder="destination id">
+              <button type="submit">Load deliveries</button>
+            </form>
+            <div id="project-preference-status" class="settings-status"></div>
+            <div id="notification-deliveries" class="notification-delivery-list"></div>
+          </section>
+
           <section class="settings-card">
             <h3>OpenRouter Providers</h3>
             <form id="openrouter-provider-form" class="openrouter-provider-form">

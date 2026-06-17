@@ -29,7 +29,6 @@ func Operation(method string, path string, tag string, summary string) huma.Oper
 func SecurityForMethod(method string) []map[string][]string {
 	return []map[string][]string{
 		{"bearerToken": {}},
-		{"sessionCookie": {}},
 	}
 }
 

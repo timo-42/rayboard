@@ -629,7 +629,8 @@ p {
 .notification-policy-form,
 .notification-policy-edit-form,
 .notification-hook-form,
-.notification-hook-preview-form {
+.notification-hook-preview-form,
+.notification-delivery-form {
   display: grid;
   gap: 10px;
 }
@@ -652,14 +653,16 @@ p {
 
 .notification-destination-card,
 .notification-policy-card,
-.notification-hook-card {
+.notification-hook-card,
+.notification-admin-card {
   grid-column: 1 / -1;
 }
 
 .notification-destination-form,
 .notification-policy-form,
 .notification-hook-form,
-.notification-hook-preview-form {
+.notification-hook-preview-form,
+.notification-delivery-form {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
@@ -677,7 +680,8 @@ p {
 .notification-destination-list,
 .notification-policy-list,
 .notification-hook-list,
-.notification-hook-run-list {
+.notification-hook-run-list,
+.notification-delivery-list {
   display: grid;
   gap: 8px;
 }
@@ -685,7 +689,8 @@ p {
 .openrouter-provider-item,
 .notification-destination-item,
 .notification-policy-item,
-.notification-hook-item {
+.notification-hook-item,
+.notification-delivery-item {
   display: grid;
   gap: 8px;
   border: 1px solid var(--border);
@@ -698,7 +703,8 @@ p {
 .openrouter-provider-header,
 .notification-destination-header,
 .notification-policy-header,
-.notification-hook-header {
+.notification-hook-header,
+.notification-delivery-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -708,7 +714,8 @@ p {
 .openrouter-provider-item p,
 .notification-destination-item p,
 .notification-policy-item p,
-.notification-hook-item p {
+.notification-hook-item p,
+.notification-delivery-item p {
   color: var(--heading);
   font-size: 14px;
   font-weight: 700;
@@ -718,7 +725,8 @@ p {
 .openrouter-provider-item span,
 .notification-destination-item span,
 .notification-policy-item span,
-.notification-hook-item span {
+.notification-hook-item span,
+.notification-delivery-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
@@ -726,7 +734,8 @@ p {
 
 .provider-state,
 .destination-state,
-.policy-state {
+.policy-state,
+.delivery-state {
   border-radius: 999px;
   background: var(--primary-soft);
   color: var(--primary-strong) !important;
@@ -739,6 +748,44 @@ p {
 .policy-state.is-disabled {
   background: var(--subtle-bg);
   color: var(--muted) !important;
+}
+
+.delivery-state.is-delivered {
+  background: var(--subtle-bg);
+  color: var(--muted) !important;
+}
+
+.notification-delivery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notification-delivery-actions button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.notification-delivery-actions button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.notification-delivery-payload {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 8px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .openrouter-provider-edit-form,
@@ -2628,7 +2675,8 @@ p {
   .notification-policy-form,
   .notification-policy-edit-form,
   .notification-hook-form,
-  .notification-hook-preview-form {
+  .notification-hook-preview-form,
+  .notification-delivery-form {
     grid-template-columns: 1fr;
   }
 

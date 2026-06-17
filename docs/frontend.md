@@ -29,7 +29,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, and creating/deleting role bindings when the signed-in user has permission;
-- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
+- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, project notification defaults, notification delivery history/manual retry, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - project listing and project creation;
@@ -55,7 +55,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, detailed component/version editing, custom-field update forms beyond delete/recreate, and project notification defaults/delivery history are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, detailed component/version editing, and custom-field update forms beyond delete/recreate are API-only for now.
 
 Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 

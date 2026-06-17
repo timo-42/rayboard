@@ -20,7 +20,7 @@ Protected routes accept either:
 - browser session cookie plus CSRF header for mutating methods; or
 - `Authorization: Bearer <api_token>`.
 
-Swagger UI and the OpenAPI security schemes model bearer tokens as sufficient by themselves. Cookie-authenticated requests are modeled with `sessionCookie`; mutating session requests still require `X-CSRF-Token` from the `rayboard_csrf` cookie, and the embedded Swagger UI sends that header automatically when the cookie is present. Bearer-token requests do not need CSRF, even if browser cookies are also present.
+Swagger UI and the OpenAPI security schemes expose only bearer API tokens in the authorization dialog. Cookie-authenticated browser requests are still accepted at runtime; the embedded Swagger UI sends browser cookies and automatically copies `rayboard_csrf` into `X-CSRF-Token` when the cookie is present. Bearer-token requests do not need CSRF, even if browser cookies are also present.
 
 Unauthenticated API requests return `401`.
 
@@ -349,7 +349,7 @@ Saved-view responses use `metadata`, `spec`, and `status`. The view ID and times
 
 ## Notifications
 
-The first notification API slice lists in-app notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. External Shoutrrr destinations, policies, delivery history, and the background delivery worker are API/backend-only.
+The first notification API slice lists in-app notifications for the authenticated user and supports read/unread state. Runtime notification generation consumes durable `domain_events`, so pending comment and ticket-update notifications can be processed after restart. External Shoutrrr destinations, policies, delivery history/manual retry, and project notification defaults are available through the API and embedded Settings page. The background delivery worker remains backend-only.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

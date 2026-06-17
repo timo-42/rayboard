@@ -32,6 +32,8 @@ const state = {
   rbac: { users: [], groups: [], roles: [], bindings: [], members: {} },
   settings: null,
   notificationPreferences: null,
+  projectNotificationPreferences: null,
+  notificationDeliveries: [],
   auditLog: [],
   openRouterProviders: [],
   notificationDestinations: [],
@@ -45,6 +47,8 @@ const state = {
   notificationDestinationsError: "",
   notificationPoliciesError: "",
   notificationHooksError: "",
+  projectNotificationPreferencesError: "",
+  notificationDeliveriesError: "",
   cronJobs: [],
   cronRuns: {},
   cronJobsError: "",
@@ -149,6 +153,12 @@ const els = {
   notificationHookPreviewOutput: document.querySelector("#notification-hook-preview-output"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
+  projectPreferenceForm: document.querySelector("#project-preference-form"),
+  projectPreferenceProject: document.querySelector("#project-preference-project"),
+  projectPreferenceStatus: document.querySelector("#project-preference-status"),
+  notificationDeliveryForm: document.querySelector("#notification-delivery-form"),
+  notificationDeliveryProject: document.querySelector("#notification-delivery-project"),
+  notificationDeliveries: document.querySelector("#notification-deliveries"),
   notificationInbox: document.querySelector("#notification-inbox"),
   notificationCount: document.querySelector("#notification-count"),
   notificationUnreadOnly: document.querySelector("#notifications-unread-only"),
@@ -266,6 +276,8 @@ function bindEvents() {
       state.rbac = { users: [], groups: [], roles: [], bindings: [], members: {} };
       state.settings = null;
       state.notificationPreferences = null;
+      state.projectNotificationPreferences = null;
+      state.notificationDeliveries = [];
       state.auditLog = [];
       state.openRouterProviders = [];
       state.notificationDestinations = [];
@@ -279,6 +291,8 @@ function bindEvents() {
       state.notificationDestinationsError = "";
       state.notificationPoliciesError = "";
       state.notificationHooksError = "";
+      state.projectNotificationPreferencesError = "";
+      state.notificationDeliveriesError = "";
       state.cronJobs = [];
       state.cronRuns = {};
       state.cronJobsError = "";
@@ -1189,25 +1203,69 @@ function bindEvents() {
 
   els.preferenceForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
+    const form = event.currentTarget;
     await runAction(async () => {
       await api("/api/me/notification-preferences", {
         method: "PATCH",
-        body: {
-          spec: {
-            in_app_enabled: Boolean(data.in_app_enabled),
-            external_enabled: Boolean(data.external_enabled),
-            assignment_enabled: Boolean(data.assignment_enabled),
-            comment_enabled: Boolean(data.comment_enabled),
-            status_change_enabled: Boolean(data.status_change_enabled),
-            sprint_change_enabled: Boolean(data.sprint_change_enabled),
-            release_change_enabled: Boolean(data.release_change_enabled),
-            automation_failure_enabled: Boolean(data.automation_failure_enabled)
-          }
-        }
+        body: { spec: notificationPreferenceSpec(form) }
       });
       await loadNotificationPreferences();
     }, "Notification preferences saved");
+  });
+
+  els.projectPreferenceProject.addEventListener("change", async () => {
+    const project = state.projects.find((item) => item.id === els.projectPreferenceProject.value);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await runAction(async () => {
+      await Promise.all([loadProjectNotificationPreferences(), loadNotificationDeliveries()]);
+    }, "Project notification settings loaded");
+  });
+
+  els.projectPreferenceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const projectID = selectedProjectPreferenceProjectID();
+    if (!projectID) {
+      setNotice("Choose a project for notification defaults");
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/projects/${projectID}/notification-preferences`, {
+        method: "PATCH",
+        body: { spec: notificationPreferenceSpec(form) }
+      });
+      await loadProjectNotificationPreferences(projectID);
+    }, "Project notification defaults saved");
+  });
+
+  els.notificationDeliveryProject.addEventListener("change", async () => {
+    const project = state.projects.find((item) => item.id === els.notificationDeliveryProject.value);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await runAction(async () => {
+      await loadNotificationDeliveries();
+    }, "Notification deliveries loaded");
+  });
+
+  els.notificationDeliveryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runAction(async () => {
+      await loadNotificationDeliveries();
+    }, "Notification deliveries loaded");
+  });
+
+  els.notificationDeliveries.addEventListener("click", async (event) => {
+    const retry = event.target.closest("[data-retry-notification-delivery-id]");
+    if (!retry) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/notification-deliveries/${retry.dataset.retryNotificationDeliveryId}/retry`, { method: "POST" });
+      await loadNotificationDeliveries();
+    }, "Notification delivery requeued");
   });
 
   els.openRouterProviderForm.addEventListener("submit", async (event) => {
@@ -2183,6 +2241,8 @@ async function loadSettingsPage() {
   await Promise.all([
     loadGlobalSettings(),
     loadNotificationPreferences(),
+    loadProjectNotificationPreferences(),
+    loadNotificationDeliveries(),
     loadAuditLog(),
     loadOpenRouterProviders(),
     loadNotificationDestinations(),
@@ -2203,7 +2263,49 @@ async function loadGlobalSettings() {
 }
 
 async function loadNotificationPreferences() {
-  state.notificationPreferences = normalizePreferences(await api("/api/me/notification-preferences"));
+  try {
+    state.notificationPreferences = normalizePreferences(await api("/api/me/notification-preferences"));
+  } catch (_) {
+    state.notificationPreferences = null;
+  }
+  renderSettings();
+}
+
+async function loadProjectNotificationPreferences(projectID = selectedProjectPreferenceProjectID()) {
+  if (!projectID) {
+    state.projectNotificationPreferences = null;
+    state.projectNotificationPreferencesError = "Choose a project for notification defaults";
+    renderSettings();
+    return;
+  }
+  try {
+    state.projectNotificationPreferences = normalizePreferences(await api(`/api/projects/${projectID}/notification-preferences`));
+    state.projectNotificationPreferencesError = "";
+  } catch (error) {
+    state.projectNotificationPreferences = null;
+    state.projectNotificationPreferencesError = error.message || "Project notification defaults are not available";
+  }
+  renderSettings();
+}
+
+async function loadNotificationDeliveries(projectID = selectedNotificationDeliveryProjectID()) {
+  const deliveries = [];
+  const errors = [];
+  const query = notificationDeliveryQuery();
+  try {
+    deliveries.push(...listItems(await api(`/api/notification-deliveries${query}`)).map(normalizeNotificationDelivery));
+  } catch (error) {
+    errors.push(error.message || "Global delivery history is not available");
+  }
+  if (projectID) {
+    try {
+      deliveries.push(...listItems(await api(`/api/projects/${projectID}/notification-deliveries${query}`)).map(normalizeNotificationDelivery));
+    } catch (error) {
+      errors.push(error.message || "Project delivery history is not available");
+    }
+  }
+  state.notificationDeliveries = deliveries.filter(Boolean);
+  state.notificationDeliveriesError = errors.length && !state.notificationDeliveries.length ? errors.join(" / ") : "";
   renderSettings();
 }
 
@@ -3394,7 +3496,7 @@ function renderBindingSubjectOptions() {
 }
 
 function renderSettings() {
-  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm || !els.notificationDestinationForm || !els.notificationPolicyForm || !els.notificationHookForm) {
+  if (!els.settingsForm || !els.preferenceForm || !els.projectPreferenceForm || !els.auditForm || !els.openRouterProviderForm || !els.notificationDestinationForm || !els.notificationPolicyForm || !els.notificationHookForm) {
     return;
   }
 
@@ -3427,11 +3529,109 @@ function renderSettings() {
     els.preferenceStatus.textContent = "Notification preferences are not loaded";
   }
 
+  renderProjectNotificationPreferences();
+  renderNotificationDeliveries();
   renderAuditLog();
   renderOpenRouterProviders();
   renderNotificationDestinations();
   renderNotificationPolicies();
   renderNotificationHooks();
+}
+
+function renderProjectNotificationPreferences() {
+  if (!els.projectPreferenceForm || !els.projectPreferenceProject) {
+    return;
+  }
+  replaceSelectOptions(els.projectPreferenceProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.projectPreferenceProject.value = state.selectedProject.id;
+  }
+  const prefs = state.projectNotificationPreferences;
+  if (prefs) {
+    for (const key of preferenceKeys()) {
+      setFormChecked(els.projectPreferenceForm, key, Boolean(prefs[key]));
+    }
+    els.projectPreferenceStatus.textContent = prefs.customized ? "Customized project defaults" : "Using default project notification policy";
+  } else {
+    for (const key of preferenceKeys()) {
+      setFormChecked(els.projectPreferenceForm, key, false);
+    }
+    els.projectPreferenceStatus.textContent = state.projectNotificationPreferencesError || "Project defaults require notification management permission";
+  }
+}
+
+function renderNotificationDeliveries() {
+  if (!els.notificationDeliveryForm || !els.notificationDeliveries) {
+    return;
+  }
+  replaceSelectOptions(els.notificationDeliveryProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.notificationDeliveryProject.value = state.selectedProject.id;
+  }
+  els.notificationDeliveries.replaceChildren();
+  if (state.notificationDeliveriesError) {
+    const error = document.createElement("p");
+    error.className = "muted";
+    error.textContent = state.notificationDeliveriesError;
+    els.notificationDeliveries.append(error);
+    return;
+  }
+  if (!state.notificationDeliveries.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No notification deliveries";
+    els.notificationDeliveries.append(empty);
+    return;
+  }
+  for (const delivery of state.notificationDeliveries) {
+    els.notificationDeliveries.append(notificationDeliveryNode(delivery));
+  }
+}
+
+function notificationDeliveryNode(delivery) {
+  const article = document.createElement("article");
+  article.className = "notification-delivery-item";
+
+  const header = document.createElement("div");
+  header.className = "notification-delivery-header";
+  const title = document.createElement("p");
+  title.textContent = delivery.message || delivery.event_type || delivery.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = delivery.state === "delivered" ? "delivery-state is-delivered" : "delivery-state";
+  stateLabel.textContent = delivery.state || "unknown";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    delivery.scope_type === "project" ? `project ${projectLabel(delivery.project_id)}` : "global",
+    delivery.policy_name || delivery.policy_id || "",
+    delivery.destination_name || delivery.destination_id || "",
+    delivery.destination_service || "",
+    `attempts ${delivery.attempt_count}/${delivery.max_attempts || "?"}`,
+    delivery.updated_at ? `updated ${formatDateTime(delivery.updated_at)}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "notification-delivery-actions";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.dataset.retryNotificationDeliveryId = delivery.id;
+  retry.disabled = !(delivery.state === "failed" || delivery.state === "canceled");
+  retry.textContent = "Retry";
+  actions.append(retry);
+
+  article.append(header, meta, actions);
+  if (delivery.last_error) {
+    const error = document.createElement("pre");
+    error.className = "destination-error";
+    error.textContent = delivery.last_error;
+    article.append(error);
+  }
+  const payload = document.createElement("pre");
+  payload.className = "notification-delivery-payload";
+  payload.textContent = JSON.stringify(delivery.payload || {}, null, 2);
+  article.append(payload);
+  return article;
 }
 
 function renderOpenRouterProviders() {
@@ -4585,6 +4785,20 @@ function selectedNotificationHookProjectID() {
   return state.selectedProject ? state.selectedProject.id : "";
 }
 
+function selectedProjectPreferenceProjectID() {
+  if (els.projectPreferenceProject && els.projectPreferenceProject.value) {
+    return els.projectPreferenceProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
+function selectedNotificationDeliveryProjectID() {
+  if (els.notificationDeliveryProject && els.notificationDeliveryProject.value) {
+    return els.notificationDeliveryProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
 function cronJobSpec(form) {
   const data = formData(form);
   const projectID = selectedCronJobProjectID();
@@ -4664,6 +4878,25 @@ function notificationHookCollectionPath(scopeType, projectID) {
     return `/api/projects/${projectID}/notification-hooks`;
   }
   return "/api/notification-hooks";
+}
+
+function notificationDeliveryQuery() {
+  const params = new URLSearchParams();
+  if (els.notificationDeliveryForm) {
+    const data = formData(els.notificationDeliveryForm);
+    if (data.status) {
+      params.set("status", data.status);
+    }
+    if (data.policy_id) {
+      params.set("policy_id", data.policy_id);
+    }
+    if (data.destination_id) {
+      params.set("destination_id", data.destination_id);
+    }
+  }
+  params.set("limit", "20");
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
 function notificationPolicySpec(form) {
@@ -5758,6 +5991,15 @@ function preferenceKeys() {
   ];
 }
 
+function notificationPreferenceSpec(form) {
+  const data = formData(form);
+  const spec = {};
+  for (const key of preferenceKeys()) {
+    spec[key] = Boolean(data[key]);
+  }
+  return spec;
+}
+
 function auditQuery() {
   const params = new URLSearchParams();
   if (!els.auditForm) {
@@ -6217,6 +6459,40 @@ function normalizePreferences(preferences) {
     return normalized;
   }
   return preferences;
+}
+
+function normalizeNotificationDelivery(delivery) {
+  if (!delivery) {
+    return null;
+  }
+  if (delivery.metadata && delivery.spec && delivery.status) {
+    return {
+      id: delivery.metadata.id || "",
+      domain_event_id: delivery.metadata.domain_event_id || "",
+      scope_type: delivery.metadata.scope_type || "",
+      project_id: delivery.metadata.project_id || "",
+      policy_id: delivery.metadata.policy_id || "",
+      policy_name: delivery.metadata.policy_name || "",
+      destination_id: delivery.metadata.destination_id || "",
+      destination_name: delivery.metadata.destination_name || "",
+      destination_service: delivery.metadata.destination_service || "",
+      created_at: delivery.metadata.created_at || "",
+      updated_at: delivery.metadata.updated_at || "",
+      event_type: delivery.spec.event_type || "",
+      subject_type: delivery.spec.subject_type || "",
+      subject_id: delivery.spec.subject_id || "",
+      message: delivery.spec.message || "",
+      payload: delivery.spec.payload || {},
+      max_attempts: Number(delivery.spec.max_attempts || 0),
+      state: delivery.status.state || "",
+      attempt_count: Number(delivery.status.attempt_count || 0),
+      next_attempt_at: delivery.status.next_attempt_at || "",
+      last_attempt_at: delivery.status.last_attempt_at || "",
+      delivered_at: delivery.status.delivered_at || "",
+      last_error: delivery.status.last_error || ""
+    };
+  }
+  return delivery;
 }
 
 function normalizeAuditEntry(entry) {

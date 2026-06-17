@@ -16,7 +16,7 @@ Admin workflows currently available through the API:
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.
 
-The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, Shoutrrr destination management, notification policy and hook management, basic project automation/webhook administration, personal notification preferences, and security audit inspection. Lower-level notification delivery administration remains API-first while the POC UI grows.
+The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, Shoutrrr destination management, project notification defaults, notification policy and hook management, notification delivery history/manual retry, basic project automation/webhook administration, personal notification preferences, and security audit inspection.
 
 Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 
@@ -50,7 +50,7 @@ Future settings should cover:
 
 OpenRouter provider configuration is available in the browser `/settings` page and API at `/api/openrouter-providers`; both require global `ai:manage`. Provider API keys are write-only; responses return `status.api_key_set` instead of the key. The browser UI supports create, edit, enable/disable, key rotation by entering a new key, and delete.
 
-Project notification defaults are currently API-only at `/api/projects/{project_id}/notification-preferences` and require project `notifications:manage`.
+Project notification defaults are available through the browser `/settings` page and API at `/api/projects/{project_id}/notification-preferences`; both require project `notifications:manage`.
 
 Notification policy CRUD is available through the browser Settings page and the API. Global policies live under `/api/notification-policies`; project policies live under `/api/projects/{project_id}/notification-policies`. Policies validate event types and destination visibility. Delivery history is available under `/api/notification-deliveries` and `/api/projects/{project_id}/notification-deliveries`, with manual retry at `/api/notification-deliveries/{delivery_id}/retry`.
 
@@ -64,4 +64,4 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, browser and API Shoutrrr destination CRUD/test-send for global and project scopes, browser and API notification policy CRUD, delivery history/manual retry, browser and API Lua/AI notification hooks, saved-hook preview, hook run history, and a backend worker that sends due queued deliveries.
 
-Broader browser notification delivery screens and richer hook routing controls are **Planned**.
+Richer notification delivery analytics and hook routing controls are **Planned**.

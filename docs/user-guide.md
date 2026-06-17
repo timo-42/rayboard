@@ -39,8 +39,6 @@ Implemented API-only user workflows:
 - detailed sprint editing and sprint-state filtering;
 - detailed component/version editing and filtering;
 - custom field update APIs beyond browser delete/recreate;
-- project notification defaults;
-- notification delivery history/manual retry;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
 - custom ticket create-page schema resolution and submission APIs.
 
@@ -48,11 +46,11 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Saved-view metadata and notification delivery history are currently API-only workflows. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Saved-view metadata is currently an API-only workflow. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
-The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
+The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries in `/settings` or through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
 Browser badge UI and richer hook routing controls are **Planned**.
 

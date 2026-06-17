@@ -47,6 +47,9 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-hook-form"`) ||
 		!strings.Contains(body, `id="notification-hooks"`) ||
 		!strings.Contains(body, `id="notification-hook-preview-output"`) ||
+		!strings.Contains(body, `id="project-preference-form"`) ||
+		!strings.Contains(body, `id="notification-delivery-form"`) ||
+		!strings.Contains(body, `id="notification-deliveries"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="cron-job-form"`) ||
 		!strings.Contains(body, `id="cron-jobs"`) ||
@@ -128,6 +131,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderRBAC",
 		"renderSettings",
 		"renderAuditLog",
+		"renderProjectNotificationPreferences",
+		"renderNotificationDeliveries",
 		"renderBacklog",
 		"renderWorkflowPanel",
 		"renderTicketHooks",
@@ -145,6 +150,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadNotificationDestinations",
 		"loadNotificationPolicies",
 		"loadNotificationHooks",
+		"loadProjectNotificationPreferences",
+		"loadNotificationDeliveries",
 		"loadCronJobs",
 		"loadWebhooks",
 		"loadTicketHooks",
@@ -155,6 +162,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"normalizeNotificationPolicy",
 		"normalizeNotificationHook",
 		"normalizeNotificationHookRun",
+		"normalizeNotificationDelivery",
 		"normalizeCronJob",
 		"normalizeWebhook",
 		"normalizeTicketHook",
@@ -167,6 +175,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"webhookSpec",
 		"ticketHookSpec",
 		"ticketHookPreviewSpec",
+		"notificationPreferenceSpec",
 		"createPageSpec",
 		"rbacUserForm",
 		"rbacGroupForm",
@@ -194,6 +203,11 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/projects/${projectID}/notification-hooks",
 		"/api/notification-hooks/${preview.dataset.previewNotificationHookId}/preview",
 		"data-delete-notification-hook-id",
+		"/api/projects/${projectID}/notification-preferences",
+		"/api/notification-deliveries${query}",
+		"/api/projects/${projectID}/notification-deliveries${query}",
+		"/api/notification-deliveries/${retry.dataset.retryNotificationDeliveryId}/retry",
+		"data-retry-notification-delivery-id",
 		"/api/projects/${state.selectedProject.id}/backlog",
 		"data-backlog-move-id",
 		"/api/projects/${state.selectedProject.id}/statuses",
@@ -248,6 +262,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-hook-form",
 		".notification-hook-list",
 		".notification-hook-preview",
+		".notification-admin-card",
+		".notification-delivery-form",
+		".notification-delivery-list",
+		".notification-delivery-item",
 		".backlog-panel",
 		".backlog-list",
 		".workflow-panel",
