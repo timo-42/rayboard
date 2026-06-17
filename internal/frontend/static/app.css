@@ -2117,6 +2117,75 @@ p {
   text-transform: uppercase;
 }
 
+.create-page-view {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.create-page-submit-form {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
+.create-page-description {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.create-page-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.create-page-field span {
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.create-page-submit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.create-page-submit-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.create-page-result {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary-soft);
+  padding: 10px;
+}
+
+.create-page-result a {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.create-page-result span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .account-grid {
   min-width: 0;
   display: grid;

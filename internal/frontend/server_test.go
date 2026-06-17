@@ -28,6 +28,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="app-nav"`) ||
 		!strings.Contains(body, `id="dashboard-view"`) ||
 		!strings.Contains(body, `id="issue-view"`) ||
+		!strings.Contains(body, `id="create-page-view"`) ||
+		!strings.Contains(body, `id="create-page-submit-form"`) ||
 		!strings.Contains(body, `id="rbac-panel"`) ||
 		!strings.Contains(body, `id="rbac-user-form"`) ||
 		!strings.Contains(body, `id="rbac-group-form"`) ||
@@ -80,6 +82,7 @@ func TestAppPageRoutesRenderShell(t *testing.T) {
 		"/projects",
 		"/projects/project_demo",
 		"/issues/ticket_demo",
+		"/projects/project_demo/create/bug-intake",
 		"/profile",
 		"/rbac",
 		"/admin/rbac",
@@ -121,6 +124,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"navigate",
 		"renderDashboard",
 		"renderIssue",
+		"renderCreatePageView",
 		"renderRBAC",
 		"renderSettings",
 		"renderAuditLog",
@@ -129,6 +133,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderTicketHooks",
 		"loadDashboardSummaries",
 		"loadSelectedIssue",
+		"loadCreatePageForRoute",
 		"loadRBAC",
 		"loadSettingsPage",
 		"loadBacklog",
@@ -154,6 +159,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"normalizeWebhook",
 		"normalizeTicketHook",
 		"normalizeCreatePage",
+		"normalizeCreatePageSchema",
 		"normalizeWorkflowStatus",
 		"normalizeBoard",
 		"normalizeBoardTickets",
@@ -205,6 +211,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
 		"data-delete-ticket-hook-id",
 		"/api/projects/${projectID}/ticket-create-pages?include_disabled=true&limit=100",
+		"/api/projects/${projectID}/ticket-create-pages/${encodeURIComponent(slug)}/schema",
+		"/api/projects/${route.projectID}/ticket-create-pages/${encodeURIComponent(route.slug)}/submit",
+		"/projects/${encodeURIComponent(page.project_id)}/create/${encodeURIComponent(page.slug)}",
 		"/api/ticket-create-pages/${toggle.dataset.toggleCreatePageId}",
 		"data-delete-create-page-id",
 		"/api/me/notification-preferences",
@@ -219,6 +228,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".dashboard-view",
 		".metric-grid",
 		".issue-view",
+		".create-page-view",
+		".create-page-submit-form",
+		".create-page-result",
 		".rbac-panel",
 		".admin-form",
 		".admin-actions",

@@ -21,7 +21,7 @@ Lua-capable surfaces:
 - generic engine tests: dry-run Lua/AI execution with supplied JSON input, `context`, `input`, JSON helpers, `rayboard.log`, source redaction, and run history implemented;
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: Lua runner, management API, preview API, and basic `/automation` browser management implemented;
-- custom ticket create pages: static definition/submit API plus saved Lua and OpenRouter AI schema/default transformation implemented; basic project management UI implemented, browser rendering/submission still **Planned**;
+- custom ticket create pages: static definition/submit API plus saved Lua and OpenRouter AI schema/default transformation implemented; basic project management UI and browser rendering/submission implemented;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
 - notification hooks: Lua/AI suppress/transform/route slice, saved-hook preview, run history, and basic Settings-page browser management implemented; richer routing is **Planned**.

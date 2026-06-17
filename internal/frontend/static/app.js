@@ -3,6 +3,8 @@ const state = {
   projects: [],
   selectedProject: null,
   selectedIssue: null,
+  selectedCreatePageSchema: null,
+  createPageSubmission: null,
   tickets: [],
   projectSummaries: [],
   recentTickets: [],
@@ -103,6 +105,10 @@ const els = {
   issueTitle: document.querySelector("#issue-title"),
   issueProjectLink: document.querySelector("#issue-project-link"),
   issueDetail: document.querySelector("#issue-detail"),
+  createPageView: document.querySelector("#create-page-view"),
+  createPageTitle: document.querySelector("#create-page-title"),
+  createPageProjectLink: document.querySelector("#create-page-project-link"),
+  createPageSubmitForm: document.querySelector("#create-page-submit-form"),
   rbacPanel: document.querySelector("#rbac-panel"),
   rbacRefresh: document.querySelector("#rbac-refresh"),
   rbacUserForm: document.querySelector("#rbac-user-form"),
@@ -231,6 +237,8 @@ function bindEvents() {
       state.projects = [];
       state.selectedProject = null;
       state.selectedIssue = null;
+      state.selectedCreatePageSchema = null;
+      state.createPageSubmission = null;
       state.tickets = [];
       state.projectSummaries = [];
       state.recentTickets = [];
@@ -1601,6 +1609,30 @@ function bindEvents() {
   });
 
   document.addEventListener("submit", async (event) => {
+    const createPageForm = event.target.closest("#create-page-submit-form");
+    if (createPageForm) {
+      event.preventDefault();
+      const route = currentRoute();
+      if (route.page !== "create-page" || !state.selectedCreatePageSchema) {
+        setNotice("Create page is not loaded");
+        return;
+      }
+      const ticket = createPageTicketSpec(createPageForm, state.selectedCreatePageSchema);
+      await runAction(async () => {
+        const created = normalizeTicket(await api(`/api/projects/${route.projectID}/ticket-create-pages/${encodeURIComponent(route.slug)}/submit`, {
+          method: "POST",
+          body: { spec: { ticket } }
+        }));
+        state.createPageSubmission = created;
+        if (state.selectedProject && state.selectedProject.id === route.projectID) {
+          await loadBacklog();
+          await loadTickets();
+        }
+        renderCreatePageView();
+      }, "Ticket created");
+      return;
+    }
+
     if (!event.target.closest("#ticket-columns, #issue-detail")) {
       return;
     }
@@ -1681,6 +1713,14 @@ function currentRoute() {
   if (path === "/projects") {
     return { page: "projects" };
   }
+  const createPageMatch = path.match(/^\/projects\/([^/]+)\/create\/([^/]+)$/);
+  if (createPageMatch) {
+    return {
+      page: "create-page",
+      projectID: decodeURIComponent(createPageMatch[1]),
+      slug: decodeURIComponent(createPageMatch[2])
+    };
+  }
   if (path.startsWith("/projects/")) {
     return { page: "projects", projectID: decodeURIComponent(path.slice("/projects/".length)) };
   }
@@ -1703,6 +1743,11 @@ async function loadRouteData() {
     }
     return;
   }
+  if (route.page === "create-page" && route.projectID && route.slug) {
+    state.selectedProject = state.projects.find((project) => project.id === route.projectID) || state.selectedProject;
+    await loadCreatePageForRoute(route.projectID, route.slug);
+    return;
+  }
   if (route.page === "issue" && route.ticketID) {
     await loadSelectedIssue(route.ticketID);
     return;
@@ -1721,6 +1766,13 @@ async function loadRouteData() {
     }
     await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
   }
+}
+
+async function loadCreatePageForRoute(projectID, slug) {
+  state.selectedCreatePageSchema = normalizeCreatePageSchema(
+    await api(`/api/projects/${projectID}/ticket-create-pages/${encodeURIComponent(slug)}/schema`)
+  );
+  state.createPageSubmission = null;
 }
 
 async function refreshSession() {
@@ -2410,6 +2462,7 @@ function render() {
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn || route.page !== "projects";
   els.issueView.hidden = !signedIn || route.page !== "issue";
+  els.createPageView.hidden = !signedIn || route.page !== "create-page";
   els.ticketForm.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.sessionState.textContent = signedIn ? state.user.username : "Signed out";
 
@@ -2418,6 +2471,7 @@ function render() {
   renderProjects();
   renderTickets();
   renderIssue();
+  renderCreatePageView();
   renderNotifications();
   renderBacklog();
   renderWorkflowPanel();
@@ -4411,7 +4465,12 @@ function createPageNode(page) {
   remove.dataset.deleteCreatePageId = page.id;
   remove.textContent = "Delete";
 
-  actions.append(schema, toggle, remove);
+  const open = document.createElement("a");
+  open.className = "text-link";
+  open.href = `/projects/${encodeURIComponent(page.project_id)}/create/${encodeURIComponent(page.slug)}`;
+  open.textContent = "Open";
+
+  actions.append(open, schema, toggle, remove);
   article.append(header, meta, actions);
 
   if (page.description) {
@@ -4894,6 +4953,231 @@ function renderIssue() {
     attachmentNode(ticket),
     activityNode(ticket)
   );
+}
+
+function renderCreatePageView() {
+  if (!els.createPageSubmitForm) {
+    return;
+  }
+  const route = currentRoute();
+  const schema = state.selectedCreatePageSchema;
+  els.createPageSubmitForm.replaceChildren();
+  if (!schema || route.page !== "create-page") {
+    els.createPageTitle.textContent = "Create Ticket";
+    els.createPageProjectLink.href = "/projects";
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Choose a create page.";
+    els.createPageSubmitForm.append(empty);
+    return;
+  }
+
+  els.createPageTitle.textContent = schema.name || "Create Ticket";
+  els.createPageProjectLink.href = `/projects/${encodeURIComponent(schema.project_id)}`;
+  els.createPageProjectLink.textContent = projectName(schema.project_id) || "Project";
+
+  if (schema.description) {
+    const description = document.createElement("p");
+    description.className = "create-page-description";
+    description.textContent = schema.description;
+    els.createPageSubmitForm.append(description);
+  }
+
+  for (const field of createPageFields(schema)) {
+    els.createPageSubmitForm.append(createPageFieldNode(field, schema.defaults));
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "create-page-submit-actions";
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Create ticket";
+  actions.append(submit);
+  els.createPageSubmitForm.append(actions);
+
+  if (state.createPageSubmission) {
+    const result = document.createElement("article");
+    result.className = "create-page-result";
+    const title = document.createElement("p");
+    const link = document.createElement("a");
+    link.href = `/issues/${encodeURIComponent(state.createPageSubmission.id)}`;
+    link.textContent = `${state.createPageSubmission.key || state.createPageSubmission.id} ${state.createPageSubmission.title || ""}`;
+    title.append(link);
+    const meta = document.createElement("span");
+    meta.textContent = [state.createPageSubmission.status, state.createPageSubmission.type, state.createPageSubmission.priority].filter(Boolean).join(" / ");
+    result.append(title, meta);
+    els.createPageSubmitForm.append(result);
+  }
+}
+
+function createPageFields(schema) {
+  const fields = Array.isArray(schema.field_layout) && schema.field_layout.length
+    ? schema.field_layout.map(normalizeCreatePageField).filter((field) => field.key && !field.hidden)
+    : [];
+  if (!fields.some((field) => field.key === "title")) {
+    fields.unshift({ key: "title", label: "Title", type: "text", required: true, options: [] });
+  }
+  if (!fields.some((field) => field.key === "description")) {
+    fields.push({ key: "description", label: "Description", type: "textarea", required: false, options: [] });
+  }
+  return fields;
+}
+
+function normalizeCreatePageField(field) {
+  const key = String(field.key || "").trim();
+  return {
+    key,
+    label: String(field.label || field.name || titleize(key)).trim(),
+    type: String(field.type || "text").trim().toLowerCase(),
+    required: Boolean(field.required),
+    hidden: Boolean(field.hidden),
+    options: Array.isArray(field.options) ? field.options.map(String) : []
+  };
+}
+
+function createPageFieldNode(field, defaults) {
+  const label = document.createElement("label");
+  label.className = "create-page-field";
+  const text = document.createElement("span");
+  text.textContent = field.required ? `${field.label} *` : field.label;
+  label.append(text, createPageFieldControl(field, defaults));
+  return label;
+}
+
+function createPageFieldControl(field, defaults) {
+  const defaultValue = createPageDefaultValue(defaults, field.key);
+  let control;
+  if (field.type === "textarea" || field.type === "markdown" || field.key === "description" || field.key === "custom_fields") {
+    control = document.createElement("textarea");
+    control.rows = field.key === "custom_fields" ? 4 : 3;
+  } else if (field.type === "select" || field.type === "single-select" || field.type === "single_select") {
+    control = document.createElement("select");
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Choose";
+    control.append(empty);
+    for (const option of field.options) {
+      const item = document.createElement("option");
+      item.value = option;
+      item.textContent = option;
+      control.append(item);
+    }
+  } else {
+    control = document.createElement("input");
+    if (field.type === "date" || field.key === "start_date" || field.key === "due_date") {
+      control.type = "date";
+    } else if (field.type === "number") {
+      control.type = "number";
+    } else if (field.type === "checkbox" || field.type === "boolean") {
+      control.type = "checkbox";
+    } else {
+      control.type = "text";
+    }
+  }
+  control.name = field.key;
+  control.dataset.createPageField = field.key;
+  control.dataset.createPageFieldType = field.type;
+  control.required = field.required && control.type !== "checkbox";
+  if (control.type === "checkbox") {
+    control.checked = Boolean(defaultValue);
+  } else if (defaultValue !== undefined && defaultValue !== null) {
+    control.value = createPageDisplayValue(defaultValue);
+  }
+  return control;
+}
+
+function createPageDefaultValue(defaults, key) {
+  if (!defaults || typeof defaults !== "object") {
+    return "";
+  }
+  if (Object.prototype.hasOwnProperty.call(defaults, key)) {
+    return defaults[key];
+  }
+  if (defaults.custom_fields && typeof defaults.custom_fields === "object" && Object.prototype.hasOwnProperty.call(defaults.custom_fields, key)) {
+    return defaults.custom_fields[key];
+  }
+  return "";
+}
+
+function createPageDisplayValue(value) {
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  if (value && typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
+function createPageTicketSpec(form, schema) {
+  const ticket = {};
+  const customFields = {};
+  if (schema && schema.defaults && schema.defaults.custom_fields && typeof schema.defaults.custom_fields === "object") {
+    Object.assign(customFields, schema.defaults.custom_fields);
+  }
+  for (const control of form.querySelectorAll("[data-create-page-field]")) {
+    const key = control.dataset.createPageField;
+    const fieldType = control.dataset.createPageFieldType || "text";
+    const value = createPageControlValue(control, fieldType);
+    if (value === "" || value === undefined || value === null) {
+      continue;
+    }
+    if (key === "labels") {
+      ticket.labels = Array.isArray(value) ? value : parseLabels(value);
+    } else if (key === "custom_fields") {
+      Object.assign(customFields, parseJSONField(value, "Custom fields JSON"));
+    } else if (ticketFieldKeys().has(key)) {
+      ticket[key] = value;
+    } else {
+      customFields[key] = value;
+    }
+  }
+  if (Object.keys(customFields).length) {
+    ticket.custom_fields = customFields;
+  }
+  return ticket;
+}
+
+function createPageControlValue(control, fieldType) {
+  if (control.type === "checkbox") {
+    return control.checked;
+  }
+  const value = control.value.trim();
+  if (!value) {
+    return "";
+  }
+  if (fieldType === "number") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+  if (fieldType === "json" || fieldType === "object") {
+    return parseJSONField(value, `${control.name} JSON`);
+  }
+  return value;
+}
+
+function ticketFieldKeys() {
+  return new Set([
+    "title",
+    "description",
+    "status",
+    "priority",
+    "type",
+    "assignee_id",
+    "parent_ticket_id",
+    "sprint_id",
+    "component_id",
+    "version_id",
+    "rank",
+    "start_date",
+    "due_date"
+  ]);
+}
+
+function titleize(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function ticketNode(ticket) {
@@ -6004,6 +6288,28 @@ function normalizeCreatePage(page) {
     };
   }
   return page;
+}
+
+function normalizeCreatePageSchema(schema) {
+  if (!schema) {
+    return null;
+  }
+  if (schema.metadata && schema.spec && schema.status) {
+    return {
+      page_id: schema.metadata.page_id || "",
+      project_id: schema.metadata.project_id || "",
+      slug: schema.metadata.slug || schema.spec.slug || "",
+      name: schema.spec.name || "",
+      description: schema.spec.description || "",
+      enabled: Boolean(schema.status.enabled || schema.spec.enabled),
+      target_type: schema.spec.target_type || "",
+      target_status: schema.spec.target_status || "",
+      field_layout: schema.spec.field_layout || [],
+      defaults: schema.spec.defaults || {},
+      owner_user_id: schema.spec.owner_user_id || ""
+    };
+  }
+  return schema;
 }
 
 function normalizeCronJob(job) {
