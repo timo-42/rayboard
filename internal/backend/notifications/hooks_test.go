@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/events"
 )
 
@@ -16,7 +17,7 @@ func TestNotificationHookLuaSuppressesDelivery(t *testing.T) {
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
 
 	eventStore := events.NewStore(db.SQL)
-	service := NewService(db.SQL, WithEventStore(eventStore))
+	service := NewService(db.SQL, WithEventStore(eventStore), WithRunStore(automation.NewRunStore(db.SQL)))
 	destination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
 		Name:        "global",
 		ScopeType:   DestinationScopeGlobal,
@@ -61,6 +62,54 @@ func TestNotificationHookLuaSuppressesDelivery(t *testing.T) {
 	}
 }
 
+func TestNotificationHookPreviewRecordsRun(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	seedNotificationUser(t, ctx, db, "actor")
+
+	service := NewService(db.SQL, WithRunStore(automation.NewRunStore(db.SQL)))
+	hook, err := service.CreateHook(ctx, CreateHookInput{
+		Name:        "preview",
+		ScopeType:   PolicyScopeGlobal,
+		ActorUserID: "actor",
+		EventTypes:  []string{"comment_added"},
+		Enabled:     true,
+		Engine: HookEngine{Type: HookEngineLua, Script: `
+return {
+  message = "Preview " .. notification.plan.message,
+  payload = { seen = notification.plan.payload.ticket_id },
+  destination_ids = { notification.policy.destination_ids[1] }
+}
+`},
+	})
+	if err != nil {
+		t.Fatalf("create notification hook: %v", err)
+	}
+
+	result, err := service.PreviewHook(ctx, hook.ID, PreviewHookInput{
+		EventType:      "comment_added",
+		Message:        "comment",
+		Payload:        map[string]any{"ticket_id": "ticket-1"},
+		DestinationIDs: []string{"dest-1", "dest-2"},
+	})
+	if err != nil {
+		t.Fatalf("preview notification hook: %v", err)
+	}
+	if result.Run.ID == "" || result.Run.Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected preview run: %#v", result.Run)
+	}
+	if result.Plan.Message != "Preview comment" || result.Plan.Payload["seen"] != "ticket-1" || len(result.Plan.DestinationIDs) != 1 || result.Plan.DestinationIDs[0] != "dest-1" {
+		t.Fatalf("unexpected preview plan: %#v", result.Plan)
+	}
+	runs, err := service.ListHookRuns(ctx, hook.ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list hook runs: %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != result.Run.ID || runs[0].TriggerType != "notification_hook_preview" {
+		t.Fatalf("unexpected hook runs: %#v", runs)
+	}
+}
+
 func TestNotificationHookLuaTransformsAndRoutesDelivery(t *testing.T) {
 	ctx := context.Background()
 	db := openNotificationTestDB(t, ctx)
@@ -70,7 +119,7 @@ func TestNotificationHookLuaTransformsAndRoutesDelivery(t *testing.T) {
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
 
 	eventStore := events.NewStore(db.SQL)
-	service := NewService(db.SQL, WithEventStore(eventStore))
+	service := NewService(db.SQL, WithEventStore(eventStore), WithRunStore(automation.NewRunStore(db.SQL)))
 	globalDestination := mustNotificationDestination(t, ctx, service, CreateDestinationInput{
 		Name:        "global",
 		ScopeType:   DestinationScopeGlobal,
@@ -155,5 +204,23 @@ return {
 	}
 	if delivery.Payload["hooked"] != true || delivery.Payload["ticket_id"] != "ticket-1" {
 		t.Fatalf("unexpected transformed payload: %#v", delivery.Payload)
+	}
+	runs, err := service.ListHookRuns(ctx, "not-a-hook", 10, 0)
+	if err == nil || len(runs) != 0 {
+		t.Fatalf("expected missing hook run lookup to fail, got runs=%#v err=%v", runs, err)
+	}
+	hooks, err := service.ListHooks(ctx, ListHooksInput{ScopeType: PolicyScopeProject, ProjectID: "project-1"})
+	if err != nil {
+		t.Fatalf("list hooks: %v", err)
+	}
+	if len(hooks) != 1 {
+		t.Fatalf("expected one hook, got %#v", hooks)
+	}
+	runs, err = service.ListHookRuns(ctx, hooks[0].ID, 10, 0)
+	if err != nil {
+		t.Fatalf("list hook runs: %v", err)
+	}
+	if len(runs) != 1 || runs[0].TriggerType != "notification_hook" || runs[0].Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected recorded hook runs: %#v", runs)
 	}
 }

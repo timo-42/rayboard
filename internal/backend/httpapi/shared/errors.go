@@ -7,6 +7,7 @@ import (
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/cronjobs"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
@@ -142,7 +143,11 @@ func NotificationError(err error) error {
 	switch {
 	case errors.Is(err, notifications.ErrValidation):
 		return huma.Error400BadRequest("Validation failed")
+	case errors.Is(err, automation.ErrValidation):
+		return huma.Error400BadRequest("Validation failed")
 	case errors.Is(err, notifications.ErrNotFound):
+		return huma.Error404NotFound("Resource was not found")
+	case errors.Is(err, automation.ErrNotFound):
 		return huma.Error404NotFound("Resource was not found")
 	case errors.Is(err, authz.ErrForbidden):
 		return huma.Error403Forbidden("Permission denied")

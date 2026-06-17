@@ -453,9 +453,11 @@ Notification hooks are API-only global/project automation rules that run after a
 | `POST` | `/api/projects/{project_id}/notification-hooks` | Creates a project notification hook. |
 | `GET` | `/api/notification-hooks/{hook_id}` | Gets one notification hook. |
 | `PATCH` | `/api/notification-hooks/{hook_id}` | Updates a notification hook. |
+| `POST` | `/api/notification-hooks/{hook_id}/preview` | Executes a saved hook against a supplied sample notification plan and returns the transformed plan plus run metadata. |
+| `GET` | `/api/notification-hooks/{hook_id}/runs` | Lists saved hook preview and event-triggered execution history. |
 | `DELETE` | `/api/notification-hooks/{hook_id}` | Soft-deletes and disables a notification hook. |
 
-Dashboard/view notification policies, recipient rules, hook preview/run-history endpoints, and richer destination-name routing are **Planned**.
+Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigned AUTO-1","payload":{"ticket_id":"ticket_123"},"destination_ids":["dest_123"]}}`. Hook run resources use `metadata` for run identity, `spec` for trigger/input context, and `status` for state, output, error, and timestamps. Dashboard/view notification policies, recipient rules, and richer destination-name routing are **Planned**.
 
 ## Webhooks
 
@@ -586,4 +588,4 @@ AI cron jobs use the same `engine` object with an OpenRouter provider reference:
 }
 ```
 
-Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. Outgoing webhook Lua/AI shapes controlled outbound HTTP requests from domain-event context. Notification hooks use Lua/AI to suppress, transform, or narrow destination routing for notification plans before delivery rows are enqueued. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution, Lua/AI dynamic custom create-page logic, notification hook preview, and notification hook run history are **Planned**.
+Implemented cron Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the cron job owner. Incoming webhook Lua exposes the same constrained action helper set as the webhook actor. Outgoing webhook Lua/AI shapes controlled outbound HTTP requests from domain-event context. Notification hooks use Lua/AI to suppress, transform, or narrow destination routing for notification plans before delivery rows are enqueued, with saved-hook preview and run history APIs. The backend ticket-hook runner and preview API expose `context`, `ticket`, optional `current`, and `rayboard.log`. AI cron action execution and Lua/AI dynamic custom create-page logic are **Planned**.

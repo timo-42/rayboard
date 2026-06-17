@@ -83,7 +83,7 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
 		webhooks.WithOutgoingBaseURLProvider(settingsService),
 	)
-	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithOpenRouterService(openRouterService))
+	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithRunStore(runStore), notifications.WithOpenRouterService(openRouterService))
 	group.startWorker("automation-deliveries", func() error {
 		return runAutomationDeliveryProcessor(ctx, eventStore, notificationService, webhookService, stderr)
 	})
@@ -163,7 +163,7 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 		webhooks.WithOutgoingBaseURL(cfg.OutgoingWebhookBaseURL),
 		webhooks.WithOutgoingBaseURLProvider(settingsService),
 	)
-	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithOpenRouterService(openRouterService))
+	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore), notifications.WithRunStore(runStore), notifications.WithOpenRouterService(openRouterService))
 	group.startWorker("automation-deliveries", func() error {
 		return runAutomationDeliveryProcessor(ctx, eventStore, notificationService, webhookService, stderr)
 	})

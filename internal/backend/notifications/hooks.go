@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	lua "github.com/yuin/gopher-lua"
@@ -62,6 +63,46 @@ type UpdateHookInput struct {
 	EventTypes  *[]string
 	Enabled     *bool
 	Engine      *HookEngine
+}
+
+type PreviewHookInput struct {
+	PolicyID       string
+	EventType      string
+	ProjectID      string
+	SubjectType    string
+	SubjectID      string
+	Message        string
+	Payload        map[string]any
+	DestinationIDs []string
+}
+
+type PreviewHookResult struct {
+	Run  automation.Run
+	Plan HookPreviewPlan
+}
+
+type HookPreviewPlan struct {
+	EventType      string
+	ProjectID      string
+	SubjectType    string
+	SubjectID      string
+	Message        string
+	Payload        map[string]any
+	DestinationIDs []string
+	Suppressed     bool
+}
+
+func (plan HookPreviewPlan) Map() map[string]any {
+	return map[string]any{
+		"event_type":      plan.EventType,
+		"project_id":      plan.ProjectID,
+		"subject_type":    plan.SubjectType,
+		"subject_id":      plan.SubjectID,
+		"message":         plan.Message,
+		"payload":         nonNilMap(plan.Payload),
+		"destination_ids": stringAnySlice(plan.DestinationIDs),
+		"suppressed":      plan.Suppressed,
+	}
 }
 
 type hookPlan struct {
@@ -232,6 +273,89 @@ func (s *Service) DeleteHook(ctx context.Context, hookID string) error {
 	return requireRowsAffected(result, "notification hook delete")
 }
 
+func (s *Service) PreviewHook(ctx context.Context, hookID string, input PreviewHookInput) (PreviewHookResult, error) {
+	if s.runs == nil {
+		return PreviewHookResult{}, fmt.Errorf("%w: notification hook run store is not configured", ErrValidation)
+	}
+	hook, err := s.GetHook(ctx, hookID)
+	if err != nil {
+		return PreviewHookResult{}, err
+	}
+	policy, err := s.previewPolicy(ctx, hook, input)
+	if err != nil {
+		return PreviewHookResult{}, err
+	}
+	plan := hookPlan{
+		EventType:      previewEventType(input.EventType, hook.EventTypes),
+		ProjectID:      strings.TrimSpace(input.ProjectID),
+		SubjectType:    strings.TrimSpace(input.SubjectType),
+		SubjectID:      strings.TrimSpace(input.SubjectID),
+		Message:        strings.TrimSpace(input.Message),
+		Payload:        nonNilMap(input.Payload),
+		DestinationIDs: normalizeHookPreviewStrings(input.DestinationIDs),
+	}
+	if plan.ProjectID == "" {
+		plan.ProjectID = hook.ProjectID
+	}
+	if plan.Message == "" {
+		plan.Message = "Notification hook preview"
+	}
+	if len(plan.DestinationIDs) == 0 {
+		plan.DestinationIDs = append([]string(nil), policy.DestinationIDs...)
+	}
+	if plan.EventType == "" {
+		return PreviewHookResult{}, fmt.Errorf("%w: event type is required", ErrValidation)
+	}
+	if !slices.Contains(hook.EventTypes, plan.EventType) {
+		return PreviewHookResult{}, fmt.Errorf("%w: event type is not configured for notification hook", ErrValidation)
+	}
+	run, err := s.runs.Start(ctx, automation.StartInput{
+		TriggerType: "notification_hook_preview",
+		TriggerRef:  hook.ID,
+		ProjectID:   plan.ProjectID,
+		Engine:      hook.Engine.Type,
+		ActorUserID: hook.ActorUserID,
+		Input:       notificationHookRunInput(policy, plan, true),
+		Limits:      map[string]any{"timeout_seconds": 10, "dry_run": true},
+	})
+	if err != nil {
+		return PreviewHookResult{}, err
+	}
+	output, execErr := s.executeNotificationHook(ctx, hook, policy, plan)
+	resultPlan := applyHookOutput(plan, policy.DestinationIDs, output)
+	finish := automation.FinishInput{
+		Status: automation.StatusSucceeded,
+		Output: map[string]any{
+			"hook_output": output,
+			"plan":        previewPlanFromInternal(resultPlan).Map(),
+		},
+	}
+	if execErr != nil {
+		finish.Status = automation.StatusFailed
+		finish.Error = execErr.Error()
+	}
+	finished, finishErr := s.runs.Finish(ctx, run.ID, finish)
+	if finishErr != nil {
+		return PreviewHookResult{}, finishErr
+	}
+	result := PreviewHookResult{Run: finished, Plan: previewPlanFromInternal(resultPlan)}
+	if execErr != nil {
+		return result, execErr
+	}
+	return result, nil
+}
+
+func (s *Service) ListHookRuns(ctx context.Context, hookID string, limit int, offset int) ([]automation.Run, error) {
+	if s.runs == nil {
+		return nil, fmt.Errorf("%w: notification hook run store is not configured", ErrValidation)
+	}
+	hook, err := s.GetHook(ctx, hookID)
+	if err != nil {
+		return nil, err
+	}
+	return s.runs.List(ctx, automation.ListInput{TriggerRef: hook.ID, Limit: limit, Offset: offset})
+}
+
 func (s *Service) applyNotificationHooks(ctx context.Context, policy Policy, plan externalNotificationPlan) (hookPlan, error) {
 	result := hookPlan{
 		EventType:      plan.EventType,
@@ -247,7 +371,7 @@ func (s *Service) applyNotificationHooks(ctx context.Context, policy Policy, pla
 		return result, err
 	}
 	for _, hook := range hooks {
-		output, err := s.executeNotificationHook(ctx, hook, policy, result)
+		output, err := s.executeNotificationHookRecorded(ctx, hook, policy, result, "notification_hook")
 		if err != nil {
 			_ = s.recordHookResult(ctx, hook.ID, err.Error())
 			return result, err
@@ -259,6 +383,113 @@ func (s *Service) applyNotificationHooks(ctx context.Context, policy Policy, pla
 		_ = s.recordHookResult(ctx, hook.ID, "")
 	}
 	return result, nil
+}
+
+func (s *Service) executeNotificationHookRecorded(ctx context.Context, hook Hook, policy Policy, plan hookPlan, triggerType string) (map[string]any, error) {
+	if s.runs == nil {
+		return s.executeNotificationHook(ctx, hook, policy, plan)
+	}
+	run, err := s.runs.Start(ctx, automation.StartInput{
+		TriggerType: triggerType,
+		TriggerRef:  hook.ID,
+		ProjectID:   plan.ProjectID,
+		Engine:      hook.Engine.Type,
+		ActorUserID: hook.ActorUserID,
+		Input:       notificationHookRunInput(policy, plan, false),
+		Limits: map[string]any{
+			"timeout_seconds": 10,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	output, execErr := s.executeNotificationHook(ctx, hook, policy, plan)
+	finish := automation.FinishInput{
+		Status: automation.StatusSucceeded,
+		Output: map[string]any{
+			"hook_output": output,
+		},
+	}
+	if execErr != nil {
+		finish.Status = automation.StatusFailed
+		finish.Error = execErr.Error()
+	}
+	if _, finishErr := s.runs.Finish(ctx, run.ID, finish); finishErr != nil {
+		return nil, finishErr
+	}
+	return output, execErr
+}
+
+func (s *Service) previewPolicy(ctx context.Context, hook Hook, input PreviewHookInput) (Policy, error) {
+	if strings.TrimSpace(input.PolicyID) != "" {
+		policy, err := s.GetPolicy(ctx, input.PolicyID)
+		if err != nil {
+			return Policy{}, err
+		}
+		return policy, nil
+	}
+	return Policy{
+		ID:             "preview",
+		Name:           "preview",
+		ScopeType:      hook.ScopeType,
+		ProjectID:      hook.ProjectID,
+		EventTypes:     append([]string(nil), hook.EventTypes...),
+		DestinationIDs: normalizeHookPreviewStrings(input.DestinationIDs),
+		Enabled:        true,
+	}, nil
+}
+
+func previewEventType(value string, allowed []string) string {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		return value
+	}
+	if len(allowed) > 0 {
+		return allowed[0]
+	}
+	return ""
+}
+
+func notificationHookRunInput(policy Policy, plan hookPlan, dryRun bool) map[string]any {
+	return map[string]any{
+		"policy_id":       policy.ID,
+		"policy_name":     policy.Name,
+		"event_type":      plan.EventType,
+		"project_id":      plan.ProjectID,
+		"subject_type":    plan.SubjectType,
+		"subject_id":      plan.SubjectID,
+		"message":         plan.Message,
+		"payload":         nonNilMap(plan.Payload),
+		"destination_ids": stringAnySlice(plan.DestinationIDs),
+		"dry_run":         dryRun,
+	}
+}
+
+func previewPlanFromInternal(plan hookPlan) HookPreviewPlan {
+	return HookPreviewPlan{
+		EventType:      plan.EventType,
+		ProjectID:      plan.ProjectID,
+		SubjectType:    plan.SubjectType,
+		SubjectID:      plan.SubjectID,
+		Message:        plan.Message,
+		Payload:        nonNilMap(plan.Payload),
+		DestinationIDs: append([]string(nil), plan.DestinationIDs...),
+		Suppressed:     plan.Suppressed,
+	}
+}
+
+func normalizeHookPreviewStrings(values []string) []string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	return result
 }
 
 func (s *Service) matchingHooks(ctx context.Context, eventType string, projectID string) ([]Hook, error) {

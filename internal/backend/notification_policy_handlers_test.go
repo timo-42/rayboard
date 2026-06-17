@@ -9,6 +9,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 )
 
@@ -114,7 +115,7 @@ func TestNotificationPolicyEndpointsRequireManagePermission(t *testing.T) {
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
-		WithNotificationService(notifications.NewService(db.SQL)),
+		WithNotificationService(notifications.NewService(db.SQL, notifications.WithRunStore(automation.NewRunStore(db.SQL)))),
 	)
 	login := postJSON(t, handler, "/api/login", map[string]string{
 		"username": user.Username,
@@ -142,7 +143,7 @@ func TestNotificationHookEndpoints(t *testing.T) {
 	handler := NewHandler(
 		WithAuthService(authService),
 		WithAuthorizer(authz.NewSQLEvaluator(db.SQL)),
-		WithNotificationService(notifications.NewService(db.SQL)),
+		WithNotificationService(notifications.NewService(db.SQL, notifications.WithRunStore(automation.NewRunStore(db.SQL)))),
 	)
 	login := postJSON(t, handler, "/api/login", map[string]string{
 		"username": bootstrap.Username,
@@ -194,6 +195,47 @@ func TestNotificationHookEndpoints(t *testing.T) {
 	updated := decodeNotificationHookResource(t, update.Body.Bytes())
 	if updated.Spec.Enabled {
 		t.Fatalf("expected disabled hook, got %#v", updated)
+	}
+
+	enableReq := httptest.NewRequest(http.MethodPatch, "/api/notification-hooks/"+created.Metadata.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{"enabled": true},
+	}))
+	addSessionCSRF(enableReq, session, csrf)
+	enable := httptest.NewRecorder()
+	handler.ServeHTTP(enable, enableReq)
+	if enable.Code != http.StatusOK {
+		t.Fatalf("expected enable hook status 200, got %d: %s", enable.Code, enable.Body.String())
+	}
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/api/notification-hooks/"+created.Metadata.ID+"/preview", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"event_type":      "comment_added",
+			"message":         "Noisy comment",
+			"destination_ids": []string{"dest-1"},
+			"payload":         map[string]any{"ticket_id": "ticket-1"},
+		},
+	}))
+	addSessionCSRF(previewReq, session, csrf)
+	preview := httptest.NewRecorder()
+	handler.ServeHTTP(preview, previewReq)
+	if preview.Code != http.StatusOK {
+		t.Fatalf("expected preview hook status 200, got %d: %s", preview.Code, preview.Body.String())
+	}
+	previewed := decodeNotificationHookPreviewResource(t, preview.Body.Bytes())
+	if previewed.Metadata.HookID != created.Metadata.ID || previewed.Metadata.RunID == "" || previewed.Status.State != automation.StatusSucceeded || !previewed.Status.Plan.Suppressed {
+		t.Fatalf("unexpected preview result: %#v", previewed)
+	}
+
+	runsReq := httptest.NewRequest(http.MethodGet, "/api/notification-hooks/"+created.Metadata.ID+"/runs", nil)
+	runsReq.AddCookie(session)
+	runs := httptest.NewRecorder()
+	handler.ServeHTTP(runs, runsReq)
+	if runs.Code != http.StatusOK {
+		t.Fatalf("expected hook runs status 200, got %d: %s", runs.Code, runs.Body.String())
+	}
+	listedRuns := decodeNotificationHookRunList(t, runs.Body.Bytes())
+	if listedRuns.Metadata.Count != 1 || listedRuns.Status.Items[0].Metadata.ID != previewed.Metadata.RunID || listedRuns.Status.Items[0].Spec.TriggerType != "notification_hook_preview" {
+		t.Fatalf("unexpected hook run list: %#v", listedRuns)
 	}
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/notification-hooks/"+created.Metadata.ID, nil)
@@ -259,6 +301,55 @@ func decodeNotificationHookResource(t *testing.T, data []byte) notificationHookR
 	var body notificationHookResourceBody
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatalf("decode notification hook resource: %v", err)
+	}
+	return body
+}
+
+type notificationHookPreviewResourceBody struct {
+	Metadata struct {
+		HookID string `json:"hook_id"`
+		RunID  string `json:"run_id"`
+	} `json:"metadata"`
+	Status struct {
+		State string `json:"state"`
+		Plan  struct {
+			Suppressed bool `json:"suppressed"`
+		} `json:"plan"`
+	} `json:"status"`
+}
+
+func decodeNotificationHookPreviewResource(t *testing.T, data []byte) notificationHookPreviewResourceBody {
+	t.Helper()
+
+	var body notificationHookPreviewResourceBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode notification hook preview resource: %v", err)
+	}
+	return body
+}
+
+type notificationHookRunListBody struct {
+	Metadata struct {
+		Count int `json:"count"`
+	} `json:"metadata"`
+	Status struct {
+		Items []struct {
+			Metadata struct {
+				ID string `json:"id"`
+			} `json:"metadata"`
+			Spec struct {
+				TriggerType string `json:"trigger_type"`
+			} `json:"spec"`
+		} `json:"items"`
+	} `json:"status"`
+}
+
+func decodeNotificationHookRunList(t *testing.T, data []byte) notificationHookRunListBody {
+	t.Helper()
+
+	var body notificationHookRunListBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("decode notification hook run list: %v", err)
 	}
 	return body
 }

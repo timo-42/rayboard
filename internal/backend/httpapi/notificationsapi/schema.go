@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
 	"github.com/timo-42/rayboard/internal/backend/notifications"
 )
@@ -100,6 +101,19 @@ type UpdateHookInput struct {
 	Body   shared.ResourceInput[UpdateNotificationHookSpec]
 }
 
+type PreviewHookInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Notification hook ID."`
+	Body   shared.ResourceInput[PreviewNotificationHookSpec]
+}
+
+type ListHookRunsInput struct {
+	shared.AuthInput
+	HookID string `path:"hook_id" doc:"Notification hook ID."`
+	Limit  int    `query:"limit" doc:"Maximum number of runs to return."`
+	Offset int    `query:"offset" doc:"Number of runs to skip."`
+}
+
 type UpdatePolicyInput struct {
 	shared.AuthInput
 	PolicyID string `path:"policy_id" doc:"Notification policy ID."`
@@ -179,6 +193,10 @@ type ListPoliciesOutput = shared.ListOutput[PolicyResource]
 type CreatePolicyOutput = shared.CreatedOutput[PolicyResource]
 type ListHooksOutput = shared.ListOutput[NotificationHookResource]
 type CreateHookOutput = shared.CreatedOutput[NotificationHookResource]
+type PreviewHookOutput struct {
+	Body NotificationHookPreviewResource
+}
+type ListHookRunsOutput = shared.ListOutput[NotificationHookRunResource]
 type ListDeliveriesOutput = shared.ListOutput[DeliveryResource]
 type ListDestinationsOutput = shared.ListOutput[DestinationResource]
 type CreateDestinationOutput = shared.CreatedOutput[DestinationResource]
@@ -352,6 +370,68 @@ type NotificationHookStatus struct {
 }
 
 type NotificationHookResource = shared.Resource[NotificationHookMetadata, NotificationHookSpec, NotificationHookStatus]
+
+type PreviewNotificationHookSpec struct {
+	PolicyID       string         `json:"policy_id,omitempty"`
+	EventType      string         `json:"event_type,omitempty"`
+	ProjectID      string         `json:"project_id,omitempty"`
+	SubjectType    string         `json:"subject_type,omitempty"`
+	SubjectID      string         `json:"subject_id,omitempty"`
+	Message        string         `json:"message,omitempty"`
+	Payload        map[string]any `json:"payload,omitempty"`
+	DestinationIDs []string       `json:"destination_ids,omitempty"`
+}
+
+type NotificationHookPreviewMetadata struct {
+	HookID    string    `json:"hook_id"`
+	RunID     string    `json:"run_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PreviewPlan struct {
+	EventType      string         `json:"event_type"`
+	ProjectID      string         `json:"project_id,omitempty"`
+	SubjectType    string         `json:"subject_type,omitempty"`
+	SubjectID      string         `json:"subject_id,omitempty"`
+	Message        string         `json:"message"`
+	Payload        map[string]any `json:"payload"`
+	DestinationIDs []string       `json:"destination_ids"`
+	Suppressed     bool           `json:"suppressed"`
+}
+
+type NotificationHookPreviewStatus struct {
+	State          string         `json:"state"`
+	Output         map[string]any `json:"output"`
+	Plan           PreviewPlan    `json:"plan"`
+	Error          string         `json:"error,omitempty"`
+	StartedAt      *time.Time     `json:"started_at,omitempty"`
+	FinishedAt     *time.Time     `json:"finished_at,omitempty"`
+	DurationMillis int64          `json:"duration_millis,omitempty"`
+}
+
+type NotificationHookRunMetadata struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type NotificationHookRunSpec struct {
+	TriggerType string         `json:"trigger_type"`
+	TriggerRef  string         `json:"trigger_ref,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	TicketID    string         `json:"ticket_id,omitempty"`
+	Input       map[string]any `json:"input"`
+}
+
+type NotificationHookRunStatus struct {
+	State      string         `json:"state"`
+	Output     map[string]any `json:"output"`
+	Error      string         `json:"error,omitempty"`
+	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	FinishedAt *time.Time     `json:"finished_at,omitempty"`
+}
+
+type NotificationHookPreviewResource = shared.Resource[NotificationHookPreviewMetadata, PreviewNotificationHookSpec, NotificationHookPreviewStatus]
+type NotificationHookRunResource = shared.Resource[NotificationHookRunMetadata, NotificationHookRunSpec, NotificationHookRunStatus]
 
 type DeliveryMetadata struct {
 	ID                 string    `json:"id"`
@@ -580,6 +660,19 @@ func (spec UpdateNotificationHookSpec) updateInput() notifications.UpdateHookInp
 	}
 }
 
+func (spec PreviewNotificationHookSpec) previewInput() notifications.PreviewHookInput {
+	return notifications.PreviewHookInput{
+		PolicyID:       spec.PolicyID,
+		EventType:      spec.EventType,
+		ProjectID:      spec.ProjectID,
+		SubjectType:    spec.SubjectType,
+		SubjectID:      spec.SubjectID,
+		Message:        spec.Message,
+		Payload:        spec.Payload,
+		DestinationIDs: spec.DestinationIDs,
+	}
+}
+
 func (spec NotificationHookEngineSpec) toService() notifications.HookEngine {
 	return notifications.HookEngine{
 		Type:       spec.Type,
@@ -626,6 +719,84 @@ func hookResources(hooks []notifications.Hook) []NotificationHookResource {
 		resources = append(resources, hookResource(hook))
 	}
 	return resources
+}
+
+func hookPreviewResource(hookID string, spec PreviewNotificationHookSpec, result notifications.PreviewHookResult) NotificationHookPreviewResource {
+	return NotificationHookPreviewResource{
+		Metadata: NotificationHookPreviewMetadata{
+			HookID:    hookID,
+			RunID:     result.Run.ID,
+			CreatedAt: result.Run.CreatedAt,
+		},
+		Spec: spec,
+		Status: NotificationHookPreviewStatus{
+			State:          result.Run.Status,
+			Output:         runOutput(result.Run.Output),
+			Plan:           previewPlan(result.Plan),
+			Error:          result.Run.Error,
+			StartedAt:      result.Run.StartedAt,
+			FinishedAt:     result.Run.FinishedAt,
+			DurationMillis: runDurationMillis(result.Run),
+		},
+	}
+}
+
+func previewPlan(plan notifications.HookPreviewPlan) PreviewPlan {
+	return PreviewPlan{
+		EventType:      plan.EventType,
+		ProjectID:      plan.ProjectID,
+		SubjectType:    plan.SubjectType,
+		SubjectID:      plan.SubjectID,
+		Message:        plan.Message,
+		Payload:        plan.Payload,
+		DestinationIDs: plan.DestinationIDs,
+		Suppressed:     plan.Suppressed,
+	}
+}
+
+func hookRunResource(run automation.Run) NotificationHookRunResource {
+	return NotificationHookRunResource{
+		Metadata: NotificationHookRunMetadata{
+			ID:        run.ID,
+			CreatedAt: run.CreatedAt,
+		},
+		Spec: NotificationHookRunSpec{
+			TriggerType: run.TriggerType,
+			TriggerRef:  run.TriggerRef,
+			ProjectID:   run.ProjectID,
+			TicketID:    run.TicketID,
+			Input:       run.Input,
+		},
+		Status: NotificationHookRunStatus{
+			State:      run.Status,
+			Output:     run.Output,
+			Error:      run.Error,
+			StartedAt:  run.StartedAt,
+			FinishedAt: run.FinishedAt,
+		},
+	}
+}
+
+func hookRunResources(runs []automation.Run) []NotificationHookRunResource {
+	resources := make([]NotificationHookRunResource, 0, len(runs))
+	for _, run := range runs {
+		resources = append(resources, hookRunResource(run))
+	}
+	return resources
+}
+
+func runOutput(output map[string]any) map[string]any {
+	if value, ok := output["output"].(map[string]any); ok {
+		return value
+	}
+	return map[string]any{}
+}
+
+func runDurationMillis(run automation.Run) int64 {
+	if run.StartedAt == nil || run.FinishedAt == nil {
+		return 0
+	}
+	return run.FinishedAt.Sub(*run.StartedAt).Milliseconds()
 }
 
 func deliveryResource(delivery notifications.Delivery) DeliveryResource {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/openrouter"
 )
@@ -54,6 +55,7 @@ type Service struct {
 	db         *sql.DB
 	now        func() time.Time
 	eventStore *events.Store
+	runs       *automation.RunStore
 	openrouter *openrouter.Service
 }
 
@@ -81,6 +83,12 @@ func WithNow(now func() time.Time) Option {
 func WithEventStore(store *events.Store) Option {
 	return func(service *Service) {
 		service.eventStore = store
+	}
+}
+
+func WithRunStore(runStore *automation.RunStore) Option {
+	return func(service *Service) {
+		service.runs = runStore
 	}
 }
 

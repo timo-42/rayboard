@@ -2,6 +2,7 @@ package notificationsapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -33,6 +34,8 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, operation(http.MethodPost, "/api/projects/{project_id}/notification-hooks", "Notification Hooks", "Create project notification hook", http.StatusCreated), provider.createProjectHook)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Get notification hook"), provider.getHook)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Update notification hook"), provider.updateHook)
+	huma.Register(api, shared.Operation(http.MethodPost, "/api/notification-hooks/{hook_id}/preview", "Notification Hooks", "Preview notification hook"), provider.previewHook)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-hooks/{hook_id}/runs", "Notification Hooks", "List notification hook runs"), provider.listHookRuns)
 	huma.Register(api, operation(http.MethodDelete, "/api/notification-hooks/{hook_id}", "Notification Hooks", "Delete notification hook", http.StatusNoContent), provider.deleteHook)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/notification-deliveries", "Notification Deliveries", "List global notification deliveries"), provider.listGlobalDeliveries)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/notification-deliveries", "Notification Deliveries", "List project notification deliveries"), provider.listProjectDeliveries)
@@ -378,6 +381,47 @@ func (provider Provider) deleteHook(ctx context.Context, input *HookIDInput) (*s
 		return nil, shared.NotificationError(err)
 	}
 	return &shared.EmptyOutput{}, nil
+}
+
+func (provider Provider) previewHook(ctx context.Context, input *PreviewHookInput) (*PreviewHookOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	hook, err := provider.Notifications.GetHook(ctx, input.HookID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireHookManage(principal, hook); err != nil {
+		return nil, err
+	}
+	result, err := provider.Notifications.PreviewHook(ctx, input.HookID, input.Body.Spec.previewInput())
+	if err != nil && result.Run.ID == "" {
+		if errors.Is(err, notifications.ErrValidation) {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+		return nil, shared.NotificationError(err)
+	}
+	return &PreviewHookOutput{Body: hookPreviewResource(input.HookID, input.Body.Spec, result)}, nil
+}
+
+func (provider Provider) listHookRuns(ctx context.Context, input *ListHookRunsInput) (*ListHookRunsOutput, error) {
+	ctx, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	hook, err := provider.Notifications.GetHook(ctx, input.HookID)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	if err := provider.requireHookManage(principal, hook); err != nil {
+		return nil, err
+	}
+	runs, err := provider.Notifications.ListHookRuns(ctx, input.HookID, input.Limit, input.Offset)
+	if err != nil {
+		return nil, shared.NotificationError(err)
+	}
+	return &ListHookRunsOutput{Body: shared.NewListResource[NotificationHookRunResource](hookRunResources(runs))}, nil
 }
 
 func (provider Provider) listGlobalDeliveries(ctx context.Context, input *ListDeliveriesInput) (*ListDeliveriesOutput, error) {
