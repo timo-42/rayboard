@@ -21,7 +21,7 @@ Lua-capable surfaces:
 - generic engine tests: dry-run Lua/AI execution with supplied JSON input, `context`, `input`, JSON helpers, `rayboard.log`, source redaction, and run history implemented;
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: Lua runner, management API, and preview API implemented; UI still **Planned**;
-- custom ticket create pages: static definition/submit API implemented; dynamic Lua form logic and UI still **Planned**;
+- custom ticket create pages: static definition/submit API plus saved Lua schema/default transformation implemented; UI and AI form logic still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
 - notification hooks: API-only Lua/AI suppress/transform/route slice, saved-hook preview, and run history implemented; UI and richer routing are **Planned**.
@@ -198,18 +198,16 @@ return { ticket = ticket }
 
 ## Custom Create Pages
 
-Custom create pages currently expose static project-scoped definitions and submit tickets through the normal backend ticket-create path. The planned Lua layer will compute validated form schema/defaults/options. Lua must never return raw HTML.
+Custom create pages expose project-scoped definitions and submit tickets through the normal backend ticket-create path. Optional `form_lua_script` runs during schema resolution and submission. It receives `context`, `page`, `json`, `rayboard.json`, and `rayboard.log(message)`, and may return `field_layout`, `defaults`, and/or `description`. Lua must return structured form data and never raw HTML.
 
 ```lua
 return {
-  sections = {
-    {
-      title = "Request",
-      fields = {
-        { name = "title", type = "text", required = true },
-        { name = "priority", type = "single_select", options = {"Low", "Medium", "High"} }
-      }
-    }
+  field_layout = {
+    { key = "title", type = "text", required = true },
+    { key = "priority", type = "single-select", options = {"Low", "Medium", "High"} }
+  },
+  defaults = {
+    priority = "Medium"
   }
 }
 ```
@@ -286,7 +284,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
-AI execution is implemented for cron jobs, ticket hooks, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron action execution and custom create pages are still **Planned**.
+AI execution is implemented for cron jobs, ticket hooks, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron action execution and AI custom create pages are still **Planned**.
 
 ## Future WebAssembly Engine
 

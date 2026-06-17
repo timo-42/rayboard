@@ -14,6 +14,8 @@ func TestCreatePageLifecycleAndSubmit(t *testing.T) {
 	db := openMigratedDB(t, ctx)
 	seedUser(t, ctx, db.SQL, "user-admin")
 	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
 	seedUser(t, ctx, db.SQL, "user-viewer")
 	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
 
@@ -109,6 +111,8 @@ func TestCreatePagePermissionsAndConflicts(t *testing.T) {
 	db := openMigratedDB(t, ctx)
 	seedUser(t, ctx, db.SQL, "user-admin")
 	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
 	seedUser(t, ctx, db.SQL, "user-viewer")
 	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
 
@@ -142,6 +146,102 @@ func TestCreatePagePermissionsAndConflicts(t *testing.T) {
 	}
 	if _, err := pageService.Submit(ctx, principal("user-viewer"), project.ID, page.Slug, tracker.SubmitCreatePageInput{Ticket: tracker.CreateTicketInput{Title: "Viewer submit"}}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected viewer submit forbidden from ticket create path, got %v", err)
+	}
+}
+
+func TestCreatePageLuaSchemaTransform(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	trackerService := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	pageService := tracker.NewCreatePageService(db.SQL, trackerService, evaluator)
+	admin := principal("user-admin")
+	project, err := trackerService.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "LUA", Name: "Lua Forms"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+
+	page, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID: project.ID,
+		Name:      "Lua Intake",
+		Slug:      "lua-intake",
+		Enabled:   true,
+		FieldLayout: []map[string]any{
+			{"key": "title", "type": "text"},
+		},
+		Defaults: map[string]any{"priority": "Low"},
+		FormLuaScript: `
+return {
+  description = page.description .. " resolved",
+  field_layout = {
+    { key = "title", type = "text", required = true },
+    { key = "priority", type = "single-select", options = { "High", "Medium" } },
+  },
+  defaults = { priority = "High", labels = { "lua" } },
+}
+`,
+	})
+	if err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+
+	resolved, err := pageService.Resolve(ctx, principal("user-member"), project.ID, page.Slug)
+	if err != nil {
+		t.Fatalf("resolve dynamic page: %v", err)
+	}
+	if len(resolved.FieldLayout) != 2 || resolved.FieldLayout[1]["key"] != "priority" || resolved.Defaults["priority"] != "High" || resolved.Description != "resolved" {
+		t.Fatalf("unexpected resolved page: %#v", resolved)
+	}
+
+	submitted, err := pageService.Submit(ctx, principal("user-member"), project.ID, page.Slug, tracker.SubmitCreatePageInput{
+		Ticket: tracker.CreateTicketInput{Title: "Dynamic default"},
+	})
+	if err != nil {
+		t.Fatalf("submit dynamic page: %v", err)
+	}
+	if submitted.Priority != "high" || !slicesEqual(submitted.Labels, []string{"lua"}) {
+		t.Fatalf("expected dynamic defaults on submitted ticket, got %#v", submitted)
+	}
+}
+
+func TestCreatePageLuaSchemaRejectsRawHTML(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	trackerService := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	pageService := tracker.NewCreatePageService(db.SQL, trackerService, evaluator)
+	admin := principal("user-admin")
+	project, err := trackerService.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "BAD", Name: "Bad Forms"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+
+	page, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID:     project.ID,
+		Name:          "Bad Intake",
+		Slug:          "bad-intake",
+		Enabled:       true,
+		FormLuaScript: `return { field_layout = { { html = "<strong>no</strong>" } } }`,
+	})
+	if err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+	if _, err := pageService.Resolve(ctx, principal("user-member"), project.ID, page.Slug); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected raw HTML validation failure, got %v", err)
 	}
 }
 

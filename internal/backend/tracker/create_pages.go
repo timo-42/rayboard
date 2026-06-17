@@ -10,25 +10,28 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	lua "github.com/yuin/gopher-lua"
 )
 
 type CreatePage struct {
-	ID           string
-	ProjectID    string
-	Name         string
-	Slug         string
-	Description  string
-	Enabled      bool
-	TargetType   string
-	TargetStatus string
-	FieldLayout  []map[string]any
-	Defaults     map[string]any
-	OwnerUserID  string
-	CreatedBy    string
-	UpdatedBy    string
-	DeletedAt    *time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            string
+	ProjectID     string
+	Name          string
+	Slug          string
+	Description   string
+	Enabled       bool
+	TargetType    string
+	TargetStatus  string
+	FieldLayout   []map[string]any
+	Defaults      map[string]any
+	FormLuaScript string
+	OwnerUserID   string
+	CreatedBy     string
+	UpdatedBy     string
+	DeletedAt     *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type ListCreatePagesInput struct {
@@ -39,28 +42,30 @@ type ListCreatePagesInput struct {
 }
 
 type CreateCreatePageInput struct {
-	ProjectID    string
-	Name         string
-	Slug         string
-	Description  string
-	Enabled      bool
-	TargetType   string
-	TargetStatus string
-	FieldLayout  []map[string]any
-	Defaults     map[string]any
-	OwnerUserID  string
+	ProjectID     string
+	Name          string
+	Slug          string
+	Description   string
+	Enabled       bool
+	TargetType    string
+	TargetStatus  string
+	FieldLayout   []map[string]any
+	Defaults      map[string]any
+	FormLuaScript string
+	OwnerUserID   string
 }
 
 type UpdateCreatePageInput struct {
-	Name         *string
-	Slug         *string
-	Description  *string
-	Enabled      *bool
-	TargetType   *string
-	TargetStatus *string
-	FieldLayout  *[]map[string]any
-	Defaults     *map[string]any
-	OwnerUserID  *string
+	Name          *string
+	Slug          *string
+	Description   *string
+	Enabled       *bool
+	TargetType    *string
+	TargetStatus  *string
+	FieldLayout   *[]map[string]any
+	Defaults      *map[string]any
+	FormLuaScript *string
+	OwnerUserID   *string
 }
 
 type SubmitCreatePageInput struct {
@@ -104,8 +109,8 @@ func (s *CreatePageService) List(ctx context.Context, principal authz.Principal,
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(owner_user_id, ''), COALESCE(created_by, ''),
-			COALESCE(updated_by, ''), deleted_at, created_at, updated_at
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY slug ASC, id ASC
@@ -148,12 +153,12 @@ func (s *CreatePageService) Create(ctx context.Context, principal authz.Principa
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO ticket_create_pages (
 			id, project_id, name, slug, description, enabled, target_type, target_status,
-			field_layout_json, defaults_json, owner_user_id, created_by, updated_by, created_at, updated_at
+			field_layout_json, defaults_json, form_lua_script, owner_user_id, created_by, updated_by, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, page.ID, page.ProjectID, page.Name, page.Slug, nullableString(page.Description), page.Enabled,
 		nullableString(page.TargetType), nullableString(page.TargetStatus), layout, defaults,
-		nullableString(page.OwnerUserID), nullableString(page.CreatedBy), nullableString(page.UpdatedBy),
+		nullableString(page.FormLuaScript), nullableString(page.OwnerUserID), nullableString(page.CreatedBy), nullableString(page.UpdatedBy),
 		formatTime(page.CreatedAt), formatTime(page.UpdatedAt)); err != nil {
 		if isUniqueConstraint(err) {
 			return CreatePage{}, conflict("ticket_create_page", "slug", page.Slug)
@@ -185,7 +190,7 @@ func (s *CreatePageService) Resolve(ctx context.Context, principal authz.Princip
 	if err := s.requireProjectRead(principal, page.ProjectID); err != nil {
 		return CreatePage{}, err
 	}
-	return page, nil
+	return s.applyFormLua(ctx, principal, page)
 }
 
 func (s *CreatePageService) Update(ctx context.Context, principal authz.Principal, pageID string, input UpdateCreatePageInput) (CreatePage, error) {
@@ -221,6 +226,9 @@ func (s *CreatePageService) Update(ctx context.Context, principal authz.Principa
 	if input.Defaults != nil {
 		updated.Defaults = *input.Defaults
 	}
+	if input.FormLuaScript != nil {
+		updated.FormLuaScript = strings.TrimSpace(*input.FormLuaScript)
+	}
 	if input.OwnerUserID != nil {
 		updated.OwnerUserID = strings.TrimSpace(*input.OwnerUserID)
 	}
@@ -236,11 +244,11 @@ func (s *CreatePageService) Update(ctx context.Context, principal authz.Principa
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE ticket_create_pages
 		SET name = ?, slug = ?, description = ?, enabled = ?, target_type = ?, target_status = ?,
-			field_layout_json = ?, defaults_json = ?, owner_user_id = ?, updated_by = ?, updated_at = ?
+			field_layout_json = ?, defaults_json = ?, form_lua_script = ?, owner_user_id = ?, updated_by = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`, updated.Name, updated.Slug, nullableString(updated.Description), updated.Enabled,
 		nullableString(updated.TargetType), nullableString(updated.TargetStatus), layout, defaults,
-		nullableString(updated.OwnerUserID), nullableString(updated.UpdatedBy), formatTime(updated.UpdatedAt), updated.ID)
+		nullableString(updated.FormLuaScript), nullableString(updated.OwnerUserID), nullableString(updated.UpdatedBy), formatTime(updated.UpdatedAt), updated.ID)
 	if err != nil {
 		if isUniqueConstraint(err) {
 			return CreatePage{}, conflict("ticket_create_page", "slug", updated.Slug)
@@ -300,21 +308,22 @@ func (s *CreatePageService) buildCreatePage(principal authz.Principal, input Cre
 	}
 	now := s.now().UTC()
 	return CreatePage{
-		ID:           id,
-		ProjectID:    strings.TrimSpace(input.ProjectID),
-		Name:         strings.TrimSpace(input.Name),
-		Slug:         normalizeSlug(input.Slug),
-		Description:  strings.TrimSpace(input.Description),
-		Enabled:      input.Enabled,
-		TargetType:   normalizeSlug(input.TargetType),
-		TargetStatus: normalizeSlug(input.TargetStatus),
-		FieldLayout:  normalizeCreatePageLayout(input.FieldLayout),
-		Defaults:     normalizeCreatePageDefaults(input.Defaults),
-		OwnerUserID:  strings.TrimSpace(input.OwnerUserID),
-		CreatedBy:    actorID(principal),
-		UpdatedBy:    actorID(principal),
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:            id,
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		Name:          strings.TrimSpace(input.Name),
+		Slug:          normalizeSlug(input.Slug),
+		Description:   strings.TrimSpace(input.Description),
+		Enabled:       input.Enabled,
+		TargetType:    normalizeSlug(input.TargetType),
+		TargetStatus:  normalizeSlug(input.TargetStatus),
+		FieldLayout:   normalizeCreatePageLayout(input.FieldLayout),
+		Defaults:      normalizeCreatePageDefaults(input.Defaults),
+		FormLuaScript: strings.TrimSpace(input.FormLuaScript),
+		OwnerUserID:   strings.TrimSpace(input.OwnerUserID),
+		CreatedBy:     actorID(principal),
+		UpdatedBy:     actorID(principal),
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}, nil
 }
 
@@ -350,6 +359,9 @@ func (s *CreatePageService) validate(ctx context.Context, page CreatePage) error
 	if _, _, err := createPageJSON(page); err != nil {
 		fields["schema"] = err.Error()
 	}
+	if len(page.FormLuaScript) > 64*1024 {
+		fields["form_lua_script"] = "Must be at most 65536 bytes"
+	}
 	if len(fields) > 0 {
 		return validationFailed(fields)
 	}
@@ -364,8 +376,8 @@ func (s *CreatePageService) get(ctx context.Context, pageID string) (CreatePage,
 	page, err := scanCreatePage(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(owner_user_id, ''), COALESCE(created_by, ''),
-			COALESCE(updated_by, ''), deleted_at, created_at, updated_at
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE id = ? AND deleted_at IS NULL
 	`, pageID))
@@ -387,8 +399,8 @@ func (s *CreatePageService) getBySlug(ctx context.Context, projectID string, slu
 	page, err := scanCreatePage(s.db.QueryRowContext(ctx, `
 		SELECT id, project_id, name, slug, COALESCE(description, ''), enabled,
 			COALESCE(target_type, ''), COALESCE(target_status, ''), field_layout_json,
-			defaults_json, COALESCE(owner_user_id, ''), COALESCE(created_by, ''),
-			COALESCE(updated_by, ''), deleted_at, created_at, updated_at
+			defaults_json, COALESCE(form_lua_script, ''), COALESCE(owner_user_id, ''),
+			COALESCE(created_by, ''), COALESCE(updated_by, ''), deleted_at, created_at, updated_at
 		FROM ticket_create_pages
 		WHERE project_id = ? AND slug = ? AND deleted_at IS NULL
 	`, projectID, slug))
@@ -426,6 +438,138 @@ func createTicketInputFromCreatePage(page CreatePage, submitted CreateTicketInpu
 	mergeCreateTicketInput(&merged, submitted)
 	merged.ProjectID = page.ProjectID
 	return merged
+}
+
+func (s *CreatePageService) applyFormLua(ctx context.Context, principal authz.Principal, page CreatePage) (CreatePage, error) {
+	if strings.TrimSpace(page.FormLuaScript) == "" {
+		return page, nil
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	sandbox := luasandbox.New(luasandbox.DefaultJSONLimits())
+	defer sandbox.Close()
+	sandbox.L.SetContext(runCtx)
+
+	contextValue, err := sandbox.JSON.FromGo(map[string]any{
+		"project_id": page.ProjectID,
+		"page_id":    page.ID,
+		"slug":       page.Slug,
+		"user_id":    principal.UserID,
+	})
+	if err != nil {
+		return CreatePage{}, err
+	}
+	pagePayload, err := createPageLuaPayload(page)
+	if err != nil {
+		return CreatePage{}, err
+	}
+	pageValue, err := sandbox.JSON.FromGo(pagePayload)
+	if err != nil {
+		return CreatePage{}, err
+	}
+	sandbox.L.SetGlobal("context", contextValue)
+	sandbox.L.SetGlobal("page", pageValue)
+	registerCreatePageLuaHelpers(sandbox)
+
+	fn, err := sandbox.L.LoadString(page.FormLuaScript)
+	if err != nil {
+		return CreatePage{}, validationFailed(map[string]string{"form_lua_script": err.Error()})
+	}
+	top := sandbox.L.GetTop()
+	sandbox.L.Push(fn)
+	if err := sandbox.L.PCall(0, lua.MultRet, nil); err != nil {
+		return CreatePage{}, validationFailed(map[string]string{"form_lua_script": err.Error()})
+	}
+	if sandbox.L.GetTop() <= top {
+		return page, nil
+	}
+	value, err := sandbox.JSON.ToGo(sandbox.L.Get(-1))
+	if err != nil {
+		return CreatePage{}, validationFailed(map[string]string{"form_lua_script": err.Error()})
+	}
+	output, ok := value.(map[string]any)
+	if !ok {
+		return CreatePage{}, validationFailed(map[string]string{"form_lua_script": "Must return a table/object"})
+	}
+	return applyCreatePageFormOutput(page, output)
+}
+
+func createPageLuaPayload(page CreatePage) (map[string]any, error) {
+	payload := map[string]any{
+		"name":          page.Name,
+		"slug":          page.Slug,
+		"description":   page.Description,
+		"target_type":   page.TargetType,
+		"target_status": page.TargetStatus,
+		"field_layout":  page.FieldLayout,
+		"defaults":      page.Defaults,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encode create page Lua payload: %w", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return nil, fmt.Errorf("decode create page Lua payload: %w", err)
+	}
+	return decoded, nil
+}
+
+func registerCreatePageLuaHelpers(sandbox *luasandbox.Sandbox) {
+	logs := []string{}
+	rayboard := sandbox.L.GetGlobal("rayboard")
+	rayboardTable, ok := rayboard.(*lua.LTable)
+	if !ok {
+		rayboardTable = sandbox.L.NewTable()
+		sandbox.L.SetGlobal("rayboard", rayboardTable)
+	}
+	sandbox.L.SetField(rayboardTable, "log", sandbox.L.NewFunction(func(L *lua.LState) int {
+		if len(logs) < 100 {
+			logs = append(logs, L.CheckString(1))
+		}
+		return 0
+	}))
+}
+
+func applyCreatePageFormOutput(page CreatePage, output map[string]any) (CreatePage, error) {
+	if rawLayout, ok := output["field_layout"]; ok {
+		layout, err := createPageLayoutFromAny(rawLayout)
+		if err != nil {
+			return CreatePage{}, validationFailed(map[string]string{"field_layout": err.Error()})
+		}
+		page.FieldLayout = layout
+	}
+	if rawDefaults, ok := output["defaults"]; ok {
+		defaults, ok := rawDefaults.(map[string]any)
+		if !ok {
+			return CreatePage{}, validationFailed(map[string]string{"defaults": "Must be an object"})
+		}
+		page.Defaults = normalizeCreatePageDefaults(defaults)
+	}
+	if rawDescription, ok := output["description"].(string); ok {
+		page.Description = strings.TrimSpace(rawDescription)
+	}
+	return page, nil
+}
+
+func createPageLayoutFromAny(value any) ([]map[string]any, error) {
+	items, ok := value.([]any)
+	if !ok {
+		return nil, errors.New("Must be an array of objects")
+	}
+	layout := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, errors.New("Must be an array of objects")
+		}
+		if _, hasHTML := object["html"]; hasHTML {
+			return nil, errors.New("Raw HTML fields are not allowed")
+		}
+		layout = append(layout, object)
+	}
+	return normalizeCreatePageLayout(layout), nil
 }
 
 func createTicketInputFromDefaults(projectID string, defaults map[string]any) CreateTicketInput {
@@ -501,6 +645,7 @@ func scanCreatePage(scanner interface{ Scan(...any) error }) (CreatePage, error)
 		&page.TargetStatus,
 		&layout,
 		&defaults,
+		&page.FormLuaScript,
 		&page.OwnerUserID,
 		&page.CreatedBy,
 		&page.UpdatedBy,

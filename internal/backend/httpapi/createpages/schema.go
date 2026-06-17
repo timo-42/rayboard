@@ -57,27 +57,29 @@ type PageMetadata struct {
 }
 
 type PageSpec struct {
-	Name         string           `json:"name,omitempty"`
-	Slug         string           `json:"slug,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	Enabled      bool             `json:"enabled,omitempty"`
-	TargetType   string           `json:"target_type,omitempty"`
-	TargetStatus string           `json:"target_status,omitempty"`
-	FieldLayout  []map[string]any `json:"field_layout,omitempty"`
-	Defaults     map[string]any   `json:"defaults,omitempty"`
-	OwnerUserID  string           `json:"owner_user_id,omitempty"`
+	Name          string           `json:"name,omitempty"`
+	Slug          string           `json:"slug,omitempty"`
+	Description   string           `json:"description,omitempty"`
+	Enabled       bool             `json:"enabled,omitempty"`
+	TargetType    string           `json:"target_type,omitempty"`
+	TargetStatus  string           `json:"target_status,omitempty"`
+	FieldLayout   []map[string]any `json:"field_layout,omitempty"`
+	Defaults      map[string]any   `json:"defaults,omitempty"`
+	FormLuaScript string           `json:"form_lua_script,omitempty"`
+	OwnerUserID   string           `json:"owner_user_id,omitempty"`
 }
 
 type UpdatePageSpec struct {
-	Name         *string           `json:"name,omitempty"`
-	Slug         *string           `json:"slug,omitempty"`
-	Description  *string           `json:"description,omitempty"`
-	Enabled      *bool             `json:"enabled,omitempty"`
-	TargetType   *string           `json:"target_type,omitempty"`
-	TargetStatus *string           `json:"target_status,omitempty"`
-	FieldLayout  *[]map[string]any `json:"field_layout,omitempty"`
-	Defaults     *map[string]any   `json:"defaults,omitempty"`
-	OwnerUserID  *string           `json:"owner_user_id,omitempty"`
+	Name          *string           `json:"name,omitempty"`
+	Slug          *string           `json:"slug,omitempty"`
+	Description   *string           `json:"description,omitempty"`
+	Enabled       *bool             `json:"enabled,omitempty"`
+	TargetType    *string           `json:"target_type,omitempty"`
+	TargetStatus  *string           `json:"target_status,omitempty"`
+	FieldLayout   *[]map[string]any `json:"field_layout,omitempty"`
+	Defaults      *map[string]any   `json:"defaults,omitempty"`
+	FormLuaScript *string           `json:"form_lua_script,omitempty"`
+	OwnerUserID   *string           `json:"owner_user_id,omitempty"`
 }
 
 type PageStatus struct {
@@ -115,30 +117,32 @@ type SchemaOutput struct {
 
 func (spec PageSpec) createInput(projectID string) tracker.CreateCreatePageInput {
 	return tracker.CreateCreatePageInput{
-		ProjectID:    projectID,
-		Name:         spec.Name,
-		Slug:         spec.Slug,
-		Description:  spec.Description,
-		Enabled:      spec.Enabled,
-		TargetType:   spec.TargetType,
-		TargetStatus: spec.TargetStatus,
-		FieldLayout:  spec.FieldLayout,
-		Defaults:     spec.Defaults,
-		OwnerUserID:  spec.OwnerUserID,
+		ProjectID:     projectID,
+		Name:          spec.Name,
+		Slug:          spec.Slug,
+		Description:   spec.Description,
+		Enabled:       spec.Enabled,
+		TargetType:    spec.TargetType,
+		TargetStatus:  spec.TargetStatus,
+		FieldLayout:   spec.FieldLayout,
+		Defaults:      spec.Defaults,
+		FormLuaScript: spec.FormLuaScript,
+		OwnerUserID:   spec.OwnerUserID,
 	}
 }
 
 func (spec UpdatePageSpec) updateInput() tracker.UpdateCreatePageInput {
 	return tracker.UpdateCreatePageInput{
-		Name:         spec.Name,
-		Slug:         spec.Slug,
-		Description:  spec.Description,
-		Enabled:      spec.Enabled,
-		TargetType:   spec.TargetType,
-		TargetStatus: spec.TargetStatus,
-		FieldLayout:  spec.FieldLayout,
-		Defaults:     spec.Defaults,
-		OwnerUserID:  spec.OwnerUserID,
+		Name:          spec.Name,
+		Slug:          spec.Slug,
+		Description:   spec.Description,
+		Enabled:       spec.Enabled,
+		TargetType:    spec.TargetType,
+		TargetStatus:  spec.TargetStatus,
+		FieldLayout:   spec.FieldLayout,
+		Defaults:      spec.Defaults,
+		FormLuaScript: spec.FormLuaScript,
+		OwnerUserID:   spec.OwnerUserID,
 	}
 }
 
@@ -158,15 +162,16 @@ func pageResource(page tracker.CreatePage) PageResource {
 			UpdatedAt:   page.UpdatedAt,
 		},
 		Spec: PageSpec{
-			Name:         page.Name,
-			Slug:         page.Slug,
-			Description:  page.Description,
-			Enabled:      page.Enabled,
-			TargetType:   page.TargetType,
-			TargetStatus: page.TargetStatus,
-			FieldLayout:  page.FieldLayout,
-			Defaults:     page.Defaults,
-			OwnerUserID:  page.OwnerUserID,
+			Name:          page.Name,
+			Slug:          page.Slug,
+			Description:   page.Description,
+			Enabled:       page.Enabled,
+			TargetType:    page.TargetType,
+			TargetStatus:  page.TargetStatus,
+			FieldLayout:   page.FieldLayout,
+			Defaults:      page.Defaults,
+			FormLuaScript: page.FormLuaScript,
+			OwnerUserID:   page.OwnerUserID,
 		},
 		Status: PageStatus{DeletedAt: page.DeletedAt},
 	}
@@ -174,6 +179,7 @@ func pageResource(page tracker.CreatePage) PageResource {
 
 func schemaResource(page tracker.CreatePage) SchemaResource {
 	resource := pageResource(page)
+	resource.Spec.FormLuaScript = ""
 	return SchemaResource{
 		Metadata: SchemaMetadata{
 			PageID:    page.ID,

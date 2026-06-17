@@ -204,6 +204,72 @@ func TestTicketCreatePageEndpointsRequirePermission(t *testing.T) {
 	}
 }
 
+func TestTicketCreatePageSchemaRunsLuaFormLogic(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authService := auth.NewService(db.SQL)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	trackerService := tracker.NewService(db.SQL, authorizer)
+	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
+	handler := NewHandler(
+		WithAuthService(authService),
+		WithAuthorizer(authorizer),
+		WithTrackerService(trackerService),
+		WithCreatePageService(createPageService),
+	)
+	project, err := trackerService.CreateProject(ctx, authz.Principal{UserID: bootstrap.UserID}, tracker.CreateProjectInput{
+		Key:        "DYN",
+		Name:       "Dynamic Forms",
+		LeadUserID: bootstrap.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+	csrf := responseCookie(t, login.Result(), csrfCookieName)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/ticket-create-pages", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"name":            "Dynamic Intake",
+			"slug":            "dynamic-intake",
+			"enabled":         true,
+			"owner_user_id":   bootstrap.UserID,
+			"field_layout":    []map[string]any{{"key": "title", "type": "text"}},
+			"defaults":        map[string]any{"priority": "Low"},
+			"form_lua_script": `return { field_layout = { { key = "title", type = "text", required = true }, { key = "component", type = "single-select", options = { "api", "ui" } } }, defaults = { priority = "High" } }`,
+		},
+	}))
+	addSessionCSRF(createReq, session, csrf)
+	create := httptest.NewRecorder()
+	handler.ServeHTTP(create, createReq)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("expected create page status 201, got %d: %s", create.Code, create.Body.String())
+	}
+	created := decodeTicketCreatePageResource(t, create.Body.Bytes())
+	if created.Spec.FormLuaScript == "" {
+		t.Fatalf("expected form Lua script in management response: %#v", created.Spec)
+	}
+
+	schemaReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/ticket-create-pages/dynamic-intake/schema", nil)
+	schemaReq.AddCookie(session)
+	schemaRec := httptest.NewRecorder()
+	handler.ServeHTTP(schemaRec, schemaReq)
+	if schemaRec.Code != http.StatusOK {
+		t.Fatalf("expected schema status 200, got %d: %s", schemaRec.Code, schemaRec.Body.String())
+	}
+	schema := decodeTicketCreatePageSchema(t, schemaRec.Body.Bytes())
+	if len(schema.Spec.FieldLayout) != 2 || schema.Spec.FieldLayout[1]["key"] != "component" || schema.Spec.Defaults["priority"] != "High" {
+		t.Fatalf("expected dynamic schema/defaults, got %#v", schema.Spec)
+	}
+	if schema.Spec.FormLuaScript != "" {
+		t.Fatalf("schema response must redact form Lua script, got %#v", schema.Spec)
+	}
+}
+
 func ticketCreatePageBody(name string, slug string, ownerUserID string) map[string]any {
 	return map[string]any{
 		"name":          name,
@@ -229,15 +295,16 @@ type ticketCreatePageResourceBody struct {
 		ProjectID string `json:"project_id"`
 	} `json:"metadata"`
 	Spec struct {
-		Name         string           `json:"name"`
-		Slug         string           `json:"slug"`
-		Description  string           `json:"description"`
-		Enabled      bool             `json:"enabled"`
-		TargetType   string           `json:"target_type"`
-		TargetStatus string           `json:"target_status"`
-		FieldLayout  []map[string]any `json:"field_layout"`
-		Defaults     map[string]any   `json:"defaults"`
-		OwnerUserID  string           `json:"owner_user_id"`
+		Name          string           `json:"name"`
+		Slug          string           `json:"slug"`
+		Description   string           `json:"description"`
+		Enabled       bool             `json:"enabled"`
+		TargetType    string           `json:"target_type"`
+		TargetStatus  string           `json:"target_status"`
+		FieldLayout   []map[string]any `json:"field_layout"`
+		Defaults      map[string]any   `json:"defaults"`
+		FormLuaScript string           `json:"form_lua_script"`
+		OwnerUserID   string           `json:"owner_user_id"`
 	} `json:"spec"`
 }
 
@@ -256,7 +323,9 @@ type ticketCreatePageSchemaBody struct {
 		Slug   string `json:"slug"`
 	} `json:"metadata"`
 	Spec struct {
-		FieldLayout []map[string]any `json:"field_layout"`
+		FieldLayout   []map[string]any `json:"field_layout"`
+		Defaults      map[string]any   `json:"defaults"`
+		FormLuaScript string           `json:"form_lua_script"`
 	} `json:"spec"`
 	Status struct {
 		Enabled bool `json:"enabled"`
