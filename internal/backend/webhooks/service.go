@@ -13,7 +13,10 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
+	"github.com/timo-42/rayboard/internal/backend/comments"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/search"
+	"github.com/timo-42/rayboard/internal/backend/tracker"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -34,6 +37,9 @@ type Service struct {
 	db         *sql.DB
 	authorizer authz.Evaluator
 	runs       *automation.RunStore
+	tracker    *tracker.Service
+	search     *search.Service
+	comments   *comments.Service
 	now        func() time.Time
 }
 
@@ -62,6 +68,24 @@ func WithNow(now func() time.Time) Option {
 func WithRunStore(runStore *automation.RunStore) Option {
 	return func(service *Service) {
 		service.runs = runStore
+	}
+}
+
+func WithTrackerService(trackerService *tracker.Service) Option {
+	return func(service *Service) {
+		service.tracker = trackerService
+	}
+}
+
+func WithSearchService(searchService *search.Service) Option {
+	return func(service *Service) {
+		service.search = searchService
+	}
+}
+
+func WithCommentService(commentService *comments.Service) Option {
+	return func(service *Service) {
+		service.comments = commentService
 	}
 }
 
@@ -386,7 +410,10 @@ func (s *Service) ReceiveIncoming(ctx context.Context, webhookID string, token s
 		return IncomingResult{}, err
 	}
 
-	output, logs, execErr := s.executeIncoming(ctx, hook, input)
+	output, logs, execErr := map[string]any{}, []string(nil), s.requireActiveActor(ctx, hook.ActorUserID)
+	if execErr == nil {
+		output, logs, execErr = s.executeIncoming(ctx, hook, input)
+	}
 	finish := automation.FinishInput{
 		Status: automation.StatusSucceeded,
 		Output: output,
@@ -455,7 +482,7 @@ func (s *Service) executeIncomingLua(ctx context.Context, hook Webhook, input In
 	}
 	sandbox.L.SetGlobal("request", requestValue)
 	logs := []string{}
-	registerIncomingLuaHelpers(sandbox, &logs)
+	s.registerIncomingLuaHelpers(runCtx, sandbox, hook, &logs)
 
 	fn, err := sandbox.L.LoadString(hook.Engine.Script)
 	if err != nil {
@@ -479,22 +506,10 @@ func (s *Service) executeIncomingLua(ctx context.Context, hook Webhook, input In
 			output = map[string]any{"result": value}
 		}
 	}
-	return output, logs, nil
-}
-
-func registerIncomingLuaHelpers(sandbox *luasandbox.Sandbox, logs *[]string) {
-	rayboard := sandbox.L.GetGlobal("rayboard")
-	rayboardTable, ok := rayboard.(*lua.LTable)
-	if !ok {
-		rayboardTable = sandbox.L.NewTable()
-		sandbox.L.SetGlobal("rayboard", rayboardTable)
+	if message := rejectMessage(output); message != "" {
+		return output, logs, fmt.Errorf("%w: %s", ErrValidation, message)
 	}
-	sandbox.L.SetField(rayboardTable, "log", sandbox.L.NewFunction(func(L *lua.LState) int {
-		if len(*logs) < 100 {
-			*logs = append(*logs, L.CheckString(1))
-		}
-		return 0
-	}))
+	return output, logs, nil
 }
 
 func incomingRequestMap(input IncomingInput) map[string]any {
@@ -614,6 +629,17 @@ func (s *Service) requireUser(ctx context.Context, userID string) error {
 	return nil
 }
 
+func (s *Service) requireActiveActor(ctx context.Context, userID string) error {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND deleted_at IS NULL AND is_disabled = 0)", userID).Scan(&exists); err != nil {
+		return fmt.Errorf("check webhook actor user: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("%w: webhook actor user is disabled or deleted", ErrValidation)
+	}
+	return nil
+}
+
 func scanWebhook(scanner interface{ Scan(...any) error }) (Webhook, error) {
 	var hook Webhook
 	var tokenHash sql.NullString
@@ -696,6 +722,24 @@ func stringAnyMap(value map[string]string) map[string]any {
 		result[key] = item
 	}
 	return result
+}
+
+func rejectMessage(output map[string]any) string {
+	value, ok := output["reject"]
+	if !ok || value == nil {
+		return ""
+	}
+	if text, ok := value.(string); ok {
+		return strings.TrimSpace(text)
+	}
+	reject, ok := value.(map[string]any)
+	if !ok {
+		return "rejected"
+	}
+	if message, ok := reject["message"].(string); ok && strings.TrimSpace(message) != "" {
+		return strings.TrimSpace(message)
+	}
+	return "rejected"
 }
 
 func joinAnd(parts []string) string {

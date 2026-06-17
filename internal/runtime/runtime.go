@@ -66,7 +66,14 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	searchService := search.NewService(db.SQL, authorizer)
 	openRouterService := openrouter.NewService(db.SQL)
 	runStore := automation.NewRunStore(db.SQL)
-	webhookService := webhooks.NewService(db.SQL, authorizer, webhooks.WithRunStore(runStore))
+	webhookService := webhooks.NewService(
+		db.SQL,
+		authorizer,
+		webhooks.WithRunStore(runStore),
+		webhooks.WithTrackerService(trackerService),
+		webhooks.WithSearchService(searchService),
+		webhooks.WithCommentService(commentService),
+	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)
@@ -127,7 +134,14 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	searchService := search.NewService(db.SQL, authorizer)
 	openRouterService := openrouter.NewService(db.SQL)
 	runStore := automation.NewRunStore(db.SQL)
-	webhookService := webhooks.NewService(db.SQL, authorizer, webhooks.WithRunStore(runStore))
+	webhookService := webhooks.NewService(
+		db.SQL,
+		authorizer,
+		webhooks.WithRunStore(runStore),
+		webhooks.WithTrackerService(trackerService),
+		webhooks.WithSearchService(searchService),
+		webhooks.WithCommentService(commentService),
+	)
 	notificationService := notifications.NewService(db.SQL, notifications.WithEventStore(eventStore))
 	group.startWorker("notifications", func() error {
 		return runNotificationProcessor(ctx, notificationService, stderr)

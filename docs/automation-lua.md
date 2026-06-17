@@ -20,7 +20,7 @@ Lua-capable surfaces:
 - cron jobs: first API/scheduler slice implemented;
 - ticket hooks: **Planned**;
 - custom ticket create pages: **Planned**;
-- incoming webhooks: definition CRUD, token auth, Lua validation/logging, and run history implemented;
+- incoming webhooks: definition CRUD, token auth, Lua validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: **Planned**;
 - notification hooks: **Planned**.
 
@@ -181,7 +181,7 @@ return {
 
 ## Webhooks
 
-Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua validation/logging, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. Ticket-mutating Rayboard action helpers for incoming webhooks are still **Planned** and will run as the configured actor user through normal RBAC. Outgoing webhooks are **Planned** and will shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
+Incoming webhook definition CRUD, one-time bearer token creation/rotation, hashed token storage, the stable `POST /api/webhooks/incoming/{id}` endpoint, Lua validation/logging, constrained Rayboard actions, and run history are implemented. Incoming webhook scripts receive `request.headers`, `request.query`, and `request.payload`, may call `rayboard.log(message)`, and may return a table that is stored in the automation run output. `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment` run as the configured actor user through normal RBAC. Disabled or deleted actor users cause execution to fail before Lua runs. Outgoing webhooks are **Planned** and will shape a controlled outbound request subject to allowlists, timeouts, max payload sizes, retries, and delivery history.
 
 Incoming example shape:
 
@@ -191,9 +191,17 @@ if request.payload.title == nil then
   return { reject = { status = 400, message = "title is required" } }
 end
 
+local ticket, err = rayboard.create_ticket({
+  project_id = request.payload.project_id,
+  title = request.payload.title,
+  labels = {"webhook"}
+})
+if err then error(err.message) end
+
 return {
   accepted = true,
-  title = request.payload.title
+  ticket_id = ticket.id,
+  key = ticket.key
 }
 ```
 

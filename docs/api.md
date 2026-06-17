@@ -412,7 +412,7 @@ Dashboard/view notification policies, recipient rules, notification hooks, outgo
 
 ## Webhooks
 
-The webhook slice implements project-scoped incoming webhook definitions, hashed bearer tokens, one-time token display, token rotation, Lua execution for authenticated incoming requests, and shared automation run history. Constrained ticket-mutating Rayboard actions and outgoing webhook delivery are planned follow-up work.
+The webhook slice implements project-scoped incoming webhook definitions, hashed bearer tokens, one-time token display, token rotation, Lua execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook delivery is planned follow-up work.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -426,6 +426,8 @@ The webhook slice implements project-scoped incoming webhook definitions, hashed
 | `POST` | `/api/webhooks/incoming/{webhook_id}` | Authenticates with `Authorization: Bearer <webhook-token>`, accepts `{"spec":{"payload":{...},"headers":{},"query":{}}}`, executes the webhook engine, and returns a run resource. |
 
 Webhook definition responses use `metadata` for IDs/timestamps, `spec` for direction, actor user, enabled state, and engine configuration, and `status` for `token_set`, `token_rotated_at`, and `last_error`. Create and rotate responses are the only responses that include `status.token`.
+
+Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.get_ticket`, `rayboard.create_ticket`, `rayboard.update_ticket`, and `rayboard.comment`. Helpers execute through normal backend service/RBAC paths as the webhook's configured actor user. Disabled or deleted actor users cause incoming execution to fail before the script runs.
 
 ## OpenRouter Providers
 
