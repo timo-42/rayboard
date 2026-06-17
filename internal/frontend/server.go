@@ -18,9 +18,10 @@ type Server struct {
 }
 
 type indexData struct {
-	BackendURL string
-	Designs    []designOption
-	Design     designVariant
+	BackendURL    string
+	Designs       []designOption
+	Design        designVariant
+	DesignPreview bool
 }
 
 type designOption struct {
@@ -131,10 +132,10 @@ func selectedDesign(path string) designVariant {
 	}
 	return designVariant{
 		Path:        "/",
-		Label:       "Selector",
-		Name:        "Design Selector",
-		Description: "Choose one of five embedded Rayboard interface directions.",
-		BodyClass:   "design-selector-home",
+		Label:       "Dashboard",
+		Name:        "Dashboard",
+		Description: "Operational overview for Rayboard projects, tickets, notifications, and automation.",
+		BodyClass:   "production-dashboard",
 	}
 }
 
@@ -166,8 +167,9 @@ func index(w http.ResponseWriter, backendURL string, selectedPath string) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = tpl.Execute(w, indexData{
-		BackendURL: backendURL,
-		Designs:    designOptions(selectedPath),
-		Design:     selectedDesign(selectedPath),
+		BackendURL:    backendURL,
+		Designs:       designOptions(selectedPath),
+		Design:        selectedDesign(selectedPath),
+		DesignPreview: isDesignVariantPath(selectedPath),
 	})
 }

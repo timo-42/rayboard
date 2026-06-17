@@ -19,11 +19,11 @@ func TestIndex(t *testing.T) {
 	if body := rec.Body.String(); !strings.Contains(body, "Rayboard") ||
 		!strings.Contains(body, "http://backend.test") ||
 		!strings.Contains(body, "/static/app.js") ||
-		!strings.Contains(body, `class="design-selector-home"`) ||
-		!strings.Contains(body, "Design Selector") ||
+		!strings.Contains(body, `class="production-dashboard"`) ||
 		!strings.Contains(body, `href="/docs"`) ||
 		!strings.Contains(body, `href="/api/docs"`) ||
 		!strings.Contains(body, `href="/api/docs/redoc"`) ||
+		!strings.Contains(body, `href="/profile"`) ||
 		!strings.Contains(body, "Engine Workbench") ||
 		!strings.Contains(body, `id="app-nav"`) ||
 		!strings.Contains(body, `id="dashboard-view"`) ||
@@ -76,10 +76,38 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="search-panel"`) ||
 		!strings.Contains(body, `id="saved-view-cancel-edit"`) ||
 		!strings.Contains(body, `id="account-panel"`) ||
-		!strings.Contains(body, `id="ticket-columns"`) ||
-		!strings.Contains(body, `href="/1"`) ||
-		!strings.Contains(body, `href="/5"`) {
+		!strings.Contains(body, `id="ticket-columns"`) {
 		t.Fatalf("unexpected body: %s", body)
+	}
+	body := rec.Body.String()
+	for _, unexpected := range []string{"Design Selector", "UI Designs", `class="design-selector-home"`, `class="tool-block design-selector"`, `href="/1"`, `href="/5"`} {
+		if strings.Contains(body, unexpected) {
+			t.Fatalf("root dashboard should not contain %q: %s", unexpected, body)
+		}
+	}
+	if strings.Contains(body, `href="/settings"`) {
+		t.Fatalf("production primary nav should not link to settings: %s", body)
+	}
+}
+
+func TestDesignPreviewRoutesRenderSelector(t *testing.T) {
+	for _, path := range []string{"/1", "/2", "/3", "/4", "/5"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+
+			NewHandler("http://backend.test").ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+			body := rec.Body.String()
+			for _, expected := range []string{"UI Designs", `class="tool-block design-selector"`, `href="/1"`, `href="/5"`, `aria-label="UI design variants"`} {
+				if !strings.Contains(body, expected) {
+					t.Fatalf("expected design preview body to contain %q: %s", expected, body)
+				}
+			}
+		})
 	}
 }
 
@@ -129,6 +157,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"currentRoute",
 		"navigate",
 		"renderDashboard",
+		"isDocumentLink",
 		"renderIssue",
 		"renderCreatePageView",
 		"renderRBAC",

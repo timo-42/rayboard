@@ -30,6 +30,7 @@
         <button type="submit"><span aria-hidden="true">+</span> Sign in</button>
       </form>
 
+      {{ if .DesignPreview }}
       <section class="tool-block design-selector" aria-labelledby="design-selector-title">
         <h2 id="design-selector-title">UI Designs</h2>
         <p class="design-summary">{{ .Design.Name }}: {{ .Design.Description }}</p>
@@ -39,6 +40,7 @@
           {{ end }}
         </nav>
       </section>
+      {{ end }}
 
       <nav id="app-nav" class="app-nav" aria-label="Application" hidden>
         <a href="/">Dashboard</a>
@@ -46,8 +48,10 @@
         <a href="/search">Search</a>
         <a href="/automation">Automation</a>
         <a href="/rbac">RBAC</a>
-        <a href="/settings">Settings</a>
         <a href="/profile">Profile</a>
+        <a href="/docs">Docs</a>
+        <a href="/api/docs">Swagger</a>
+        <a href="/api/docs/redoc">Redoc</a>
       </nav>
 
       <section id="project-create" class="tool-block" hidden>

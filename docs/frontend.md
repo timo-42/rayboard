@@ -22,8 +22,8 @@ Implemented routes:
 
 The current UI is a small vanilla JavaScript website shell. It supports:
 
-- a root UI selector linking to five embedded design variants under `/1`, `/2`, `/3`, `/4`, and `/5`;
-- a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, Settings, and Profile;
+- a production dashboard at `/`, with five embedded design previews still available under `/1`, `/2`, `/3`, `/4`, and `/5`;
+- a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, Profile, Docs, Swagger, and Redoc;
 - a dashboard overview at `/` with project/ticket summary metrics, recently modified tickets, biggest projects, active sprints, and notifications;
 - project pages under `/projects` and `/projects/{project_id}` for project-scoped tickets, sprints, components, versions, roadmap epics, and custom fields;
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;

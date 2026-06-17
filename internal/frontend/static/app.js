@@ -228,6 +228,9 @@ function bindEvents() {
     if (!link || link.origin !== window.location.origin) {
       return;
     }
+    if (isDocumentLink(link.pathname)) {
+      return;
+    }
     event.preventDefault();
     navigate(link.pathname);
   });
@@ -2647,6 +2650,10 @@ function render() {
   renderCreatePages();
   renderEngineFields();
   renderEngineResult();
+}
+
+function isDocumentLink(pathname) {
+  return pathname === "/docs" || pathname === "/api/docs" || pathname === "/api/docs/redoc";
 }
 
 function renderNavigation(route) {
