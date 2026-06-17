@@ -45,7 +45,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a roadmap panel that lists project epics, schedule dates, and child-ticket progress, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
-- compact search with text/CEL filters plus saved-view list, create, apply, and delete controls;
+- compact search with text/CEL filters plus saved-view list, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`;
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
@@ -55,7 +55,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, detailed component/version editing, and custom-field update forms beyond delete/recreate are API-only for now.
+It does not currently expose all backend endpoints. Advanced search pagination, detailed component/version editing, and custom-field update forms beyond delete/recreate are API-only for now.
 
 Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 

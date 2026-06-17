@@ -191,6 +191,7 @@ const els = {
   searchPanel: document.querySelector("#search-panel"),
   searchForm: document.querySelector("#search-form"),
   savedViewForm: document.querySelector("#saved-view-form"),
+  savedViewCancelEdit: document.querySelector("#saved-view-cancel-edit"),
   searchResults: document.querySelector("#search-results"),
   searchResultCount: document.querySelector("#search-result-count"),
   savedViews: document.querySelector("#saved-views"),
@@ -966,31 +967,20 @@ function bindEvents() {
       return;
     }
     await runAction(async () => {
-      const data = formData(form);
-      const scopeType = data.scope_type || "user";
-      const currentSearch = searchSpecFromForm(els.searchForm);
-      await api("/api/saved-views", {
-        method: "POST",
-        body: {
-          spec: {
-            name: data.name || "Saved view",
-            scope_type: scopeType,
-            project_id: scopeType === "project" && state.selectedProject ? state.selectedProject.id : "",
-            query: {
-              text: currentSearch.text || "",
-              filter: currentSearch.filter || ""
-            },
-            sort: [{ field: "updated_at", direction: "desc" }],
-            columns: ["key", "title", "status", "priority"],
-            display_mode: "list",
-            group_by: "",
-            pinned: Boolean(data.pinned)
-          }
-        }
-      });
-      form.reset();
+      const editingID = form.dataset.savedViewEditId || "";
+      const spec = savedViewSpecFromForm(form);
+      if (editingID) {
+        await api(`/api/saved-views/${editingID}`, { method: "PATCH", body: { spec: savedViewUpdateSpec(spec) } });
+      } else {
+        await api("/api/saved-views", { method: "POST", body: { spec } });
+      }
+      resetSavedViewForm();
       await loadSavedViews();
-    }, "Saved view created");
+    }, form.dataset.savedViewEditId ? "Saved view updated" : "Saved view created");
+  });
+
+  els.savedViewCancelEdit.addEventListener("click", () => {
+    resetSavedViewForm();
   });
 
   els.savedViews.addEventListener("click", async (event) => {
@@ -1008,6 +998,15 @@ function bindEvents() {
           project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : "")
         });
       }, "Saved view applied");
+      return;
+    }
+
+    const edit = event.target.closest("[data-edit-saved-view-id]");
+    if (edit) {
+      const view = state.savedViews.find((item) => item.id === edit.dataset.editSavedViewId);
+      if (view) {
+        editSavedView(view);
+      }
       return;
     }
 
@@ -3316,7 +3315,13 @@ function savedViewNode(view) {
   name.textContent = view.name;
 
   const meta = document.createElement("span");
-  meta.textContent = [view.scope_type, view.display_mode, view.pinned ? "pinned" : ""].filter(Boolean).join(" / ");
+  meta.textContent = [
+    view.scope_type,
+    view.display_mode,
+    view.group_by ? `group ${view.group_by}` : "",
+    view.columns && view.columns.length ? `columns ${view.columns.join(", ")}` : "",
+    view.pinned ? "pinned" : ""
+  ].filter(Boolean).join(" / ");
 
   const actions = document.createElement("div");
   actions.className = "saved-view-actions";
@@ -3326,12 +3331,17 @@ function savedViewNode(view) {
   apply.dataset.applySavedViewId = view.id;
   apply.textContent = "Apply";
 
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.dataset.editSavedViewId = view.id;
+  edit.textContent = "Edit";
+
   const remove = document.createElement("button");
   remove.type = "button";
   remove.dataset.deleteSavedViewId = view.id;
   remove.textContent = "Delete";
 
-  actions.append(apply, remove);
+  actions.append(apply, edit, remove);
   article.append(name, meta, actions);
   return article;
 }
@@ -6063,12 +6073,84 @@ function searchSpecFromForm(form) {
   };
 }
 
+function savedViewSpecFromForm(form) {
+  const data = formData(form);
+  const scopeType = data.scope_type || "user";
+  const currentSearch = searchSpecFromForm(els.searchForm);
+  return {
+    name: data.name || "Saved view",
+    scope_type: scopeType,
+    project_id: scopeType === "project" && state.selectedProject ? state.selectedProject.id : "",
+    query: {
+      text: currentSearch.text || "",
+      filter: currentSearch.filter || ""
+    },
+    sort: parseSavedViewSort(data.sort),
+    columns: parseCommaList(data.columns || "key, title, status, priority"),
+    display_mode: data.display_mode || "list",
+    group_by: data.group_by || "",
+    pinned: Boolean(data.pinned)
+  };
+}
+
+function parseSavedViewSort(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return [{ field: "updated_at", direction: "desc" }];
+  }
+  return parseJSONArrayField(text, "Saved view sort JSON");
+}
+
+function savedViewUpdateSpec(spec) {
+  return {
+    name: spec.name,
+    query: spec.query,
+    sort: spec.sort,
+    columns: spec.columns,
+    display_mode: spec.display_mode,
+    group_by: spec.group_by,
+    pinned: spec.pinned
+  };
+}
+
 function setSearchForm(query) {
   if (!els.searchForm) {
     return;
   }
   els.searchForm.elements.text.value = query.text || "";
   els.searchForm.elements.filter.value = query.filter || "";
+}
+
+function editSavedView(view) {
+  if (!els.savedViewForm) {
+    return;
+  }
+  els.savedViewForm.dataset.savedViewEditId = view.id;
+  setFormValue(els.savedViewForm, "name", view.name || "");
+  setFormValue(els.savedViewForm, "scope_type", view.scope_type || "user");
+  setFormValue(els.savedViewForm, "display_mode", view.display_mode || "list");
+  setFormValue(els.savedViewForm, "group_by", view.group_by || "");
+  setFormValue(els.savedViewForm, "columns", (view.columns || []).join(", "));
+  setFormValue(els.savedViewForm, "sort", JSON.stringify(view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }]));
+  setFormChecked(els.savedViewForm, "pinned", Boolean(view.pinned));
+  setSearchForm(view.query || {});
+  if (els.savedViewCancelEdit) {
+    els.savedViewCancelEdit.hidden = false;
+  }
+}
+
+function resetSavedViewForm() {
+  if (!els.savedViewForm) {
+    return;
+  }
+  delete els.savedViewForm.dataset.savedViewEditId;
+  els.savedViewForm.reset();
+  setFormValue(els.savedViewForm, "display_mode", "list");
+  setFormValue(els.savedViewForm, "sort", `[{"field":"updated_at","direction":"desc"}]`);
+  setFormValue(els.savedViewForm, "columns", "key, title, status, priority");
+  if (els.savedViewCancelEdit) {
+    els.savedViewCancelEdit.hidden = true;
+  }
 }
 
 function listItems(data) {

@@ -72,6 +72,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="roadmap-panel"`) ||
 		!strings.Contains(body, `id="field-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
+		!strings.Contains(body, `id="saved-view-cancel-edit"`) ||
 		!strings.Contains(body, `id="account-panel"`) ||
 		!strings.Contains(body, `id="ticket-columns"`) ||
 		!strings.Contains(body, `href="/1"`) ||
@@ -438,9 +439,14 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"loadSavedViews",
 		"runSearch",
 		"normalizeSavedView",
+		"savedViewSpecFromForm",
+		"savedViewUpdateSpec",
+		"editSavedView",
 		"/api/search",
 		"/api/saved-views",
+		"/api/saved-views/${editingID}",
 		"data-apply-saved-view-id",
+		"data-edit-saved-view-id",
 		"data-delete-saved-view-id",
 	} {
 		if !strings.Contains(appText, expected) {

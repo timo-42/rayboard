@@ -394,11 +394,29 @@
             <option value="user">Personal</option>
             <option value="project">Project</option>
           </select>
+          <select name="display_mode">
+            <option value="list">List</option>
+            <option value="board">Board</option>
+            <option value="backlog">Backlog</option>
+          </select>
+          <select name="group_by">
+            <option value="">No grouping</option>
+            <option value="status">Status</option>
+            <option value="assignee_id">Assignee</option>
+            <option value="priority">Priority</option>
+            <option value="type">Type</option>
+            <option value="sprint_id">Sprint</option>
+            <option value="component_id">Component</option>
+            <option value="version_id">Version</option>
+          </select>
+          <input name="columns" placeholder="columns: key, title, status">
+          <input name="sort" placeholder='sort JSON: [{"field":"updated_at","direction":"desc"}]'>
           <label class="inline-toggle">
             <input name="pinned" type="checkbox">
             Pin
           </label>
           <button type="submit">Save view</button>
+          <button id="saved-view-cancel-edit" type="button" hidden>Cancel edit</button>
         </form>
 
         <div class="search-grid">

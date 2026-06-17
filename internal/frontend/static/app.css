@@ -2069,7 +2069,7 @@ p {
 }
 
 .saved-view-form {
-  grid-template-columns: minmax(180px, 1fr) 140px auto auto;
+  grid-template-columns: minmax(180px, 1fr) 130px 130px 150px minmax(160px, 1fr) minmax(210px, 1.2fr) auto auto auto;
 }
 
 .search-grid {
