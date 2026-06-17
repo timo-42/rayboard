@@ -689,6 +689,114 @@ p {
   background: var(--primary-soft);
 }
 
+.search-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--workspace-bg);
+  padding: 18px;
+}
+
+.search-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.search-header h2,
+.search-grid h3 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.search-grid h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.search-grid h3 span {
+  color: var(--primary-strong);
+}
+
+.search-form,
+.saved-view-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.saved-view-form {
+  grid-template-columns: minmax(180px, 1fr) 140px auto auto;
+}
+
+.search-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 14px;
+}
+
+.search-grid section,
+.search-results,
+.saved-view-list {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.search-result-item,
+.saved-view-item {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.saved-view-item.is-pinned {
+  background: var(--primary-soft);
+}
+
+.search-result-item p,
+.saved-view-item p {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.search-result-item span,
+.saved-view-item span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.saved-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saved-view-actions button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.saved-view-actions button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
 .engine-workbench {
   display: grid;
   gap: 14px;
@@ -789,6 +897,9 @@ p {
 
   .ticket-form,
   .columns,
+  .search-form,
+  .saved-view-form,
+  .search-grid,
   .engine-form-row,
   .engine-json-grid,
   .comment-form,
@@ -803,6 +914,11 @@ p {
 
   .inbox-actions {
     justify-content: flex-start;
+  }
+
+  .search-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

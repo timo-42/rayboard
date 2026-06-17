@@ -7,6 +7,9 @@ const state = {
   comments: {},
   notifications: [],
   unreadNotificationsOnly: false,
+  searchResults: [],
+  savedViews: [],
+  lastSearchSpec: { text: "", filter: "" },
   engineResult: null
 };
 
@@ -25,6 +28,12 @@ const els = {
   notificationRefresh: document.querySelector("#notifications-refresh"),
   notificationReadAll: document.querySelector("#notifications-read-all"),
   notifications: document.querySelector("#notifications"),
+  searchPanel: document.querySelector("#search-panel"),
+  searchForm: document.querySelector("#search-form"),
+  savedViewForm: document.querySelector("#saved-view-form"),
+  searchResults: document.querySelector("#search-results"),
+  searchResultCount: document.querySelector("#search-result-count"),
+  savedViews: document.querySelector("#saved-views"),
   projectCreate: document.querySelector("#project-create"),
   logoutButton: document.querySelector("#logout-button"),
   signedOut: document.querySelector("#signed-out"),
@@ -63,6 +72,9 @@ function bindEvents() {
       state.comments = {};
       state.notifications = [];
       state.unreadNotificationsOnly = false;
+      state.searchResults = [];
+      state.savedViews = [];
+      state.lastSearchSpec = { text: "", filter: "" };
       render();
     }, "Signed out");
   });
@@ -132,6 +144,74 @@ function bindEvents() {
       await api(`/api/notifications/${button.dataset.notificationId}/${action}`, { method: "POST" });
       await loadNotifications();
     }, "Notification updated");
+  });
+
+  els.searchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runAction(async () => {
+      await runSearch(searchSpecFromForm(event.currentTarget));
+    }, "Search complete");
+  });
+
+  els.savedViewForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject && event.currentTarget.elements.scope_type.value === "project") {
+      setNotice("Select a project before saving a project view");
+      return;
+    }
+    await runAction(async () => {
+      const data = formData(event.currentTarget);
+      const scopeType = data.scope_type || "user";
+      const currentSearch = searchSpecFromForm(els.searchForm);
+      await api("/api/saved-views", {
+        method: "POST",
+        body: {
+          spec: {
+            name: data.name || "Saved view",
+            scope_type: scopeType,
+            project_id: scopeType === "project" && state.selectedProject ? state.selectedProject.id : "",
+            query: {
+              text: currentSearch.text || "",
+              filter: currentSearch.filter || ""
+            },
+            sort: [{ field: "updated_at", direction: "desc" }],
+            columns: ["key", "title", "status", "priority"],
+            display_mode: "list",
+            group_by: "",
+            pinned: Boolean(data.pinned)
+          }
+        }
+      });
+      event.currentTarget.reset();
+      await loadSavedViews();
+    }, "Saved view created");
+  });
+
+  els.savedViews.addEventListener("click", async (event) => {
+    const apply = event.target.closest("[data-apply-saved-view-id]");
+    if (apply) {
+      const view = state.savedViews.find((item) => item.id === apply.dataset.applySavedViewId);
+      if (!view) {
+        return;
+      }
+      setSearchForm(view.query);
+      await runAction(async () => {
+        await runSearch({
+          text: view.query.text || "",
+          filter: view.query.filter || "",
+          project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : "")
+        });
+      }, "Saved view applied");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-saved-view-id]");
+    if (remove) {
+      await runAction(async () => {
+        await api(`/api/saved-views/${remove.dataset.deleteSavedViewId}`, { method: "DELETE" });
+        await loadSavedViews();
+      }, "Saved view deleted");
+    }
   });
 
   els.ticketColumns.addEventListener("click", async (event) => {
@@ -234,6 +314,32 @@ async function loadNotifications() {
   renderNotifications();
 }
 
+async function loadSavedViews() {
+  if (!state.user) {
+    state.savedViews = [];
+    renderSavedViews();
+    return;
+  }
+  const projectPart = state.selectedProject ? `project_id=${encodeURIComponent(state.selectedProject.id)}&` : "";
+  const data = await api(`/api/saved-views?${projectPart}limit=20`);
+  state.savedViews = listItems(data).map(normalizeSavedView);
+  renderSavedViews();
+}
+
+async function runSearch(spec) {
+  const normalized = {
+    project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
+    text: spec.text || "",
+    filter: spec.filter || "",
+    sort: [{ field: "updated_at", direction: "desc" }],
+    limit: 20
+  };
+  const data = await api("/api/search", { method: "POST", body: { spec: normalized } });
+  state.lastSearchSpec = { text: normalized.text, filter: normalized.filter };
+  state.searchResults = listItems(data).map(normalizeTicket);
+  renderSearchResults();
+}
+
 async function loadProjects(selectedID = "") {
   const data = await api("/api/projects");
   state.projects = listItems(data).map(normalizeProject);
@@ -246,10 +352,13 @@ async function loadProjects(selectedID = "") {
   }
   if (state.selectedProject) {
     await loadTickets();
+    await loadSavedViews();
   } else {
     state.tickets = [];
     state.attachments = {};
     state.comments = {};
+    state.searchResults = [];
+    state.savedViews = [];
   }
   render();
 }
@@ -349,6 +458,7 @@ function render() {
   els.logoutButton.hidden = !signedIn;
   els.projectCreate.hidden = !signedIn;
   els.notificationInbox.hidden = !signedIn;
+  els.searchPanel.hidden = !signedIn;
   els.engineWorkbench.hidden = !signedIn;
   els.signedOut.hidden = signedIn;
   els.boardView.hidden = !signedIn;
@@ -358,6 +468,8 @@ function render() {
   renderProjects();
   renderTickets();
   renderNotifications();
+  renderSearchResults();
+  renderSavedViews();
   renderEngineFields();
   renderEngineResult();
 }
@@ -407,6 +519,82 @@ function notificationNode(notification) {
   return article;
 }
 
+function renderSearchResults() {
+  if (!els.searchResults) {
+    return;
+  }
+  els.searchResultCount.textContent = String(state.searchResults.length);
+  els.searchResults.replaceChildren();
+  if (!state.searchResults.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No search results";
+    els.searchResults.append(empty);
+    return;
+  }
+  for (const ticket of state.searchResults) {
+    const row = document.createElement("article");
+    row.className = "search-result-item";
+
+    const title = document.createElement("p");
+    title.textContent = `${ticket.key} ${ticket.title}`;
+
+    const meta = document.createElement("span");
+    meta.textContent = [ticket.status, ticket.type, ticket.priority].filter(Boolean).join(" / ") || "Ticket";
+
+    row.append(title, meta);
+    els.searchResults.append(row);
+  }
+}
+
+function renderSavedViews() {
+  if (!els.savedViews) {
+    return;
+  }
+  els.savedViews.replaceChildren();
+  if (!state.savedViews.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No saved views";
+    els.savedViews.append(empty);
+    return;
+  }
+  for (const view of state.savedViews) {
+    els.savedViews.append(savedViewNode(view));
+  }
+}
+
+function savedViewNode(view) {
+  const article = document.createElement("article");
+  article.className = "saved-view-item";
+  if (view.pinned) {
+    article.classList.add("is-pinned");
+  }
+
+  const name = document.createElement("p");
+  name.textContent = view.name;
+
+  const meta = document.createElement("span");
+  meta.textContent = [view.scope_type, view.display_mode, view.pinned ? "pinned" : ""].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "saved-view-actions";
+
+  const apply = document.createElement("button");
+  apply.type = "button";
+  apply.dataset.applySavedViewId = view.id;
+  apply.textContent = "Apply";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteSavedViewId = view.id;
+  remove.textContent = "Delete";
+
+  actions.append(apply, remove);
+  article.append(name, meta, actions);
+  return article;
+}
+
 function renderProjects() {
   els.projects.replaceChildren();
   if (!state.projects.length) {
@@ -429,6 +617,7 @@ function renderProjects() {
         els.engineProjectID.value = project.id;
       }
       await loadTickets();
+      await loadSavedViews();
     });
 
     const key = document.createElement("span");
@@ -683,6 +872,23 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function searchSpecFromForm(form) {
+  const data = formData(form);
+  return {
+    text: data.text || "",
+    filter: data.filter || "",
+    project_id: state.selectedProject ? state.selectedProject.id : ""
+  };
+}
+
+function setSearchForm(query) {
+  if (!els.searchForm) {
+    return;
+  }
+  els.searchForm.elements.text.value = query.text || "";
+  els.searchForm.elements.filter.value = query.filter || "";
+}
+
 function listItems(data) {
   if (!data) {
     return [];
@@ -776,6 +982,30 @@ function normalizeNotification(notification) {
     };
   }
   return notification;
+}
+
+function normalizeSavedView(view) {
+  if (!view) {
+    return null;
+  }
+  if (view.metadata && view.spec) {
+    return {
+      id: view.metadata.id,
+      created_at: view.metadata.created_at,
+      updated_at: view.metadata.updated_at,
+      owner_user_id: view.spec.owner_user_id || "",
+      project_id: view.spec.project_id || "",
+      scope_type: view.spec.scope_type || "user",
+      name: view.spec.name || "",
+      query: view.spec.query || {},
+      sort: view.spec.sort || [],
+      columns: view.spec.columns || [],
+      display_mode: view.spec.display_mode || "list",
+      group_by: view.spec.group_by || "",
+      pinned: Boolean(view.spec.pinned)
+    };
+  }
+  return view;
 }
 
 function normalizeComment(comment) {

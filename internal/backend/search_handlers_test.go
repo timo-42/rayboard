@@ -121,6 +121,35 @@ func TestSearchEndpointsAndSavedViews(t *testing.T) {
 	}
 }
 
+func TestSearchRequiresCSRFForSession(t *testing.T) {
+	ctx := context.Background()
+	db, bootstrap := openBackendTestDB(t, ctx)
+	authorizer := authz.NewSQLEvaluator(db.SQL)
+	handler := NewHandler(
+		WithAuthService(auth.NewService(db.SQL)),
+		WithAuthorizer(authorizer),
+		WithSearchService(search.NewService(db.SQL, authorizer)),
+	)
+
+	login := postJSON(t, handler, "/api/login", map[string]string{
+		"username": bootstrap.Username,
+		"password": bootstrap.Password,
+	}, nil)
+	session := responseCookie(t, login.Result(), auth.SessionCookieName)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/search", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"text": "login",
+		},
+	}))
+	req.AddCookie(session)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF search status 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 type savedViewResourceBody struct {
 	Metadata struct {
 		ID string `json:"id"`

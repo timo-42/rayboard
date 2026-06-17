@@ -144,6 +144,51 @@
         <div id="notifications" class="notification-list"></div>
       </section>
 
+      <section id="search-panel" class="search-panel" hidden>
+        <header class="search-header">
+          <div>
+            <p class="eyebrow">Find Work</p>
+            <h2>Search and Saved Views</h2>
+          </div>
+        </header>
+
+        <form id="search-form" class="search-form">
+          <label>
+            Text
+            <input name="text" placeholder="title, comment, attachment">
+          </label>
+          <label>
+            CEL Filter
+            <input name="filter" placeholder='status == "todo"'>
+          </label>
+          <button type="submit">Search</button>
+        </form>
+
+        <form id="saved-view-form" class="saved-view-form">
+          <input name="name" placeholder="Saved view name" required>
+          <select name="scope_type">
+            <option value="user">Personal</option>
+            <option value="project">Project</option>
+          </select>
+          <label class="inline-toggle">
+            <input name="pinned" type="checkbox">
+            Pin
+          </label>
+          <button type="submit">Save view</button>
+        </form>
+
+        <div class="search-grid">
+          <section>
+            <h3>Results <span id="search-result-count">0</span></h3>
+            <div id="search-results" class="search-results"></div>
+          </section>
+          <section>
+            <h3>Saved Views</h3>
+            <div id="saved-views" class="saved-view-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section id="engine-workbench" class="engine-workbench" hidden>
         <header class="workbench-header">
           <div>
