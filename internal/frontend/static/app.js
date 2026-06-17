@@ -35,6 +35,11 @@ const state = {
   cronJobs: [],
   cronRuns: {},
   cronJobsError: "",
+  webhooks: [],
+  webhookRuns: {},
+  webhookDeliveries: {},
+  webhookTokens: {},
+  webhooksError: "",
   ticketHooks: [],
   ticketHooksError: "",
   ticketHookPreview: null,
@@ -56,6 +61,11 @@ const els = {
   cronJobEngineType: document.querySelector("#cron-job-engine-type"),
   cronJobStatus: document.querySelector("#cron-job-status"),
   cronJobs: document.querySelector("#cron-jobs"),
+  webhookProject: document.querySelector("#webhook-project"),
+  webhookForm: document.querySelector("#webhook-form"),
+  webhookEngineType: document.querySelector("#webhook-engine-type"),
+  webhookStatus: document.querySelector("#webhook-status"),
+  webhooks: document.querySelector("#webhooks"),
   ticketHookProject: document.querySelector("#ticket-hook-project"),
   ticketHookForm: document.querySelector("#ticket-hook-form"),
   ticketHookEngineType: document.querySelector("#ticket-hook-engine-type"),
@@ -215,6 +225,11 @@ function bindEvents() {
       state.cronJobs = [];
       state.cronRuns = {};
       state.cronJobsError = "";
+      state.webhooks = [];
+      state.webhookRuns = {};
+      state.webhookDeliveries = {};
+      state.webhookTokens = {};
+      state.webhooksError = "";
       state.ticketHooks = [];
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
@@ -269,7 +284,7 @@ function bindEvents() {
     if (project) {
       state.selectedProject = project;
     }
-    await Promise.all([loadCronJobs(projectID), loadTicketHooks(projectID)]);
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
     renderEngineFields();
   });
 
@@ -329,10 +344,108 @@ function bindEvents() {
     }
   });
 
+  els.webhookEngineType.addEventListener("change", () => {
+    renderWebhookEngineFields();
+  });
+
+  els.webhookProject.addEventListener("change", async () => {
+    const projectID = els.webhookProject.value;
+    const project = state.projects.find((item) => item.id === projectID);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
+    renderEngineFields();
+  });
+
+  els.webhookForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const projectID = selectedWebhookProjectID();
+    if (!projectID) {
+      setNotice("Choose a project for webhooks");
+      return;
+    }
+    const form = event.currentTarget;
+    await runAction(async () => {
+      const created = normalizeWebhook(await api(`/api/projects/${projectID}/webhooks`, {
+        method: "POST",
+        body: { spec: webhookSpec(form) }
+      }));
+      if (created && created.token) {
+        state.webhookTokens[created.id] = created.token;
+      }
+      form.reset();
+      renderWebhookEngineFields();
+      await loadWebhooks(projectID);
+    }, "Webhook created");
+  });
+
+  els.webhooks.addEventListener("click", async (event) => {
+    const runs = event.target.closest("[data-load-webhook-runs-id]");
+    if (runs) {
+      await runAction(async () => {
+        await loadWebhookRuns(runs.dataset.loadWebhookRunsId);
+      }, "Webhook runs loaded");
+      return;
+    }
+
+    const deliveries = event.target.closest("[data-load-webhook-deliveries-id]");
+    if (deliveries) {
+      await runAction(async () => {
+        await loadWebhookDeliveries(deliveries.dataset.loadWebhookDeliveriesId);
+      }, "Webhook deliveries loaded");
+      return;
+    }
+
+    const retry = event.target.closest("[data-retry-webhook-delivery-id]");
+    if (retry) {
+      await runAction(async () => {
+        await api(`/api/webhook-deliveries/${retry.dataset.retryWebhookDeliveryId}/retry`, { method: "POST" });
+        await loadWebhookDeliveries(retry.dataset.webhookId);
+      }, "Webhook delivery requeued");
+      return;
+    }
+
+    const rotate = event.target.closest("[data-rotate-webhook-token-id]");
+    if (rotate) {
+      await runAction(async () => {
+        const rotated = normalizeWebhook(await api(`/api/webhook-definitions/${rotate.dataset.rotateWebhookTokenId}/rotate-token`, { method: "POST" }));
+        if (rotated && rotated.token) {
+          state.webhookTokens[rotated.id] = rotated.token;
+        }
+        await loadWebhooks();
+      }, "Webhook token rotated");
+      return;
+    }
+
+    const toggle = event.target.closest("[data-toggle-webhook-id]");
+    if (toggle) {
+      await runAction(async () => {
+        await api(`/api/webhook-definitions/${toggle.dataset.toggleWebhookId}`, {
+          method: "PATCH",
+          body: { spec: { enabled: toggle.dataset.webhookEnabled === "true" } }
+        });
+        await loadWebhooks();
+      }, "Webhook updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-webhook-id]");
+    if (remove) {
+      await runAction(async () => {
+        await api(`/api/webhook-definitions/${remove.dataset.deleteWebhookId}`, { method: "DELETE" });
+        delete state.webhookRuns[remove.dataset.deleteWebhookId];
+        delete state.webhookDeliveries[remove.dataset.deleteWebhookId];
+        delete state.webhookTokens[remove.dataset.deleteWebhookId];
+        await loadWebhooks();
+      }, "Webhook deleted");
+    }
+  });
+
   els.ticketHookProject.addEventListener("change", async () => {
     const projectID = els.ticketHookProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
-    await Promise.all([loadCronJobs(projectID), loadTicketHooks(projectID)]);
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID)]);
   });
 
   els.ticketHookForm.addEventListener("submit", async (event) => {
@@ -1236,7 +1349,7 @@ async function loadRouteData() {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
     }
-    await Promise.all([loadCronJobs(), loadTicketHooks()]);
+    await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks()]);
   }
 }
 
@@ -1660,6 +1773,33 @@ async function loadCronRuns(jobID) {
   renderCronJobs();
 }
 
+async function loadWebhooks(projectID = selectedWebhookProjectID()) {
+  if (!projectID) {
+    state.webhooks = [];
+    state.webhooksError = "Choose a project to manage webhooks";
+    renderWebhooks();
+    return;
+  }
+  try {
+    state.webhooks = listItems(await api(`/api/projects/${projectID}/webhooks?limit=100`)).map(normalizeWebhook);
+    state.webhooksError = "";
+  } catch (error) {
+    state.webhooks = [];
+    state.webhooksError = error.message || "Webhooks are not available";
+  }
+  renderWebhooks();
+}
+
+async function loadWebhookRuns(webhookID) {
+  state.webhookRuns[webhookID] = listItems(await api(`/api/webhook-definitions/${webhookID}/runs?limit=10`)).map(normalizeWebhookRun);
+  renderWebhooks();
+}
+
+async function loadWebhookDeliveries(webhookID) {
+  state.webhookDeliveries[webhookID] = listItems(await api(`/api/webhook-definitions/${webhookID}/deliveries?limit=10`)).map(normalizeWebhookDelivery);
+  renderWebhooks();
+}
+
 async function loadTicketHooks(projectID = selectedTicketHookProjectID()) {
   if (!projectID) {
     state.ticketHooks = [];
@@ -1775,6 +1915,7 @@ function render() {
   renderRBAC();
   renderSettings();
   renderCronJobs();
+  renderWebhooks();
   renderTicketHooks();
   renderEngineFields();
   renderEngineResult();
@@ -2867,6 +3008,176 @@ function cronRunListNode(runs) {
   return list;
 }
 
+function renderWebhooks() {
+  if (!els.webhooks || !els.webhookProject) {
+    return;
+  }
+  replaceSelectOptions(els.webhookProject, "Project", state.projects, (project) => `${project.key} ${project.name}`);
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.webhookProject.value = state.selectedProject.id;
+  }
+  renderWebhookEngineFields();
+
+  els.webhooks.replaceChildren();
+  if (state.webhooksError) {
+    els.webhookStatus.textContent = state.webhooksError;
+    return;
+  }
+  const projectID = selectedWebhookProjectID();
+  els.webhookStatus.textContent = projectID
+    ? `${state.webhooks.length} webhooks`
+    : "Choose a project to manage webhooks";
+  if (!projectID || !state.webhooks.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = projectID ? "No webhooks for this project" : "Select a project first";
+    els.webhooks.append(empty);
+    return;
+  }
+  for (const webhook of state.webhooks) {
+    els.webhooks.append(webhookNode(webhook));
+  }
+}
+
+function renderWebhookEngineFields() {
+  const type = els.webhookEngineType ? els.webhookEngineType.value : "lua";
+  document.querySelectorAll("[data-webhook-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.webhookEngineField !== type;
+  });
+}
+
+function webhookNode(webhook) {
+  const article = document.createElement("article");
+  article.className = "webhook-item";
+
+  const header = document.createElement("div");
+  header.className = "ticket-hook-item-header";
+  const title = document.createElement("p");
+  title.textContent = webhook.name || webhook.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = webhook.enabled ? "hook-state" : "hook-state is-disabled";
+  stateLabel.textContent = webhook.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    webhook.direction,
+    webhook.engine.type,
+    webhook.actor_user_id ? `actor ${webhook.actor_user_id}` : "",
+    webhook.event_types.length ? webhook.event_types.join(", ") : "",
+    webhook.token_set ? "token set" : "",
+    webhook.last_error ? `error: ${webhook.last_error}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const token = state.webhookTokens[webhook.id];
+  if (token) {
+    const tokenBlock = document.createElement("pre");
+    tokenBlock.className = "webhook-token";
+    tokenBlock.textContent = `Webhook token: ${token}`;
+    article.append(header, meta, tokenBlock);
+  } else {
+    article.append(header, meta);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "ticket-hook-actions";
+
+  const runs = document.createElement("button");
+  runs.type = "button";
+  runs.dataset.loadWebhookRunsId = webhook.id;
+  runs.textContent = "Runs";
+  actions.append(runs);
+
+  if (webhook.direction === "outgoing") {
+    const deliveries = document.createElement("button");
+    deliveries.type = "button";
+    deliveries.dataset.loadWebhookDeliveriesId = webhook.id;
+    deliveries.textContent = "Deliveries";
+    actions.append(deliveries);
+  }
+
+  if (webhook.direction === "incoming") {
+    const rotate = document.createElement("button");
+    rotate.type = "button";
+    rotate.dataset.rotateWebhookTokenId = webhook.id;
+    rotate.textContent = "Rotate token";
+    actions.append(rotate);
+  }
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.toggleWebhookId = webhook.id;
+  toggle.dataset.webhookEnabled = webhook.enabled ? "false" : "true";
+  toggle.textContent = webhook.enabled ? "Disable" : "Enable";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteWebhookId = webhook.id;
+  remove.textContent = "Delete";
+
+  actions.append(toggle, remove);
+  article.append(actions);
+
+  const runsList = state.webhookRuns[webhook.id] || [];
+  if (runsList.length) {
+    article.append(webhookRunListNode(runsList));
+  }
+  const deliveriesList = state.webhookDeliveries[webhook.id] || [];
+  if (deliveriesList.length) {
+    article.append(webhookDeliveryListNode(webhook.id, deliveriesList));
+  }
+  return article;
+}
+
+function webhookRunListNode(runs) {
+  const list = document.createElement("div");
+  list.className = "webhook-run-list";
+  for (const run of runs) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      run.state || "queued",
+      run.trigger_type,
+      run.created_at ? formatDateTime(run.created_at) : "",
+      run.error ? `error: ${run.error}` : ""
+    ].filter(Boolean).join(" / ");
+    const output = document.createElement("pre");
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
+    list.append(item);
+  }
+  return list;
+}
+
+function webhookDeliveryListNode(webhookID, deliveries) {
+  const list = document.createElement("div");
+  list.className = "webhook-delivery-list";
+  for (const delivery of deliveries) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      delivery.state,
+      delivery.event_type,
+      delivery.subject_id,
+      delivery.attempt_count ? `${delivery.attempt_count} attempts` : "",
+      delivery.last_error ? `error: ${delivery.last_error}` : ""
+    ].filter(Boolean).join(" / ");
+    item.append(summary);
+    if (delivery.state === "failed" || delivery.state === "canceled") {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.dataset.retryWebhookDeliveryId = delivery.id;
+      retry.dataset.webhookId = webhookID;
+      retry.textContent = "Retry";
+      item.append(retry);
+    }
+    list.append(item);
+  }
+  return list;
+}
+
 function renderAuditLog() {
   if (!els.auditStatus || !els.auditLog) {
     return;
@@ -3124,6 +3435,13 @@ function selectedCronJobProjectID() {
   return state.selectedProject ? state.selectedProject.id : "";
 }
 
+function selectedWebhookProjectID() {
+  if (els.webhookProject && els.webhookProject.value) {
+    return els.webhookProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
 function selectedNotificationDestinationProjectID() {
   if (els.notificationDestinationProject && els.notificationDestinationProject.value) {
     return els.notificationDestinationProject.value;
@@ -3150,6 +3468,33 @@ function cronJobSpec(form) {
 }
 
 function cronJobEngineSpec(data) {
+  const type = data.engine_type || "lua";
+  if (type === "ai") {
+    return {
+      type,
+      prompt: data.prompt || "",
+      provider_id: data.provider_id || ""
+    };
+  }
+  return {
+    type: "lua",
+    script: data.script || ""
+  };
+}
+
+function webhookSpec(form) {
+  const data = formData(form);
+  return {
+    name: data.name || "",
+    direction: data.direction || "incoming",
+    enabled: Boolean(data.enabled),
+    actor_user_id: data.actor_user_id || "",
+    event_types: parseCommaList(data.event_types),
+    engine: webhookEngineSpec(data)
+  };
+}
+
+function webhookEngineSpec(data) {
   const type = data.engine_type || "lua";
   if (type === "ai") {
     return {
@@ -4358,6 +4703,83 @@ function normalizeCronRun(run) {
     };
   }
   return run;
+}
+
+function normalizeWebhook(webhook) {
+  if (!webhook) {
+    return null;
+  }
+  if (webhook.metadata && webhook.spec && webhook.status) {
+    return {
+      id: webhook.metadata.id || "",
+      project_id: webhook.metadata.project_id || "",
+      created_at: webhook.metadata.created_at || "",
+      updated_at: webhook.metadata.updated_at || "",
+      name: webhook.spec.name || "",
+      direction: webhook.spec.direction || "",
+      enabled: Boolean(webhook.spec.enabled),
+      actor_user_id: webhook.spec.actor_user_id || "",
+      event_types: webhook.spec.event_types || [],
+      engine: webhook.spec.engine || { type: "" },
+      token_set: Boolean(webhook.status.token_set),
+      token_rotated_at: webhook.status.token_rotated_at || "",
+      token: webhook.status.token || "",
+      last_error: webhook.status.last_error || ""
+    };
+  }
+  return webhook;
+}
+
+function normalizeWebhookRun(run) {
+  if (!run) {
+    return null;
+  }
+  if (run.metadata && run.spec && run.status) {
+    return {
+      id: run.metadata.id || "",
+      created_at: run.metadata.created_at || "",
+      trigger_type: run.spec.trigger_type || "",
+      trigger_ref: run.spec.trigger_ref || "",
+      project_id: run.spec.project_id || "",
+      ticket_id: run.spec.ticket_id || "",
+      input: run.spec.input || {},
+      state: run.status.state || "",
+      output: run.status.output || {},
+      error: run.status.error || "",
+      started_at: run.status.started_at || "",
+      finished_at: run.status.finished_at || ""
+    };
+  }
+  return run;
+}
+
+function normalizeWebhookDelivery(delivery) {
+  if (!delivery) {
+    return null;
+  }
+  if (delivery.metadata && delivery.spec && delivery.status) {
+    return {
+      id: delivery.metadata.id || "",
+      webhook_id: delivery.metadata.webhook_id || "",
+      webhook_name: delivery.metadata.webhook_name || "",
+      domain_event_id: delivery.metadata.domain_event_id || "",
+      project_id: delivery.metadata.project_id || "",
+      created_at: delivery.metadata.created_at || "",
+      updated_at: delivery.metadata.updated_at || "",
+      event_type: delivery.spec.event_type || "",
+      subject_type: delivery.spec.subject_type || "",
+      subject_id: delivery.spec.subject_id || "",
+      payload: delivery.spec.payload || {},
+      max_attempts: Number(delivery.spec.max_attempts || 0),
+      state: delivery.status.state || "",
+      attempt_count: Number(delivery.status.attempt_count || 0),
+      next_attempt_at: delivery.status.next_attempt_at || "",
+      last_attempt_at: delivery.status.last_attempt_at || "",
+      delivered_at: delivery.status.delivered_at || "",
+      last_error: delivery.status.last_error || ""
+    };
+  }
+  return delivery;
 }
 
 function normalizeOpenRouterProvider(provider) {

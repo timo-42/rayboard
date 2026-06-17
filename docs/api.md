@@ -469,7 +469,7 @@ Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigne
 
 ## Webhooks
 
-The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua or AI execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Due outgoing deliveries can be shaped by Lua or AI, sent through a controlled HTTP client to the configured outgoing webhook base URL, retried with backoff, inspected through the API, and manually requeued after failure.
+The webhook slice implements project-scoped incoming and outgoing webhook definitions. Incoming webhooks have hashed bearer tokens, one-time token display, token rotation, Lua or AI execution for authenticated incoming requests, constrained Rayboard action helpers, and shared automation run history. Outgoing webhook definitions can be created, listed, updated, and deleted with `spec.event_types`, and the backend has a durable queued-delivery model for matching domain events. Due outgoing deliveries can be shaped by Lua or AI, sent through a controlled HTTP client to the configured outgoing webhook base URL, retried with backoff, inspected through the API, and manually requeued after failure. The embedded `/automation` page provides basic project webhook management, token rotation, run history, and outgoing delivery inspection.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

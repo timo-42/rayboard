@@ -214,6 +214,11 @@ func TestAPIDocsAreServedLocally(t *testing.T) {
 	if !strings.Contains(body, "/api/openapi.json") {
 		t.Fatalf("expected docs page to reference local OpenAPI JSON")
 	}
+	for _, expected := range []string{`ui.preauthorizeApiKey("csrfToken", csrf)`, `request.credentials = "same-origin"`, `request.headers["X-CSRF-Token"] = csrf`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected Swagger UI page to include CSRF helper %q", expected)
+		}
+	}
 	for _, localAsset := range []string{"/api/docs/swagger-ui.css", "/api/docs/swagger-ui-bundle.js", "/api/docs/swagger-ui-standalone-preset.js"} {
 		if !strings.Contains(body, localAsset) {
 			t.Fatalf("expected docs page to reference local Swagger UI asset %s", localAsset)

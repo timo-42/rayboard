@@ -48,11 +48,12 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - compact search with text/CEL filters plus saved-view list, create, apply, and delete controls;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`;
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
+- basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/policies/delivery history, webhook management, notification-hook management, custom create-page management, and richer automation management screens beyond basic cron jobs and project ticket hooks are API-only for now.
+It does not currently expose all backend endpoints. Advanced saved-view editing, advanced search pagination, backlog list/reorder endpoints, project workflow status APIs, board definition CRUD, board ticket listing, detailed component/version editing, custom-field update forms beyond delete/recreate, project notification defaults/policies/delivery history, notification-hook management, custom create-page management, and richer automation management screens beyond basic cron jobs, webhooks, and project ticket hooks are API-only for now.
 
 Drag/drop UI, board settings UI, board UI beyond the current simple status shell, richer backlog planning, sprint report screens, release reports, richer roadmap timeline controls, richer component/version screens, custom-field search/layout screens, and advanced release planning are **Planned**.
 

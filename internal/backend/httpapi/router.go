@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	redoc "github.com/mvrilo/go-redoc"
+	"github.com/swaggest/swgui"
 	"github.com/swaggest/swgui/v5emb"
 	"github.com/timo-42/rayboard/internal/backend/attachments"
 	"github.com/timo-42/rayboard/internal/backend/audit"
@@ -158,7 +159,50 @@ func registerHealth(api huma.API) {
 }
 
 func registerDocs(mux *http.ServeMux) {
-	handler := v5emb.New("Rayboard API", "/api/openapi.json", "/api/docs")
+	handler := v5emb.NewHandlerWithConfig(swgui.Config{
+		Title:       "Rayboard API",
+		SwaggerJSON: "/api/openapi.json",
+		BasePath:    "/api/docs",
+		SettingsUI: map[string]string{
+			"onComplete": `function() {
+				function cookieValue(name) {
+					return document.cookie
+						.split(";")
+						.map(function(part) { return part.trim(); })
+						.filter(function(part) { return part.startsWith(name + "="); })
+						.map(function(part) { return decodeURIComponent(part.slice(name.length + 1)); })[0] || "";
+				}
+				var csrf = cookieValue("rayboard_csrf");
+				if (csrf) {
+					ui.preauthorizeApiKey("csrfToken", csrf);
+				}
+				var dom = document.querySelector(".scheme-container select");
+				for (var key in dom) {
+					if (key.startsWith("__reactInternalInstance$")) {
+						var compInternals = dom[key]._currentElement;
+						var compWrapper = compInternals._owner;
+						compWrapper._instance.setScheme(window.location.protocol.slice(0, -1));
+					}
+				}
+			}`,
+			"requestInterceptor": `function(request) {
+				function cookieValue(name) {
+					return document.cookie
+						.split(";")
+						.map(function(part) { return part.trim(); })
+						.filter(function(part) { return part.startsWith(name + "="); })
+						.map(function(part) { return decodeURIComponent(part.slice(name.length + 1)); })[0] || "";
+				}
+				var csrf = cookieValue("rayboard_csrf");
+				request.credentials = "same-origin";
+				request.headers = request.headers || {};
+				if (csrf && !request.headers["X-CSRF-Token"]) {
+					request.headers["X-CSRF-Token"] = csrf;
+				}
+				return request;
+			}`,
+		},
+	})
 	mux.Handle("GET /api/docs", handler)
 	mux.Handle("GET /api/docs/", handler)
 

@@ -43,6 +43,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="cron-job-form"`) ||
 		!strings.Contains(body, `id="cron-jobs"`) ||
+		!strings.Contains(body, `id="webhook-form"`) ||
+		!strings.Contains(body, `id="webhooks"`) ||
 		!strings.Contains(body, `id="ticket-hook-form"`) ||
 		!strings.Contains(body, `id="ticket-hooks"`) ||
 		!strings.Contains(body, `id="ticket-hook-preview-output"`) ||
@@ -118,13 +120,16 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
 		"loadCronJobs",
+		"loadWebhooks",
 		"loadTicketHooks",
 		"normalizeAuditEntry",
 		"normalizeOpenRouterProvider",
 		"normalizeNotificationDestination",
 		"normalizeCronJob",
+		"normalizeWebhook",
 		"normalizeTicketHook",
 		"cronJobSpec",
+		"webhookSpec",
 		"ticketHookSpec",
 		"ticketHookPreviewSpec",
 		"rbacUserForm",
@@ -149,6 +154,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/cron-jobs?${query.toString()}",
 		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
 		"data-delete-cron-job-id",
+		"/api/projects/${projectID}/webhooks?limit=100",
+		"/api/webhook-definitions/${rotate.dataset.rotateWebhookTokenId}/rotate-token",
+		"data-delete-webhook-id",
 		"/api/projects/${projectID}/ticket-hooks?limit=100",
 		"/api/ticket-hooks/${preview.dataset.previewTicketHookId}/preview",
 		"data-delete-ticket-hook-id",
@@ -178,6 +186,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-destination-list",
 		".cron-job-form",
 		".cron-job-list",
+		".webhook-form",
+		".webhook-list",
 		".ticket-hook-panel",
 		".ticket-hook-list",
 	} {

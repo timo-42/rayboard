@@ -629,6 +629,60 @@
         <section class="ticket-hook-panel">
           <header class="ticket-hook-header">
             <div>
+              <p class="eyebrow">Webhooks</p>
+              <h3>Project Webhooks</h3>
+            </div>
+            <label>
+              Project
+              <select id="webhook-project" name="webhook_project"></select>
+            </label>
+          </header>
+
+          <form id="webhook-form" class="webhook-form">
+            <div class="webhook-grid">
+              <input name="name" placeholder="github" required>
+              <select name="direction">
+                <option value="incoming">Incoming</option>
+                <option value="outgoing">Outgoing</option>
+              </select>
+              <input name="actor_user_id" placeholder="actor user id" required>
+              <input name="event_types" placeholder="ticket.updated, comment.created">
+              <select name="engine_type" id="webhook-engine-type">
+                <option value="lua">Lua</option>
+                <option value="ai">OpenRouter AI</option>
+              </select>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox">
+                Enabled
+              </label>
+            </div>
+
+            <label data-webhook-engine-field="lua">
+              Lua Script
+              <textarea name="script" rows="5">return { accepted = true }</textarea>
+            </label>
+
+            <div data-webhook-engine-field="ai" hidden>
+              <label>
+                AI Prompt
+                <textarea name="prompt" rows="4">Return JSON for this webhook request or event.</textarea>
+              </label>
+              <label>
+                Provider ID
+                <input name="provider_id" placeholder="openrouter_provider_...">
+              </label>
+            </div>
+
+            <button type="submit">Create webhook</button>
+          </form>
+
+          <div id="webhook-status" class="ticket-hook-status"></div>
+          <div id="webhooks" class="webhook-list"></div>
+        </section>
+
+        <section class="ticket-hook-panel">
+          <header class="ticket-hook-header">
+            <div>
               <p class="eyebrow">Project Automation</p>
               <h3>Ticket Hooks</h3>
             </div>
