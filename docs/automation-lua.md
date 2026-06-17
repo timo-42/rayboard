@@ -148,7 +148,7 @@ Implemented cron Lua helpers:
 
 These helpers return `value, nil` on success and `nil, { message = "..." }` on failure. Each helper goes through the normal backend service and RBAC path using the cron job owner as an `AuthKindCron` principal.
 
-AI cron jobs use `engine.type = "ai"`, `engine.prompt`, and `engine.provider_id`. The provider references `/api/openrouter-providers`. At run time Rayboard calls OpenRouter Chat Completions with the provider default model, timeout, max output tokens, and JSON-object response mode. The assistant response must be a JSON object. The validated object is stored under run output, with provider/model/usage metadata and without the prompt or API key. AI cron jobs do not apply returned actions yet.
+AI cron jobs use `engine.type = "ai"`, `engine.prompt`, and `engine.provider_id`. The provider references `/api/openrouter-providers`. At run time Rayboard appends cron job context and action instructions to the saved prompt, then calls OpenRouter Chat Completions with the provider default model, timeout, max output tokens, and JSON-object response mode. The assistant response must be a JSON object. The validated object is stored under run output, with provider/model/usage metadata and without the prompt or API key. AI cron output may include an `actions` array with action types `search`, `get_ticket`, `create_ticket`, `update_ticket`, and `comment`; actions are capped at 20 and run as the cron job owner through the same backend service and RBAC paths as the Lua helpers. Action results are stored under `output.action_results`.
 
 Example shape:
 
@@ -305,7 +305,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
-AI execution is implemented for cron jobs, ticket hooks, custom create-page form shaping, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron action execution is still **Planned**.
+AI execution is implemented for cron jobs, ticket hooks, custom create-page form shaping, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron jobs and incoming webhooks can execute the constrained Rayboard action set through normal backend validation and RBAC.
 
 ## WebAssembly Engine
 

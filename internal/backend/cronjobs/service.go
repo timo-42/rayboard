@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -456,18 +457,30 @@ func (s *Service) executeAI(ctx context.Context, job Job) (map[string]any, []str
 	if s.openrouter == nil {
 		return map[string]any{}, nil, fmt.Errorf("%w: OpenRouter service is not configured", ErrValidation)
 	}
+	prompt, err := cronAIPrompt(job)
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
 	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
 		ProviderID: job.Engine.ProviderID,
-		Prompt:     job.Engine.Prompt,
+		Prompt:     prompt,
 	})
 	if err != nil {
 		return map[string]any{}, nil, err
+	}
+	aiOutput := result.Output
+	if aiOutput == nil {
+		aiOutput = map[string]any{}
+	}
+	actionResults, actionErr := s.executeAIActions(ctx, job, aiOutput["actions"])
+	if len(actionResults) > 0 {
+		aiOutput["action_results"] = actionResults
 	}
 	output := map[string]any{
 		"ok":          true,
 		"provider_id": result.ProviderID,
 		"model":       result.Model,
-		"output":      result.Output,
+		"output":      aiOutput,
 	}
 	if result.ResponseID != "" {
 		output["response_id"] = result.ResponseID
@@ -475,7 +488,165 @@ func (s *Service) executeAI(ctx context.Context, job Job) (map[string]any, []str
 	if len(result.Usage) > 0 {
 		output["usage"] = result.Usage
 	}
+	if actionErr != nil {
+		return output, nil, actionErr
+	}
 	return output, nil, nil
+}
+
+func cronAIPrompt(job Job) (string, error) {
+	payload := map[string]any{
+		"context": map[string]any{
+			"surface":    "cron",
+			"job_id":     job.ID,
+			"job_name":   job.Name,
+			"project_id": job.ProjectID,
+			"user_id":    job.OwnerUserID,
+		},
+		"instructions": []string{
+			"Return only a JSON object.",
+			"Return {\"actions\":[{\"type\":\"create_ticket\",\"input\":{...}}]} to perform allowed Rayboard actions.",
+			"Allowed action types are search, get_ticket, create_ticket, update_ticket, and comment.",
+			"Actions run as the cron job owner and must pass normal Rayboard validation and RBAC.",
+		},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode cron AI input: %w", err)
+	}
+	return strings.TrimSpace(job.Engine.Prompt) + "\n\nRayboard cron input:\n" + string(data), nil
+}
+
+func (s *Service) executeAIActions(ctx context.Context, job Job, value any) ([]map[string]any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	actions, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: actions must be an array", ErrValidation)
+	}
+	if len(actions) > 20 {
+		return nil, fmt.Errorf("%w: actions must contain 20 or fewer items", ErrValidation)
+	}
+	results := make([]map[string]any, 0, len(actions))
+	for index, item := range actions {
+		action, ok := item.(map[string]any)
+		if !ok {
+			return results, fmt.Errorf("%w: action %d must be an object", ErrValidation, index+1)
+		}
+		actionType := stringValue(action, "type")
+		input, _ := action["input"].(map[string]any)
+		if input == nil {
+			input = map[string]any{}
+		}
+		result, err := s.executeAIAction(ctx, job, actionType, input)
+		entry := map[string]any{"type": actionType}
+		if err != nil {
+			entry["error"] = err.Error()
+			results = append(results, entry)
+			return results, err
+		}
+		entry["result"] = result
+		results = append(results, entry)
+	}
+	return results, nil
+}
+
+func (s *Service) executeAIAction(ctx context.Context, job Job, actionType string, input map[string]any) (any, error) {
+	switch actionType {
+	case "search":
+		if s.search == nil {
+			return nil, fmt.Errorf("%w: rayboard.search is not configured", ErrValidation)
+		}
+		return s.search.SearchTickets(ctx, cronPrincipal(job), search.SearchTicketsInput{
+			ProjectID: stringValue(input, "project_id"),
+			Filter:    stringValue(input, "filter"),
+			Text:      stringValue(input, "text"),
+			Sort:      sortSpecs(input["sort"]),
+			Limit:     intValue(input, "limit"),
+			Cursor:    stringValue(input, "cursor"),
+		})
+	case "get_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.get_ticket is not configured", ErrValidation)
+		}
+		return s.tracker.GetTicket(ctx, cronPrincipal(job), ticketIDValue(input))
+	case "create_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.create_ticket is not configured", ErrValidation)
+		}
+		customFields, ok := customFieldsValue(input)
+		if !ok {
+			return nil, fmt.Errorf("%w: custom_fields must be an object", ErrValidation)
+		}
+		labels, ok := stringSliceValue(input, "labels")
+		if !ok {
+			return nil, fmt.Errorf("%w: labels must be an array of strings", ErrValidation)
+		}
+		return s.tracker.CreateTicket(ctx, cronPrincipal(job), tracker.CreateTicketInput{
+			ProjectID:      stringValue(input, "project_id"),
+			Title:          stringValue(input, "title"),
+			Description:    stringValue(input, "description"),
+			Status:         stringValue(input, "status"),
+			Priority:       stringValue(input, "priority"),
+			Type:           stringValue(input, "type"),
+			ReporterID:     stringValue(input, "reporter_id"),
+			AssigneeID:     stringValue(input, "assignee_id"),
+			ParentTicketID: stringValue(input, "parent_ticket_id"),
+			SprintID:       stringValue(input, "sprint_id"),
+			ComponentID:    stringValue(input, "component_id"),
+			VersionID:      stringValue(input, "version_id"),
+			Rank:           stringValue(input, "rank"),
+			StartDate:      stringValue(input, "start_date"),
+			DueDate:        stringValue(input, "due_date"),
+			Labels:         labels,
+			CustomFields:   customFields,
+		})
+	case "update_ticket":
+		if s.tracker == nil {
+			return nil, fmt.Errorf("%w: rayboard.update_ticket is not configured", ErrValidation)
+		}
+		customFields, hasCustomFields, ok := optionalCustomFieldsValue(input)
+		if !ok {
+			return nil, fmt.Errorf("%w: custom_fields must be an object", ErrValidation)
+		}
+		labels, hasLabels, ok := optionalStringSliceValue(input, "labels")
+		if !ok {
+			return nil, fmt.Errorf("%w: labels must be an array of strings", ErrValidation)
+		}
+		update := tracker.UpdateTicketInput{
+			Title:          optionalString(input, "title"),
+			Description:    optionalString(input, "description"),
+			Status:         optionalString(input, "status"),
+			Priority:       optionalString(input, "priority"),
+			Type:           optionalString(input, "type"),
+			AssigneeID:     optionalString(input, "assignee_id"),
+			ParentTicketID: optionalString(input, "parent_ticket_id"),
+			SprintID:       optionalString(input, "sprint_id"),
+			ComponentID:    optionalString(input, "component_id"),
+			VersionID:      optionalString(input, "version_id"),
+			Rank:           optionalString(input, "rank"),
+			StartDate:      optionalString(input, "start_date"),
+			DueDate:        optionalString(input, "due_date"),
+		}
+		if hasCustomFields {
+			update.CustomFields = &customFields
+		}
+		if hasLabels {
+			update.Labels = &labels
+		}
+		return s.tracker.UpdateTicket(ctx, cronPrincipal(job), ticketIDValue(input), update)
+	case "comment":
+		if s.comments == nil {
+			return nil, fmt.Errorf("%w: rayboard.comment is not configured", ErrValidation)
+		}
+		return s.comments.Create(ctx, cronPrincipal(job), comments.CreateInput{
+			TicketID: stringValue(input, "ticket_id"),
+			Body:     stringValue(input, "body"),
+		})
+	default:
+		return nil, fmt.Errorf("%w: unsupported AI action %q", ErrValidation, actionType)
+	}
 }
 
 func (s *Service) validateCreate(ctx context.Context, input CreateInput) (Job, error) {

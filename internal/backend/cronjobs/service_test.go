@@ -258,6 +258,148 @@ func TestCronJobAIManualRun(t *testing.T) {
 	}
 }
 
+func TestCronJobAIActionsActAsOwner(t *testing.T) {
+	ctx := context.Background()
+	db := openCronTestDB(t, ctx)
+	seedCronUser(t, ctx, db, "owner", false)
+	seedCronUser(t, ctx, db, "admin", false)
+	seedCronProject(t, ctx, db, "project-1")
+
+	authorizer := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+		authz.UserBinding("owner", authz.RoleProjectMember, authz.ProjectScope("project-1")),
+	))
+	trackerService := tracker.NewService(db.SQL, authorizer)
+	searchService := search.NewService(db.SQL, authorizer)
+	commentService := comments.NewService(db.SQL, authorizer)
+	existing, err := trackerService.CreateTicket(ctx, authz.Principal{UserID: "owner", AuthKind: authz.AuthKindSession}, tracker.CreateTicketInput{
+		ProjectID:   "project-1",
+		Title:       "Existing ticket",
+		Description: "Before AI cron",
+	})
+	if err != nil {
+		t.Fatalf("seed existing ticket: %v", err)
+	}
+
+	var receivedPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode OpenRouter request: %v", err)
+		}
+		if len(body.Messages) > 1 {
+			receivedPrompt = body.Messages[1].Content
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "gen_cron_actions",
+			"choices": []map[string]any{{
+				"message": map[string]any{
+					"role": "assistant",
+					"content": `{
+						"summary": "planned",
+						"actions": [
+							{"type":"create_ticket","input":{"project_id":"project-1","title":"AI-created cron ticket","description":"Created by AI cron","labels":["ai","cron"]}},
+							{"type":"update_ticket","input":{"ticket_id":"` + existing.ID + `","priority":"High","labels":["cron-updated"]}},
+							{"type":"comment","input":{"ticket_id":"` + existing.ID + `","body":"AI cron comment"}},
+							{"type":"search","input":{"project_id":"project-1","filter":"labels == \"cron-updated\"","limit":10}}
+						]
+					}`,
+				},
+			}},
+			"usage": map[string]any{"prompt_tokens": 13, "completion_tokens": 9},
+		})
+	}))
+	defer server.Close()
+
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:         "Default",
+		DefaultModel: "openai/gpt-4.1-mini",
+		APIKey:       "sk-or-secret",
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+	service := NewService(
+		db.SQL,
+		authorizer,
+		automation.NewRunStore(db.SQL),
+		WithTrackerService(trackerService),
+		WithSearchService(searchService),
+		WithCommentService(commentService),
+		WithOpenRouterService(openRouterService),
+	)
+	principal := authz.Principal{UserID: "admin", AuthKind: authz.AuthKindSession}
+
+	job, err := service.Create(ctx, principal, CreateInput{
+		OwnerUserID: "owner",
+		ProjectID:   "project-1",
+		Name:        "AI action triage",
+		Schedule:    "0 9 * * *",
+		Timezone:    "UTC",
+		Engine: EngineSpec{
+			Type:       EngineAI,
+			Prompt:     "Plan and execute cron triage actions.",
+			ProviderID: provider.ID,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create AI cron job: %v", err)
+	}
+
+	run, err := service.RunNow(ctx, principal, job.ID)
+	if err != nil {
+		t.Fatalf("run AI cron job: %v", err)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("unexpected AI run: %#v", run)
+	}
+	if !strings.Contains(receivedPrompt, "Plan and execute cron triage actions.") || !strings.Contains(receivedPrompt, `"surface":"cron"`) || !strings.Contains(receivedPrompt, "Allowed action types") {
+		t.Fatalf("unexpected AI prompt: %s", receivedPrompt)
+	}
+	if strings.Contains(receivedPrompt, "sk-or-secret") {
+		t.Fatalf("AI prompt leaked OpenRouter secret: %s", receivedPrompt)
+	}
+	if countRows(t, ctx, db, "tickets") != 2 {
+		t.Fatalf("expected existing plus AI-created ticket")
+	}
+	if countRows(t, ctx, db, "ticket_comments") != 1 {
+		t.Fatalf("expected AI-created comment")
+	}
+	var reporterID string
+	if err := db.SQL.QueryRowContext(ctx, "SELECT reporter_id FROM tickets WHERE title = ?", "AI-created cron ticket").Scan(&reporterID); err != nil {
+		t.Fatalf("query AI-created ticket reporter: %v", err)
+	}
+	if reporterID != "owner" {
+		t.Fatalf("expected AI action to run as owner, got reporter %q", reporterID)
+	}
+	envelope, ok := run.Output["output"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected AI output: %#v", run.Output)
+	}
+	output, ok := envelope["output"].(map[string]any)
+	if !ok || output["summary"] != "planned" {
+		t.Fatalf("unexpected AI output body: %#v", run.Output)
+	}
+	results, ok := output["action_results"].([]any)
+	if !ok || len(results) != 4 {
+		t.Fatalf("unexpected AI action results: %#v", run.Output)
+	}
+	encoded, err := json.Marshal(run)
+	if err != nil {
+		t.Fatalf("marshal run: %v", err)
+	}
+	if strings.Contains(string(encoded), "sk-or-secret") || strings.Contains(string(encoded), "Plan and execute cron triage actions") {
+		t.Fatalf("run history leaked secret or prompt: %s", string(encoded))
+	}
+}
+
 func TestCronJobLuaRayboardHelpers(t *testing.T) {
 	ctx := context.Background()
 	db := openCronTestDB(t, ctx)
