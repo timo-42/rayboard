@@ -60,13 +60,13 @@ func runCombined(ctx context.Context, cfg config.Config, stdout, stderr io.Write
 	eventStore := events.NewStore(db.SQL)
 	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
-	hookService := tracker.NewHookService(db.SQL, authorizer)
+	openRouterService := openrouter.NewService(db.SQL)
+	hookService := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookOpenRouterService(openRouterService))
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
 	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
-	openRouterService := openrouter.NewService(db.SQL)
 	runStore := automation.NewRunStore(db.SQL)
 	webhookService := webhooks.NewService(
 		db.SQL,
@@ -133,13 +133,13 @@ func runBackend(ctx context.Context, cfg config.Config, stdout, stderr io.Writer
 	eventStore := events.NewStore(db.SQL)
 	auditStore := audit.NewStore(db.SQL)
 	authService := auth.NewService(db.SQL)
-	hookService := tracker.NewHookService(db.SQL, authorizer)
+	openRouterService := openrouter.NewService(db.SQL)
+	hookService := tracker.NewHookService(db.SQL, authorizer, tracker.WithHookOpenRouterService(openRouterService))
 	trackerService := tracker.NewService(db.SQL, authorizer, tracker.WithEventBus(eventBus), tracker.WithEventStore(eventStore), tracker.WithHookService(hookService))
 	createPageService := tracker.NewCreatePageService(db.SQL, trackerService, authorizer)
 	attachmentService := attachments.NewService(db.SQL, authorizer, attachments.WithEventBus(eventBus), attachments.WithEventStore(eventStore))
 	commentService := comments.NewService(db.SQL, authorizer, comments.WithEventBus(eventBus), comments.WithEventStore(eventStore))
 	searchService := search.NewService(db.SQL, authorizer)
-	openRouterService := openrouter.NewService(db.SQL)
 	runStore := automation.NewRunStore(db.SQL)
 	webhookService := webhooks.NewService(
 		db.SQL,

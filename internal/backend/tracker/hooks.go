@@ -13,6 +13,7 @@ import (
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -96,14 +97,27 @@ type HookPreview struct {
 type HookService struct {
 	db         *sql.DB
 	authorizer authz.Evaluator
+	openrouter *openrouter.Service
 	now        func() time.Time
 }
 
-func NewHookService(db *sql.DB, authorizer authz.Evaluator) *HookService {
-	return &HookService{
+type HookOption func(*HookService)
+
+func NewHookService(db *sql.DB, authorizer authz.Evaluator, options ...HookOption) *HookService {
+	service := &HookService{
 		db:         db,
 		authorizer: authorizer,
 		now:        func() time.Time { return time.Now().UTC() },
+	}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+func WithHookOpenRouterService(openRouterService *openrouter.Service) HookOption {
+	return func(service *HookService) {
+		service.openrouter = openRouterService
 	}
 }
 
@@ -424,7 +438,7 @@ func (s *HookService) execute(ctx context.Context, principal authz.Principal, ho
 	case HookEngineLua:
 		return s.executeLua(ctx, principal, hook, input)
 	case HookEngineAI:
-		return HookResult{Output: map[string]any{}, Logs: nil}, validationFailed(map[string]string{"engine": "AI ticket hooks are not implemented yet"})
+		return s.executeAI(ctx, principal, hook, input)
 	default:
 		return HookResult{Output: map[string]any{}, Logs: nil}, validationFailed(map[string]string{"engine": "Unsupported ticket hook engine"})
 	}
@@ -488,6 +502,54 @@ func (s *HookService) executeLua(ctx context.Context, principal authz.Principal,
 		return HookResult{Output: output, Logs: logs}, validationFailed(map[string]string{"hook": message})
 	}
 	return HookResult{Output: output, Logs: logs}, nil
+}
+
+func (s *HookService) executeAI(ctx context.Context, principal authz.Principal, hook Hook, input map[string]any) (HookResult, error) {
+	if s.openrouter == nil {
+		return HookResult{Output: map[string]any{}}, validationFailed(map[string]string{"engine": "OpenRouter service is not configured"})
+	}
+	prompt, err := hookAIPrompt(principal, hook, input)
+	if err != nil {
+		return HookResult{Output: map[string]any{}}, err
+	}
+	result, err := s.openrouter.CompleteJSON(ctx, openrouter.CompletionInput{
+		ProviderID: hook.Engine.ProviderID,
+		Prompt:     prompt,
+	})
+	if err != nil {
+		return HookResult{Output: map[string]any{}}, err
+	}
+	output := result.Output
+	if output == nil {
+		output = map[string]any{}
+	}
+	if message := hookRejectMessage(output); message != "" {
+		return HookResult{Output: output, Logs: nil}, validationFailed(map[string]string{"hook": message})
+	}
+	return HookResult{Output: output, Logs: nil}, nil
+}
+
+func hookAIPrompt(principal authz.Principal, hook Hook, input map[string]any) (string, error) {
+	payload := map[string]any{
+		"context": map[string]any{
+			"event":      hook.Event,
+			"phase":      hook.Phase,
+			"project_id": hook.ProjectID,
+			"hook_id":    hook.ID,
+			"user_id":    principal.UserID,
+		},
+		"input": input,
+		"instructions": []string{
+			"Return only a JSON object.",
+			"For before hooks, return {\"ticket\": {...}} to transform the pending ticket or {\"reject\":{\"message\":\"...\"}} to reject.",
+			"For after hooks, return an object for run output only; after hooks cannot change committed tickets.",
+		},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode ticket hook AI input: %w", err)
+	}
+	return strings.TrimSpace(hook.Engine.Prompt) + "\n\nRayboard hook input:\n" + string(data), nil
 }
 
 func registerHookLuaHelpers(sandbox *luasandbox.Sandbox, logs *[]string) {
@@ -588,7 +650,7 @@ func (s *HookService) validate(ctx context.Context, hook Hook) error {
 	if !validHookPhase(hook.Phase) {
 		fields["phase"] = "Must be before or after"
 	}
-	if err := validateHookEngine(hook.Engine); err != nil {
+	if err := s.validateHookEngine(ctx, hook.Engine); err != nil {
 		fields["engine"] = err.Error()
 	}
 	if len(fields) > 0 {
@@ -849,16 +911,50 @@ func normalizeHookEngine(engine HookEngineSpec) HookEngineSpec {
 	return engine
 }
 
-func validateHookEngine(engine HookEngineSpec) error {
+func (s *HookService) validateHookEngine(ctx context.Context, engine HookEngineSpec) error {
 	switch engine.Type {
 	case HookEngineLua:
 		if strings.TrimSpace(engine.Script) == "" {
 			return errors.New("lua engine requires script")
 		}
 	case HookEngineAI:
-		return errors.New("AI ticket hooks are not implemented yet")
+		if strings.TrimSpace(engine.Prompt) == "" {
+			return errors.New("ai engine requires prompt")
+		}
+		if strings.TrimSpace(engine.ProviderID) == "" {
+			return errors.New("ai engine requires provider_id")
+		}
+		if err := s.validateHookAIProvider(ctx, engine.ProviderID); err != nil {
+			return err
+		}
 	default:
 		return errors.New("engine type must be lua or ai")
+	}
+	return nil
+}
+
+func (s *HookService) validateHookAIProvider(ctx context.Context, providerID string) error {
+	if s.openrouter == nil {
+		return errors.New("OpenRouter service is not configured")
+	}
+	provider, err := s.openrouter.GetExecutionProvider(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	if !provider.Enabled {
+		return errors.New("OpenRouter provider is disabled")
+	}
+	if strings.TrimSpace(provider.APIKey) == "" {
+		return errors.New("OpenRouter provider API key is not configured")
+	}
+	if strings.TrimSpace(provider.DefaultModel) == "" {
+		return errors.New("OpenRouter provider default model is required")
+	}
+	if provider.DefaultTimeoutSeconds <= 0 {
+		return errors.New("OpenRouter provider timeout must be greater than zero")
+	}
+	if provider.MaxOutputTokens <= 0 {
+		return errors.New("OpenRouter provider max output tokens must be greater than zero")
 	}
 	return nil
 }

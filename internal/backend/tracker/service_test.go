@@ -3,14 +3,19 @@ package tracker_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/events"
+	"github.com/timo-42/rayboard/internal/backend/openrouter"
 	"github.com/timo-42/rayboard/internal/backend/store"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
@@ -374,6 +379,121 @@ return { ticket = ticket }
 	}
 	if countTrackerRows(t, ctx, db.SQL, "domain_events") != eventsBeforeReject {
 		t.Fatalf("expected rejected hook to leave domain event count unchanged")
+	}
+}
+
+func TestTicketAIHookTransformsAndRejects(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	var prompts []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode OpenRouter request: %v", err)
+		}
+		prompt := ""
+		if len(body.Messages) > 1 {
+			prompt = body.Messages[1].Content
+			prompts = append(prompts, prompt)
+		}
+		content := `{"ticket":{"title":"AI normalized","priority":"High","type":"Bug","labels":["ai","hook"]}}`
+		if strings.Contains(prompt, "Reject disallowed tickets.") {
+			content = `{"reject":{"message":"blocked by AI policy"}}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "gen_hook",
+			"choices": []map[string]any{{
+				"message": map[string]any{"role": "assistant", "content": content},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	openRouterService := openrouter.NewService(db.SQL, openrouter.WithBaseURL(server.URL))
+	provider, err := openRouterService.CreateProvider(ctx, openrouter.CreateProviderInput{
+		Name:         "Default",
+		DefaultModel: "openai/gpt-4.1-mini",
+		APIKey:       "sk-or-secret",
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("create OpenRouter provider: %v", err)
+	}
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	hooks := tracker.NewHookService(db.SQL, evaluator, tracker.WithHookOpenRouterService(openRouterService))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithHookService(hooks))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "AIH", Name: "AI Hooks"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+
+	if _, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "ai normalize",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Position:  10,
+		Engine: tracker.HookEngineSpec{
+			Type:       tracker.HookEngineAI,
+			Prompt:     "Normalize incoming ticket fields.",
+			ProviderID: provider.ID,
+		},
+	}); err != nil {
+		t.Fatalf("create AI transform hook: %v", err)
+	}
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "needs ai"})
+	if err != nil {
+		t.Fatalf("create ticket with AI hook: %v", err)
+	}
+	if ticket.Title != "AI normalized" || ticket.Priority != "high" || ticket.Type != "bug" || !slices.Equal(ticket.Labels, []string{"ai", "hook"}) {
+		t.Fatalf("expected AI-transformed ticket, got %#v", ticket)
+	}
+	if len(prompts) != 1 || !strings.Contains(prompts[0], "Normalize incoming ticket fields.") || !strings.Contains(prompts[0], `"ticket"`) {
+		t.Fatalf("unexpected AI hook prompt: %#v", prompts)
+	}
+	if strings.Contains(prompts[0], "sk-or-secret") {
+		t.Fatalf("prompt leaked OpenRouter secret: %s", prompts[0])
+	}
+
+	if _, err := hooks.Create(ctx, admin, tracker.CreateHookInput{
+		ProjectID: project.ID,
+		Name:      "ai reject",
+		Event:     tracker.HookEventTicketCreate,
+		Phase:     tracker.HookPhaseBefore,
+		Enabled:   true,
+		Position:  20,
+		Engine: tracker.HookEngineSpec{
+			Type:       tracker.HookEngineAI,
+			Prompt:     "Reject disallowed tickets.",
+			ProviderID: provider.ID,
+		},
+	}); err != nil {
+		t.Fatalf("create AI reject hook: %v", err)
+	}
+	ticketsBeforeReject := countTrackerRows(t, ctx, db.SQL, "tickets")
+	if _, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Blocked"}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected AI hook validation error, got %v", err)
+	}
+	if countTrackerRows(t, ctx, db.SQL, "tickets") != ticketsBeforeReject {
+		t.Fatalf("expected rejected AI hook to leave ticket count unchanged")
 	}
 }
 

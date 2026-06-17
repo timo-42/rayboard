@@ -147,9 +147,11 @@ if comment_err then return { error = comment_err.message } end
 
 ## Ticket Hooks
 
-The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD and single-hook preview are available through the API; UI is still **Planned**.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua and AI hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD and single-hook preview are available through the API; UI is still **Planned**.
 
 Hook Lua receives `context`, `ticket`, and for update hooks `current`. The preview API uses the same globals for one saved hook without changing tickets or persisting `last_error`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
+
+AI ticket hooks use `engine.type = "ai"`, `engine.prompt`, and `engine.provider_id`. Rayboard appends hook context and ticket input to the prompt, calls OpenRouter with JSON-object response mode, and requires the response to be a JSON object. Before hooks may return `{"ticket": {...}}` to transform the pending payload or `{"reject": {"message": "..."}}` to reject. After hook output is recorded as hook output only and cannot change committed tickets. OpenRouter API keys are never exposed to prompts, preview responses, hook output, or errors.
 
 Example validation shape:
 
@@ -238,7 +240,7 @@ AI automation will use OpenRouter only. Global admins can manage provider refere
 
 Automation surfaces use the same nested `engine` object: `engine.type` is `lua` or `ai`, Lua uses `engine.script`, and AI uses `engine.prompt` plus `engine.provider_id`. The provider ID references the admin-managed OpenRouter configuration. Project users select only allowed provider/model configurations. AI output must be JSON matching a declared schema and must be validated before any effect is applied. AI output must never bypass RBAC, ticket validation, custom field validation, hooks, or API authorization.
 
-AI execution is implemented for cron jobs as validated JSON-object output only. AI action execution, ticket hooks, custom create pages, webhooks, and notification hooks are still **Planned**.
+AI execution is implemented for cron jobs and ticket hooks as validated JSON-object output. AI cron action execution, custom create pages, webhooks, and notification hooks are still **Planned**.
 
 ## Future WebAssembly Engine
 
