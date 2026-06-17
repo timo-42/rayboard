@@ -151,6 +151,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/settings", http.MethodPatch, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "demo_warning_enabled"}, []string{"status"}, []string{"status", "webhook_allowlist_active"})
 	assertRequestBodyFields(t, spec, "/api/engines/test", http.MethodPost, []string{"spec"}, []string{"spec", "surface"}, []string{"spec", "engine"}, []string{"spec", "context"}, []string{"spec", "input"}, []string{"spec", "dry_run"})
 	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/engines/test", http.MethodPost), []string{"spec", "engine"})
+	assertEngineSurfaceSchema(t, spec, requestBodySchema(t, spec, "/api/engines/test", http.MethodPost), []string{"spec", "surface"})
 	assertResponseBodyFields(t, spec, "/api/engines/test", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "engine"}, []string{"spec", "context"}, []string{"spec", "dry_run"}, []string{"status"}, []string{"status", "state"}, []string{"status", "output"}, []string{"status", "logs"}, []string{"status", "duration_millis"}, []string{"status", "engine"}, []string{"status", "error"})
 	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
 	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/cron-jobs", http.MethodPost), []string{"spec", "engine"})
@@ -322,6 +323,20 @@ func assertDiscriminatedEngineSchema(t *testing.T, spec map[string]any, root map
 	}
 	assertOneOfVariant(t, oneOf, "lua", []string{"type", "script"}, []string{"script"})
 	assertOneOfVariant(t, oneOf, "ai", []string{"type", "prompt", "provider_id"}, []string{"prompt", "provider_id"})
+}
+
+func assertEngineSurfaceSchema(t *testing.T, spec map[string]any, root map[string]any, fieldPath []string) {
+	t.Helper()
+
+	surface := resolveSchema(t, spec, schemaAtPath(t, spec, root, fieldPath))
+	if surface["default"] != "scratch" {
+		t.Fatalf("expected engine surface default scratch, got %#v", surface)
+	}
+	for _, value := range []string{"scratch", "cron", "ticket_hook_before", "ticket_hook_after", "custom_create_page", "incoming_webhook", "outgoing_webhook", "notification_hook"} {
+		if !jsonArrayContains(surface["enum"], value) {
+			t.Fatalf("expected engine surface enum value %q in %#v", value, surface["enum"])
+		}
+	}
 }
 
 func assertOpenAPIUsesResourceConvention(t *testing.T, spec map[string]any) {

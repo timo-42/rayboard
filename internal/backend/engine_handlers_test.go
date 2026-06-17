@@ -100,4 +100,38 @@ func TestEngineTestEndpoint(t *testing.T) {
 	if len(body.Status.Logs) != 1 || body.Status.Logs[0] != "preview Preview" || body.Status.Engine["type"] != "lua" || body.Status.Engine["surface"] != "ticket_hook_before" || body.Status.Engine["dry_run"] != true {
 		t.Fatalf("unexpected engine status metadata: %#v", body.Status)
 	}
+
+	scratchReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"engine": map[string]string{
+				"type":   "lua",
+				"script": `return { surface = context.surface, value = input.value }`,
+			},
+			"input": map[string]string{"value": "scratch"},
+		},
+	}))
+	scratchReq.AddCookie(sessionCookie)
+	scratchReq.AddCookie(csrfCookie)
+	scratchReq.Header.Set("Content-Type", "application/json")
+	scratchReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	scratchRec := httptest.NewRecorder()
+	handler.ServeHTTP(scratchRec, scratchReq)
+	if scratchRec.Code != http.StatusOK {
+		t.Fatalf("expected scratch engine test status 200, got %d: %s", scratchRec.Code, scratchRec.Body.String())
+	}
+	var scratchBody struct {
+		Spec struct {
+			Surface string `json:"surface"`
+		} `json:"spec"`
+		Status struct {
+			Output map[string]any `json:"output"`
+			Engine map[string]any `json:"engine"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(scratchRec.Body.Bytes(), &scratchBody); err != nil {
+		t.Fatalf("decode scratch engine test response: %v", err)
+	}
+	if scratchBody.Spec.Surface != "scratch" || scratchBody.Status.Output["surface"] != "scratch" || scratchBody.Status.Output["value"] != "scratch" || scratchBody.Status.Engine["surface"] != "scratch" {
+		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
+	}
 }

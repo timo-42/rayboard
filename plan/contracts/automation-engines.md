@@ -20,10 +20,10 @@ Lua uses GopherLua. AI uses OpenRouter only in v1.
 Surfaces:
 
 - cron jobs
-- ticket hooks, using `ticket_hook_before` and `ticket_hook_after` in generic test contexts
+- ticket hooks, using `ticket_hook_before` and `ticket_hook_after` in engine test contexts
 - custom ticket create pages
-- incoming webhooks, using `incoming_webhook` in generic test contexts
-- outgoing webhooks, using `outgoing_webhook` in generic test contexts
+- incoming webhooks, using `incoming_webhook` in engine test contexts
+- outgoing webhooks, using `outgoing_webhook` in engine test contexts
 - notification hooks
 
 ## Engine Workbench
@@ -43,10 +43,8 @@ It accepts a Kubernetes-style request body:
       "type": "lua",
       "script": "return { ok = true }"
     },
-    "surface": "ticket_hook_before",
-    "context": {
-      "ticket_id": "ticket_123"
-    },
+    "surface": "scratch",
+    "context": {},
     "input": {
       "title": "Preview"
     },
@@ -56,6 +54,8 @@ It accepts a Kubernetes-style request body:
 ```
 
 The response uses `metadata`, `spec`, and `status`. The response `spec` must redact Lua source and AI prompts. The response `status` contains the execution state, validated output, error when present, and timing metadata available from the run record.
+
+Use `surface: "scratch"` for a playground run that only validates generic JSON input/output. Use concrete surfaces such as `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook` to test against a surface-specific contract. Missing `surface` defaults to `scratch`.
 
 Workbench execution must use the same engine discriminator, JSON/table conversion, RBAC model, actor resolution, timeouts, logs, payload limits, secret redaction, and run-history persistence as the corresponding real surface. In the current POC the endpoint is always mutation-free and normalizes `dry_run` to `true`.
 

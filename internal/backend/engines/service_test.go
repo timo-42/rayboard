@@ -58,6 +58,33 @@ return { ok = true, title = input.title, surface = context.surface, ticket_id = 
 	}
 }
 
+func TestLuaEngineTestDefaultsToScratchSurface(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+		Engine: engines.EngineSpec{
+			Type:   "lua",
+			Script: `return { surface = context.surface, dry_run = context.dry_run }`,
+		},
+	})
+	if err != nil {
+		t.Fatalf("test scratch lua engine: %v", err)
+	}
+	output, _ := run.Output["output"].(map[string]any)
+	if output["surface"] != "scratch" || output["dry_run"] != true {
+		t.Fatalf("expected scratch dry-run output, got %#v", run.Output)
+	}
+	inputEnvelope, _ := run.Input["input"].(map[string]any)
+	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
+	if inputEnvelope["dry_run"] != true || contextEnvelope["surface"] != "scratch" {
+		t.Fatalf("expected scratch run input context, got %#v", run.Input)
+	}
+}
+
 func TestLuaEngineTestRecordsFailureAsRunStatus(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t, ctx)

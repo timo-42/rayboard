@@ -527,15 +527,15 @@ Attachment uploads enforce `attachment_max_size_bytes` and `attachment_allowed_c
 
 ## Engine Test
 
-The generic engine test endpoint executes an inline Lua or OpenRouter AI engine against supplied JSON input before attaching that engine to cron jobs, hooks, webhooks, notification hooks, or custom create pages.
+The generic engine test endpoint executes an inline Lua or OpenRouter AI engine against supplied JSON input before attaching that engine to cron jobs, hooks, webhooks, notification hooks, or custom create pages. Use `surface: "scratch"` for a generic playground run that is not tied to a real automation surface.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
-| `POST` | `/api/engines/test` | `{"spec":{"surface":"ticket_hook_before","project_id":"","actor_user_id":"","engine":{"type":"lua","script":"return { ok = true }"},"context":{"ticket_id":"ticket_123"},"input":{},"dry_run":true}}` |
+| `POST` | `/api/engines/test` | `{"spec":{"surface":"scratch","project_id":"","actor_user_id":"","engine":{"type":"lua","script":"return { ok = true, input = input }"},"context":{},"input":{"title":"Preview"},"dry_run":true}}` |
 
 Engine tests require `automations:manage` globally or for `spec.project_id`. Browser-session requests require CSRF like other mutating API calls. `actor_user_id` defaults to the current user and must reference an enabled user.
 
-The current endpoint is dry-run and mutation-free; `spec.dry_run` is normalized to `true`. Lua receives `context`, `input`, `json`, `rayboard.json`, and `rayboard.log(message)`, but it does not receive ticket/comment/search helper functions. `spec.context` is merged with normalized `surface`, `project_id`, `actor_user_id`, and `dry_run` values before execution. AI tests append the supplied context/input to the prompt and call the selected OpenRouter provider in JSON-object mode.
+The current endpoint is dry-run and mutation-free; `spec.dry_run` is normalized to `true`, and missing `spec.surface` defaults to `scratch`. Lua receives `context`, `input`, `json`, `rayboard.json`, and `rayboard.log(message)`, but it does not receive ticket/comment/search helper functions. `spec.context` is merged with normalized `surface`, `project_id`, `actor_user_id`, and `dry_run` values before execution. AI tests append the supplied context/input to the prompt and call the selected OpenRouter provider in JSON-object mode.
 
 Responses use `metadata`, `spec`, and `status`. The response redacts `spec.engine.script` and `spec.engine.prompt`; run history stores the engine type, actor, surface, normalized context, dry-run flag, and supplied input, not raw source or prompt. `status.output` contains the validated engine output, `status.logs` contains captured log lines, `status.duration_millis` reports elapsed execution time when available, and `status.engine` contains redacted engine metadata. Runtime failures return a normal resource response with `status.state = "failed"` and `status.error`.
 

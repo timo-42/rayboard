@@ -43,7 +43,7 @@ func (EngineSpec) Schema(_ huma.Registry) *huma.Schema {
 }
 
 type TestEngineSpec struct {
-	Surface     string         `json:"surface,omitempty"`
+	Surface     string         `json:"surface,omitempty" enum:"scratch,cron,ticket_hook_before,ticket_hook_after,custom_create_page,incoming_webhook,outgoing_webhook,notification_hook" default:"scratch" doc:"Automation surface contract to test; scratch is a generic playground."`
 	ProjectID   string         `json:"project_id,omitempty"`
 	ActorUserID string         `json:"actor_user_id,omitempty"`
 	Engine      EngineSpec     `json:"engine"`
@@ -90,6 +90,17 @@ func (spec TestEngineSpec) testInput() engines.TestInput {
 
 func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResource {
 	sanitized := spec
+	if sanitized.Surface == "" {
+		sanitized.Surface = "scratch"
+	}
+	if sanitized.ProjectID == "" {
+		sanitized.ProjectID = run.ProjectID
+	}
+	if sanitized.ActorUserID == "" {
+		if actorUserID, ok := run.Input["actor_user_id"].(string); ok {
+			sanitized.ActorUserID = actorUserID
+		}
+	}
 	sanitized.Engine.Script = ""
 	sanitized.Engine.Prompt = ""
 	if sanitized.Input == nil {
@@ -98,6 +109,10 @@ func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResou
 	if sanitized.Context == nil {
 		sanitized.Context = map[string]any{}
 	}
+	sanitized.Context["surface"] = sanitized.Surface
+	sanitized.Context["project_id"] = sanitized.ProjectID
+	sanitized.Context["actor_user_id"] = sanitized.ActorUserID
+	sanitized.Context["dry_run"] = true
 	sanitized.DryRun = true
 	return TestEngineResource{
 		Metadata: TestEngineMetadata{

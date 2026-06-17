@@ -104,7 +104,7 @@ func (s *Service) Test(ctx context.Context, principal authz.Principal, input Tes
 	}
 	input.Surface = strings.TrimSpace(input.Surface)
 	if input.Surface == "" {
-		input.Surface = "generic"
+		input.Surface = "scratch"
 	}
 	if input.Context == nil {
 		input.Context = map[string]any{}
@@ -261,7 +261,7 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 		fields["actor_user_id"] = "Actor must exist and be enabled"
 	}
 	if !validSurface(input.Surface) {
-		fields["surface"] = "Must be generic, cron, ticket_hook_before, ticket_hook_after, custom_create_page, incoming_webhook, outgoing_webhook, or notification_hook"
+		fields["surface"] = "Must be scratch, cron, ticket_hook_before, ticket_hook_after, custom_create_page, incoming_webhook, outgoing_webhook, or notification_hook"
 	}
 	switch input.Engine.Type {
 	case EngineLua:
@@ -288,16 +288,13 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 
 func validSurface(surface string) bool {
 	switch surface {
-	case "generic",
+	case "scratch",
 		"cron",
-		"ticket_hook",
 		"ticket_hook_before",
 		"ticket_hook_after",
-		"webhook",
 		"incoming_webhook",
 		"outgoing_webhook",
 		"notification_hook",
-		"create_page",
 		"custom_create_page":
 		return true
 	default:
