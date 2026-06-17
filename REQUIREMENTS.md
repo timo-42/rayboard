@@ -264,6 +264,14 @@ internal/backend/httpapi/
   - support languages that compile to WebAssembly, subject to the stable Rayboard host ABI.
   - keep room for a future internal Lua-to-WASM compilation path to improve Lua performance while preserving existing Lua semantics.
   - treat WebAssembly as the last automation engine piece in the current roadmap, after Lua and OpenRouter AI behavior are complete.
+- Add optional Go-to-WebAssembly compilation after the base wasm engine:
+  - after Rayboard can execute managed wasm modules through wazero, optionally support compiling user-provided Go automation projects into wasm when a compatible `go` compiler is installed on the host.
+  - compile with documented Go WebAssembly targets such as `GOOS=js GOARCH=wasm`, and evaluate `GOOS=wasip1 GOARCH=wasm` where it better fits server-side wazero execution and Rayboard's host ABI.
+  - never require a host Go compiler for ordinary Rayboard operation; precompiled wasm artifact upload/reference remains the portable baseline.
+  - compilation runs as a controlled build job with explicit workspace isolation, timeout, max output size, no inherited secrets, and configurable enablement by global admins.
+  - compiled artifacts are stored as Rayboard-managed wasm artifacts and then executed by the same wasm engine, RBAC model, host functions, memory/time limits, logging, and output validation as uploaded wasm modules.
+  - expose compiler diagnostics and artifact metadata in automation preview/test history without leaking host paths, environment variables, or secrets.
+  - document supported Go versions, target triples, module/package shape, and restrictions; reject builds that require unsupported syscall, network, filesystem, CGO, or host capabilities.
 - Use a lightweight embedded frontend:
   - build the UI with server-rendered Go `html/template` views plus HTMX-enhanced interactions.
   - use plain CSS and small vanilla JavaScript modules for local behavior.
@@ -404,6 +412,7 @@ internal/backend/httpapi/
   - CEL Go implementation and examples: https://github.com/google/cel-go
   - GopherLua: https://github.com/yuin/gopher-lua
   - wazero: https://github.com/wazero/wazero
+  - Go WebAssembly wiki: https://go.dev/wiki/WebAssembly
   - robfig cron: https://pkg.go.dev/github.com/robfig/cron/v3
   - HTMX: https://htmx.org/
   - SortableJS: https://sortablejs.github.io/Sortable/
