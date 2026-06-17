@@ -16,7 +16,7 @@ Admin workflows currently available through the API:
 - read and update global settings for attachment policy, webhook allowlist metadata, demo warning, backup availability flag, and system health note.
 - inspect recent security audit log entries.
 
-The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, Shoutrrr destination management, notification policy management, basic project automation/webhook administration, personal notification preferences, and security audit inspection. Lower-level notification delivery and hook administration remains API-first while the POC UI grows.
+The browser UI exposes initial admin screens for RBAC, global settings, OpenRouter provider management, Shoutrrr destination management, notification policy and hook management, basic project automation/webhook administration, personal notification preferences, and security audit inspection. Lower-level notification delivery administration remains API-first while the POC UI grows.
 
 Security/admin-sensitive actions are written to the SQLite `audit_log` table. Current audited events include login failures, session creation/logout, API token creation/revocation, user create/disable/enable/delete, group creation and membership changes, role binding create/delete, OpenRouter provider create/update/delete, and global settings updates. Audit payloads intentionally exclude generated passwords, plaintext API tokens, password hashes, session secrets, and future webhook/Shoutrrr/OpenRouter secrets. `GET /api/audit-log` requires global `settings:manage` and returns recent entries with optional filters for event type, actor, subject, outcome, and limit.
 
@@ -62,6 +62,6 @@ Custom CSS is planned as an override layer only. The first implementation should
 
 ## Notifications
 
-The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, browser and API Shoutrrr destination CRUD/test-send for global and project scopes, browser and API notification policy CRUD, delivery history/manual retry, Lua/AI notification hooks, saved-hook preview, hook run history, and a backend worker that sends due queued deliveries.
+The current notification implementation includes per-user in-app notification listing/read state, current-user notification preferences, project notification defaults, browser and API Shoutrrr destination CRUD/test-send for global and project scopes, browser and API notification policy CRUD, delivery history/manual retry, browser and API Lua/AI notification hooks, saved-hook preview, hook run history, and a backend worker that sends due queued deliveries.
 
-Broader browser notification delivery and hook management screens are **Planned**.
+Broader browser notification delivery screens and richer hook routing controls are **Planned**.

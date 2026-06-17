@@ -567,6 +567,58 @@
             <div id="notification-policies" class="notification-policy-list"></div>
           </section>
 
+          <section class="settings-card notification-hook-card">
+            <h3>Notification Hooks</h3>
+            <form id="notification-hook-form" class="notification-hook-form">
+              <input name="name" placeholder="route critical alerts" required>
+              <select id="notification-hook-scope" name="scope_type">
+                <option value="global">Global</option>
+                <option value="project">Project</option>
+              </select>
+              <select id="notification-hook-project" name="project_id"></select>
+              <input name="actor_user_id" placeholder="actor user id">
+              <input name="event_types" placeholder="ticket_assigned, automation_failed">
+              <select name="engine_type" id="notification-hook-engine-type">
+                <option value="lua">Lua</option>
+                <option value="ai">OpenRouter AI</option>
+              </select>
+              <label class="inline-toggle">
+                <input name="enabled" type="checkbox" checked>
+                Enabled
+              </label>
+
+              <label data-notification-hook-engine-field="lua">
+                Lua Script
+                <textarea name="script" rows="5">return { message = notification.plan.message }</textarea>
+              </label>
+
+              <div data-notification-hook-engine-field="ai" hidden>
+                <label>
+                  AI Prompt
+                  <textarea name="prompt" rows="4">Return JSON to transform or suppress this notification plan.</textarea>
+                </label>
+                <label>
+                  Provider ID
+                  <input name="provider_id" placeholder="openrouter_provider_...">
+                </label>
+              </div>
+
+              <button type="submit">Create hook</button>
+            </form>
+            <form id="notification-hook-preview-form" class="notification-hook-preview-form">
+              <input name="event_type" placeholder="ticket_assigned" value="ticket_assigned">
+              <input name="message" placeholder="Assigned AUTO-1" value="Assigned AUTO-1">
+              <input name="destination_ids" placeholder="destination ids">
+              <textarea name="payload" rows="3">{"ticket_id":"ticket_123"}</textarea>
+            </form>
+            <div id="notification-hook-status" class="settings-status"></div>
+            <div id="notification-hooks" class="notification-hook-list"></div>
+            <section class="notification-hook-preview" aria-live="polite">
+              <h4>Preview Output</h4>
+              <pre id="notification-hook-preview-output">{}</pre>
+            </section>
+          </section>
+
           <section class="settings-card audit-card">
             <h3>Security Audit Log</h3>
             <form id="audit-form" class="audit-form">

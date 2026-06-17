@@ -451,7 +451,7 @@ Delivery resources use `metadata` for queue identity, scope, policy snapshot, an
 
 ## Notification Hooks
 
-Notification hooks are API-only global/project automation rules that run after a notification policy matches and before external Shoutrrr delivery rows are enqueued. Hooks use the shared `engine` object with Lua or OpenRouter AI. They receive notification plan context without raw Shoutrrr URLs or secrets, and may return `suppress`, `message`, `payload`, and `destination_ids`. `destination_ids` is constrained to the current policy's already-allowed destination IDs.
+Notification hooks are global/project automation rules that run after a notification policy matches and before external Shoutrrr delivery rows are enqueued. Basic hook management, preview, and run inspection are available through the embedded Settings page and the API. Hooks use the shared `engine` object with Lua or OpenRouter AI. They receive notification plan context without raw Shoutrrr URLs or secrets, and may return `suppress`, `message`, `payload`, and `destination_ids`. `destination_ids` is constrained to the current policy's already-allowed destination IDs.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

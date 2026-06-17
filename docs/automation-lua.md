@@ -24,7 +24,7 @@ Lua-capable surfaces:
 - custom ticket create pages: static definition/submit API plus saved Lua and OpenRouter AI schema/default transformation implemented; UI still **Planned**;
 - incoming webhooks: definition CRUD, token auth, Lua/AI validation/logging, constrained Rayboard actions, and run history implemented;
 - outgoing webhooks: definition CRUD, event-triggered delivery persistence, Lua/AI request shaping, controlled outbound HTTP, retries, manual retry, and delivery history API implemented;
-- notification hooks: API-only Lua/AI suppress/transform/route slice, saved-hook preview, and run history implemented; UI and richer routing are **Planned**.
+- notification hooks: Lua/AI suppress/transform/route slice, saved-hook preview, run history, and basic Settings-page browser management implemented; richer routing is **Planned**.
 
 Every surface should enforce timeouts, max script size, max log size, max input/output size, max JSON input/output bytes, max table nesting depth, and max action count where actions exist. The current shared JSON defaults are 1 MiB max JSON input, 1 MiB max encoded JSON output, and 64 levels max nesting depth.
 
@@ -279,7 +279,7 @@ return {
 
 The first notification API slice lets users list their own notifications and mark them read or unread. In-app notification generation for comments and ticket updates is driven by durable `domain_events`, with processed/failed state stored on the event row. External notification delivery uses named Shoutrrr destinations, durable delivery rows, and the backend notification worker.
 
-Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Policy CRUD is available through the API and the embedded Settings page. Enabled matching global and project policies enqueue delivery rows when durable notification events are processed. Notification hooks can run before delivery rows are created. They may suppress a policy plan, replace the outbound message, replace the payload, or reduce `destination_ids` to a subset of the policy's already-allowed destinations. Hooks never receive raw Shoutrrr URLs or secrets. Saved hooks can be previewed with `POST /api/notification-hooks/{hook_id}/preview`, and preview/event-triggered run history is available at `GET /api/notification-hooks/{hook_id}/runs`.
+Notification policies and the delivery history/manual retry API are implemented as the queue foundation. Policy CRUD is available through the API and the embedded Settings page. Enabled matching global and project policies enqueue delivery rows when durable notification events are processed. Notification hooks can run before delivery rows are created. They may suppress a policy plan, replace the outbound message, replace the payload, or reduce `destination_ids` to a subset of the policy's already-allowed destinations. Hooks never receive raw Shoutrrr URLs or secrets. Basic browser hook list/create/delete, enable/disable, preview, and run-history inspection are available on the Settings page. Saved hooks can also be previewed with `POST /api/notification-hooks/{hook_id}/preview`, and preview/event-triggered run history is available at `GET /api/notification-hooks/{hook_id}/runs`.
 
 Lua notification hooks receive a `notification` table with `context`, `policy`, `plan`, and `instructions`. AI notification hooks receive the same context in the prompt and must return the same validated JSON object. Hook output must not bypass RBAC, user preferences, destination visibility, or backend validation.
 

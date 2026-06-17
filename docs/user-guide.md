@@ -22,7 +22,7 @@ Implemented browser workflows:
 - custom field list/create/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, and role-binding summaries when permitted;
-- Settings page for global settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
+- Settings page for global settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, notification hook CRUD/preview/run inspection, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
 - text/CEL search plus saved-view list, create, apply, and delete;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - basic cron job list, create, delete, enable/disable, manual run, and run-output inspection for the selected project;
@@ -40,7 +40,7 @@ Implemented API-only user workflows:
 - detailed component/version editing and filtering;
 - custom field update APIs beyond browser delete/recreate;
 - project notification defaults;
-- Lua/AI notification hook CRUD and delivery history/manual retry;
+- notification delivery history/manual retry;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
 - custom ticket create-page definition, schema resolution, and submission APIs.
 
@@ -48,13 +48,13 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Backlog list/reorder, workflow status APIs, board definition CRUD, board ticket listing, saved-view metadata, notification hooks, and custom create pages are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, custom create-page rendering/settings screens, browser notification-hook automation screens, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Backlog list/reorder, workflow status APIs, board definition CRUD, board ticket listing, saved-view metadata, notification delivery history, and custom create pages are currently API-only workflows. Rich backlog planning UI, board settings UI, board/backlog drag/drop, sprint report screens, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version UI screens, label management UI beyond direct ticket editing, richer custom-field layout/search integration, advanced release planning, custom create-page rendering/settings screens, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
 The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart.
 
-Browser badge UI, browser notification hook screens, and richer hook routing controls are **Planned**.
+Browser badge UI and richer hook routing controls are **Planned**.
 
 ## Search
 

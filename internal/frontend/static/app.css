@@ -627,7 +627,9 @@ p {
 .notification-destination-form,
 .notification-destination-edit-form,
 .notification-policy-form,
-.notification-policy-edit-form {
+.notification-policy-edit-form,
+.notification-hook-form,
+.notification-hook-preview-form {
   display: grid;
   gap: 10px;
 }
@@ -649,32 +651,41 @@ p {
 }
 
 .notification-destination-card,
-.notification-policy-card {
+.notification-policy-card,
+.notification-hook-card {
   grid-column: 1 / -1;
 }
 
 .notification-destination-form,
-.notification-policy-form {
+.notification-policy-form,
+.notification-hook-form,
+.notification-hook-preview-form {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .openrouter-provider-form textarea,
 .openrouter-provider-edit-form textarea,
 .notification-policy-form textarea,
-.notification-policy-edit-form textarea {
+.notification-policy-edit-form textarea,
+.notification-hook-form textarea,
+.notification-hook-preview-form textarea,
+.notification-hook-preview pre {
   resize: vertical;
 }
 
 .openrouter-provider-list,
 .notification-destination-list,
-.notification-policy-list {
+.notification-policy-list,
+.notification-hook-list,
+.notification-hook-run-list {
   display: grid;
   gap: 8px;
 }
 
 .openrouter-provider-item,
 .notification-destination-item,
-.notification-policy-item {
+.notification-policy-item,
+.notification-hook-item {
   display: grid;
   gap: 8px;
   border: 1px solid var(--border);
@@ -686,7 +697,8 @@ p {
 
 .openrouter-provider-header,
 .notification-destination-header,
-.notification-policy-header {
+.notification-policy-header,
+.notification-hook-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -695,7 +707,8 @@ p {
 
 .openrouter-provider-item p,
 .notification-destination-item p,
-.notification-policy-item p {
+.notification-policy-item p,
+.notification-hook-item p {
   color: var(--heading);
   font-size: 14px;
   font-weight: 700;
@@ -704,7 +717,8 @@ p {
 
 .openrouter-provider-item span,
 .notification-destination-item span,
-.notification-policy-item span {
+.notification-policy-item span,
+.notification-hook-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
@@ -734,6 +748,30 @@ p {
 
 .notification-policy-edit-form {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.notification-hook-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-hook-preview h4 {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.notification-hook-preview pre {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 8px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .destination-error {
@@ -818,7 +856,9 @@ p {
 .notification-destination-form button,
 .notification-destination-edit-form button,
 .notification-policy-form button,
-.notification-policy-edit-form button {
+.notification-policy-edit-form button,
+.notification-hook-form button,
+.notification-hook-preview-form button {
   justify-self: start;
 }
 
@@ -2288,7 +2328,9 @@ p {
   .notification-destination-form,
   .notification-destination-edit-form,
   .notification-policy-form,
-  .notification-policy-edit-form {
+  .notification-policy-edit-form,
+  .notification-hook-form,
+  .notification-hook-preview-form {
     grid-template-columns: 1fr;
   }
 

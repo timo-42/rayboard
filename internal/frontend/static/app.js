@@ -29,11 +29,15 @@ const state = {
   openRouterProviders: [],
   notificationDestinations: [],
   notificationPolicies: [],
+  notificationHooks: [],
+  notificationHookRuns: {},
+  notificationHookPreview: null,
   settingsError: "",
   auditLogError: "",
   openRouterProvidersError: "",
   notificationDestinationsError: "",
   notificationPoliciesError: "",
+  notificationHooksError: "",
   cronJobs: [],
   cronRuns: {},
   cronJobsError: "",
@@ -117,6 +121,14 @@ const els = {
   notificationPolicyProject: document.querySelector("#notification-policy-project"),
   notificationPolicyStatus: document.querySelector("#notification-policy-status"),
   notificationPolicies: document.querySelector("#notification-policies"),
+  notificationHookForm: document.querySelector("#notification-hook-form"),
+  notificationHookScope: document.querySelector("#notification-hook-scope"),
+  notificationHookProject: document.querySelector("#notification-hook-project"),
+  notificationHookEngineType: document.querySelector("#notification-hook-engine-type"),
+  notificationHookPreviewForm: document.querySelector("#notification-hook-preview-form"),
+  notificationHookStatus: document.querySelector("#notification-hook-status"),
+  notificationHooks: document.querySelector("#notification-hooks"),
+  notificationHookPreviewOutput: document.querySelector("#notification-hook-preview-output"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
   notificationInbox: document.querySelector("#notification-inbox"),
@@ -225,10 +237,16 @@ function bindEvents() {
       state.auditLog = [];
       state.openRouterProviders = [];
       state.notificationDestinations = [];
+      state.notificationPolicies = [];
+      state.notificationHooks = [];
+      state.notificationHookRuns = {};
+      state.notificationHookPreview = null;
       state.settingsError = "";
       state.auditLogError = "";
       state.openRouterProvidersError = "";
       state.notificationDestinationsError = "";
+      state.notificationPoliciesError = "";
+      state.notificationHooksError = "";
       state.cronJobs = [];
       state.cronRuns = {};
       state.cronJobsError = "";
@@ -1191,6 +1209,99 @@ function bindEvents() {
     }, "Notification policy saved");
   });
 
+  els.notificationHookEngineType.addEventListener("change", () => {
+    renderNotificationHookEngineFields();
+  });
+
+  els.notificationHookScope.addEventListener("change", async () => {
+    renderNotificationHookProjectOptions();
+    await runAction(async () => {
+      await loadNotificationHooks();
+    }, "Notification hooks refreshed");
+  });
+
+  els.notificationHookProject.addEventListener("change", async () => {
+    const project = state.projects.find((item) => item.id === els.notificationHookProject.value);
+    if (project) {
+      state.selectedProject = project;
+    }
+    await runAction(async () => {
+      await loadNotificationHooks();
+    }, "Notification hooks refreshed");
+  });
+
+  els.notificationHookForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = formData(form);
+    const scopeType = data.scope_type || "global";
+    const projectID = data.project_id || selectedNotificationHookProjectID();
+    if (scopeType === "project" && !projectID) {
+      setActionStatus("Choose a project for project notification hooks");
+      return;
+    }
+    await runAction(async () => {
+      await api(notificationHookCollectionPath(scopeType, projectID), {
+        method: "POST",
+        body: { spec: notificationHookSpec(form) }
+      });
+      form.reset();
+      setFormChecked(form, "enabled", true);
+      renderNotificationHookProjectOptions();
+      renderNotificationHookEngineFields();
+      await loadNotificationHooks();
+    }, "Notification hook created");
+  });
+
+  els.notificationHooks.addEventListener("click", async (event) => {
+    const preview = event.target.closest("[data-preview-notification-hook-id]");
+    if (preview) {
+      await runAction(async () => {
+        state.notificationHookPreview = await api(`/api/notification-hooks/${preview.dataset.previewNotificationHookId}/preview`, {
+          method: "POST",
+          body: { spec: notificationHookPreviewSpec() }
+        });
+        renderNotificationHookPreview();
+      }, "Notification hook previewed");
+      return;
+    }
+
+    const runs = event.target.closest("[data-load-notification-hook-runs-id]");
+    if (runs) {
+      await runAction(async () => {
+        await loadNotificationHookRuns(runs.dataset.loadNotificationHookRunsId);
+      }, "Notification hook runs loaded");
+      return;
+    }
+
+    const toggle = event.target.closest("[data-toggle-notification-hook-id]");
+    if (toggle) {
+      await runAction(async () => {
+        await api(`/api/notification-hooks/${toggle.dataset.toggleNotificationHookId}`, {
+          method: "PATCH",
+          body: { spec: { enabled: toggle.dataset.notificationHookEnabled === "true" } }
+        });
+        await loadNotificationHooks();
+      }, "Notification hook updated");
+      return;
+    }
+
+    const remove = event.target.closest("[data-delete-notification-hook-id]");
+    if (remove) {
+      if (!window.confirm("Delete this notification hook?")) {
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/notification-hooks/${remove.dataset.deleteNotificationHookId}`, { method: "DELETE" });
+        delete state.notificationHookRuns[remove.dataset.deleteNotificationHookId];
+        if (state.notificationHookPreview && state.notificationHookPreview.metadata && state.notificationHookPreview.metadata.hook_id === remove.dataset.deleteNotificationHookId) {
+          state.notificationHookPreview = null;
+        }
+        await loadNotificationHooks();
+      }, "Notification hook deleted");
+    }
+  });
+
   document.addEventListener("click", async (event) => {
     if (!event.target.closest("#ticket-columns, #issue-detail")) {
       return;
@@ -1764,7 +1875,8 @@ async function loadSettingsPage() {
     loadAuditLog(),
     loadOpenRouterProviders(),
     loadNotificationDestinations(),
-    loadNotificationPolicies()
+    loadNotificationPolicies(),
+    loadNotificationHooks()
   ]);
 }
 
@@ -1845,6 +1957,31 @@ async function loadNotificationPolicies(projectID = selectedNotificationPolicyPr
   state.notificationPolicies = policies.filter(Boolean);
   state.notificationPoliciesError = errors.length && !policies.length ? errors.join(" / ") : "";
   renderSettings();
+}
+
+async function loadNotificationHooks(projectID = selectedNotificationHookProjectID()) {
+  const hooks = [];
+  const errors = [];
+  try {
+    hooks.push(...listItems(await api("/api/notification-hooks")).map(normalizeNotificationHook));
+  } catch (error) {
+    errors.push(error.message || "Global notification hooks are not available");
+  }
+  if (projectID) {
+    try {
+      hooks.push(...listItems(await api(`/api/projects/${projectID}/notification-hooks`)).map(normalizeNotificationHook));
+    } catch (error) {
+      errors.push(error.message || "Project notification hooks are not available");
+    }
+  }
+  state.notificationHooks = hooks.filter(Boolean);
+  state.notificationHooksError = errors.length && !hooks.length ? errors.join(" / ") : "";
+  renderSettings();
+}
+
+async function loadNotificationHookRuns(hookID) {
+  state.notificationHookRuns[hookID] = listItems(await api(`/api/notification-hooks/${hookID}/runs?limit=10`)).map(normalizeNotificationHookRun);
+  renderNotificationHooks();
 }
 
 async function loadCronJobs(projectID = selectedCronJobProjectID()) {
@@ -2736,7 +2873,7 @@ function renderBindingSubjectOptions() {
 }
 
 function renderSettings() {
-  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm || !els.notificationDestinationForm || !els.notificationPolicyForm) {
+  if (!els.settingsForm || !els.preferenceForm || !els.auditForm || !els.openRouterProviderForm || !els.notificationDestinationForm || !els.notificationPolicyForm || !els.notificationHookForm) {
     return;
   }
 
@@ -2773,6 +2910,7 @@ function renderSettings() {
   renderOpenRouterProviders();
   renderNotificationDestinations();
   renderNotificationPolicies();
+  renderNotificationHooks();
 }
 
 function renderOpenRouterProviders() {
@@ -3073,6 +3211,145 @@ function notificationPolicyNode(policy) {
   form.append(name, events, destinations, enabled, save, remove);
   article.append(header, meta, form);
   return article;
+}
+
+function renderNotificationHooks() {
+  if (!els.notificationHookStatus || !els.notificationHooks) {
+    return;
+  }
+  renderNotificationHookProjectOptions();
+  renderNotificationHookEngineFields();
+  renderNotificationHookPreview();
+  els.notificationHooks.replaceChildren();
+  if (state.notificationHooksError) {
+    els.notificationHookForm.hidden = true;
+    els.notificationHookPreviewForm.hidden = true;
+    els.notificationHookStatus.textContent = state.notificationHooksError;
+    return;
+  }
+  els.notificationHookForm.hidden = false;
+  els.notificationHookPreviewForm.hidden = false;
+  els.notificationHookStatus.textContent = state.notificationHooks.length
+    ? `${state.notificationHooks.length} notification hooks`
+    : "No notification hooks";
+  if (!state.notificationHooks.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Create a hook to transform or suppress notification delivery plans";
+    els.notificationHooks.append(empty);
+    return;
+  }
+  for (const hook of state.notificationHooks) {
+    els.notificationHooks.append(notificationHookNode(hook));
+  }
+}
+
+function renderNotificationHookProjectOptions() {
+  if (!els.notificationHookProject) {
+    return;
+  }
+  replaceSelectOptions(
+    els.notificationHookProject,
+    "Project",
+    state.projects,
+    (project) => `${project.key} ${project.name}`
+  );
+  if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
+    els.notificationHookProject.value = state.selectedProject.id;
+  }
+  const scopeType = els.notificationHookScope ? els.notificationHookScope.value : "global";
+  els.notificationHookProject.disabled = scopeType !== "project";
+}
+
+function renderNotificationHookEngineFields() {
+  const type = els.notificationHookEngineType ? els.notificationHookEngineType.value : "lua";
+  document.querySelectorAll("[data-notification-hook-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.notificationHookEngineField !== type;
+  });
+}
+
+function renderNotificationHookPreview() {
+  if (!els.notificationHookPreviewOutput) {
+    return;
+  }
+  els.notificationHookPreviewOutput.textContent = JSON.stringify(state.notificationHookPreview || {}, null, 2);
+}
+
+function notificationHookNode(hook) {
+  const article = document.createElement("article");
+  article.className = "notification-hook-item";
+
+  const header = document.createElement("div");
+  header.className = "notification-hook-header";
+  const title = document.createElement("p");
+  title.textContent = hook.name || hook.id;
+  const stateLabel = document.createElement("span");
+  stateLabel.className = hook.enabled ? "hook-state" : "hook-state is-disabled";
+  stateLabel.textContent = hook.enabled ? "enabled" : "disabled";
+  header.append(title, stateLabel);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    hook.scope_type === "project" ? `project ${projectLabel(hook.project_id)}` : "global",
+    hook.event_types.length ? hook.event_types.join(", ") : "all events",
+    hook.engine.type || "engine",
+    hook.actor_user_id ? `actor ${hook.actor_user_id}` : "",
+    hook.last_error ? `error: ${hook.last_error}` : ""
+  ].filter(Boolean).join(" / ");
+
+  const actions = document.createElement("div");
+  actions.className = "ticket-hook-actions";
+
+  const preview = document.createElement("button");
+  preview.type = "button";
+  preview.dataset.previewNotificationHookId = hook.id;
+  preview.textContent = "Preview";
+
+  const runs = document.createElement("button");
+  runs.type = "button";
+  runs.dataset.loadNotificationHookRunsId = hook.id;
+  runs.textContent = "Runs";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.toggleNotificationHookId = hook.id;
+  toggle.dataset.notificationHookEnabled = hook.enabled ? "false" : "true";
+  toggle.textContent = hook.enabled ? "Disable" : "Enable";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteNotificationHookId = hook.id;
+  remove.textContent = "Delete";
+
+  actions.append(preview, runs, toggle, remove);
+  article.append(header, meta, actions);
+
+  const runsList = state.notificationHookRuns[hook.id] || [];
+  if (runsList.length) {
+    article.append(notificationHookRunListNode(runsList));
+  }
+  return article;
+}
+
+function notificationHookRunListNode(runs) {
+  const list = document.createElement("div");
+  list.className = "notification-hook-run-list";
+  for (const run of runs) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      run.state || "queued",
+      run.trigger_type,
+      run.created_at ? formatDateTime(run.created_at) : "",
+      run.error ? `error: ${run.error}` : ""
+    ].filter(Boolean).join(" / ");
+    const output = document.createElement("pre");
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
+    list.append(item);
+  }
+  return list;
 }
 
 function projectLabel(projectID) {
@@ -3659,6 +3936,13 @@ function selectedNotificationPolicyProjectID() {
   return state.selectedProject ? state.selectedProject.id : "";
 }
 
+function selectedNotificationHookProjectID() {
+  if (els.notificationHookProject && els.notificationHookProject.value) {
+    return els.notificationHookProject.value;
+  }
+  return state.selectedProject ? state.selectedProject.id : "";
+}
+
 function cronJobSpec(form) {
   const data = formData(form);
   const projectID = selectedCronJobProjectID();
@@ -3733,6 +4017,13 @@ function notificationPolicyCollectionPath(scopeType, projectID) {
   return "/api/notification-policies";
 }
 
+function notificationHookCollectionPath(scopeType, projectID) {
+  if (scopeType === "project") {
+    return `/api/projects/${projectID}/notification-hooks`;
+  }
+  return "/api/notification-hooks";
+}
+
 function notificationPolicySpec(form) {
   const data = formData(form);
   return {
@@ -3745,6 +4036,54 @@ function notificationPolicySpec(form) {
 
 function notificationPolicyUpdateSpec(form) {
   return notificationPolicySpec(form);
+}
+
+function notificationHookSpec(form) {
+  const data = formData(form);
+  const spec = {
+    name: data.name || "",
+    actor_user_id: data.actor_user_id || "",
+    event_types: parseCommaList(data.event_types),
+    enabled: Boolean(data.enabled),
+    engine: notificationHookEngineSpec(data)
+  };
+  if (!spec.actor_user_id) {
+    delete spec.actor_user_id;
+  }
+  return spec;
+}
+
+function notificationHookEngineSpec(data) {
+  const type = data.engine_type || "lua";
+  if (type === "ai") {
+    return {
+      type,
+      prompt: data.prompt || "",
+      provider_id: data.provider_id || ""
+    };
+  }
+  return {
+    type: "lua",
+    script: data.script || ""
+  };
+}
+
+function notificationHookPreviewSpec() {
+  if (!els.notificationHookPreviewForm) {
+    return {};
+  }
+  const data = formData(els.notificationHookPreviewForm);
+  const spec = {
+    event_type: data.event_type || "",
+    message: data.message || "",
+    destination_ids: parseCommaList(data.destination_ids),
+    payload: parseJSONField(data.payload, "Notification hook payload JSON")
+  };
+  const projectID = selectedNotificationHookProjectID();
+  if (projectID) {
+    spec.project_id = projectID;
+  }
+  return spec;
 }
 
 function ticketHookSpec(form) {
@@ -5079,6 +5418,51 @@ function normalizeNotificationPolicy(policy) {
     };
   }
   return policy;
+}
+
+function normalizeNotificationHook(hook) {
+  if (!hook) {
+    return null;
+  }
+  if (hook.metadata && hook.spec && hook.status) {
+    return {
+      id: hook.metadata.id || "",
+      scope_type: hook.metadata.scope_type || "global",
+      project_id: hook.metadata.project_id || "",
+      created_at: hook.metadata.created_at || "",
+      updated_at: hook.metadata.updated_at || "",
+      name: hook.spec.name || "",
+      actor_user_id: hook.spec.actor_user_id || "",
+      event_types: hook.spec.event_types || [],
+      enabled: Boolean(hook.spec.enabled),
+      engine: hook.spec.engine || { type: "" },
+      last_error: hook.status.last_error || ""
+    };
+  }
+  return hook;
+}
+
+function normalizeNotificationHookRun(run) {
+  if (!run) {
+    return null;
+  }
+  if (run.metadata && run.spec && run.status) {
+    return {
+      id: run.metadata.id || "",
+      created_at: run.metadata.created_at || "",
+      trigger_type: run.spec.trigger_type || "",
+      trigger_ref: run.spec.trigger_ref || "",
+      project_id: run.spec.project_id || "",
+      ticket_id: run.spec.ticket_id || "",
+      input: run.spec.input || {},
+      state: run.status.state || "",
+      output: run.status.output || {},
+      error: run.status.error || "",
+      started_at: run.status.started_at || "",
+      finished_at: run.status.finished_at || ""
+    };
+  }
+  return run;
 }
 
 function normalizeComment(comment) {

@@ -42,6 +42,9 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-destinations"`) ||
 		!strings.Contains(body, `id="notification-policy-form"`) ||
 		!strings.Contains(body, `id="notification-policies"`) ||
+		!strings.Contains(body, `id="notification-hook-form"`) ||
+		!strings.Contains(body, `id="notification-hooks"`) ||
+		!strings.Contains(body, `id="notification-hook-preview-output"`) ||
 		!strings.Contains(body, `id="engine-form"`) ||
 		!strings.Contains(body, `id="cron-job-form"`) ||
 		!strings.Contains(body, `id="cron-jobs"`) ||
@@ -122,6 +125,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"loadOpenRouterProviders",
 		"loadNotificationDestinations",
 		"loadNotificationPolicies",
+		"loadNotificationHooks",
 		"loadCronJobs",
 		"loadWebhooks",
 		"loadTicketHooks",
@@ -129,6 +133,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"normalizeOpenRouterProvider",
 		"normalizeNotificationDestination",
 		"normalizeNotificationPolicy",
+		"normalizeNotificationHook",
+		"normalizeNotificationHookRun",
 		"normalizeCronJob",
 		"normalizeWebhook",
 		"normalizeTicketHook",
@@ -158,6 +164,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/notification-policies",
 		"/api/projects/${projectID}/notification-policies",
 		"data-delete-notification-policy-id",
+		"/api/notification-hooks",
+		"/api/projects/${projectID}/notification-hooks",
+		"/api/notification-hooks/${preview.dataset.previewNotificationHookId}/preview",
+		"data-delete-notification-hook-id",
 		"/api/cron-jobs?${query.toString()}",
 		"/api/cron-jobs/${run.dataset.runCronJobId}/run",
 		"data-delete-cron-job-id",
@@ -193,6 +203,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-destination-list",
 		".notification-policy-form",
 		".notification-policy-list",
+		".notification-hook-form",
+		".notification-hook-list",
+		".notification-hook-preview",
 		".cron-job-form",
 		".cron-job-list",
 		".webhook-form",
