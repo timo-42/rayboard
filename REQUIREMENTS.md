@@ -190,17 +190,17 @@ internal/backend/httpapi/
   - expose a backend-owned endpoint under `POST /api/engines/test` for testing shared engine definitions before attaching them to cron jobs, ticket hooks, custom create pages, incoming webhooks, outgoing webhooks, or notification hooks.
   - expose the endpoint as the canonical way to try out engines interactively from the UI and programmatically from API clients.
   - treat this as a first-class engine playground for admins and automation managers, not only as a hidden validation helper.
-  - support `engine.type=lua` and `engine.type=ai` in the first implementation, and keep the request/response shape compatible with future `engine.type=wasm`.
+  - support `engine.type=lua`, `engine.type=ai`, and initial `engine.type=wasm` workbench tests.
   - accept a Kubernetes-style input body with `spec.engine`, `spec.surface`, `spec.context`, `spec.input`, and `spec.dry_run`.
   - `spec.surface` selects the target automation contract, such as `scratch`, `cron`, `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook`.
-  - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and later wasm modules without choosing a real automation surface.
+  - `spec.surface=scratch` runs the engine with generic JSON input/output validation so users can quickly try Lua scripts, AI prompts, and wasm modules without choosing a real automation surface.
   - `spec.context` supplies the project, ticket, webhook, cron job, notification, actor, or other resource context needed to evaluate RBAC and surface-specific output schemas.
   - `spec.input` is arbitrary JSON passed to the engine using the same JSON/table conversion and validation rules used by real automation runs.
   - return a resource-like output with `metadata`, the normalized request `spec`, and `status` containing validated output, action previews, logs, duration, engine metadata, validation errors, runtime errors, limit errors, and redacted provider/runtime diagnostics.
   - execute tests with the same sandbox, owner/actor principal, RBAC checks, timeout, memory/log/payload limits, JSON/table conversion, output-schema validation, secret redaction, and run-history/audit behavior as the corresponding real automation surface.
   - test runs must never persist ticket/project mutations by default; mutation-capable previews require explicit dry-run/action-plan behavior that reports intended actions without committing them.
   - only authorized global admins or project automation managers can test engines, and project-scoped users can test only against projects/resources where they have automation-management permission.
-  - the frontend workbench must call this endpoint directly and let users test Lua, OpenRouter AI, and future wasm engines with editable input JSON before saving the engine onto an automation surface.
+  - the frontend workbench must call this endpoint directly and let users test Lua, OpenRouter AI, and wasm engines with editable input JSON before saving the engine onto an automation surface.
   - the frontend workbench must show request input, engine output, logs, validation errors, runtime errors, redacted diagnostics, and action previews in one place.
   - the endpoint must be exposed in Huma/OpenAPI, Swagger UI, Redoc, and the embedded `/docs` HTML documentation with examples for Lua and OpenRouter AI.
 - Add Lua ticket hook plugins:
@@ -272,15 +272,17 @@ internal/backend/httpapi/
   - AI output never bypasses normal backend validation, custom field validation, ticket hooks, or authorization.
   - record prompt input summary, OpenRouter model, usage metadata when available, validated output, errors, and resulting actions in run history.
   - provide test/preview execution for every AI automation before enabling.
-- Add WebAssembly automation as a later engine:
-  - add `wasm` as a future `engine.type` after the Lua and OpenRouter AI surfaces are implemented.
+- Add WebAssembly automation as an engine:
+  - add initial `wasm` support to the generic engine workbench after the Lua and OpenRouter AI surfaces are implemented.
   - use `github.com/wazero/wazero` as the pure-Go WebAssembly runtime so Rayboard remains a single binary without CGO.
-  - WebAssembly modules should be stored as Rayboard-managed artifacts or references and executed through the same owner/actor, RBAC, timeout, memory, log, payload-size, and action-count limits as Lua/AI for the same surface.
+  - the first WASM slice accepts an inline base64-encoded WASI command module on `POST /api/engines/test`.
+  - Rayboard sends surface/context/input/dry-run JSON to module stdin, requires a JSON object on stdout, and captures stderr lines as logs.
+  - WebAssembly modules should eventually be stored as Rayboard-managed artifacts or references and executed through the same owner/actor, RBAC, timeout, memory, log, payload-size, and action-count limits as Lua/AI for the same surface.
   - expose only the same constrained Rayboard host functions available to the equivalent Lua surface; do not expose filesystem, shell, raw sockets, arbitrary HTTP, direct SQLite, raw Go pointers, Shoutrrr secrets, or OpenRouter keys.
   - WebAssembly output must be validated against the same structured output schema for the automation surface before Rayboard applies transformations, actions, outbound requests, or form schemas.
   - support languages that compile to WebAssembly, subject to the stable Rayboard host ABI.
   - keep room for a future internal Lua-to-WASM compilation path to improve Lua performance while preserving existing Lua semantics.
-  - treat WebAssembly as the last automation engine piece in the current roadmap, after Lua and OpenRouter AI behavior are complete.
+  - keep persisted WASM artifacts, saved WASM automation surfaces, host function imports, and richer runtime management planned after the initial workbench support.
 - Add optional Go-to-WebAssembly compilation after the base wasm engine:
   - after Rayboard can execute managed wasm modules through wazero, optionally support compiling user-provided Go automation projects into wasm when a compatible `go` compiler is installed on the host.
   - compile with documented Go WebAssembly targets such as `GOOS=js GOARCH=wasm`, and evaluate `GOOS=wasip1 GOARCH=wasm` where it better fits server-side wazero execution and Rayboard's host ABI.

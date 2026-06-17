@@ -53,7 +53,20 @@ Every surface should enforce timeouts, max script size, max log size, max input/
 
 The endpoint requires `automations:manage` globally or for `spec.project_id`. Use `surface: "scratch"` for a generic playground run, or choose a concrete surface such as `ticket_hook_before` to test against that surface contract. Missing `surface` defaults to `scratch`. It currently normalizes all test executions to `dry_run = true`; workbench runs do not persist ticket or project mutations. Lua receives the supplied `context` and `input` globals. `context` always includes normalized `surface`, `project_id`, `actor_user_id`, and `dry_run` fields, and user-supplied context fields such as `ticket_id` are preserved unless they conflict with normalized fields.
 
-Responses use `metadata`, `spec`, and `status`. `spec.engine.script` and `spec.engine.prompt` are redacted from responses and run history. `status.output` contains the returned Lua table or AI JSON object, `status.logs` contains captured log lines, `status.duration_millis` reports elapsed execution time when available, `status.engine` contains redacted engine metadata, and `status.error` contains runtime failures.
+Responses use `metadata`, `spec`, and `status`. `spec.engine.script`, `spec.engine.prompt`, and `spec.engine.module_base64` are redacted from responses and run history. `status.output` contains the returned Lua table, AI JSON object, or WASM stdout JSON object; `status.logs` contains captured log lines; `status.duration_millis` reports elapsed execution time when available; `status.engine` contains redacted engine metadata; and `status.error` contains runtime failures.
+
+Initial WASM workbench support uses wazero with a WASI command-module contract. Requests use `engine.type = "wasm"` and `engine.module_base64` with a base64-encoded `.wasm` module. Rayboard sends this JSON object to stdin:
+
+```json
+{
+  "surface": "scratch",
+  "context": {"surface": "scratch", "project_id": "", "actor_user_id": "user_123", "dry_run": true},
+  "input": {"title": "Preview"},
+  "dry_run": true
+}
+```
+
+The module must write one JSON object to stdout. Stderr lines are captured as logs. The workbench does not provide filesystem mounts, environment variables, shell access, raw sockets, direct SQLite access, Rayboard service handles, Shoutrrr secrets, or OpenRouter keys.
 
 For `surface: "custom_create_page"`, the workbench validates the returned form data before recording success. Output must include at least one of `field_layout`, `defaults`, or `description`; `field_layout` must be an array of objects; nested `fields` arrays are validated recursively; `defaults` must be an object; `description` must be a string; and raw `html` fields are rejected. Invalid surface output is returned as a normal failed run resource with HTTP `200`, `status.state = "failed"`, and `status.error`.
 
@@ -292,6 +305,8 @@ Automation surfaces use the same nested `engine` object: `engine.type` is `lua` 
 
 AI execution is implemented for cron jobs, ticket hooks, custom create-page form shaping, incoming webhooks, outgoing webhook request shaping, and notification hook plan shaping as validated JSON-object output. AI cron action execution is still **Planned**.
 
-## Future WebAssembly Engine
+## WebAssembly Engine
 
-WebAssembly automation is planned as a later engine after Lua and OpenRouter AI behavior are complete. The planned runtime is wazero (`https://github.com/wazero/wazero`) so Rayboard can keep a pure-Go, single-binary deployment model. WASM modules will use the same owner/actor, RBAC, timeout, memory, log, payload-size, and action-count limits as the equivalent Lua/AI surface, and will only receive constrained Rayboard host functions. Filesystem, shell, raw sockets, unrestricted HTTP, direct SQLite, raw Go pointers, Shoutrrr secrets, and OpenRouter keys must remain unavailable. Outputs must validate against the same structured schema before Rayboard applies ticket transformations, actions, outbound requests, or form definitions.
+The engine workbench has initial WebAssembly support through wazero (`https://github.com/wazero/wazero`), keeping Rayboard pure Go and single-binary. This first slice only executes inline base64 WASI command modules through `/api/engines/test`; persisted WASM artifacts, saved automation surfaces, Rayboard host functions, and optional Go-to-WASM compilation remain **Planned**.
+
+WASM modules use the same actor/RBAC check, dry-run normalization, timeout, log, payload, and output validation behavior as other workbench engines. For `surface: "custom_create_page"`, stdout JSON is validated against the same structured form schema/default contract used by Lua and AI.

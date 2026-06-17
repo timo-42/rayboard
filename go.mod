@@ -9,6 +9,7 @@ require (
 	github.com/mvrilo/go-redoc v0.1.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggest/swgui v1.8.8
+	github.com/tetratelabs/wazero v1.10.1
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/crypto v0.39.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240826202546-f6391c0de4c7

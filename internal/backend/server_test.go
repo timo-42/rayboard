@@ -150,7 +150,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertRequestBodyFields(t, spec, "/api/settings", http.MethodPatch, []string{"spec"}, []string{"spec", "attachment_max_size_bytes"}, []string{"spec", "webhook_allowed_base_urls"})
 	assertResponseBodyFields(t, spec, "/api/settings", http.MethodPatch, "200", []string{"metadata"}, []string{"spec"}, []string{"spec", "demo_warning_enabled"}, []string{"status"}, []string{"status", "webhook_allowlist_active"})
 	assertRequestBodyFields(t, spec, "/api/engines/test", http.MethodPost, []string{"spec"}, []string{"spec", "surface"}, []string{"spec", "engine"}, []string{"spec", "context"}, []string{"spec", "input"}, []string{"spec", "dry_run"})
-	assertDiscriminatedEngineSchema(t, spec, requestBodySchema(t, spec, "/api/engines/test", http.MethodPost), []string{"spec", "engine"})
+	assertDiscriminatedEngineSchemaVariants(t, spec, requestBodySchema(t, spec, "/api/engines/test", http.MethodPost), []string{"spec", "engine"}, true)
 	assertEngineSurfaceSchema(t, spec, requestBodySchema(t, spec, "/api/engines/test", http.MethodPost), []string{"spec", "surface"})
 	assertResponseBodyFields(t, spec, "/api/engines/test", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "engine"}, []string{"spec", "context"}, []string{"spec", "dry_run"}, []string{"status"}, []string{"status", "state"}, []string{"status", "output"}, []string{"status", "logs"}, []string{"status", "duration_millis"}, []string{"status", "engine"}, []string{"status", "error"})
 	assertRequestBodyFields(t, spec, "/api/cron-jobs", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "schedule"}, []string{"spec", "engine"})
@@ -323,6 +323,11 @@ func assertSchemaField(t *testing.T, spec map[string]any, schema map[string]any,
 
 func assertDiscriminatedEngineSchema(t *testing.T, spec map[string]any, root map[string]any, fieldPath []string) {
 	t.Helper()
+	assertDiscriminatedEngineSchemaVariants(t, spec, root, fieldPath, false)
+}
+
+func assertDiscriminatedEngineSchemaVariants(t *testing.T, spec map[string]any, root map[string]any, fieldPath []string, includeWASM bool) {
+	t.Helper()
 
 	engine := resolveSchema(t, spec, schemaAtPath(t, spec, root, fieldPath))
 	discriminator := mapField(t, engine, "discriminator")
@@ -330,11 +335,18 @@ func assertDiscriminatedEngineSchema(t *testing.T, spec map[string]any, root map
 		t.Fatalf("expected engine discriminator propertyName type, got %#v", discriminator)
 	}
 	oneOf, ok := engine["oneOf"].([]any)
-	if !ok || len(oneOf) != 2 {
+	expectedVariants := 2
+	if includeWASM {
+		expectedVariants = 3
+	}
+	if !ok || len(oneOf) != expectedVariants {
 		t.Fatalf("expected engine oneOf variants, got %#v", engine["oneOf"])
 	}
 	assertOneOfVariant(t, oneOf, "lua", []string{"type", "script"}, []string{"script"})
 	assertOneOfVariant(t, oneOf, "ai", []string{"type", "prompt", "provider_id"}, []string{"prompt", "provider_id"})
+	if includeWASM {
+		assertOneOfVariant(t, oneOf, "wasm", []string{"type", "module_base64"}, []string{"module_base64"})
+	}
 }
 
 func assertEngineSurfaceSchema(t *testing.T, spec map[string]any, root map[string]any, fieldPath []string) {

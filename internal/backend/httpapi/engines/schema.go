@@ -19,10 +19,11 @@ type TestEngineOutput struct {
 }
 
 type EngineSpec struct {
-	Type       string `json:"type"`
-	Script     string `json:"script,omitempty"`
-	Prompt     string `json:"prompt,omitempty"`
-	ProviderID string `json:"provider_id,omitempty"`
+	Type         string `json:"type"`
+	Script       string `json:"script,omitempty"`
+	Prompt       string `json:"prompt,omitempty"`
+	ProviderID   string `json:"provider_id,omitempty"`
+	ModuleBase64 string `json:"module_base64,omitempty"`
 }
 
 func (EngineSpec) Schema(_ huma.Registry) *huma.Schema {
@@ -36,6 +37,10 @@ func (EngineSpec) Schema(_ huma.Registry) *huma.Schema {
 				"type":        {Type: huma.TypeString, Enum: []any{"ai"}},
 				"prompt":      {Type: huma.TypeString, Description: "AI prompt sent to the selected OpenRouter provider."},
 				"provider_id": {Type: huma.TypeString, Description: "Admin-managed OpenRouter provider configuration ID."},
+			}),
+			engineVariantSchema("wasm", []string{"type", "module_base64"}, map[string]*huma.Schema{
+				"type":          {Type: huma.TypeString, Enum: []any{"wasm"}},
+				"module_base64": {Type: huma.TypeString, Description: "Base64-encoded WebAssembly module using the Rayboard WASI stdin/stdout JSON contract."},
 			}),
 		},
 		Discriminator: &huma.Discriminator{PropertyName: "type"},
@@ -80,10 +85,11 @@ func (spec TestEngineSpec) testInput() engines.TestInput {
 		Input:       spec.Input,
 		DryRun:      true,
 		Engine: engines.EngineSpec{
-			Type:       spec.Engine.Type,
-			Script:     spec.Engine.Script,
-			Prompt:     spec.Engine.Prompt,
-			ProviderID: spec.Engine.ProviderID,
+			Type:         spec.Engine.Type,
+			Script:       spec.Engine.Script,
+			Prompt:       spec.Engine.Prompt,
+			ProviderID:   spec.Engine.ProviderID,
+			ModuleBase64: spec.Engine.ModuleBase64,
 		},
 	}
 }
@@ -103,6 +109,7 @@ func testEngineResource(run automation.Run, spec TestEngineSpec) TestEngineResou
 	}
 	sanitized.Engine.Script = ""
 	sanitized.Engine.Prompt = ""
+	sanitized.Engine.ModuleBase64 = ""
 	if sanitized.Input == nil {
 		sanitized.Input = map[string]any{}
 	}

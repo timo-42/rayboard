@@ -1,14 +1,19 @@
 package engines
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	"github.com/timo-42/rayboard/internal/backend/automation"
 	"github.com/timo-42/rayboard/internal/backend/luasandbox"
@@ -17,9 +22,13 @@ import (
 )
 
 const (
-	EngineLua = "lua"
-	EngineAI  = "ai"
+	EngineLua  = "lua"
+	EngineAI   = "ai"
+	EngineWASM = "wasm"
 )
+
+const maxWASMModuleBytes = 4 << 20
+const maxWASMOutputBytes = 1 << 20
 
 var (
 	ErrValidation = errors.New("engines: validation failed")
@@ -43,10 +52,11 @@ func (e *ValidationError) Is(target error) bool {
 }
 
 type EngineSpec struct {
-	Type       string `json:"type"`
-	Script     string `json:"script,omitempty"`
-	Prompt     string `json:"prompt,omitempty"`
-	ProviderID string `json:"provider_id,omitempty"`
+	Type         string `json:"type"`
+	Script       string `json:"script,omitempty"`
+	Prompt       string `json:"prompt,omitempty"`
+	ProviderID   string `json:"provider_id,omitempty"`
+	ModuleBase64 string `json:"module_base64,omitempty"`
 }
 
 type TestInput struct {
@@ -168,6 +178,8 @@ func (s *Service) execute(ctx context.Context, input TestInput) (map[string]any,
 		return s.executeLua(ctx, input)
 	case EngineAI:
 		return s.executeAI(ctx, input)
+	case EngineWASM:
+		return s.executeWASM(ctx, input)
 	default:
 		return map[string]any{}, nil, fmt.Errorf("%w: unsupported engine", ErrValidation)
 	}
@@ -231,6 +243,53 @@ func (s *Service) executeAI(ctx context.Context, input TestInput) (map[string]an
 	return output, nil, nil
 }
 
+func (s *Service) executeWASM(ctx context.Context, input TestInput) (map[string]any, []string, error) {
+	moduleBytes, err := decodeWASMModule(input.Engine.ModuleBase64)
+	if err != nil {
+		return map[string]any{}, nil, err
+	}
+	stdin, err := json.Marshal(map[string]any{
+		"surface": input.Surface,
+		"context": input.normalizedContext(),
+		"input":   input.Input,
+		"dry_run": true,
+	})
+	if err != nil {
+		return map[string]any{}, nil, fmt.Errorf("encode wasm engine input: %w", err)
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	runtime := wazero.NewRuntimeWithConfig(runCtx, wazero.NewRuntimeConfigInterpreter())
+	defer runtime.Close(runCtx)
+	wasi_snapshot_preview1.MustInstantiate(runCtx, runtime)
+
+	stdout := &limitedBuffer{limit: maxWASMOutputBytes}
+	stderr := &limitedBuffer{limit: maxWASMOutputBytes}
+	config := wazero.NewModuleConfig().
+		WithStdin(bytes.NewReader(stdin)).
+		WithStdout(stdout).
+		WithStderr(stderr)
+	if _, err := runtime.InstantiateWithConfig(runCtx, moduleBytes, config); err != nil {
+		return map[string]any{}, wasmLogs(stderr.String()), fmt.Errorf("%w: run wasm module: %v", ErrValidation, err)
+	}
+
+	outputText := strings.TrimSpace(stdout.String())
+	if outputText == "" {
+		return map[string]any{}, wasmLogs(stderr.String()), fmt.Errorf("%w: wasm stdout must be a JSON object", ErrValidation)
+	}
+	var output map[string]any
+	decoder := json.NewDecoder(io.LimitReader(strings.NewReader(outputText), 1<<20))
+	if err := decoder.Decode(&output); err != nil {
+		return map[string]any{}, wasmLogs(stderr.String()), fmt.Errorf("%w: wasm stdout must be a JSON object: %v", ErrValidation, err)
+	}
+	if output == nil {
+		output = map[string]any{}
+	}
+	return output, wasmLogs(stderr.String()), nil
+}
+
 func registerLuaHelpers(sandbox *luasandbox.Sandbox, input TestInput, logs *[]string) {
 	L := sandbox.L
 	contextValue, err := sandbox.JSON.FromGo(input.normalizedContext())
@@ -280,8 +339,14 @@ func (s *Service) validate(ctx context.Context, input TestInput) error {
 		} else if err := s.validateAIProvider(ctx, input.Engine.ProviderID); err != nil {
 			fields["engine.provider_id"] = err.Error()
 		}
+	case EngineWASM:
+		if strings.TrimSpace(input.Engine.ModuleBase64) == "" {
+			fields["engine.module_base64"] = "Required for wasm engine"
+		} else if _, err := decodeWASMModule(input.Engine.ModuleBase64); err != nil {
+			fields["engine.module_base64"] = err.Error()
+		}
 	default:
-		fields["engine.type"] = "Must be lua or ai"
+		fields["engine.type"] = "Must be lua, ai, or wasm"
 	}
 	if len(fields) > 0 {
 		return &ValidationError{Message: "Invalid engine test", Fields: fields}
@@ -432,6 +497,12 @@ func (s *Service) runLimits(ctx context.Context, input TestInput) map[string]any
 		"timeout_seconds": 30,
 		"dry_run":         true,
 	}
+	if input.Engine.Type == EngineWASM {
+		limits["max_module_bytes"] = maxWASMModuleBytes
+		limits["max_stdout_bytes"] = maxWASMOutputBytes
+		limits["max_stderr_bytes"] = maxWASMOutputBytes
+		return limits
+	}
 	if input.Engine.Type != EngineAI || s.openrouter == nil {
 		return limits
 	}
@@ -481,8 +552,79 @@ func normalizeEngine(engine EngineSpec) EngineSpec {
 	case EngineLua:
 		engine.Prompt = ""
 		engine.ProviderID = ""
+		engine.ModuleBase64 = ""
 	case EngineAI:
 		engine.Script = ""
+		engine.ModuleBase64 = ""
+	case EngineWASM:
+		engine.Script = ""
+		engine.Prompt = ""
+		engine.ProviderID = ""
 	}
 	return engine
+}
+
+func decodeWASMModule(encoded string) ([]byte, error) {
+	encoded = strings.TrimSpace(encoded)
+	if encoded == "" {
+		return nil, fmt.Errorf("%w: wasm module is required", ErrValidation)
+	}
+	moduleBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("%w: wasm module must be base64 encoded", ErrValidation)
+	}
+	if len(moduleBytes) == 0 {
+		return nil, fmt.Errorf("%w: wasm module is empty", ErrValidation)
+	}
+	if len(moduleBytes) > maxWASMModuleBytes {
+		return nil, fmt.Errorf("%w: wasm module must be at most %d bytes", ErrValidation, maxWASMModuleBytes)
+	}
+	if len(moduleBytes) < 4 || string(moduleBytes[:4]) != "\x00asm" {
+		return nil, fmt.Errorf("%w: wasm module has invalid magic header", ErrValidation)
+	}
+	return moduleBytes, nil
+}
+
+func wasmLogs(stderr string) []string {
+	stderr = strings.TrimSpace(stderr)
+	if stderr == "" {
+		return nil
+	}
+	lines := strings.Split(stderr, "\n")
+	logs := make([]string, 0, min(len(lines), 200))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			logs = append(logs, line)
+		}
+		if len(logs) >= 200 {
+			break
+		}
+	}
+	return logs
+}
+
+type limitedBuffer struct {
+	buffer bytes.Buffer
+	limit  int
+}
+
+func (w *limitedBuffer) Write(p []byte) (int, error) {
+	if w.limit <= 0 {
+		return len(p), nil
+	}
+	remaining := w.limit - w.buffer.Len()
+	if remaining <= 0 {
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		_, _ = w.buffer.Write(p[:remaining])
+		return len(p), nil
+	}
+	_, _ = w.buffer.Write(p)
+	return len(p), nil
+}
+
+func (w *limitedBuffer) String() string {
+	return w.buffer.String()
 }

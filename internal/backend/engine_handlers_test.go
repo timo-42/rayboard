@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -136,6 +137,52 @@ func TestEngineTestEndpoint(t *testing.T) {
 		t.Fatalf("expected scratch engine response, got %#v", scratchBody)
 	}
 
+	wasmModule := tinyEngineHandlerWASIBase64(`{"ok":true,"value":"wasm","surface":"scratch"}`+"\n", "wasm preview\n")
+	wasmReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"engine": map[string]string{
+				"type":          "wasm",
+				"module_base64": wasmModule,
+			},
+			"input": map[string]string{"value": "wasm"},
+		},
+	}))
+	wasmReq.AddCookie(sessionCookie)
+	wasmReq.AddCookie(csrfCookie)
+	wasmReq.Header.Set("Content-Type", "application/json")
+	wasmReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
+	wasmRec := httptest.NewRecorder()
+	handler.ServeHTTP(wasmRec, wasmReq)
+	if wasmRec.Code != http.StatusOK {
+		t.Fatalf("expected wasm engine test status 200, got %d: %s", wasmRec.Code, wasmRec.Body.String())
+	}
+	var wasmBody struct {
+		Spec struct {
+			Engine struct {
+				Type         string `json:"type"`
+				ModuleBase64 string `json:"module_base64"`
+			} `json:"engine"`
+			Surface string `json:"surface"`
+		} `json:"spec"`
+		Status struct {
+			Output map[string]any `json:"output"`
+			Logs   []string       `json:"logs"`
+			Engine map[string]any `json:"engine"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(wasmRec.Body.Bytes(), &wasmBody); err != nil {
+		t.Fatalf("decode wasm engine test response: %v", err)
+	}
+	if wasmBody.Spec.Engine.Type != "wasm" || wasmBody.Spec.Engine.ModuleBase64 != "" || wasmBody.Spec.Surface != "scratch" {
+		t.Fatalf("expected redacted wasm spec, got %#v", wasmBody.Spec)
+	}
+	if wasmBody.Status.Output["ok"] != true || wasmBody.Status.Output["value"] != "wasm" || wasmBody.Status.Engine["type"] != "wasm" {
+		t.Fatalf("unexpected wasm engine output: %#v", wasmBody.Status)
+	}
+	if len(wasmBody.Status.Logs) != 1 || wasmBody.Status.Logs[0] != "wasm preview" {
+		t.Fatalf("unexpected wasm logs: %#v", wasmBody.Status.Logs)
+	}
+
 	customReq := httptest.NewRequest(http.MethodPost, "/api/engines/test", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"surface": "custom_create_page",
@@ -205,5 +252,108 @@ return {
 	}
 	if invalidBody.Status.State != automation.StatusFailed || !strings.Contains(invalidBody.Status.Error, "Invalid custom create page output") {
 		t.Fatalf("expected failed validation response, got %#v", invalidBody.Status)
+	}
+}
+
+func tinyEngineHandlerWASIBase64(stdout string, stderr string) string {
+	return base64.StdEncoding.EncodeToString(tinyEngineHandlerWASIModule(stdout, stderr))
+}
+
+func tinyEngineHandlerWASIModule(stdout string, stderr string) []byte {
+	var module []byte
+	module = append(module, 0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00)
+	module = append(module, engineHandlerWASMSection(1, engineHandlerWASMBytes(
+		engineHandlerWASMU32(2),
+		[]byte{0x60, 0x04, 0x7f, 0x7f, 0x7f, 0x7f, 0x01, 0x7f},
+		[]byte{0x60, 0x00, 0x00},
+	))...)
+	module = append(module, engineHandlerWASMSection(2, engineHandlerWASMBytes(
+		engineHandlerWASMU32(1),
+		engineHandlerWASMName("wasi_snapshot_preview1"),
+		engineHandlerWASMName("fd_write"),
+		[]byte{0x00},
+		engineHandlerWASMU32(0),
+	))...)
+	module = append(module, engineHandlerWASMSection(3, engineHandlerWASMBytes(engineHandlerWASMU32(1), engineHandlerWASMU32(1)))...)
+	module = append(module, engineHandlerWASMSection(5, engineHandlerWASMBytes(engineHandlerWASMU32(1), []byte{0x00}, engineHandlerWASMU32(1)))...)
+	module = append(module, engineHandlerWASMSection(7, engineHandlerWASMBytes(
+		engineHandlerWASMU32(2),
+		engineHandlerWASMName("memory"), []byte{0x02}, engineHandlerWASMU32(0),
+		engineHandlerWASMName("_start"), []byte{0x00}, engineHandlerWASMU32(1),
+	))...)
+	var code []byte
+	if stdout != "" {
+		code = append(code, engineHandlerWASMFDWriteDefaultPtr(1, len(stdout), 1024)...)
+	}
+	if stderr != "" {
+		code = append(code, engineHandlerWASMFDWrite(2, 2048, len(stderr), 1032)...)
+	}
+	body := engineHandlerWASMBytes(engineHandlerWASMU32(0), code, []byte{0x0b})
+	module = append(module, engineHandlerWASMSection(10, engineHandlerWASMBytes(engineHandlerWASMU32(1), engineHandlerWASMU32(uint32(len(body))), body))...)
+	module = append(module, engineHandlerWASMSection(11, engineHandlerWASMBytes(
+		engineHandlerWASMU32(2),
+		engineHandlerWASMData(0, []byte(stdout)),
+		engineHandlerWASMData(2048, []byte(stderr)),
+	))...)
+	return module
+}
+
+func engineHandlerWASMFDWrite(fd int, ptr int, size int, iovec int) []byte {
+	return engineHandlerWASMBytes(
+		[]byte{0x41}, engineHandlerWASMU32(uint32(iovec)), []byte{0x41}, engineHandlerWASMU32(uint32(ptr)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, engineHandlerWASMU32(uint32(iovec+4)), []byte{0x41}, engineHandlerWASMU32(uint32(size)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, engineHandlerWASMU32(uint32(fd)),
+		[]byte{0x41}, engineHandlerWASMU32(uint32(iovec)),
+		[]byte{0x41}, engineHandlerWASMU32(1),
+		[]byte{0x41}, engineHandlerWASMU32(160),
+		[]byte{0x10}, engineHandlerWASMU32(0),
+		[]byte{0x1a},
+	)
+}
+
+func engineHandlerWASMFDWriteDefaultPtr(fd int, size int, iovec int) []byte {
+	return engineHandlerWASMBytes(
+		[]byte{0x41}, engineHandlerWASMU32(uint32(iovec+4)), []byte{0x41}, engineHandlerWASMU32(uint32(size)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, engineHandlerWASMU32(uint32(fd)),
+		[]byte{0x41}, engineHandlerWASMU32(uint32(iovec)),
+		[]byte{0x41}, engineHandlerWASMU32(1),
+		[]byte{0x41}, engineHandlerWASMU32(160),
+		[]byte{0x10}, engineHandlerWASMU32(0),
+		[]byte{0x1a},
+	)
+}
+
+func engineHandlerWASMData(offset int, data []byte) []byte {
+	return engineHandlerWASMBytes([]byte{0x00, 0x41}, engineHandlerWASMU32(uint32(offset)), []byte{0x0b}, engineHandlerWASMU32(uint32(len(data))), data)
+}
+
+func engineHandlerWASMSection(id byte, payload []byte) []byte {
+	return engineHandlerWASMBytes([]byte{id}, engineHandlerWASMU32(uint32(len(payload))), payload)
+}
+
+func engineHandlerWASMName(value string) []byte {
+	return engineHandlerWASMBytes(engineHandlerWASMU32(uint32(len(value))), []byte(value))
+}
+
+func engineHandlerWASMBytes(parts ...[]byte) []byte {
+	var out []byte
+	for _, part := range parts {
+		out = append(out, part...)
+	}
+	return out
+}
+
+func engineHandlerWASMU32(value uint32) []byte {
+	var out []byte
+	for {
+		b := byte(value & 0x7f)
+		value >>= 7
+		if value != 0 {
+			b |= 0x80
+		}
+		out = append(out, b)
+		if value == 0 {
+			return out
+		}
 	}
 }

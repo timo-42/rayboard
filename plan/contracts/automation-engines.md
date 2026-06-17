@@ -13,9 +13,9 @@ Automation-capable surfaces support:
 }
 ```
 
-`engine.type` is the discriminator. Lua uses `engine.script`. AI uses `engine.prompt` plus `engine.provider_id`, where the provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, limits, and defaults. OpenAPI schemas must represent this as `oneOf` with a discriminator on `type`, so `lua` requires `script` and `ai` requires `prompt` plus `provider_id`.
+`engine.type` is the discriminator. Lua uses `engine.script`. AI uses `engine.prompt` plus `engine.provider_id`, where the provider ID references an admin-managed OpenRouter configuration with model, API key/secret material, limits, and defaults. Initial workbench-only WASM uses `engine.module_base64` with a base64-encoded WASI command module. OpenAPI schemas must represent this as `oneOf` with a discriminator on `type`, so `lua` requires `script`, `ai` requires `prompt` plus `provider_id`, and the workbench-only `wasm` variant requires `module_base64`.
 
-Lua uses GopherLua. AI uses OpenRouter only in v1.
+Lua uses GopherLua. AI uses OpenRouter only in v1. WASM uses wazero for the workbench first slice.
 
 Surfaces:
 
@@ -53,7 +53,9 @@ It accepts a Kubernetes-style request body:
 }
 ```
 
-The response uses `metadata`, `spec`, and `status`. The response `spec` must redact Lua source and AI prompts. The response `status` contains the execution state, validated output, error when present, and timing metadata available from the run record.
+The response uses `metadata`, `spec`, and `status`. The response `spec` must redact Lua source, AI prompts, and WASM module bytes. The response `status` contains the execution state, validated output, error when present, and timing metadata available from the run record.
+
+For `engine.type = "wasm"`, the request carries `engine.module_base64`. The workbench sends surface/context/input/dry-run JSON to WASI stdin, requires one JSON object on stdout, captures stderr lines as logs, and redacts `module_base64` from responses and run history. Persisted WASM artifacts, saved WASM automation surfaces, and Rayboard host-function imports are planned after this workbench slice.
 
 Use `surface: "scratch"` for a playground run that only validates generic JSON input/output. Use concrete surfaces such as `ticket_hook_before`, `ticket_hook_after`, `custom_create_page`, `incoming_webhook`, `outgoing_webhook`, or `notification_hook` to test against a surface-specific contract. Missing `surface` defaults to `scratch`.
 

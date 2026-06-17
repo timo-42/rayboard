@@ -3,6 +3,7 @@ package engines_test
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"path/filepath"
 	"slices"
@@ -83,6 +84,75 @@ func TestLuaEngineTestDefaultsToScratchSurface(t *testing.T) {
 	contextEnvelope, _ := inputEnvelope["context"].(map[string]any)
 	if inputEnvelope["dry_run"] != true || contextEnvelope["surface"] != "scratch" {
 		t.Fatalf("expected scratch run input context, got %#v", run.Input)
+	}
+}
+
+func TestWASMEngineTestReturnsOutputAndLogs(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+	service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+
+	module := tinyWASIBase64(`{"ok":true,"value":"wasm","surface":"ticket_hook_before"}`+"\n", "wasm checked\n")
+
+	run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+		Surface: "ticket_hook_before",
+		Input:   map[string]any{"title": "WASM Preview"},
+		Engine: engines.EngineSpec{
+			Type:         engines.EngineWASM,
+			ModuleBase64: module,
+		},
+	})
+	if err != nil {
+		t.Fatalf("test wasm engine: %v", err)
+	}
+	if run.Status != automation.StatusSucceeded {
+		t.Fatalf("expected succeeded run, got %#v", run)
+	}
+	output, _ := run.Output["output"].(map[string]any)
+	if output["ok"] != true || output["value"] != "wasm" || output["surface"] != "ticket_hook_before" {
+		t.Fatalf("unexpected wasm output: %#v", run.Output)
+	}
+	logs, _ := run.Output["logs"].([]any)
+	if !slices.Equal(anyStrings(logs), []string{"wasm checked"}) {
+		t.Fatalf("unexpected wasm logs: %#v", run.Output)
+	}
+	if encoded := run.Input; encoded["engine"] != "wasm" {
+		t.Fatalf("expected run input to store only engine type, got %#v", encoded)
+	}
+}
+
+func TestWASMEngineTestRejectsInvalidModuleAndOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		module string
+	}{
+		{name: "not_base64", module: "not base64"},
+		{name: "not_wasm", module: base64.StdEncoding.EncodeToString([]byte("nope"))},
+		{name: "bad_output", module: tinyWASIBase64("not-json\n", "")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t, ctx)
+			seedUser(t, ctx, db.SQL, "user-admin")
+			evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope())))
+			service := engines.NewService(db.SQL, evaluator, automation.NewRunStore(db.SQL, automation.WithNow(fixedNow)))
+			run, err := service.Test(ctx, principal("user-admin"), engines.TestInput{
+				Engine: engines.EngineSpec{
+					Type:         engines.EngineWASM,
+					ModuleBase64: tt.module,
+				},
+			})
+			if !errors.Is(err, engines.ErrValidation) {
+				t.Fatalf("expected wasm validation, got run=%#v err=%v", run, err)
+			}
+			if tt.name == "bad_output" && (run.ID == "" || run.Status != automation.StatusFailed) {
+				t.Fatalf("expected bad output to persist failed run, got %#v", run)
+			}
+		})
 	}
 }
 
@@ -242,4 +312,107 @@ func anyStrings(values []any) []string {
 		out = append(out, text)
 	}
 	return out
+}
+
+func tinyWASIBase64(stdout string, stderr string) string {
+	return base64.StdEncoding.EncodeToString(tinyWASIModule(stdout, stderr))
+}
+
+func tinyWASIModule(stdout string, stderr string) []byte {
+	var module []byte
+	module = append(module, 0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00)
+	module = append(module, wasmSection(1, wasmBytes(
+		wasmU32(2),
+		[]byte{0x60, 0x04, 0x7f, 0x7f, 0x7f, 0x7f, 0x01, 0x7f},
+		[]byte{0x60, 0x00, 0x00},
+	))...)
+	module = append(module, wasmSection(2, wasmBytes(
+		wasmU32(1),
+		wasmName("wasi_snapshot_preview1"),
+		wasmName("fd_write"),
+		[]byte{0x00},
+		wasmU32(0),
+	))...)
+	module = append(module, wasmSection(3, wasmBytes(wasmU32(1), wasmU32(1)))...)
+	module = append(module, wasmSection(5, wasmBytes(wasmU32(1), []byte{0x00}, wasmU32(1)))...)
+	module = append(module, wasmSection(7, wasmBytes(
+		wasmU32(2),
+		wasmName("memory"), []byte{0x02}, wasmU32(0),
+		wasmName("_start"), []byte{0x00}, wasmU32(1),
+	))...)
+	var code []byte
+	if stdout != "" {
+		code = append(code, wasmFDWriteDefaultPtr(1, len(stdout), 1024)...)
+	}
+	if stderr != "" {
+		code = append(code, wasmFDWrite(2, 2048, len(stderr), 1032)...)
+	}
+	body := wasmBytes(wasmU32(0), code, []byte{0x0b})
+	module = append(module, wasmSection(10, wasmBytes(wasmU32(1), wasmU32(uint32(len(body))), body))...)
+	module = append(module, wasmSection(11, wasmBytes(
+		wasmU32(2),
+		wasmData(0, []byte(stdout)),
+		wasmData(2048, []byte(stderr)),
+	))...)
+	return module
+}
+
+func wasmFDWrite(fd int, ptr int, size int, iovec int) []byte {
+	return wasmBytes(
+		[]byte{0x41}, wasmU32(uint32(iovec)), []byte{0x41}, wasmU32(uint32(ptr)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, wasmU32(uint32(iovec+4)), []byte{0x41}, wasmU32(uint32(size)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, wasmU32(uint32(fd)),
+		[]byte{0x41}, wasmU32(uint32(iovec)),
+		[]byte{0x41}, wasmU32(1),
+		[]byte{0x41}, wasmU32(160),
+		[]byte{0x10}, wasmU32(0),
+		[]byte{0x1a},
+	)
+}
+
+func wasmFDWriteDefaultPtr(fd int, size int, iovec int) []byte {
+	return wasmBytes(
+		[]byte{0x41}, wasmU32(uint32(iovec+4)), []byte{0x41}, wasmU32(uint32(size)), []byte{0x36, 0x02, 0x00},
+		[]byte{0x41}, wasmU32(uint32(fd)),
+		[]byte{0x41}, wasmU32(uint32(iovec)),
+		[]byte{0x41}, wasmU32(1),
+		[]byte{0x41}, wasmU32(160),
+		[]byte{0x10}, wasmU32(0),
+		[]byte{0x1a},
+	)
+}
+
+func wasmData(offset int, data []byte) []byte {
+	return wasmBytes([]byte{0x00, 0x41}, wasmU32(uint32(offset)), []byte{0x0b}, wasmU32(uint32(len(data))), data)
+}
+
+func wasmSection(id byte, payload []byte) []byte {
+	return wasmBytes([]byte{id}, wasmU32(uint32(len(payload))), payload)
+}
+
+func wasmName(value string) []byte {
+	return wasmBytes(wasmU32(uint32(len(value))), []byte(value))
+}
+
+func wasmBytes(parts ...[]byte) []byte {
+	var out []byte
+	for _, part := range parts {
+		out = append(out, part...)
+	}
+	return out
+}
+
+func wasmU32(value uint32) []byte {
+	var out []byte
+	for {
+		b := byte(value & 0x7f)
+		value >>= 7
+		if value != 0 {
+			b |= 0x80
+		}
+		out = append(out, b)
+		if value == 0 {
+			return out
+		}
+	}
 }
