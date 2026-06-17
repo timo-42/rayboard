@@ -656,7 +656,8 @@ p {
 }
 
 .ticket-comments,
-.ticket-attachments {
+.ticket-attachments,
+.ticket-activity {
   display: grid;
   gap: 7px;
   border-top: 1px solid var(--border);
@@ -664,7 +665,8 @@ p {
 }
 
 .comment-heading,
-.attachment-heading {
+.attachment-heading,
+.activity-heading {
   color: var(--heading);
   font-size: 12px;
   font-weight: 700;
@@ -672,7 +674,8 @@ p {
 }
 
 .comment-list,
-.attachment-list {
+.attachment-list,
+.activity-list {
   display: grid;
   gap: 6px;
 }
@@ -724,6 +727,39 @@ p {
 .attachment-item span {
   color: var(--muted);
   white-space: nowrap;
+}
+
+.activity-item {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 7px;
+  font-size: 12px;
+}
+
+.activity-item p {
+  color: var(--text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.activity-item span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.activity-item code {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 6px;
 }
 
 .comment-item button,

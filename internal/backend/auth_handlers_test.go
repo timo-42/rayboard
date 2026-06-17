@@ -119,10 +119,12 @@ func TestAuthEndpointsAPITokensAndBearerAuth(t *testing.T) {
 
 	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+created.Metadata.ID, nil)
 	revokeReq.Header.Set("Authorization", "Bearer "+created.Status.Token)
+	revokeReq.AddCookie(sessionCookie)
+	revokeReq.AddCookie(csrfCookie)
 	revoke := httptest.NewRecorder()
 	handler.ServeHTTP(revoke, revokeReq)
 	if revoke.Code != http.StatusNoContent {
-		t.Fatalf("expected revoke status 204, got %d: %s", revoke.Code, revoke.Body.String())
+		t.Fatalf("expected bearer revoke with session cookies and no CSRF status 204, got %d: %s", revoke.Code, revoke.Body.String())
 	}
 
 	retry := httptest.NewRecorder()

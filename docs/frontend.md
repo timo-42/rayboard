@@ -25,7 +25,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, and Profile;
 - a dashboard overview at `/` with project/ticket summary metrics, recently modified tickets, biggest projects, active sprints, and notifications;
 - project pages under `/projects` and `/projects/{project_id}` for project-scoped tickets, sprints, components, versions, roadmap epics, and custom fields;
-- issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, and attachments;
+- issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for users, groups, roles, and role-binding summaries when the signed-in user has permission;
 - login/logout using backend API sessions;

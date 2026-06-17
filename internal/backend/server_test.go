@@ -74,10 +74,13 @@ func TestOpenAPIJSON(t *testing.T) {
 			t.Fatalf("expected path %s in OpenAPI document", path)
 		}
 	}
-	for _, scheme := range []string{"bearerToken", "sessionCookie", "csrfToken"} {
+	for _, scheme := range []string{"bearerToken", "sessionCookie"} {
 		if _, ok := body.Components.SecuritySchemes[scheme]; !ok {
 			t.Fatalf("expected security scheme %s in OpenAPI document", scheme)
 		}
+	}
+	if _, ok := body.Components.SecuritySchemes["csrfToken"]; ok {
+		t.Fatal("did not expect CSRF to be advertised as a Swagger authorization scheme")
 	}
 	assertRequestBodyFields(t, spec, "/api/login", http.MethodPost, []string{"spec"}, []string{"spec", "username"}, []string{"spec", "password"})
 	assertResponseBodyFields(t, spec, "/api/login", http.MethodPost, "200", []string{"metadata"}, []string{"metadata", "user_id"}, []string{"spec"}, []string{"spec", "username"}, []string{"status"}, []string{"status", "auth_kind"})

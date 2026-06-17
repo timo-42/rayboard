@@ -20,6 +20,8 @@ Protected routes accept either:
 - browser session cookie plus CSRF header for mutating methods; or
 - `Authorization: Bearer <api_token>`.
 
+Swagger UI exposes bearer token and session cookie authorization. CSRF is not an API-token credential; when testing mutating cookie-authenticated requests from Swagger or another browser client, send `X-CSRF-Token` as a normal request header using the value from the `rayboard_csrf` cookie. Bearer-token requests do not need CSRF, even if browser cookies are also present.
+
 Unauthenticated API requests return `401`.
 
 ## Errors
@@ -105,6 +107,8 @@ Ticket `component_id` and `version_id` assignments are optional. When present, t
 Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. The embedded browser UI accepts comma-separated labels on ticket create and ticket cards. There are no separate label CRUD endpoints in this slice.
 
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
+
+Ticket activity responses use a list resource with `metadata.count` and `status.items`. Each activity item uses `metadata.id`, `metadata.ticket_id`, `metadata.created_at`, `spec.activity_type`, optional `spec.data`, and `status.actor_id`. Common activity types include `ticket.created`, `ticket.updated`, `comment.created`, `comment.deleted`, `attachment.uploaded`, and `attachment.deleted`. The embedded issue page at `/issues/{ticket_id}` renders this activity history.
 
 ## Backlog
 

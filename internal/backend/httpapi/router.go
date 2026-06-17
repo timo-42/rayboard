@@ -129,12 +129,6 @@ func openAPIConfig() huma.Config {
 			Name:        "rayboard_session",
 			Description: "Browser session cookie created by POST /api/login.",
 		},
-		"csrfToken": {
-			Type:        "apiKey",
-			In:          "header",
-			Name:        "X-CSRF-Token",
-			Description: "Required for mutating requests authenticated with a browser session cookie.",
-		},
 	}
 	config.OpenAPI.Security = []map[string][]string{
 		{"bearerToken": {}},

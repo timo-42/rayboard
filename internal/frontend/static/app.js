@@ -14,6 +14,7 @@ const state = {
   roadmap: [],
   attachments: {},
   comments: {},
+  activities: {},
   notifications: [],
   unreadNotificationsOnly: false,
   searchResults: [],
@@ -145,6 +146,7 @@ function bindEvents() {
       state.roadmap = [];
       state.attachments = {};
       state.comments = {};
+      state.activities = {};
       state.notifications = [];
       state.unreadNotificationsOnly = false;
       state.searchResults = [];
@@ -516,8 +518,7 @@ function bindEvents() {
           method: "PATCH",
           body: { spec: { labels: parseLabels(input ? input.value : "") } }
         });
-        await loadRoadmap({ renderTickets: false });
-        await loadTickets();
+        await refreshTicketViews(updateLabels.dataset.updateLabelsId);
       }, "Ticket labels updated");
       return;
     }
@@ -531,8 +532,7 @@ function bindEvents() {
           method: "PATCH",
           body: { spec: { custom_fields: parseCustomFields(input ? input.value : "") } }
         });
-        await loadRoadmap({ renderTickets: false });
-        await loadTickets();
+        await refreshTicketViews(updateCustomFields.dataset.updateCustomFieldsId);
       }, "Ticket custom fields updated");
       return;
     }
@@ -552,8 +552,7 @@ function bindEvents() {
             }
           }
         });
-        await loadRoadmap({ renderTickets: false });
-        await loadTickets();
+        await refreshTicketViews(assignPlanning.dataset.assignPlanningId);
       }, "Ticket planning fields updated");
       return;
     }
@@ -572,7 +571,7 @@ function bindEvents() {
           method: "PUT",
           body: { spec: { sprint_id: sprintID } }
         });
-        await loadTickets();
+        await refreshTicketViews(assignSprint.dataset.assignSprintId, { roadmap: false });
       }, "Ticket assigned to sprint");
       return;
     }
@@ -581,7 +580,7 @@ function bindEvents() {
     if (removeSprint) {
       await runAction(async () => {
         await api(`/api/tickets/${removeSprint.dataset.removeSprintId}/sprint`, { method: "DELETE" });
-        await loadTickets();
+        await refreshTicketViews(removeSprint.dataset.removeSprintId, { roadmap: false });
       }, "Ticket removed from sprint");
       return;
     }
@@ -591,6 +590,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/comments/${deleteComment.dataset.deleteCommentId}`, { method: "DELETE" });
         await loadComments(deleteComment.dataset.ticketId);
+        await loadActivity(deleteComment.dataset.ticketId);
       }, "Comment deleted");
       return;
     }
@@ -600,6 +600,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/attachments/${deleteAttachment.dataset.deleteAttachmentId}`, { method: "DELETE" });
         await loadAttachments(deleteAttachment.dataset.ticketId);
+        await loadActivity(deleteAttachment.dataset.ticketId);
       }, "Attachment deleted");
       return;
     }
@@ -613,8 +614,7 @@ function bindEvents() {
         method: "PATCH",
         body: { spec: { status: button.dataset.ticketStatus } }
       });
-      await loadRoadmap({ renderTickets: false });
-      await loadTickets();
+      await refreshTicketViews(button.dataset.ticketId);
     }, "Ticket updated");
   });
 
@@ -636,6 +636,7 @@ function bindEvents() {
         await api(`/api/tickets/${ticketID}/comments`, { method: "POST", body: { spec: { body } } });
         commentForm.reset();
         await loadComments(ticketID);
+        await loadActivity(ticketID);
       }, "Comment added");
       return;
     }
@@ -657,6 +658,7 @@ function bindEvents() {
       await api(`/api/tickets/${ticketID}/attachments`, { method: "POST", body });
       form.reset();
       await loadAttachments(ticketID);
+      await loadActivity(ticketID);
     }, "Attachment uploaded");
   });
 }
@@ -922,6 +924,7 @@ async function loadProjects(selectedID = "") {
     state.roadmap = [];
     state.attachments = {};
     state.comments = {};
+    state.activities = {};
     state.searchResults = [];
     state.savedViews = [];
   }
@@ -970,6 +973,7 @@ async function loadTickets() {
   state.tickets = listItems(data).map(normalizeTicket);
   state.attachments = {};
   state.comments = {};
+  state.activities = {};
   await Promise.all(state.tickets.flatMap((ticket) => [
     loadAttachments(ticket.id, { renderAfter: false }),
     loadComments(ticket.id, { renderAfter: false })
@@ -991,8 +995,20 @@ async function loadSelectedIssue(ticketID) {
   }
   await Promise.all([
     loadAttachments(ticket.id, { renderAfter: false }),
-    loadComments(ticket.id, { renderAfter: false })
+    loadComments(ticket.id, { renderAfter: false }),
+    loadActivity(ticket.id, { renderAfter: false })
   ]);
+}
+
+async function refreshTicketViews(ticketID, options = {}) {
+  if (options.roadmap !== false) {
+    await loadRoadmap({ renderTickets: false });
+  }
+  await loadTickets();
+  if (state.selectedIssue && state.selectedIssue.id === ticketID) {
+    await loadSelectedIssue(ticketID);
+    renderIssue();
+  }
 }
 
 async function loadAttachments(ticketID, options = {}) {
@@ -1008,6 +1024,14 @@ async function loadComments(ticketID, options = {}) {
   state.comments[ticketID] = listItems(data).map(normalizeComment);
   if (options.renderAfter !== false) {
     renderTickets();
+  }
+}
+
+async function loadActivity(ticketID, options = {}) {
+  const data = await api(`/api/tickets/${ticketID}/activity`);
+  state.activities[ticketID] = listItems(data).map(normalizeActivity);
+  if (options.renderAfter !== false) {
+    renderIssue();
   }
 }
 
@@ -1968,7 +1992,8 @@ function renderIssue() {
     planningControlNode(ticket),
     sprintControlNode(ticket),
     commentNode(ticket),
-    attachmentNode(ticket)
+    attachmentNode(ticket),
+    activityNode(ticket)
   );
 }
 
@@ -2295,6 +2320,103 @@ function attachmentNode(ticket) {
   form.append(input, submit);
   section.append(form);
   return section;
+}
+
+function activityNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-activity";
+  section.setAttribute("aria-label", `${ticket.key} activity`);
+
+  const activities = state.activities[ticket.id] || [];
+  const heading = document.createElement("p");
+  heading.className = "activity-heading";
+  heading.textContent = `Activity (${activities.length})`;
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "activity-list";
+  if (!activities.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No activity";
+    list.append(empty);
+  } else {
+    for (const activity of activities) {
+      list.append(activityItemNode(activity));
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function activityItemNode(activity) {
+  const row = document.createElement("article");
+  row.className = "activity-item";
+
+  const title = document.createElement("p");
+  title.textContent = activityLabel(activity);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    activity.actor_id ? `by ${activity.actor_id}` : "",
+    activity.created_at ? formatDateTime(activity.created_at) : ""
+  ].filter(Boolean).join(" / ");
+
+  const details = document.createElement("code");
+  details.textContent = activityDataLabel(activity.data);
+
+  row.append(title, meta);
+  if (details.textContent) {
+    row.append(details);
+  }
+  return row;
+}
+
+function activityLabel(activity) {
+  const labels = {
+    "ticket.created": "Ticket created",
+    "ticket.updated": "Ticket updated",
+    "comment.created": "Comment added",
+    "comment.deleted": "Comment deleted",
+    "attachment.uploaded": "Attachment uploaded",
+    "attachment.deleted": "Attachment deleted"
+  };
+  return labels[activity.activity_type] || activity.activity_type || "Activity";
+}
+
+function activityDataLabel(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || !Object.keys(data).length) {
+    return "";
+  }
+  const parts = [];
+  if (data.key) {
+    parts.push(`key: ${data.key}`);
+  }
+  if (data.changes && typeof data.changes === "object" && !Array.isArray(data.changes)) {
+    parts.push(`changed: ${Object.keys(data.changes).join(", ")}`);
+  }
+  if (data.custom_fields) {
+    parts.push(`custom fields: ${data.custom_fields}`);
+  }
+  if (data.labels && Array.isArray(data.labels)) {
+    parts.push(`labels: ${data.labels.join(", ")}`);
+  }
+  if (data.body) {
+    parts.push(`body: ${data.body}`);
+  }
+  if (data.comment_id) {
+    parts.push(`comment: ${data.comment_id}`);
+  }
+  if (data.file_name) {
+    parts.push(`file: ${data.file_name}`);
+  }
+  if (data.size_bytes) {
+    parts.push(`size: ${formatBytes(data.size_bytes)}`);
+  }
+  if (parts.length) {
+    return parts.join(" / ");
+  }
+  return JSON.stringify(data);
 }
 
 function statusActions(status) {
@@ -2726,6 +2848,23 @@ function normalizeComment(comment) {
     };
   }
   return comment;
+}
+
+function normalizeActivity(activity) {
+  if (!activity) {
+    return null;
+  }
+  if (activity.metadata && activity.spec && activity.status) {
+    return {
+      id: activity.metadata.id,
+      ticket_id: activity.metadata.ticket_id,
+      created_at: activity.metadata.created_at,
+      activity_type: activity.spec.activity_type || "",
+      data: activity.spec.data || {},
+      actor_id: activity.status.actor_id || ""
+    };
+  }
+  return activity;
 }
 
 function formatBytes(bytes) {
