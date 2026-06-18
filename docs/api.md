@@ -99,6 +99,7 @@ Effective-permission requests default to global scope when `scope` is omitted. `
 | `GET` | `/api/projects/{project_id}` | none |
 | `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `label`, `limit`, `offset`. |
 | `POST` | `/api/projects/{project_id}/tickets` | `{"spec":{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}}` |
+| `GET` | `/api/projects/{project_id}/labels` | Lists labels currently used by non-deleted project tickets, with ticket counts. |
 | `GET` | `/api/tickets/{ticket_id}` | none |
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
@@ -111,7 +112,7 @@ Project ticket list/create responses, backlog ticket collection responses, and d
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
-Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. The embedded browser UI accepts comma-separated labels on ticket create and ticket cards. There are no separate label CRUD endpoints in this slice.
+Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. The project label list is a read-only index derived from current non-deleted tickets and returns label resources with `status.ticket_count`. The embedded browser UI accepts comma-separated labels on ticket create and ticket cards, and exposes project label filtering in the ticket filter strip. There are no separate label create/update/delete endpoints in this slice.
 
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 

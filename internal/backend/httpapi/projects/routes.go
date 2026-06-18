@@ -33,6 +33,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/custom-fields", "Custom Fields", "Create project custom field", http.StatusCreated), provider.createCustomField)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/tickets", "Tickets", "List project tickets"), provider.listTickets)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/tickets", "Tickets", "Create ticket", http.StatusCreated), provider.createTicket)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/labels", "Labels", "List project labels"), provider.listLabels)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap", "Roadmap", "List project roadmap"), provider.listRoadmap)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/sprints", "Sprints", "List project sprints"), provider.listSprints)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/sprints", "Sprints", "Create project sprint", http.StatusCreated), provider.createSprint)
@@ -254,6 +255,18 @@ func (provider Provider) createTicket(ctx context.Context, input *CreateTicketIn
 		return nil, shared.TrackerError(err)
 	}
 	return &CreateTicketOutput{Body: ticketapi.ResourceFromTracker(ticket)}, nil
+}
+
+func (provider Provider) listLabels(ctx context.Context, input *ProjectIDInput) (*ListLabelsOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	items, err := provider.Tracker.ListProjectLabels(ctx, principal, input.ProjectID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListLabelsOutput{Body: shared.NewListResource[ProjectLabelResource](projectLabelResources(items))}, nil
 }
 
 func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput) (*ListRoadmapOutput, error) {

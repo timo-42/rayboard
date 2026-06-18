@@ -199,6 +199,12 @@ type Sprint struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
+type ProjectLabel struct {
+	ProjectID   string `json:"project_id"`
+	Label       string `json:"label"`
+	TicketCount int    `json:"ticket_count"`
+}
+
 type Component struct {
 	ID                string    `json:"id"`
 	ProjectID         string    `json:"project_id"`

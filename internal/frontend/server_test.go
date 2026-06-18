@@ -63,6 +63,9 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="ticket-hook-preview-output"`) ||
 		!strings.Contains(body, `id="create-page-form"`) ||
 		!strings.Contains(body, `id="create-pages"`) ||
+		!strings.Contains(body, `id="ticket-filter-form"`) ||
+		!strings.Contains(body, `id="ticket-filter-label"`) ||
+		!strings.Contains(body, `id="ticket-filter-summary"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="nav-unread-count"`) ||
 		!strings.Contains(body, `id="backlog-panel"`) ||
@@ -646,6 +649,10 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 	for _, expected := range []string{
 		"parseLabels",
 		"labelControlNode",
+		"loadProjectLabels",
+		"normalizeProjectLabel",
+		"renderTicketFilters",
+		"/api/projects/${state.selectedProject.id}/labels",
 		"data-ticket-label-control",
 		"data-update-labels-id",
 		"labels: parseLabels",
@@ -659,6 +666,8 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 		".ticket-labels",
 		".label-chips",
 		".ticket-label-controls",
+		".ticket-filter-form",
+		".ticket-filter-summary",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

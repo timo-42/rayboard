@@ -231,6 +231,39 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected second ticket labels: %#v", second.Labels)
 	}
 
+	listLabelsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/labels", nil)
+	listLabelsReq.AddCookie(session)
+	listLabels := httptest.NewRecorder()
+	handler.ServeHTTP(listLabels, listLabelsReq)
+	if listLabels.Code != http.StatusOK {
+		t.Fatalf("expected list labels status 200, got %d: %s", listLabels.Code, listLabels.Body.String())
+	}
+	var projectLabelList struct {
+		Metadata struct {
+			Count int `json:"count"`
+		} `json:"metadata"`
+		Status struct {
+			Items []projectLabelResourceBody `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listLabels.Body.Bytes(), &projectLabelList); err != nil {
+		t.Fatalf("decode labels: %v", err)
+	}
+	if projectLabelList.Metadata.Count != 3 || len(projectLabelList.Status.Items) != 3 {
+		t.Fatalf("unexpected label list: %#v", projectLabelList)
+	}
+	if projectLabelList.Status.Items[0].Spec.Label != "api" || projectLabelList.Status.Items[0].Status.TicketCount != 1 ||
+		projectLabelList.Status.Items[1].Spec.Label != "backend" || projectLabelList.Status.Items[1].Status.TicketCount != 1 ||
+		projectLabelList.Status.Items[2].Spec.Label != "docs" || projectLabelList.Status.Items[2].Status.TicketCount != 1 {
+		t.Fatalf("unexpected label resources: %#v", projectLabelList.Status.Items)
+	}
+	unauthLabelsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/labels", nil)
+	unauthLabels := httptest.NewRecorder()
+	handler.ServeHTTP(unauthLabels, unauthLabelsReq)
+	if unauthLabels.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthenticated labels status 401, got %d: %s", unauthLabels.Code, unauthLabels.Body.String())
+	}
+
 	listByLabelReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/tickets?label=Backend", nil)
 	listByLabelReq.AddCookie(session)
 	listByLabel := httptest.NewRecorder()
@@ -616,6 +649,19 @@ type projectStatusResourceBody struct {
 		Position int    `json:"position"`
 	} `json:"spec"`
 	Status struct{} `json:"status"`
+}
+
+type projectLabelResourceBody struct {
+	Metadata struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+	} `json:"metadata"`
+	Spec struct {
+		Label string `json:"label"`
+	} `json:"spec"`
+	Status struct {
+		TicketCount int `json:"ticket_count"`
+	} `json:"status"`
 }
 
 type boardResourceBody struct {

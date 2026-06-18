@@ -180,6 +180,17 @@
             <button type="submit"><span aria-hidden="true">+</span> Ticket</button>
           </form>
 
+          <form id="ticket-filter-form" class="ticket-filter-form" hidden>
+            <label>
+              Label
+              <select id="ticket-filter-label" name="label">
+                <option value="">All labels</option>
+              </select>
+            </label>
+            <button id="ticket-filter-clear" type="button">Clear</button>
+            <span id="ticket-filter-summary" class="ticket-filter-summary">Showing all tickets</span>
+          </form>
+
           <div class="columns" id="ticket-columns">
             <section class="column" data-status="todo">
               <h3>Todo</h3>

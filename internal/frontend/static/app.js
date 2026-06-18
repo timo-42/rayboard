@@ -6,6 +6,8 @@ const state = {
   selectedCreatePageSchema: null,
   createPageSubmission: null,
   tickets: [],
+  ticketFilters: { label: "" },
+  projectLabels: [],
   projectSummaries: [],
   recentTickets: [],
   activeSprints: [],
@@ -211,6 +213,10 @@ const els = {
   sessionState: document.querySelector("#session-state"),
   projects: document.querySelector("#projects"),
   selectedProject: document.querySelector("#selected-project"),
+  ticketFilterForm: document.querySelector("#ticket-filter-form"),
+  ticketFilterLabel: document.querySelector("#ticket-filter-label"),
+  ticketFilterClear: document.querySelector("#ticket-filter-clear"),
+  ticketFilterSummary: document.querySelector("#ticket-filter-summary"),
   ticketColumns: document.querySelector("#ticket-columns"),
   notice: document.querySelector("#notice")
 };
@@ -258,6 +264,8 @@ function bindEvents() {
       state.selectedCreatePageSchema = null;
       state.createPageSubmission = null;
       state.tickets = [];
+      state.ticketFilters = { label: "" };
+      state.projectLabels = [];
       state.projectSummaries = [];
       state.recentTickets = [];
       state.activeSprints = [];
@@ -343,8 +351,20 @@ function bindEvents() {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       form.reset();
       await loadRoadmap({ renderTickets: false });
+      await loadProjectLabels({ renderTickets: false });
       await loadTickets();
     }, "Ticket created");
+  });
+
+  els.ticketFilterForm.addEventListener("change", () => {
+    state.ticketFilters = { label: els.ticketFilterLabel.value };
+    renderTickets();
+  });
+
+  els.ticketFilterClear.addEventListener("click", () => {
+    state.ticketFilters = { label: "" };
+    renderTicketFilters();
+    renderTickets();
   });
 
   els.engineType.addEventListener("change", () => {
@@ -1632,6 +1652,7 @@ function bindEvents() {
           method: "PATCH",
           body: { spec: { labels: parseLabels(input ? input.value : "") } }
         });
+        await loadProjectLabels({ renderTickets: false });
         await refreshTicketViews(updateLabels.dataset.updateLabelsId);
       }, "Ticket labels updated");
       return;
@@ -2110,6 +2131,24 @@ async function loadRoadmap(options = {}) {
   }
 }
 
+async function loadProjectLabels(options = {}) {
+  if (!state.user || !state.selectedProject) {
+    state.projectLabels = [];
+    renderTicketFilters();
+    if (options.renderTickets !== false) {
+      renderTickets();
+    }
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/labels`);
+  state.projectLabels = listItems(data).map(normalizeProjectLabel);
+  pruneTicketFilters();
+  renderTicketFilters();
+  if (options.renderTickets !== false) {
+    renderTickets();
+  }
+}
+
 async function loadProjectDetails() {
   if (!state.selectedProject) {
     return;
@@ -2122,6 +2161,7 @@ async function loadProjectDetails() {
   await loadVersions({ renderTickets: false });
   await loadCustomFields({ renderTickets: false });
   await loadRoadmap({ renderTickets: false });
+  await loadProjectLabels({ renderTickets: false });
   await loadTickets();
   await loadSavedViews();
 }
@@ -2145,9 +2185,17 @@ async function loadProjects(selectedID = "") {
   state.projects = listItems(data).map(normalizeProject);
   const route = currentRoute();
   if (route.projectID) {
-    state.selectedProject = state.projects.find((project) => project.id === route.projectID) || null;
+    const nextProject = state.projects.find((project) => project.id === route.projectID) || null;
+    if (!state.selectedProject || !nextProject || state.selectedProject.id !== nextProject.id) {
+      state.ticketFilters = { label: "" };
+    }
+    state.selectedProject = nextProject;
   } else if (selectedID) {
-    state.selectedProject = state.projects.find((project) => project.id === selectedID) || null;
+    const nextProject = state.projects.find((project) => project.id === selectedID) || null;
+    if (!state.selectedProject || !nextProject || state.selectedProject.id !== nextProject.id) {
+      state.ticketFilters = { label: "" };
+    }
+    state.selectedProject = nextProject;
   } else if (!state.selectedProject && state.projects.length > 0) {
     state.selectedProject = state.projects[0];
   } else if (state.selectedProject) {
@@ -2163,9 +2211,11 @@ async function loadProjects(selectedID = "") {
     state.boards = [];
     state.selectedBoardID = "";
     state.boardTickets = null;
+    state.ticketFilters = { label: "" };
     state.sprints = [];
     state.components = [];
     state.versions = [];
+    state.projectLabels = [];
     state.customFields = [];
     state.roadmap = [];
     state.attachments = {};
@@ -2677,6 +2727,7 @@ function render() {
   els.issueView.hidden = !signedIn || route.page !== "issue";
   els.createPageView.hidden = !signedIn || route.page !== "create-page";
   els.ticketForm.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.ticketFilterForm.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.sessionState.textContent = signedIn ? state.user.username : "Signed out";
 
   renderNavigation(route);
@@ -2694,6 +2745,7 @@ function render() {
   renderCustomFields();
   renderRoadmap();
   renderTicketFormOptions();
+  renderTicketFilters();
   renderSearchResults();
   renderSavedViews();
   renderTokens();
@@ -5435,6 +5487,7 @@ function renderTickets() {
   for (const column of columns) {
     els.ticketColumns.append(ticketColumnNode(column));
   }
+  const filteredTickets = filteredProjectTickets();
   const byID = new Map(state.tickets.map((ticket) => [ticket.id, ticket]));
   const rendered = new Set();
   if (state.boardTickets && Array.isArray(state.boardTickets.columns)) {
@@ -5445,12 +5498,15 @@ function renderTickets() {
       }
       for (const ticket of column.tickets) {
         const fullTicket = byID.get(ticket.id) || ticket;
+        if (!ticketMatchesFilters(fullTicket)) {
+          continue;
+        }
         list.append(ticketNode(fullTicket));
         rendered.add(fullTicket.id);
       }
     }
   }
-  for (const ticket of state.tickets) {
+  for (const ticket of filteredTickets) {
     if (rendered.has(ticket.id)) {
       continue;
     }
@@ -5460,6 +5516,45 @@ function renderTickets() {
       list.append(ticketNode(ticket));
     }
   }
+  renderTicketFilterSummary(filteredTickets.length, state.tickets.length);
+}
+
+function filteredProjectTickets() {
+  return state.tickets.filter(ticketMatchesFilters);
+}
+
+function ticketMatchesFilters(ticket) {
+  if (!state.ticketFilters.label) {
+    return true;
+  }
+  return Array.isArray(ticket.labels) && ticket.labels.includes(state.ticketFilters.label);
+}
+
+function pruneTicketFilters() {
+  if (state.ticketFilters.label && !state.projectLabels.some((label) => label.label === state.ticketFilters.label)) {
+    state.ticketFilters.label = "";
+  }
+}
+
+function renderTicketFilters() {
+  replaceSelectOptions(els.ticketFilterLabel, "All labels", state.projectLabels, (label) => `${label.label} (${label.ticket_count})`, state.ticketFilters.label);
+  renderTicketFilterSummary(filteredProjectTickets().length, state.tickets.length);
+}
+
+function renderTicketFilterSummary(shown, total) {
+  if (!els.ticketFilterSummary) {
+    return;
+  }
+  const active = Boolean(state.ticketFilters.label);
+  if (!total) {
+    els.ticketFilterSummary.textContent = active ? "No tickets match this label" : "No tickets";
+    return;
+  }
+  if (!active) {
+    els.ticketFilterSummary.textContent = `Showing all ${total} ticket${total === 1 ? "" : "s"}`;
+    return;
+  }
+  els.ticketFilterSummary.textContent = `Showing ${shown} of ${total} ticket${total === 1 ? "" : "s"}`;
 }
 
 function ticketColumns() {
@@ -6564,6 +6659,21 @@ function normalizeProject(project) {
     };
   }
   return project;
+}
+
+function normalizeProjectLabel(label) {
+  if (!label) {
+    return null;
+  }
+  if (label.metadata && label.spec && label.status) {
+    return {
+      id: label.metadata.id || label.spec.label || "",
+      project_id: label.metadata.project_id || "",
+      label: label.spec.label || label.metadata.id || "",
+      ticket_count: Number(label.status.ticket_count) || 0
+    };
+  }
+  return label;
 }
 
 function normalizeTicket(ticket) {
