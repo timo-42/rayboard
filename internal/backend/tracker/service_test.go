@@ -202,12 +202,23 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 		t.Fatalf("unexpected created labels: %#v", ticket.Labels)
 	}
 
-	second, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Second ticket"})
+	second, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Second ticket", Labels: []string{"backend", "docs"}})
 	if err != nil {
 		t.Fatalf("create second ticket: %v", err)
 	}
 	if second.Key != "CORE-2" {
 		t.Fatalf("expected second key CORE-2, got %s", second.Key)
+	}
+	projectLabels, err := service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list project labels: %v", err)
+	}
+	if !slices.Equal(projectLabels, []tracker.ProjectLabel{
+		{ProjectID: project.ID, Label: "api", TicketCount: 1},
+		{ProjectID: project.ID, Label: "backend", TicketCount: 2},
+		{ProjectID: project.ID, Label: "docs", TicketCount: 1},
+	}) {
+		t.Fatalf("unexpected project labels: %#v", projectLabels)
 	}
 
 	activities, err := service.ListTicketActivity(ctx, member, ticket.ID)
@@ -263,6 +274,17 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	if !slices.Equal(updatedLabels.Labels, []string{"api", "docs"}) {
 		t.Fatalf("unexpected updated labels: %#v", updatedLabels.Labels)
 	}
+	projectLabels, err = service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list updated project labels: %v", err)
+	}
+	if !slices.Equal(projectLabels, []tracker.ProjectLabel{
+		{ProjectID: project.ID, Label: "api", TicketCount: 1},
+		{ProjectID: project.ID, Label: "backend", TicketCount: 1},
+		{ProjectID: project.ID, Label: "docs", TicketCount: 2},
+	}) {
+		t.Fatalf("unexpected updated project labels: %#v", projectLabels)
+	}
 	emptyTitlePreserve := "Labels preserved"
 	preserved, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Title: &emptyTitlePreserve})
 	if err != nil {
@@ -278,6 +300,29 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	}
 	if len(clearedLabels.Labels) != 0 {
 		t.Fatalf("expected cleared labels, got %#v", clearedLabels.Labels)
+	}
+	projectLabels, err = service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list cleared project labels: %v", err)
+	}
+	if !slices.Equal(projectLabels, []tracker.ProjectLabel{
+		{ProjectID: project.ID, Label: "backend", TicketCount: 1},
+		{ProjectID: project.ID, Label: "docs", TicketCount: 1},
+	}) {
+		t.Fatalf("unexpected cleared project labels: %#v", projectLabels)
+	}
+	if _, err := db.SQL.ExecContext(ctx, "UPDATE tickets SET deleted_at = ? WHERE id = ?", fixedNow().UTC().Format(time.RFC3339Nano), second.ID); err != nil {
+		t.Fatalf("mark second ticket deleted: %v", err)
+	}
+	projectLabels, err = service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list labels after deleted ticket: %v", err)
+	}
+	if len(projectLabels) != 0 {
+		t.Fatalf("expected deleted ticket labels to be excluded, got %#v", projectLabels)
+	}
+	if _, err := service.ListProjectLabels(ctx, principal("user-outsider"), project.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden project label list, got %v", err)
 	}
 
 	activities, err = service.ListTicketActivity(ctx, member, ticket.ID)

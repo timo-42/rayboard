@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/timo-42/rayboard/internal/backend/authz"
 )
 
 const maxTicketLabels = 50
@@ -102,6 +104,45 @@ func (s *Service) loadTicketLabelsForTicketsFrom(ctx context.Context, q sqlRunne
 		return nil, fmt.Errorf("iterate ticket labels: %w", err)
 	}
 	return result, nil
+}
+
+func (s *Service) ListProjectLabels(ctx context.Context, principal authz.Principal, projectID string) ([]ProjectLabel, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, validationFailed(map[string]string{"project_id": "Required"})
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(projectID)); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.GetProject(ctx, projectID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT labels.label, COUNT(*) AS ticket_count
+		FROM ticket_labels labels
+		JOIN tickets ON tickets.id = labels.ticket_id
+		WHERE tickets.project_id = ? AND tickets.deleted_at IS NULL
+		GROUP BY labels.label
+		ORDER BY labels.label ASC
+	`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list project labels: %w", err)
+	}
+	defer rows.Close()
+
+	labels := []ProjectLabel{}
+	for rows.Next() {
+		label := ProjectLabel{ProjectID: projectID}
+		if err := rows.Scan(&label.Label, &label.TicketCount); err != nil {
+			return nil, fmt.Errorf("scan project label: %w", err)
+		}
+		labels = append(labels, label)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project labels: %w", err)
+	}
+	return labels, nil
 }
 
 func (s *Service) attachTicketLabels(ctx context.Context, ticket Ticket) (Ticket, error) {

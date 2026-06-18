@@ -150,6 +150,21 @@ type ProjectStatusResourceStatus struct {
 
 type ProjectStatusResource = shared.Resource[ProjectStatusMetadata, ProjectStatusSpec, ProjectStatusResourceStatus]
 
+type ProjectLabelMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type ProjectLabelSpec struct {
+	Label string `json:"label"`
+}
+
+type ProjectLabelStatus struct {
+	TicketCount int `json:"ticket_count"`
+}
+
+type ProjectLabelResource = shared.Resource[ProjectLabelMetadata, ProjectLabelSpec, ProjectLabelStatus]
+
 type ProjectStatusesSpec struct {
 	Statuses []tracker.ProjectStatusInput `json:"statuses,omitempty"`
 }
@@ -166,6 +181,7 @@ type ProjectOutput struct {
 type ListTicketsOutput = shared.ListOutput[ticketapi.TicketResource]
 type CreateTicketOutput = shared.CreatedOutput[ticketapi.TicketResource]
 type ListStatusesOutput = shared.ListOutput[ProjectStatusResource]
+type ListLabelsOutput = shared.ListOutput[ProjectLabelResource]
 type ListBoardsOutput = shared.ListOutput[boardapi.BoardResource]
 type CreateBoardOutput = shared.CreatedOutput[boardapi.BoardResource]
 type ListComponentsOutput = shared.ListOutput[componentapi.ComponentResource]
@@ -251,6 +267,25 @@ func projectStatusResources(statuses []tracker.ProjectStatus) []ProjectStatusRes
 	resources := make([]ProjectStatusResource, 0, len(statuses))
 	for _, status := range statuses {
 		resources = append(resources, projectStatusResource(status))
+	}
+	return resources
+}
+
+func projectLabelResources(labels []tracker.ProjectLabel) []ProjectLabelResource {
+	resources := make([]ProjectLabelResource, 0, len(labels))
+	for _, label := range labels {
+		resources = append(resources, ProjectLabelResource{
+			Metadata: ProjectLabelMetadata{
+				ID:        label.Label,
+				ProjectID: label.ProjectID,
+			},
+			Spec: ProjectLabelSpec{
+				Label: label.Label,
+			},
+			Status: ProjectLabelStatus{
+				TicketCount: label.TicketCount,
+			},
+		})
 	}
 	return resources
 }
