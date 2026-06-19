@@ -2699,12 +2699,24 @@ async function applyBoardSavedViewFilter() {
     text: query.text || "",
     filter: query.filter || "",
     sort: view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }],
-    limit: 200,
-    cursor: ""
+    limit: 200
   };
-  const data = await api("/api/search", { method: "POST", body: { spec } });
-  const matches = listItems(data).map(normalizeTicket).filter(Boolean);
+  const matches = await searchAllBoardSavedViewTickets(spec);
   state.boardTickets = boardTicketsFromSavedViewMatches(state.boardTickets, matches);
+}
+
+async function searchAllBoardSavedViewTickets(spec) {
+  const matches = [];
+  let cursor = "";
+  do {
+    const data = await api("/api/search", {
+      method: "POST",
+      body: { spec: { ...spec, cursor } }
+    });
+    matches.push(...listItems(data).map(normalizeTicket).filter(Boolean));
+    cursor = data && data.status ? data.status.next_cursor || "" : "";
+  } while (cursor);
+  return matches;
 }
 
 async function loadComponents(options = {}) {
