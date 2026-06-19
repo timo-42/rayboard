@@ -26,7 +26,7 @@ Implemented browser workflows:
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, role-binding summaries, and effective-permission inspection when permitted;
 - Settings page for global settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, notification hook CRUD/preview/run inspection, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
-- text/CEL search with result pagination plus saved-view list pagination, create, edit, apply, and delete, including query, sort, columns, display mode, grouping, and pin state;
+- text/CEL search with result pagination plus saved-view list pagination, create, edit, apply, and delete, including query, sort, columns, display mode, grouping, and pin state, plus pinned project saved views in project navigation;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - basic cron job list, create, delete, enable/disable, manual run, and run-output inspection for the selected project;
 - basic project webhook list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
@@ -46,7 +46,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline edits and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency editing and capacity planning, richer component/version reporting beyond compact release snapshots, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline edits and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency editing and capacity planning, richer component/version reporting beyond compact release snapshots, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list and pinned project navigation are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 

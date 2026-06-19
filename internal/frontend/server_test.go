@@ -559,6 +559,10 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"savedViewSpecFromForm",
 		"savedViewUpdateSpec",
 		"editSavedView",
+		"loadPinnedProjectSavedViews",
+		"renderPinnedProjectSavedViews",
+		"pinnedProjectViewNode",
+		"applySavedView",
 		"searchNextCursor",
 		"searchCursorStack",
 		"renderSearchPagination",
@@ -568,8 +572,10 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"limit=${savedViewPageSize + 1}&offset=${state.savedViewOffset}",
 		"/api/search",
 		"/api/saved-views",
+		"pinned=true&limit=20&offset=0",
 		"/api/saved-views/${editingID}",
 		"data-apply-saved-view-id",
+		"data-apply-pinned-project-view-id",
 		"data-edit-saved-view-id",
 		"data-delete-saved-view-id",
 	} {
@@ -584,6 +590,9 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".search-pagination",
 		".saved-view-list",
 		".saved-view-pagination",
+		".pinned-project-views",
+		".pinned-project-view-list",
+		".pinned-project-view",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

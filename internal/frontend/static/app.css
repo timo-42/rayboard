@@ -1017,6 +1017,55 @@ p {
   font-weight: 700;
 }
 
+.pinned-project-views {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.pinned-project-views h3 {
+  color: var(--heading);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.pinned-project-view-list {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pinned-project-view {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  text-align: left;
+  padding: 9px 10px;
+}
+
+.pinned-project-view:hover {
+  border-color: var(--accent);
+  background: var(--primary-soft);
+}
+
+.pinned-project-view span {
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pinned-project-view small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .ticket-area {
   min-width: 0;
   display: grid;
