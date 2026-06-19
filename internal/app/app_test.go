@@ -79,6 +79,62 @@ func TestVerifyUnknownCommand(t *testing.T) {
 	}
 }
 
+func TestRuntimeHelpUsesDoubleDashLongFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"frontend", "--help"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%s", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, expected := range []string{
+		"usage: rayboard frontend [flags]",
+		"--frontend-addr",
+		"--backend-url",
+		"--outgoing-webhook-base-url",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected help output to contain %q: %s", expected, output)
+		}
+	}
+	for _, unexpected := range []string{
+		"\n  -frontend-addr",
+		"\n  -backend-url",
+	} {
+		if strings.Contains(output, unexpected) {
+			t.Fatalf("expected long flags to use double dash, got: %s", output)
+		}
+	}
+}
+
+func TestDemoSeedHelpUsesDoubleDashLongFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"demo", "seed", "--help"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%s", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, expected := range []string{
+		"usage: rayboard demo seed --backend-url",
+		"--backend-url",
+		"--admin-user",
+		"--admin-password",
+		"--fresh-reset",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected help output to contain %q: %s", expected, output)
+		}
+	}
+	if strings.Contains(output, "\n  -backend-url") || strings.Contains(output, "\n  -fresh-reset") {
+		t.Fatalf("expected demo help long flags to use double dash, got: %s", output)
+	}
+}
+
 func TestDemoSeedRequiresFreshReset(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

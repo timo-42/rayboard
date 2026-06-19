@@ -52,6 +52,12 @@ func runRuntime(ctx context.Context, mode runtime.Mode, args []string, stdout, s
 
 	cfg := config.FromEnv()
 	cfg.BindRuntimeFlags(flags)
+	configureLongFlagUsage(flags, stderr, fmt.Sprintf("usage: rayboard %s [flags]", mode))
+	if flagHelpRequested(args) {
+		configureLongFlagUsage(flags, stdout, fmt.Sprintf("usage: rayboard %s [flags]", mode))
+		flags.Usage()
+		return 0
+	}
 
 	if err := flags.Parse(args); err != nil {
 		return 2

@@ -42,6 +42,12 @@ func runDemoSeed(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	flags.StringVar(&adminUser, "admin-user", "admin", "admin username")
 	flags.StringVar(&adminPassword, "admin-password", "", "admin password")
 	flags.BoolVar(&freshReset, "fresh-reset", false, "confirm demo data should be seeded")
+	configureLongFlagUsage(flags, stderr, "usage: rayboard demo seed --backend-url http://host:port --admin-user admin --admin-password <password> --fresh-reset")
+	if flagHelpRequested(args[1:]) {
+		configureLongFlagUsage(flags, stdout, "usage: rayboard demo seed --backend-url http://host:port --admin-user admin --admin-password <password> --fresh-reset")
+		flags.Usage()
+		return 0
+	}
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return 2
