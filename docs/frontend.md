@@ -37,7 +37,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket listing per selected project, including label, component, and version filters backed by the project ticket API;
 - ticket creation and soft delete from ticket cards or issue detail pages;
 - ticket status changes between `todo`, `in_progress`, and `done`;
-- ticket label entry on create plus ticket-card label display, comma-separated label updates, and project label filtering with ticket counts;
+- ticket label entry on create plus ticket-card label display, comma-separated label updates, project label filtering with ticket counts, and project label administration with description/color metadata;
 - ticket watch/unwatch controls and watcher lists on ticket cards and issue detail pages;
 - ticket link listing, creation, and removal on ticket cards and issue detail pages;
 - ticket comment listing, creation, deletion, and `@username` mention notification support on ticket cards;

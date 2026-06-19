@@ -68,6 +68,9 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="ticket-filter-component"`) ||
 		!strings.Contains(body, `id="ticket-filter-version"`) ||
 		!strings.Contains(body, `id="ticket-filter-summary"`) ||
+		!strings.Contains(body, `id="label-panel"`) ||
+		!strings.Contains(body, `id="project-label-form"`) ||
+		!strings.Contains(body, `id="project-labels"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="nav-unread-count"`) ||
 		!strings.Contains(body, `id="backlog-panel"`) ||
@@ -797,8 +800,10 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 	for _, expected := range []string{
 		"parseLabels",
 		"labelControlNode",
+		"projectLabelNode",
 		"loadProjectLabels",
 		"normalizeProjectLabel",
+		"renderProjectLabels",
 		"renderTicketFilters",
 		"ticketFilterParams",
 		"ticketFiltersFromForm",
@@ -806,6 +811,8 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 		"component_id",
 		"version_id",
 		"/api/projects/${state.selectedProject.id}/labels",
+		"data-project-label-edit-form",
+		"data-delete-project-label",
 		"data-ticket-label-control",
 		"data-update-labels-id",
 		"labels: parseLabels",
@@ -818,6 +825,10 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 	for _, expected := range []string{
 		".ticket-labels",
 		".label-chips",
+		".project-label-form",
+		".project-label-list",
+		".project-label-item",
+		".label-color-swatch",
 		".ticket-label-controls",
 		".ticket-filter-form",
 		".ticket-filter-summary",

@@ -34,6 +34,9 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/tickets", "Tickets", "List project tickets"), provider.listTickets)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/tickets", "Tickets", "Create ticket", http.StatusCreated), provider.createTicket)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/labels", "Labels", "List project labels"), provider.listLabels)
+	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/labels", "Labels", "Create project label", http.StatusCreated), provider.createLabel)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/labels/{label}", "Labels", "Update project label"), provider.updateLabel)
+	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/projects/{project_id}/labels/{label}", "Labels", "Delete project label", http.StatusNoContent), provider.deleteLabel)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap", "Roadmap", "List project roadmap"), provider.listRoadmap)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/roadmap/schedule", "Roadmap", "Schedule roadmap epics"), provider.scheduleRoadmap)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/sprints", "Sprints", "List project sprints"), provider.listSprints)
@@ -268,6 +271,41 @@ func (provider Provider) listLabels(ctx context.Context, input *ProjectIDInput) 
 		return nil, shared.TrackerError(err)
 	}
 	return &ListLabelsOutput{Body: shared.NewListResource[ProjectLabelResource](projectLabelResources(items))}, nil
+}
+
+func (provider Provider) createLabel(ctx context.Context, input *CreateProjectLabelInput) (*CreateProjectLabelOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	label, err := provider.Tracker.CreateProjectLabel(ctx, principal, input.Body.Spec.ToCreateInput(input.ProjectID))
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &CreateProjectLabelOutput{Body: projectLabelResource(label)}, nil
+}
+
+func (provider Provider) updateLabel(ctx context.Context, input *UpdateProjectLabelInput) (*ProjectLabelOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	label, err := provider.Tracker.UpdateProjectLabel(ctx, principal, input.ProjectID, input.Label, input.Body.Spec.ToUpdateInput())
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ProjectLabelOutput{Body: projectLabelResource(label)}, nil
+}
+
+func (provider Provider) deleteLabel(ctx context.Context, input *ProjectLabelIDInput) (*shared.EmptyOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Tracker.DeleteProjectLabel(ctx, principal, input.ProjectID, input.Label); err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &shared.EmptyOutput{}, nil
 }
 
 func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput) (*ListRoadmapOutput, error) {

@@ -257,6 +257,51 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		projectLabelList.Status.Items[2].Spec.Label != "docs" || projectLabelList.Status.Items[2].Status.TicketCount != 1 {
 		t.Fatalf("unexpected label resources: %#v", projectLabelList.Status.Items)
 	}
+	createLabelReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/labels", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"label":       "customer-escalation",
+			"description": "Customer-facing escalation",
+			"color":       "#ABCDEF",
+		},
+	}))
+	addSessionCSRF(createLabelReq, session, csrf)
+	createLabel := httptest.NewRecorder()
+	handler.ServeHTTP(createLabel, createLabelReq)
+	if createLabel.Code != http.StatusCreated {
+		t.Fatalf("expected create label status 201, got %d: %s", createLabel.Code, createLabel.Body.String())
+	}
+	var createdLabel projectLabelResourceBody
+	if err := json.Unmarshal(createLabel.Body.Bytes(), &createdLabel); err != nil {
+		t.Fatalf("decode created label: %v", err)
+	}
+	if createdLabel.Spec.Label != "customer-escalation" || createdLabel.Spec.Description != "Customer-facing escalation" || createdLabel.Spec.Color != "#abcdef" || createdLabel.Status.TicketCount != 0 {
+		t.Fatalf("unexpected created label: %#v", createdLabel)
+	}
+	updateLabelReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/labels/customer-escalation", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"description": "Support escalation",
+			"color":       "#112233",
+		},
+	}))
+	addSessionCSRF(updateLabelReq, session, csrf)
+	updateLabel := httptest.NewRecorder()
+	handler.ServeHTTP(updateLabel, updateLabelReq)
+	if updateLabel.Code != http.StatusOK {
+		t.Fatalf("expected update label status 200, got %d: %s", updateLabel.Code, updateLabel.Body.String())
+	}
+	if err := json.Unmarshal(updateLabel.Body.Bytes(), &createdLabel); err != nil {
+		t.Fatalf("decode updated label: %v", err)
+	}
+	if createdLabel.Spec.Description != "Support escalation" || createdLabel.Spec.Color != "#112233" {
+		t.Fatalf("unexpected updated label: %#v", createdLabel)
+	}
+	deleteLabelReq := httptest.NewRequest(http.MethodDelete, "/api/projects/"+project.ID+"/labels/customer-escalation", nil)
+	addSessionCSRF(deleteLabelReq, session, csrf)
+	deleteLabel := httptest.NewRecorder()
+	handler.ServeHTTP(deleteLabel, deleteLabelReq)
+	if deleteLabel.Code != http.StatusNoContent {
+		t.Fatalf("expected delete label status 204, got %d: %s", deleteLabel.Code, deleteLabel.Body.String())
+	}
 	unauthLabelsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/labels", nil)
 	unauthLabels := httptest.NewRecorder()
 	handler.ServeHTTP(unauthLabels, unauthLabelsReq)
@@ -980,7 +1025,9 @@ type projectLabelResourceBody struct {
 		ProjectID string `json:"project_id"`
 	} `json:"metadata"`
 	Spec struct {
-		Label string `json:"label"`
+		Label       string `json:"label"`
+		Description string `json:"description"`
+		Color       string `json:"color"`
 	} `json:"spec"`
 	Status struct {
 		TicketCount int `json:"ticket_count"`

@@ -51,6 +51,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"project_statuses",
 		"project_components",
 		"project_versions",
+		"project_labels",
 		"custom_field_definitions",
 		"custom_field_options",
 		"ticket_custom_field_values",
@@ -180,6 +181,40 @@ func TestVersionReportSnapshotMigrationBackfillsReleasedVersions(t *testing.T) {
 	}
 	if ticketID != "ticket_1" || position != 0 {
 		t.Fatalf("unexpected backfilled version snapshot ticket %q at %d", ticketID, position)
+	}
+}
+
+func TestProjectLabelMigrationBackfillsUsedLabels(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+
+	applyEmbeddedMigrationsThrough(t, ctx, db.SQL, 31)
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES ('project_1', 'CORE', 'Core');
+		INSERT INTO tickets (id, project_id, key, title, status, created_at, updated_at)
+		VALUES ('ticket_1', 'project_1', 'CORE-1', 'Migrated label ticket', 'todo', '2026-06-10T10:00:00Z', '2026-06-10T10:00:00Z');
+		INSERT INTO ticket_labels (ticket_id, label, created_at)
+		VALUES ('ticket_1', 'backend', '2026-06-11T10:00:00Z');
+	`); err != nil {
+		t.Fatalf("seed pre-project-label data: %v", err)
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate project labels: %v", err)
+	}
+
+	var createdAt string
+	var updatedAt string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT created_at, updated_at
+		FROM project_labels
+		WHERE project_id = 'project_1' AND label = 'backend'
+	`).Scan(&createdAt, &updatedAt); err != nil {
+		t.Fatalf("get backfilled project label: %v", err)
+	}
+	if createdAt != "2026-06-11T10:00:00Z" || updatedAt != "2026-06-11T10:00:00Z" {
+		t.Fatalf("unexpected backfilled project label timestamps %q/%q", createdAt, updatedAt)
 	}
 }
 
