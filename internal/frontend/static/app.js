@@ -4831,10 +4831,92 @@ function renderVersionReport() {
   const tickets = report && Array.isArray(report.tickets) ? report.tickets : [];
   els.versionReport.append(
     header,
+    versionReportHealthNode(version),
     versionReportSummaryNode(progress),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
+}
+
+function versionReportHealthNode(version) {
+  const health = versionReleaseHealth(version);
+
+  const section = document.createElement("section");
+  section.className = `version-report-health is-${health.state}`;
+
+  const title = document.createElement("strong");
+  title.textContent = health.label;
+
+  const detail = document.createElement("span");
+  detail.textContent = health.detail;
+
+  const dates = document.createElement("div");
+  dates.className = "version-report-health-dates";
+  for (const item of versionReportHealthDates(version)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    dates.append(chip);
+  }
+
+  section.append(title, detail, dates);
+  return section;
+}
+
+function versionReleaseHealth(version) {
+  const state = version.state || "planned";
+  if (state === "released") {
+    return {
+      state: "released",
+      label: "Released",
+      detail: version.release_date ? `Released on ${version.release_date}` : "Released without a release date"
+    };
+  }
+  if (state === "archived") {
+    return {
+      state: "archived",
+      label: "Archived",
+      detail: version.release_date ? `Archived after release on ${version.release_date}` : "Archived without a release date"
+    };
+  }
+
+  const target = dateToUTC(version.target_date);
+  if (!target) {
+    return {
+      state: "unscheduled",
+      label: "No target date",
+      detail: "Add a target date to track release timing"
+    };
+  }
+
+  const today = dateToUTC(todayISODate());
+  const days = daysBetween(today, target);
+  if (days < 0) {
+    return {
+      state: "overdue",
+      label: "Overdue",
+      detail: `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} past target`
+    };
+  }
+  if (days <= 14) {
+    return {
+      state: "due-soon",
+      label: "Due soon",
+      detail: days === 0 ? "Target date is today" : `${days} day${days === 1 ? "" : "s"} to target`
+    };
+  }
+  return {
+    state: "scheduled",
+    label: "Scheduled",
+    detail: `${days} day${days === 1 ? "" : "s"} to target`
+  };
+}
+
+function versionReportHealthDates(version) {
+  return [
+    version.target_date ? `target ${version.target_date}` : "no target date",
+    version.release_date ? `released ${version.release_date}` : "",
+    `state ${version.state || "planned"}`
+  ].filter(Boolean);
 }
 
 function versionReportSummaryNode(progress) {
