@@ -482,7 +482,11 @@ func (s *Service) handleCommentCreated(ctx context.Context, event events.Event) 
 	if err != nil {
 		return err
 	}
-	recipients := recipientSet(event.ActorID, ticket.ReporterID, ticket.AssigneeID)
+	watchers, err := s.ticketWatcherUserIDs(ctx, ticket.ID)
+	if err != nil {
+		return err
+	}
+	recipients := recipientSet(event.ActorID, append([]string{ticket.ReporterID, ticket.AssigneeID}, watchers...)...)
 	for userID := range recipients {
 		if _, err := s.Create(ctx, CreateInput{
 			UserID:      userID,
@@ -541,7 +545,11 @@ func (s *Service) handleTicketUpdated(ctx context.Context, event events.Event) e
 }
 
 func (s *Service) createTicketChangeNotifications(ctx context.Context, actorID string, ticket eventTicket, notificationType string, body string, data map[string]any) error {
-	recipients := recipientSet(actorID, ticket.ReporterID, ticket.AssigneeID)
+	watchers, err := s.ticketWatcherUserIDs(ctx, ticket.ID)
+	if err != nil {
+		return err
+	}
+	recipients := recipientSet(actorID, append([]string{ticket.ReporterID, ticket.AssigneeID}, watchers...)...)
 	for userID := range recipients {
 		payload := map[string]any{
 			"ticket_id":  ticket.ID,
@@ -585,6 +593,32 @@ func (s *Service) ticket(ctx context.Context, ticketID string) (eventTicket, err
 		return eventTicket{}, fmt.Errorf("get notification ticket: %w", err)
 	}
 	return ticket, nil
+}
+
+func (s *Service) ticketWatcherUserIDs(ctx context.Context, ticketID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT tw.user_id
+		FROM ticket_watchers tw
+		JOIN users u ON u.id = tw.user_id
+		WHERE tw.ticket_id = ? AND u.deleted_at IS NULL AND u.is_disabled = 0
+		ORDER BY tw.user_id ASC
+	`, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("list notification ticket watchers: %w", err)
+	}
+	defer rows.Close()
+	var userIDs []string
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			return nil, fmt.Errorf("scan notification ticket watcher: %w", err)
+		}
+		userIDs = append(userIDs, userID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate notification ticket watchers: %w", err)
+	}
+	return userIDs, nil
 }
 
 func eventProjectID(event events.Event, fallback string) string {

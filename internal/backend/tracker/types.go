@@ -110,6 +110,8 @@ type Ticket struct {
 	DueDate        string         `json:"due_date,omitempty"`
 	Labels         []string       `json:"labels,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
+	WatcherCount   int            `json:"watcher_count"`
+	Watching       bool           `json:"watching"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      *time.Time     `json:"deleted_at,omitempty"`
@@ -199,6 +201,14 @@ type TicketLink struct {
 	LinkType  string    `json:"link_type"`
 	CreatedBy string    `json:"created_by,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type TicketWatcher struct {
+	TicketID    string    `json:"ticket_id"`
+	UserID      string    `json:"user_id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type CreateTicketLinkInput struct {

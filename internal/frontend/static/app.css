@@ -1152,6 +1152,7 @@ p {
 .ticket-comments,
 .ticket-attachments,
 .ticket-links,
+.ticket-watchers,
 .ticket-activity {
   display: grid;
   gap: 7px;
@@ -1162,6 +1163,7 @@ p {
 .comment-heading,
 .attachment-heading,
 .ticket-link-heading,
+.watcher-heading,
 .activity-heading {
   color: var(--heading);
   font-size: 12px;
@@ -1172,9 +1174,45 @@ p {
 .comment-list,
 .attachment-list,
 .ticket-link-list,
+.watcher-list,
 .activity-list {
   display: grid;
   gap: 6px;
+}
+
+.ticket-watchers {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.ticket-watchers .watcher-heading {
+  grid-column: 1 / -1;
+}
+
+.watcher-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.watcher-list span:not(.muted) {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  color: var(--text);
+  padding: 2px 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ticket-watchers button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+  font-size: 12px;
 }
 
 .comment-item {

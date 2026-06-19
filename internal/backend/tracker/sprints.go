@@ -134,7 +134,7 @@ func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal
 			return SprintReport{}, err
 		}
 	}
-	tickets, err = s.attachTicketDetailsToTickets(ctx, tickets)
+	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return SprintReport{}, err
 	}

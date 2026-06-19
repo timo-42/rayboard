@@ -254,7 +254,7 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 	if err != nil {
 		return VersionReport{}, err
 	}
-	tickets, err = s.attachTicketDetailsToTickets(ctx, tickets)
+	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return VersionReport{}, err
 	}

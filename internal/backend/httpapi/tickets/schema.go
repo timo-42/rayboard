@@ -50,6 +50,7 @@ type TicketOutput struct {
 }
 
 type ActivityOutput = shared.ListOutput[ActivityResource]
+type TicketWatchersOutput = shared.ListOutput[TicketWatcherResource]
 type TicketLinksOutput = shared.ListOutput[TicketLinkResource]
 type CreateTicketLinkOutput = shared.CreatedOutput[TicketLinkResource]
 
@@ -97,9 +98,11 @@ type TicketUpdateSpec struct {
 }
 
 type TicketStatus struct {
-	Key        string     `json:"key"`
-	ReporterID string     `json:"reporter_id,omitempty"`
-	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
+	Key          string     `json:"key"`
+	ReporterID   string     `json:"reporter_id,omitempty"`
+	WatcherCount int        `json:"watcher_count"`
+	Watching     bool       `json:"watching"`
+	DeletedAt    *time.Time `json:"deleted_at,omitempty"`
 }
 
 type TicketResource = shared.Resource[TicketMetadata, TicketSpec, TicketStatus]
@@ -120,6 +123,21 @@ type ActivityStatus struct {
 }
 
 type ActivityResource = shared.Resource[ActivityMetadata, ActivitySpec, ActivityStatus]
+
+type TicketWatcherMetadata struct {
+	TicketID  string    `json:"ticket_id"`
+	UserID    string    `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TicketWatcherSpec struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+type TicketWatcherStatus struct{}
+
+type TicketWatcherResource = shared.Resource[TicketWatcherMetadata, TicketWatcherSpec, TicketWatcherStatus]
 
 type TicketLinkMetadata struct {
 	ID        string    `json:"id"`
@@ -213,9 +231,11 @@ func ResourceFromTracker(ticket tracker.Ticket) TicketResource {
 			CustomFields:   ticket.CustomFields,
 		},
 		Status: TicketStatus{
-			Key:        ticket.Key,
-			ReporterID: ticket.ReporterID,
-			DeletedAt:  ticket.DeletedAt,
+			Key:          ticket.Key,
+			ReporterID:   ticket.ReporterID,
+			WatcherCount: ticket.WatcherCount,
+			Watching:     ticket.Watching,
+			DeletedAt:    ticket.DeletedAt,
 		},
 	}
 }
@@ -250,6 +270,29 @@ func LinkResourcesFromTracker(links []tracker.TicketLink) []TicketLinkResource {
 	resources := make([]TicketLinkResource, 0, len(links))
 	for _, link := range links {
 		resources = append(resources, LinkResourceFromTracker(link))
+	}
+	return resources
+}
+
+func WatcherResourceFromTracker(watcher tracker.TicketWatcher) TicketWatcherResource {
+	return TicketWatcherResource{
+		Metadata: TicketWatcherMetadata{
+			TicketID:  watcher.TicketID,
+			UserID:    watcher.UserID,
+			CreatedAt: watcher.CreatedAt,
+		},
+		Spec: TicketWatcherSpec{
+			Username:    watcher.Username,
+			DisplayName: watcher.DisplayName,
+		},
+		Status: TicketWatcherStatus{},
+	}
+}
+
+func WatcherResourcesFromTracker(watchers []tracker.TicketWatcher) []TicketWatcherResource {
+	resources := make([]TicketWatcherResource, 0, len(watchers))
+	for _, watcher := range watchers {
+		resources = append(resources, WatcherResourceFromTracker(watcher))
 	}
 	return resources
 }

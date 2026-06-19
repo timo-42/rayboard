@@ -88,7 +88,9 @@ func TestNotificationEventHandlers(t *testing.T) {
 	seedNotificationUser(t, ctx, db, "actor")
 	seedNotificationUser(t, ctx, db, "reporter")
 	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationUser(t, ctx, db, "watcher")
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
+	seedNotificationWatcher(t, ctx, db, "ticket-1", "watcher")
 
 	service := NewService(db.SQL)
 	bus := events.NewBus()
@@ -103,7 +105,7 @@ func TestNotificationEventHandlers(t *testing.T) {
 	if len(errs) != 0 {
 		t.Fatalf("comment event errors: %v", errs)
 	}
-	if got := countNotifications(t, ctx, db, "comment_added"); got != 2 {
+	if got := countNotifications(t, ctx, db, "comment_added"); got != 3 {
 		t.Fatalf("expected 2 comment notifications, got %d", got)
 	}
 
@@ -123,17 +125,45 @@ func TestNotificationEventHandlers(t *testing.T) {
 	if len(errs) != 0 {
 		t.Fatalf("ticket event errors: %v", errs)
 	}
-	if got := countNotifications(t, ctx, db, "ticket_status_changed"); got != 2 {
+	if got := countNotifications(t, ctx, db, "ticket_status_changed"); got != 3 {
 		t.Fatalf("expected 2 status notifications, got %d", got)
 	}
 	if got := countNotifications(t, ctx, db, "ticket_assigned"); got != 1 {
 		t.Fatalf("expected 1 assignment notification, got %d", got)
 	}
-	if got := countNotifications(t, ctx, db, "sprint_changed"); got != 2 {
+	if got := countNotifications(t, ctx, db, "sprint_changed"); got != 3 {
 		t.Fatalf("expected 2 sprint notifications, got %d", got)
 	}
-	if got := countNotifications(t, ctx, db, "release_changed"); got != 2 {
+	if got := countNotifications(t, ctx, db, "release_changed"); got != 3 {
 		t.Fatalf("expected 2 release notifications, got %d", got)
+	}
+}
+
+func TestNotificationEventHandlersDeduplicateWatchersAndExcludeActor(t *testing.T) {
+	ctx := context.Background()
+	db := openNotificationTestDB(t, ctx)
+	seedNotificationUser(t, ctx, db, "actor")
+	seedNotificationUser(t, ctx, db, "reporter")
+	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
+	seedNotificationWatcher(t, ctx, db, "ticket-1", "reporter")
+	seedNotificationWatcher(t, ctx, db, "ticket-1", "actor")
+
+	service := NewService(db.SQL)
+	bus := events.NewBus()
+	service.RegisterEventHandlers(bus)
+
+	errs := bus.Publish(ctx, events.Event{
+		Type:     "comment.created",
+		ActorID:  "actor",
+		ObjectID: "comment-1",
+		Data:     map[string]any{"ticket_id": "ticket-1"},
+	})
+	if len(errs) != 0 {
+		t.Fatalf("comment event errors: %v", errs)
+	}
+	if got := countNotifications(t, ctx, db, "comment_added"); got != 2 {
+		t.Fatalf("expected reporter and assignee notifications only, got %d", got)
 	}
 }
 
@@ -408,6 +438,17 @@ func seedNotificationTicket(t *testing.T, ctx context.Context, db *store.DB, id 
 		VALUES (?, 'project-1', ?, 'Ticket', ?, ?)
 	`, id, key, reporterID, assigneeID); err != nil {
 		t.Fatalf("seed ticket: %v", err)
+	}
+}
+
+func seedNotificationWatcher(t *testing.T, ctx context.Context, db *store.DB, ticketID string, userID string) {
+	t.Helper()
+
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO ticket_watchers (ticket_id, user_id)
+		VALUES (?, ?)
+	`, ticketID, userID); err != nil {
+		t.Fatalf("seed ticket watcher: %v", err)
 	}
 }
 

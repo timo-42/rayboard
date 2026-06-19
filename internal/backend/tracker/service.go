@@ -18,10 +18,12 @@ import (
 const (
 	defaultTicketStatus = "todo"
 
-	activityTicketCreated = "ticket.created"
-	activityTicketUpdated = "ticket.updated"
-	activityLinkCreated   = "ticket.link_created"
-	activityLinkDeleted   = "ticket.link_deleted"
+	activityTicketCreated  = "ticket.created"
+	activityTicketUpdated  = "ticket.updated"
+	activityLinkCreated    = "ticket.link_created"
+	activityLinkDeleted    = "ticket.link_deleted"
+	activityWatcherAdded   = "ticket.watcher_added"
+	activityWatcherRemoved = "ticket.watcher_removed"
 )
 
 var (
@@ -270,7 +272,11 @@ func (s *Service) ListTickets(ctx context.Context, principal authz.Principal, in
 	if err != nil {
 		return nil, err
 	}
-	return s.attachTicketDetailsToTickets(ctx, tickets)
+	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
+	if err != nil {
+		return nil, err
+	}
+	return tickets, nil
 }
 
 func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
@@ -286,7 +292,127 @@ func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, tick
 	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(ticket.ProjectID)); err != nil {
 		return Ticket{}, err
 	}
-	return s.attachTicketDetails(ctx, ticket)
+	ticket, err = s.attachTicketDetails(ctx, ticket)
+	if err != nil {
+		return Ticket{}, err
+	}
+	tickets, err := s.attachTicketWatcherStatus(ctx, principal, []Ticket{ticket})
+	if err != nil {
+		return Ticket{}, err
+	}
+	return tickets[0], nil
+}
+
+func (s *Service) ListTicketWatchers(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketWatcher, error) {
+	ticket, err := s.requireTicketRead(ctx, principal, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ListTicketWatchers(ctx, ticket.ID)
+}
+
+func (s *Service) WatchTicket(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
+	ticket, err := s.requireTicketRead(ctx, principal, ticketID)
+	if err != nil {
+		return Ticket{}, err
+	}
+	userID := actorID(principal)
+	if strings.TrimSpace(userID) == "" {
+		return Ticket{}, authz.ErrForbidden
+	}
+	now := s.now().UTC()
+	eventData := map[string]any{"user_id": userID}
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if err := s.requireUser(ctx, tx, "user_id", userID); err != nil {
+			return err
+		}
+		created, err := s.repo.setTicketWatcher(ctx, tx, ticket.ID, userID, now)
+		if err != nil {
+			return err
+		}
+		if !created {
+			return nil
+		}
+		activityID, err := newID("activity")
+		if err != nil {
+			return err
+		}
+		return s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+			ID:           activityID,
+			TicketID:     ticket.ID,
+			ActorID:      userID,
+			ActivityType: activityWatcherAdded,
+			Data:         eventData,
+			CreatedAt:    now,
+		})
+	}); err != nil {
+		return Ticket{}, err
+	}
+	return s.GetTicket(ctx, principal, ticket.ID)
+}
+
+func (s *Service) UnwatchTicket(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
+	ticket, err := s.requireTicketRead(ctx, principal, ticketID)
+	if err != nil {
+		return Ticket{}, err
+	}
+	userID := actorID(principal)
+	if strings.TrimSpace(userID) == "" {
+		return Ticket{}, authz.ErrForbidden
+	}
+	now := s.now().UTC()
+	eventData := map[string]any{"user_id": userID}
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		deleted, err := s.repo.deleteTicketWatcher(ctx, tx, ticket.ID, userID)
+		if err != nil {
+			return err
+		}
+		if !deleted {
+			return nil
+		}
+		activityID, err := newID("activity")
+		if err != nil {
+			return err
+		}
+		return s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+			ID:           activityID,
+			TicketID:     ticket.ID,
+			ActorID:      userID,
+			ActivityType: activityWatcherRemoved,
+			Data:         eventData,
+			CreatedAt:    now,
+		})
+	}); err != nil {
+		return Ticket{}, err
+	}
+	return s.GetTicket(ctx, principal, ticket.ID)
+}
+
+func (s *Service) attachTicketDetailsAndWatcherStatus(ctx context.Context, principal authz.Principal, tickets []Ticket) ([]Ticket, error) {
+	tickets, err := s.attachTicketDetailsToTickets(ctx, tickets)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachTicketWatcherStatus(ctx, principal, tickets)
+}
+
+func (s *Service) attachTicketWatcherStatus(ctx context.Context, principal authz.Principal, tickets []Ticket) ([]Ticket, error) {
+	return s.repo.attachWatcherStatus(ctx, s.db, tickets, actorID(principal))
+}
+
+func (s *Service) requireTicketRead(ctx context.Context, principal authz.Principal, ticketID string) (Ticket, error) {
+	ticketID = strings.TrimSpace(ticketID)
+	if ticketID == "" {
+		return Ticket{}, validationFailed(map[string]string{"ticket_id": "Required"})
+	}
+	ticket, err := s.repo.GetTicket(ctx, ticketID)
+	if err != nil {
+		return Ticket{}, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(ticket.ProjectID)); err != nil {
+		return Ticket{}, err
+	}
+	return ticket, nil
 }
 
 func (s *Service) ListTicketLinks(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketLink, error) {
@@ -318,8 +444,12 @@ func (s *Service) ListTicketLinks(ctx context.Context, principal authz.Principal
 		if err != nil {
 			return nil, err
 		}
-		links[index].Source = source
-		links[index].Target = target
+		withWatcherStatus, err := s.attachTicketWatcherStatus(ctx, principal, []Ticket{source, target})
+		if err != nil {
+			return nil, err
+		}
+		links[index].Source = withWatcherStatus[0]
+		links[index].Target = withWatcherStatus[1]
 	}
 	return links, nil
 }
@@ -433,6 +563,12 @@ func (s *Service) CreateTicketLink(ctx context.Context, principal authz.Principa
 	if err != nil {
 		return TicketLink{}, err
 	}
+	withWatcherStatus, err := s.attachTicketWatcherStatus(ctx, principal, []Ticket{link.Source, link.Target})
+	if err != nil {
+		return TicketLink{}, err
+	}
+	link.Source = withWatcherStatus[0]
+	link.Target = withWatcherStatus[1]
 	return link, nil
 }
 
