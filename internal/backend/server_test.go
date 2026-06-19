@@ -123,6 +123,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/components/{component_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/versions", http.MethodPost, []string{"spec"}, []string{"spec", "name"}, []string{"spec", "target_date"})
 	assertResponseBodyFields(t, spec, "/api/versions/{version_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "state"})
+	assertResponseBodyFields(t, spec, "/api/versions/{version_id}/report", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "version"}, []string{"status"}, []string{"status", "progress"}, []string{"status", "tickets"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/custom-fields", http.MethodPost, []string{"spec"}, []string{"spec", "key"}, []string{"spec", "field_type"})
 	assertResponseBodyFields(t, spec, "/api/custom-fields/{field_id}", http.MethodGet, "200", []string{"metadata"}, []string{"spec"}, []string{"status"}, []string{"status", "options"})
 	assertRequestBodyFields(t, spec, "/api/tickets/{ticket_id}/comments", http.MethodPost, []string{"spec"}, []string{"spec", "body"})

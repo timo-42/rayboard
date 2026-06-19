@@ -173,7 +173,7 @@ Sprint analytics are ticket-count based because tickets do not currently store s
 
 ## Components and Versions
 
-The components/versions API supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/update/delete, version release/archive state changes, ticket component/version assignment, and project ticket filtering by component or version. Release reports, roadmap timeline screens, richer component/version reporting, and advanced release planning UI are **Planned**.
+The components/versions API supports project component CRUD, project version/release CRUD, live version release reports, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/update/delete, version release/archive state changes, ticket component/version assignment, project ticket filtering by component or version, and compact release reports for the selected version. Roadmap timeline screens, richer component/version reporting, and advanced release planning UI are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -185,10 +185,13 @@ The components/versions API supports project component CRUD, project version/rel
 | `GET` | `/api/projects/{project_id}/versions` | Optional `status`. |
 | `POST` | `/api/projects/{project_id}/versions` | `{"spec":{"name":"2026.7","description":"July release","target_date":"2026-07-31","release_date":""}}` |
 | `GET` | `/api/versions/{version_id}` | none |
+| `GET` | `/api/versions/{version_id}/report` | none |
 | `PATCH` | `/api/versions/{version_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `status`, `target_date`, `release_date`. |
 | `DELETE` | `/api/versions/{version_id}` | none |
 
 Component and version responses use `metadata`, `spec`, and `status`. Version lifecycle state is returned in `status.state`. Component names and version names are unique within a project. Component owner/default assignee IDs are optional user IDs. Version statuses are strings; the first slice accepts `planned`, `released`, and `archived`. Version `target_date` and `release_date` use `YYYY-MM-DD` date strings or empty strings.
+
+Version report responses use `spec.version` for the version resource and `status.progress` plus `status.tickets` for live computed report data. Progress includes `total`, `done`, `open`, `unassigned_component`, and `by_status`; `done` counts tickets whose current status is `done`, and `open` is `total - done`. Version reports read current non-deleted ticket assignments and are not release snapshots.
 
 Deleting a component or version does not delete tickets. SQLite foreign-key behavior clears affected ticket assignments.
 

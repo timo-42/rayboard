@@ -1538,7 +1538,8 @@ p {
   font-size: 12px;
 }
 
-.sprint-report {
+.sprint-report,
+.version-report {
   display: grid;
   gap: 10px;
   border: 1px solid var(--border);
@@ -1547,32 +1548,41 @@ p {
   padding: 12px;
 }
 
-.sprint-report:empty {
+.sprint-report:empty,
+.version-report:empty {
   display: none;
 }
 
-.sprint-report-header {
+.sprint-report-header,
+.version-report-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.sprint-report-header h3 {
+.sprint-report-header h3,
+.version-report-header h3 {
   color: var(--heading);
   font-size: 15px;
 }
 
-.sprint-report-header span {
+.sprint-report-header span,
+.version-report-header span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
-.sprint-report-metrics {
+.sprint-report-metrics,
+.version-report-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.version-report-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .sprint-report-metric {
@@ -1589,18 +1599,21 @@ p {
 }
 
 .sprint-report-metric span,
-.sprint-report-ticket small {
+.sprint-report-ticket small,
+.version-report-ticket small {
   color: var(--muted);
   font-size: 12px;
 }
 
-.sprint-report-statuses {
+.sprint-report-statuses,
+.version-report-statuses {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.sprint-report-statuses span {
+.sprint-report-statuses span,
+.version-report-statuses span {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -1638,12 +1651,14 @@ p {
   font-size: 12px;
 }
 
-.sprint-report-tickets {
+.sprint-report-tickets,
+.version-report-tickets {
   display: grid;
   gap: 6px;
 }
 
-.sprint-report-ticket {
+.sprint-report-ticket,
+.version-report-ticket {
   display: grid;
   gap: 2px;
   border: 1px solid var(--border);
@@ -1653,7 +1668,8 @@ p {
   text-decoration: none;
 }
 
-.sprint-report-ticket:hover {
+.sprint-report-ticket:hover,
+.version-report-ticket:hover {
   border-color: var(--primary);
 }
 
