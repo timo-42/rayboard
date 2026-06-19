@@ -1849,11 +1849,13 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	doneStatus := "done"
 	versionID := version.ID
 	componentID := component.ID
-	first, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix blocker", VersionID: version.ID})
+	firstPoints := 2.0
+	first, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix blocker", VersionID: version.ID, StoryPoints: &firstPoints})
 	if err != nil {
 		t.Fatalf("create first ticket: %v", err)
 	}
-	second, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Ship feature", ComponentID: component.ID, VersionID: version.ID})
+	secondPoints := 5.0
+	second, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Ship feature", ComponentID: component.ID, VersionID: version.ID, StoryPoints: &secondPoints})
 	if err != nil {
 		t.Fatalf("create second ticket: %v", err)
 	}
@@ -1870,10 +1872,16 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 		t.Fatalf("get version report: %v", err)
 	}
 	if report.Version.ID != version.ID ||
+		report.Scope != tracker.VersionReportScopeCurrent ||
+		report.SnapshotAt != nil ||
 		report.Progress.Total != 2 ||
 		report.Progress.Done != 1 ||
 		report.Progress.Open != 1 ||
 		report.Progress.UnassignedComponent != 1 ||
+		report.Progress.StoryPointsTotal != 7 ||
+		report.Progress.StoryPointsDone != 5 ||
+		report.Progress.StoryPointsRemaining != 2 ||
+		report.Progress.StoryPointsUnestimated != 0 ||
 		report.Progress.ByStatus["todo"] != 1 ||
 		report.Progress.ByStatus["done"] != 1 ||
 		len(report.Tickets) != 2 {
@@ -1888,6 +1896,39 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	}
 	if !reportIDs[first.ID] || !reportIDs[second.ID] {
 		t.Fatalf("expected assigned tickets in report, got %#v", report.Tickets)
+	}
+
+	released := tracker.VersionStatusReleased
+	updatedVersion, err := service.UpdateVersion(ctx, admin, version.ID, tracker.UpdateVersionInput{Status: &released})
+	if err != nil {
+		t.Fatalf("release version: %v", err)
+	}
+	if updatedVersion.Status != tracker.VersionStatusReleased {
+		t.Fatalf("expected released version, got %#v", updatedVersion)
+	}
+	otherVersionID := otherVersion.ID
+	if _, err := service.UpdateTicket(ctx, admin, first.ID, tracker.UpdateTicketInput{VersionID: &otherVersionID}); err != nil {
+		t.Fatalf("move first ticket after release: %v", err)
+	}
+	if _, err := db.SQL.ExecContext(ctx, "UPDATE tickets SET deleted_at = ? WHERE id = ?", fixedNow().UTC().Format(time.RFC3339Nano), second.ID); err != nil {
+		t.Fatalf("delete second ticket after release: %v", err)
+	}
+	snapshotReport, err := service.GetVersionReport(ctx, admin, version.ID)
+	if err != nil {
+		t.Fatalf("get released version report: %v", err)
+	}
+	if snapshotReport.Scope != tracker.VersionReportScopeSnapshot || snapshotReport.SnapshotAt == nil || !snapshotReport.SnapshotAt.Equal(updatedVersion.UpdatedAt) {
+		t.Fatalf("unexpected version report scope: %#v", snapshotReport)
+	}
+	if snapshotReport.Progress.Total != 1 ||
+		snapshotReport.Progress.Done != 0 ||
+		snapshotReport.Progress.Open != 1 ||
+		snapshotReport.Progress.StoryPointsTotal != 2 ||
+		snapshotReport.Progress.StoryPointsDone != 0 ||
+		snapshotReport.Progress.StoryPointsRemaining != 2 ||
+		len(snapshotReport.Tickets) != 1 ||
+		snapshotReport.Tickets[0].ID != first.ID {
+		t.Fatalf("unexpected released snapshot report after move/delete: %#v", snapshotReport)
 	}
 
 	member := principal("user-member")

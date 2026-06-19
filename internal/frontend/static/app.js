@@ -3975,10 +3975,11 @@ function renderVersionReport() {
   const title = document.createElement("h3");
   title.textContent = `${version.name || "Version"} report`;
   const scope = document.createElement("span");
-  scope.textContent = "Live current assignment";
+  scope.textContent = versionReportScopeText(report);
   header.append(title, scope);
 
   const progress = report ? report.progress : { total: 0, done: 0, open: 0, unassigned_component: 0, by_status: {} };
+  const hasPointMetrics = Number(progress.story_points_total || 0) > 0 || Number(progress.story_points_unestimated || 0) > 0;
   const metrics = document.createElement("div");
   metrics.className = "version-report-metrics";
   metrics.append(
@@ -3987,6 +3988,14 @@ function renderVersionReport() {
     sprintMetricNode("Open", progress.open || Math.max((progress.total || 0) - (progress.done || 0), 0)),
     sprintMetricNode("No component", progress.unassigned_component || 0)
   );
+  if (hasPointMetrics) {
+    metrics.append(
+      sprintMetricNode("Points", formatStoryPoints(progress.story_points_total || 0)),
+      sprintMetricNode("Done points", formatStoryPoints(progress.story_points_done || 0)),
+      sprintMetricNode("Remaining points", formatStoryPoints(progress.story_points_remaining || 0)),
+      sprintMetricNode("Unestimated", progress.story_points_unestimated || 0)
+    );
+  }
 
   const statuses = document.createElement("div");
   statuses.className = "version-report-statuses";
@@ -4010,6 +4019,16 @@ function renderVersionReport() {
   }
 
   els.versionReport.append(header, metrics, statuses, tickets);
+}
+
+function versionReportScopeText(report) {
+  if (!report) {
+    return "Report not loaded";
+  }
+  if (report.scope === "released_snapshot") {
+    return report.snapshot_at ? `Released snapshot ${formatDateTime(report.snapshot_at)}` : "Released snapshot";
+  }
+  return "Live current assignment";
 }
 
 function versionNode(version) {
@@ -8170,11 +8189,17 @@ function normalizeVersionReport(report) {
         id: report.metadata.id,
         project_id: report.metadata.project_id
       },
+      scope: report.status.scope || "current",
+      snapshot_at: report.status.snapshot_at || "",
       progress: {
         total: Number(report.status.progress && report.status.progress.total) || 0,
         done: Number(report.status.progress && report.status.progress.done) || 0,
         open: Number(report.status.progress && report.status.progress.open) || 0,
         unassigned_component: Number(report.status.progress && report.status.progress.unassigned_component) || 0,
+        story_points_total: Number(report.status.progress && report.status.progress.story_points_total) || 0,
+        story_points_done: Number(report.status.progress && report.status.progress.story_points_done) || 0,
+        story_points_remaining: Number(report.status.progress && report.status.progress.story_points_remaining) || 0,
+        story_points_unestimated: Number(report.status.progress && report.status.progress.story_points_unestimated) || 0,
         by_status: (report.status.progress && report.status.progress.by_status) || {}
       },
       tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)

@@ -254,17 +254,23 @@ type SprintReportProgress struct {
 }
 
 type VersionReport struct {
-	Version  Version               `json:"version"`
-	Progress VersionReportProgress `json:"progress"`
-	Tickets  []Ticket              `json:"tickets"`
+	Version    Version               `json:"version"`
+	Scope      string                `json:"scope"`
+	SnapshotAt *time.Time            `json:"snapshot_at,omitempty"`
+	Progress   VersionReportProgress `json:"progress"`
+	Tickets    []Ticket              `json:"tickets"`
 }
 
 type VersionReportProgress struct {
-	Total               int            `json:"total"`
-	Done                int            `json:"done"`
-	Open                int            `json:"open"`
-	UnassignedComponent int            `json:"unassigned_component"`
-	ByStatus            map[string]int `json:"by_status"`
+	Total                  int            `json:"total"`
+	Done                   int            `json:"done"`
+	Open                   int            `json:"open"`
+	UnassignedComponent    int            `json:"unassigned_component"`
+	ByStatus               map[string]int `json:"by_status"`
+	StoryPointsTotal       float64        `json:"story_points_total"`
+	StoryPointsDone        float64        `json:"story_points_done"`
+	StoryPointsRemaining   float64        `json:"story_points_remaining"`
+	StoryPointsUnestimated int            `json:"story_points_unestimated"`
 }
 
 type SprintAnalytics struct {
