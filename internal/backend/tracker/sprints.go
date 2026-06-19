@@ -138,11 +138,16 @@ func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal
 	if err != nil {
 		return SprintReport{}, err
 	}
+	analytics, err := s.sprintAnalytics(ctx, sprint, tickets)
+	if err != nil {
+		return SprintReport{}, err
+	}
 	return SprintReport{
 		Sprint:     sprint,
 		Scope:      scope,
 		SnapshotAt: snapshotAt,
 		Progress:   sprintReportProgress(tickets),
+		Analytics:  analytics,
 		Tickets:    tickets,
 	}, nil
 }
@@ -409,6 +414,129 @@ func sprintReportProgress(tickets []Ticket) SprintReportProgress {
 		}
 	}
 	return progress
+}
+
+func (s *Service) sprintAnalytics(ctx context.Context, sprint Sprint, tickets []Ticket) (SprintAnalytics, error) {
+	start, end := sprintAnalyticsWindow(sprint, tickets, s.now().UTC())
+	doneDates := map[string]time.Time{}
+	for _, ticket := range tickets {
+		doneAt, err := s.ticketDoneAt(ctx, ticket)
+		if err != nil {
+			return SprintAnalytics{}, err
+		}
+		if doneAt != nil {
+			doneDates[ticket.ID] = dateOnly(*doneAt)
+		}
+	}
+
+	days := daysBetween(start, end)
+	burndown := make([]SprintBurndownPoint, 0, len(days))
+	burnup := make([]SprintBurnupPoint, 0, len(days))
+	completed := 0
+	for _, day := range days {
+		total := 0
+		done := 0
+		for _, ticket := range tickets {
+			if !dateOnly(ticket.CreatedAt).After(day) {
+				total++
+			}
+			if doneAt, ok := doneDates[ticket.ID]; ok && !doneAt.After(day) {
+				done++
+			}
+		}
+		date := day.Format(dateOnlyLayout)
+		burndown = append(burndown, SprintBurndownPoint{Date: date, Remaining: total - done})
+		burnup = append(burnup, SprintBurnupPoint{Date: date, Total: total, Done: done})
+		completed = done
+	}
+	return SprintAnalytics{
+		Burndown: burndown,
+		Burnup:   burnup,
+		Velocity: SprintVelocity{Completed: completed, Unit: "tickets"},
+	}, nil
+}
+
+func sprintAnalyticsWindow(sprint Sprint, tickets []Ticket, now time.Time) (time.Time, time.Time) {
+	start := parseSprintDateOrZero(sprint.StartDate)
+	if start.IsZero() {
+		for _, ticket := range tickets {
+			created := dateOnly(ticket.CreatedAt)
+			if start.IsZero() || created.Before(start) {
+				start = created
+			}
+		}
+	}
+	if start.IsZero() {
+		start = dateOnly(now)
+	}
+
+	end := parseSprintDateOrZero(sprint.EndDate)
+	if end.IsZero() && sprint.CompletedAt != nil {
+		end = dateOnly(*sprint.CompletedAt)
+	}
+	if end.IsZero() {
+		end = dateOnly(now)
+	}
+	if end.Before(start) {
+		end = start
+	}
+	return start, end
+}
+
+func (s *Service) ticketDoneAt(ctx context.Context, ticket Ticket) (*time.Time, error) {
+	if ticket.Status != "done" {
+		return nil, nil
+	}
+	activities, err := s.repo.ListTicketActivity(ctx, ticket.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list ticket activity for sprint analytics: %w", err)
+	}
+	for _, activity := range activities {
+		if ticketActivityStatusNew(activity) == "done" {
+			doneAt := activity.CreatedAt
+			return &doneAt, nil
+		}
+	}
+	doneAt := ticket.UpdatedAt
+	return &doneAt, nil
+}
+
+func ticketActivityStatusNew(activity TicketActivity) string {
+	changes, ok := activity.Data["changes"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	statusChange, ok := changes["status"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	next, _ := statusChange["new"].(string)
+	return next
+}
+
+func parseSprintDateOrZero(value string) time.Time {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(dateOnlyLayout, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+func dateOnly(value time.Time) time.Time {
+	year, month, day := value.UTC().Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+func daysBetween(start time.Time, end time.Time) []time.Time {
+	days := []time.Time{}
+	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
+		days = append(days, day)
+	}
+	return days
 }
 
 func (s *Service) SetTicketSprint(ctx context.Context, principal authz.Principal, ticketID string, sprintID string) (Ticket, error) {

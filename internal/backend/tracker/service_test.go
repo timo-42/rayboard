@@ -1052,6 +1052,73 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	}
 }
 
+func TestSprintReportAnalytics(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	now := fixedNow()
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(func() time.Time { return now }))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "RPT", Name: "Reports"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	sprint, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{
+		ProjectID: project.ID,
+		Name:      "Analytics Sprint",
+		StartDate: "2026-06-16",
+		EndDate:   "2026-06-16",
+	})
+	if err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+	todo, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Todo report ticket"})
+	if err != nil {
+		t.Fatalf("create todo ticket: %v", err)
+	}
+	done, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Done report ticket", Status: "done"})
+	if err != nil {
+		t.Fatalf("create done ticket: %v", err)
+	}
+	postWindow, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Late done report ticket"})
+	if err != nil {
+		t.Fatalf("create late done ticket: %v", err)
+	}
+	if _, err := service.SetTicketSprint(ctx, admin, todo.ID, sprint.ID); err != nil {
+		t.Fatalf("assign todo ticket: %v", err)
+	}
+	if _, err := service.SetTicketSprint(ctx, admin, done.ID, sprint.ID); err != nil {
+		t.Fatalf("assign done ticket: %v", err)
+	}
+	if _, err := service.SetTicketSprint(ctx, admin, postWindow.ID, sprint.ID); err != nil {
+		t.Fatalf("assign late done ticket: %v", err)
+	}
+	now = time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	postWindowStatus := "done"
+	if _, err := service.UpdateTicket(ctx, admin, postWindow.ID, tracker.UpdateTicketInput{Status: &postWindowStatus}); err != nil {
+		t.Fatalf("mark late ticket done: %v", err)
+	}
+
+	report, err := service.GetSprintReport(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("get sprint report: %v", err)
+	}
+	if report.Analytics.Velocity.Completed != 1 || report.Analytics.Velocity.Unit != "tickets" {
+		t.Fatalf("unexpected sprint velocity: %#v", report.Analytics.Velocity)
+	}
+	if len(report.Analytics.Burndown) != 1 || report.Analytics.Burndown[0].Date != "2026-06-16" || report.Analytics.Burndown[0].Remaining != 2 {
+		t.Fatalf("unexpected sprint burndown: %#v", report.Analytics.Burndown)
+	}
+	if len(report.Analytics.Burnup) != 1 || report.Analytics.Burnup[0].Date != "2026-06-16" || report.Analytics.Burnup[0].Total != 3 || report.Analytics.Burnup[0].Done != 1 {
+		t.Fatalf("unexpected sprint burnup: %#v", report.Analytics.Burnup)
+	}
+}
+
 func TestBacklogListAndReorder(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

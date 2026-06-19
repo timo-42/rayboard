@@ -3229,6 +3229,8 @@ function renderSprintReport() {
     statuses.append(item);
   }
 
+  const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
+
   const tickets = document.createElement("div");
   tickets.className = "sprint-report-tickets";
   if (report && report.tickets && report.tickets.length) {
@@ -3242,7 +3244,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, metrics, statuses, tickets);
+  els.sprintReport.append(header, metrics, statuses, analytics, tickets);
 }
 
 function sprintReportScopeText(report) {
@@ -3264,6 +3266,42 @@ function sprintMetricNode(label, value) {
   caption.textContent = label;
   metric.append(number, caption);
   return metric;
+}
+
+function sprintReportAnalyticsNode(analytics) {
+  const section = document.createElement("div");
+  section.className = "sprint-report-analytics";
+  const velocity = analytics && analytics.velocity ? analytics.velocity : { completed: 0, unit: "tickets" };
+  const latestBurndown = latestPoint(analytics && analytics.burndown);
+  const latestBurnup = latestPoint(analytics && analytics.burnup);
+  section.append(
+    sprintMetricNode("Velocity", `${velocity.completed || 0} ${velocity.unit || "tickets"}`),
+    sprintMetricNode("Remaining", latestBurndown ? latestBurndown.remaining || 0 : 0),
+    sprintMetricNode("Burnup", latestBurnup ? `${latestBurnup.done || 0}/${latestBurnup.total || 0}` : "0/0")
+  );
+
+  const chart = document.createElement("div");
+  chart.className = "sprint-report-chart";
+  const burnup = analytics && Array.isArray(analytics.burnup) ? analytics.burnup : [];
+  for (const point of burnup.slice(-14)) {
+    const total = Math.max(Number(point.total) || 0, 1);
+    const done = Math.max(Number(point.done) || 0, 0);
+    const bar = document.createElement("span");
+    bar.style.height = `${Math.max(8, Math.round((done / total) * 100))}%`;
+    bar.title = `${point.date}: ${done}/${total} done`;
+    chart.append(bar);
+  }
+  if (!chart.children.length) {
+    const empty = document.createElement("small");
+    empty.textContent = "Analytics will appear when the report is loaded";
+    chart.append(empty);
+  }
+  section.append(chart);
+  return section;
+}
+
+function latestPoint(points) {
+  return Array.isArray(points) && points.length ? points[points.length - 1] : null;
 }
 
 function sprintReportTicketNode(ticket) {
@@ -7059,10 +7097,38 @@ function normalizeSprintReport(report) {
         done: Number(report.status.progress && report.status.progress.done) || 0,
         by_status: (report.status.progress && report.status.progress.by_status) || {}
       },
+      analytics: normalizeSprintAnalytics(report.status.analytics),
       tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)
     };
   }
   return report;
+}
+
+function normalizeSprintAnalytics(analytics) {
+  analytics = analytics || {};
+  return {
+    burndown: Array.isArray(analytics.burndown) ? analytics.burndown.map(normalizeBurndownPoint) : [],
+    burnup: Array.isArray(analytics.burnup) ? analytics.burnup.map(normalizeBurnupPoint) : [],
+    velocity: {
+      completed: Number(analytics.velocity && analytics.velocity.completed) || 0,
+      unit: (analytics.velocity && analytics.velocity.unit) || "tickets"
+    }
+  };
+}
+
+function normalizeBurndownPoint(point) {
+  return {
+    date: point && point.date ? point.date : "",
+    remaining: Number(point && point.remaining) || 0
+  };
+}
+
+function normalizeBurnupPoint(point) {
+  return {
+    date: point && point.date ? point.date : "",
+    total: Number(point && point.total) || 0,
+    done: Number(point && point.done) || 0
+  };
 }
 
 function normalizeComponent(component) {

@@ -30,7 +30,7 @@ Implemented browser workflows:
 - basic project webhook list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
 - basic project ticket-hook list, create, delete, enable/disable, and preview controls for the selected project;
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`;
-- compact selected-sprint reports with totals, status counts, ticket links, and live-versus-completed snapshot scope labels.
+- compact selected-sprint reports with totals, status counts, ticket-count velocity, remaining and burnup summaries, ticket links, and live-versus-completed snapshot scope labels.
 
 API token secrets are shown once when created and are not listed later.
 
@@ -45,7 +45,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, richer sprint reporting beyond compact selected-sprint summaries, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version reporting, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, release reports, richer roadmap timeline screens, richer component/version reporting, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
