@@ -53,7 +53,7 @@ func runRuntime(ctx context.Context, mode runtime.Mode, args []string, stdout, s
 	cfg := config.FromEnv()
 	cfg.BindRuntimeFlags(flags)
 	configureLongFlagUsage(flags, stderr, fmt.Sprintf("usage: rayboard %s [flags]", mode))
-	if err := rejectSingleDashFlags(args); err != nil {
+	if err := rejectSingleDashFlags(flags, args); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}

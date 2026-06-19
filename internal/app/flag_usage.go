@@ -36,12 +36,24 @@ func flagHelpRequested(args []string) bool {
 	return args[0] == "--help"
 }
 
-func rejectSingleDashFlags(args []string) error {
-	for _, arg := range args {
+type boolFlag interface {
+	IsBoolFlag() bool
+}
+
+func rejectSingleDashFlags(flags *flag.FlagSet, args []string) error {
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
 		if arg == "--" {
 			return nil
 		}
 		if arg == "-" || !strings.HasPrefix(arg, "-") || strings.HasPrefix(arg, "--") {
+			if strings.HasPrefix(arg, "--") {
+				name, _, hasInlineValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+				item := flags.Lookup(name)
+				if item != nil && !hasInlineValue && !isBoolFlag(item) {
+					index++
+				}
+			}
 			continue
 		}
 		if arg == "-h" {
@@ -50,4 +62,9 @@ func rejectSingleDashFlags(args []string) error {
 		return fmt.Errorf("invalid flag %q: use --%s", arg, strings.TrimLeft(arg, "-"))
 	}
 	return nil
+}
+
+func isBoolFlag(item *flag.Flag) bool {
+	boolValue, ok := item.Value.(boolFlag)
+	return ok && boolValue.IsBoolFlag()
 }
