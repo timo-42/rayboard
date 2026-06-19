@@ -793,6 +793,11 @@ func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, t
 	if err != nil {
 		return Ticket{}, err
 	}
+	withWatcherStatus, err := s.attachTicketWatcherStatus(ctx, principal, []Ticket{updatedWithDetails})
+	if err != nil {
+		return Ticket{}, err
+	}
+	updatedWithDetails = withWatcherStatus[0]
 	if s.hooks != nil && eventData != nil {
 		s.hooks.RunAfterUpdate(ctx, principal, currentWithDetails, updatedWithDetails)
 	}

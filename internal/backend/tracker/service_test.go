@@ -509,6 +509,31 @@ func TestTicketWatchersListWatchUnwatchAndAuthorize(t *testing.T) {
 	if len(watchers) != 1 {
 		t.Fatalf("expected duplicate watch to be idempotent, got %#v", watchers)
 	}
+	if _, err := service.WatchTicket(ctx, member, ticket.ID); err != nil {
+		t.Fatalf("member watch ticket: %v", err)
+	}
+	title := "Watched update"
+	updated, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{Title: &title})
+	if err != nil {
+		t.Fatalf("update watched ticket: %v", err)
+	}
+	if !updated.Watching || updated.WatcherCount != 2 {
+		t.Fatalf("expected update response to preserve member watcher state, got %#v", updated)
+	}
+	if _, err := service.WatchTicket(ctx, admin, ticket.ID); err != nil {
+		t.Fatalf("admin watch ticket: %v", err)
+	}
+	sprint, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{ProjectID: project.ID, Name: "Sprint 1"})
+	if err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+	assigned, err := service.SetTicketSprint(ctx, admin, ticket.ID, sprint.ID)
+	if err != nil {
+		t.Fatalf("assign watched ticket sprint: %v", err)
+	}
+	if !assigned.Watching || assigned.WatcherCount != 3 {
+		t.Fatalf("expected sprint response to preserve admin watcher state, got %#v", assigned)
+	}
 	activities, err := service.ListTicketActivity(ctx, member, ticket.ID)
 	if err != nil {
 		t.Fatalf("list activity: %v", err)
@@ -521,7 +546,7 @@ func TestTicketWatchersListWatchUnwatchAndAuthorize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unwatch ticket: %v", err)
 	}
-	if unwatched.Watching || unwatched.WatcherCount != 0 {
+	if unwatched.Watching || unwatched.WatcherCount != 2 {
 		t.Fatalf("expected watch state cleared, got %#v", unwatched)
 	}
 	if _, err := service.UnwatchTicket(ctx, viewer, ticket.ID); err != nil {

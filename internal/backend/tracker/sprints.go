@@ -556,7 +556,11 @@ func (s *Service) SetTicketSprint(ctx context.Context, principal authz.Principal
 		return Ticket{}, err
 	}
 	if current.SprintID == sprintID {
-		return current, nil
+		tickets, err := s.attachTicketDetailsAndWatcherStatus(ctx, principal, []Ticket{current})
+		if err != nil {
+			return Ticket{}, err
+		}
+		return tickets[0], nil
 	}
 	updated := current
 	updated.SprintID = sprintID
@@ -605,7 +609,11 @@ func (s *Service) SetTicketSprint(ctx context.Context, principal authz.Principal
 		At:        updated.UpdatedAt,
 		Data:      data,
 	})
-	return updated, nil
+	tickets, err := s.attachTicketDetailsAndWatcherStatus(ctx, principal, []Ticket{updated})
+	if err != nil {
+		return Ticket{}, err
+	}
+	return tickets[0], nil
 }
 
 func (s *Service) buildSprint(input CreateSprintInput) (Sprint, error) {
