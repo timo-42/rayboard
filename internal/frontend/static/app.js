@@ -7409,6 +7409,7 @@ function cronRunListNode(jobID, runs) {
       run.state || "queued",
       run.trigger_type,
       run.created_at ? formatDateTime(run.created_at) : "",
+      automationRunDurationLabel(run),
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
     const output = document.createElement("pre");
@@ -7429,8 +7430,13 @@ function automationRunSummaryNode(runs, visibleRuns, filterKey) {
     ["total", summary.total],
     ["completed", summary.completed],
     ["failed", summary.failed],
-    ["active", summary.active]
+    ["active", summary.active],
+    ["avg duration", summary.averageDurationLabel],
+    ["max duration", summary.maxDurationLabel]
   ]) {
+    if (metric[1] === "") {
+      continue;
+    }
     const item = document.createElement("span");
     item.textContent = `${metric[0]} ${metric[1]}`;
     section.append(item);
@@ -7515,8 +7521,13 @@ function summarizeAutomationRuns(runs) {
     completed: 0,
     failed: 0,
     active: 0,
-    latestFailure: ""
+    latestFailure: "",
+    averageDurationLabel: "",
+    maxDurationLabel: ""
   };
+  let durationCount = 0;
+  let totalDurationMs = 0;
+  let maxDurationMs = 0;
   for (const run of runs || []) {
     if (!run) {
       continue;
@@ -7533,8 +7544,49 @@ function summarizeAutomationRuns(runs) {
     } else {
       summary.active += 1;
     }
+    const durationMs = automationRunDurationMs(run);
+    if (durationMs > 0) {
+      durationCount += 1;
+      totalDurationMs += durationMs;
+      maxDurationMs = Math.max(maxDurationMs, durationMs);
+    }
+  }
+  if (durationCount > 0) {
+    summary.averageDurationLabel = formatDuration(Math.round(totalDurationMs / durationCount));
+    summary.maxDurationLabel = formatDuration(maxDurationMs);
   }
   return summary;
+}
+
+function automationRunDurationLabel(run) {
+  const durationMs = automationRunDurationMs(run);
+  return durationMs > 0 ? `duration ${formatDuration(durationMs)}` : "";
+}
+
+function automationRunDurationMs(run) {
+  if (!run) {
+    return 0;
+  }
+  const started = Date.parse(run.started_at || run.created_at || "");
+  const finished = Date.parse(run.finished_at || "");
+  if (!Number.isFinite(started) || !Number.isFinite(finished) || finished <= started) {
+    return 0;
+  }
+  return finished - started;
+}
+
+function formatDuration(durationMs) {
+  const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
 }
 
 function renderWebhooks() {
@@ -7755,6 +7807,7 @@ function webhookRunListNode(webhookID, runs) {
       run.state || "queued",
       run.trigger_type,
       run.created_at ? formatDateTime(run.created_at) : "",
+      automationRunDurationLabel(run),
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
     const output = document.createElement("pre");
@@ -8105,6 +8158,7 @@ function ticketHookRunListNode(hookID, runs) {
       run.trigger_type,
       run.ticket_id ? `ticket ${run.ticket_id}` : "",
       run.created_at ? formatDateTime(run.created_at) : "",
+      automationRunDurationLabel(run),
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
     const output = document.createElement("pre");
@@ -8425,6 +8479,7 @@ function createPageRunListNode(pageID, runs) {
       run.created_at ? `created ${formatDateTime(run.created_at)}` : "",
       run.started_at ? `started ${formatDateTime(run.started_at)}` : "",
       run.finished_at ? `finished ${formatDateTime(run.finished_at)}` : "",
+      automationRunDurationLabel(run),
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
     const input = document.createElement("pre");
