@@ -103,6 +103,9 @@ Effective-permission requests default to global scope when `scope` is omitted. `
 | `GET` | `/api/tickets/{ticket_id}` | none |
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
+| `GET` | `/api/tickets/{ticket_id}/links` | none |
+| `POST` | `/api/tickets/{ticket_id}/links` | `{"spec":{"target_ticket_id":"ticket_...","link_type":"blocks"}}` |
+| `DELETE` | `/api/tickets/{ticket_id}/links/{link_id}` | none |
 
 Ticket statuses are stored as strings. Workflow status APIs define the ordered project-scoped status slugs available to a project.
 
@@ -117,6 +120,8 @@ Ticket `labels` is a string array on create, update, get, list, board/backlog, a
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
 Ticket activity responses use a list resource with `metadata.count` and `status.items`. Each activity item uses `metadata.id`, `metadata.ticket_id`, `metadata.created_at`, `spec.activity_type`, optional `spec.data`, and `status.actor_id`. Common activity types include `ticket.created`, `ticket.updated`, `comment.created`, `comment.deleted`, `attachment.uploaded`, and `attachment.deleted`. The embedded issue page at `/issues/{ticket_id}` renders this activity history.
+
+Ticket links model directed issue relationships for lightweight dependency tracking. Supported link types are `blocks`, `is_blocked_by`, and `relates_to`. Link responses use `metadata.id`, `metadata.project_id`, `metadata.created_at`, `spec.link_type`, `spec.source`, `spec.target`, and `status.created_by`. Creating a link requires write permission on the source ticket and read permission on the target ticket, rejects self-links and duplicate active links, and records `ticket.link_created` activity on the source ticket. Deleting a link soft-deletes it and records `ticket.link_deleted` activity. The embedded browser UI lists linked issues and exposes add/remove controls from ticket cards and issue detail pages. Richer dependency graph visualization is **Planned**.
 
 ## Backlog
 
@@ -205,7 +210,7 @@ Ticket assignment keeps all records in one project. Cross-project component or v
 
 ## Roadmap
 
-The roadmap API lists epics and direct child-ticket progress. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a scheduled epic timeline, unscheduled epic list, inline epic schedule editing, child progress, ticket-form fields for epic creation, parent epic assignment, and roadmap dates. Roadmap drag/drop planning, dependencies, and capacity views are **Planned**.
+The roadmap API lists epics and direct child-ticket progress. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a scheduled epic timeline, unscheduled epic list, inline epic schedule editing, child progress, ticket-form fields for epic creation, parent epic assignment, and roadmap dates. Roadmap drag/drop planning, dependency graph visualization, and capacity views are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

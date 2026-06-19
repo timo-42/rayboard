@@ -1151,6 +1151,7 @@ p {
 
 .ticket-comments,
 .ticket-attachments,
+.ticket-links,
 .ticket-activity {
   display: grid;
   gap: 7px;
@@ -1160,6 +1161,7 @@ p {
 
 .comment-heading,
 .attachment-heading,
+.ticket-link-heading,
 .activity-heading {
   color: var(--heading);
   font-size: 12px;
@@ -1169,6 +1171,7 @@ p {
 
 .comment-list,
 .attachment-list,
+.ticket-link-list,
 .activity-list {
   display: grid;
   gap: 6px;
@@ -1223,6 +1226,30 @@ p {
   white-space: nowrap;
 }
 
+.ticket-link-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 6px;
+  font-size: 12px;
+}
+
+.ticket-link-item a {
+  color: var(--primary-strong);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.ticket-link-item span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .activity-item {
   min-width: 0;
   display: grid;
@@ -1258,7 +1285,9 @@ p {
 
 .comment-item button,
 .attachment-item button,
+.ticket-link-item button,
 .comment-form button,
+.ticket-link-form button,
 .attachment-form button {
   min-height: 28px;
   border-color: var(--border-strong);
@@ -1270,18 +1299,31 @@ p {
 
 .comment-item button:hover,
 .attachment-item button:hover,
+.ticket-link-item button:hover,
 .comment-form button:hover,
+.ticket-link-form button:hover,
 .attachment-form button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
 .comment-form,
+.ticket-link-form,
 .attachment-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
+}
+
+.ticket-link-form {
+  grid-template-columns: minmax(110px, 0.5fr) minmax(0, 1fr) auto;
+}
+
+.ticket-link-form select {
+  min-width: 0;
+  min-height: 30px;
+  font-size: 12px;
 }
 
 .comment-form textarea {
@@ -3121,6 +3163,7 @@ p {
   .ticket-hook-preview-form,
   .create-page-form,
   .comment-form,
+  .ticket-link-form,
   .attachment-form,
   .ticket-custom-field-controls {
     grid-template-columns: 1fr;

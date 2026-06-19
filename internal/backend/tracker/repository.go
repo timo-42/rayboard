@@ -384,6 +384,105 @@ func (r *Repository) listTicketActivity(ctx context.Context, q sqlRunner, ticket
 	return activities, nil
 }
 
+func (r *Repository) listTicketLinks(ctx context.Context, ticketID string) ([]TicketLink, error) {
+	runner, err := r.runner()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := runner.QueryContext(ctx, `
+		SELECT
+			links.id, links.project_id, links.link_type, links.created_by, links.created_at,
+			source.id, source.project_id, source.key, source.title, source.description, source.status, source.priority, source.type,
+			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.created_at, source.updated_at, source.deleted_at,
+			target.id, target.project_id, target.key, target.title, target.description, target.status, target.priority, target.type,
+			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.created_at, target.updated_at, target.deleted_at
+		FROM ticket_links AS links
+		JOIN tickets AS source ON source.id = links.source_ticket_id
+		JOIN tickets AS target ON target.id = links.target_ticket_id
+		WHERE links.source_ticket_id = ? AND links.deleted_at IS NULL AND source.deleted_at IS NULL AND target.deleted_at IS NULL
+		ORDER BY links.created_at ASC, links.id ASC
+	`, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("list ticket links: %w", err)
+	}
+	defer rows.Close()
+
+	var links []TicketLink
+	for rows.Next() {
+		link, err := scanTicketLink(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan ticket link: %w", err)
+		}
+		links = append(links, link)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket links: %w", err)
+	}
+	return links, nil
+}
+
+func (r *Repository) getTicketLink(ctx context.Context, linkID string) (TicketLink, error) {
+	runner, err := r.runner()
+	if err != nil {
+		return TicketLink{}, err
+	}
+	link, err := scanTicketLink(runner.QueryRowContext(ctx, `
+		SELECT
+			links.id, links.project_id, links.link_type, links.created_by, links.created_at,
+			source.id, source.project_id, source.key, source.title, source.description, source.status, source.priority, source.type,
+			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.created_at, source.updated_at, source.deleted_at,
+			target.id, target.project_id, target.key, target.title, target.description, target.status, target.priority, target.type,
+			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.created_at, target.updated_at, target.deleted_at
+		FROM ticket_links AS links
+		JOIN tickets AS source ON source.id = links.source_ticket_id
+		JOIN tickets AS target ON target.id = links.target_ticket_id
+		WHERE links.id = ? AND links.deleted_at IS NULL AND source.deleted_at IS NULL AND target.deleted_at IS NULL
+	`, linkID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return TicketLink{}, notFound("ticket_link", linkID)
+		}
+		return TicketLink{}, fmt.Errorf("get ticket link: %w", err)
+	}
+	return link, nil
+}
+
+func (r *Repository) insertTicketLink(ctx context.Context, q sqlRunner, link TicketLink) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO ticket_links (id, project_id, source_ticket_id, target_ticket_id, link_type, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, link.ID, link.ProjectID, link.Source.ID, link.Target.ID, link.LinkType, nullableString(link.CreatedBy), formatTime(link.CreatedAt))
+	if err != nil {
+		if isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_UNIQUE) {
+			return conflict("ticket_link", "link_type", link.LinkType)
+		}
+		if isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_CHECK) || isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY) {
+			return validationFailed(map[string]string{"target_ticket_id": "Invalid ticket link"})
+		}
+		return fmt.Errorf("insert ticket link: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) deleteTicketLink(ctx context.Context, q sqlRunner, linkID string, deletedAt time.Time) error {
+	result, err := q.ExecContext(ctx, `
+		UPDATE ticket_links
+		SET deleted_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, formatTime(deletedAt), linkID)
+	if err != nil {
+		return fmt.Errorf("delete ticket link: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read deleted ticket link rows: %w", err)
+	}
+	if deleted == 0 {
+		return notFound("ticket_link", linkID)
+	}
+	return nil
+}
+
 func (r *Repository) userExists(ctx context.Context, q sqlRunner, userID string) (bool, error) {
 	var exists int
 	if err := q.QueryRowContext(ctx, `
@@ -521,6 +620,140 @@ func scanTicketActivity(scanner rowScanner) (TicketActivity, error) {
 		return TicketActivity{}, fmt.Errorf("parse ticket activity created_at: %w", err)
 	}
 	return activity, nil
+}
+
+func scanTicketLink(scanner rowScanner) (TicketLink, error) {
+	var link TicketLink
+	var createdBy sql.NullString
+	var createdAt string
+	var sourceDescription sql.NullString
+	var sourcePriority sql.NullString
+	var sourceType sql.NullString
+	var sourceReporterID sql.NullString
+	var sourceAssigneeID sql.NullString
+	var sourceParentTicketID sql.NullString
+	var sourceSprintID sql.NullString
+	var sourceComponentID sql.NullString
+	var sourceVersionID sql.NullString
+	var sourceRank sql.NullString
+	var sourceStartDate sql.NullString
+	var sourceDueDate sql.NullString
+	var sourceCreatedAt string
+	var sourceUpdatedAt string
+	var sourceDeletedAt sql.NullString
+	var targetDescription sql.NullString
+	var targetPriority sql.NullString
+	var targetType sql.NullString
+	var targetReporterID sql.NullString
+	var targetAssigneeID sql.NullString
+	var targetParentTicketID sql.NullString
+	var targetSprintID sql.NullString
+	var targetComponentID sql.NullString
+	var targetVersionID sql.NullString
+	var targetRank sql.NullString
+	var targetStartDate sql.NullString
+	var targetDueDate sql.NullString
+	var targetCreatedAt string
+	var targetUpdatedAt string
+	var targetDeletedAt sql.NullString
+	if err := scanner.Scan(
+		&link.ID,
+		&link.ProjectID,
+		&link.LinkType,
+		&createdBy,
+		&createdAt,
+		&link.Source.ID,
+		&link.Source.ProjectID,
+		&link.Source.Key,
+		&link.Source.Title,
+		&sourceDescription,
+		&link.Source.Status,
+		&sourcePriority,
+		&sourceType,
+		&sourceReporterID,
+		&sourceAssigneeID,
+		&sourceParentTicketID,
+		&sourceSprintID,
+		&sourceComponentID,
+		&sourceVersionID,
+		&sourceRank,
+		&sourceStartDate,
+		&sourceDueDate,
+		&sourceCreatedAt,
+		&sourceUpdatedAt,
+		&sourceDeletedAt,
+		&link.Target.ID,
+		&link.Target.ProjectID,
+		&link.Target.Key,
+		&link.Target.Title,
+		&targetDescription,
+		&link.Target.Status,
+		&targetPriority,
+		&targetType,
+		&targetReporterID,
+		&targetAssigneeID,
+		&targetParentTicketID,
+		&targetSprintID,
+		&targetComponentID,
+		&targetVersionID,
+		&targetRank,
+		&targetStartDate,
+		&targetDueDate,
+		&targetCreatedAt,
+		&targetUpdatedAt,
+		&targetDeletedAt,
+	); err != nil {
+		return TicketLink{}, err
+	}
+	link.CreatedBy = nullString(createdBy)
+	link.Source.Description = nullString(sourceDescription)
+	link.Source.Priority = nullString(sourcePriority)
+	link.Source.Type = nullString(sourceType)
+	link.Source.ReporterID = nullString(sourceReporterID)
+	link.Source.AssigneeID = nullString(sourceAssigneeID)
+	link.Source.ParentTicketID = nullString(sourceParentTicketID)
+	link.Source.SprintID = nullString(sourceSprintID)
+	link.Source.ComponentID = nullString(sourceComponentID)
+	link.Source.VersionID = nullString(sourceVersionID)
+	link.Source.Rank = nullString(sourceRank)
+	link.Source.StartDate = nullString(sourceStartDate)
+	link.Source.DueDate = nullString(sourceDueDate)
+	link.Source.DeletedAt = parseNullableTime(sourceDeletedAt)
+	link.Target.Description = nullString(targetDescription)
+	link.Target.Priority = nullString(targetPriority)
+	link.Target.Type = nullString(targetType)
+	link.Target.ReporterID = nullString(targetReporterID)
+	link.Target.AssigneeID = nullString(targetAssigneeID)
+	link.Target.ParentTicketID = nullString(targetParentTicketID)
+	link.Target.SprintID = nullString(targetSprintID)
+	link.Target.ComponentID = nullString(targetComponentID)
+	link.Target.VersionID = nullString(targetVersionID)
+	link.Target.Rank = nullString(targetRank)
+	link.Target.StartDate = nullString(targetStartDate)
+	link.Target.DueDate = nullString(targetDueDate)
+	link.Target.DeletedAt = parseNullableTime(targetDeletedAt)
+	var err error
+	link.CreatedAt, err = parseTime(createdAt)
+	if err != nil {
+		return TicketLink{}, fmt.Errorf("parse ticket link created_at: %w", err)
+	}
+	link.Source.CreatedAt, err = parseTime(sourceCreatedAt)
+	if err != nil {
+		return TicketLink{}, fmt.Errorf("parse source ticket created_at: %w", err)
+	}
+	link.Source.UpdatedAt, err = parseTime(sourceUpdatedAt)
+	if err != nil {
+		return TicketLink{}, fmt.Errorf("parse source ticket updated_at: %w", err)
+	}
+	link.Target.CreatedAt, err = parseTime(targetCreatedAt)
+	if err != nil {
+		return TicketLink{}, fmt.Errorf("parse target ticket created_at: %w", err)
+	}
+	link.Target.UpdatedAt, err = parseTime(targetUpdatedAt)
+	if err != nil {
+		return TicketLink{}, fmt.Errorf("parse target ticket updated_at: %w", err)
+	}
+	return link, nil
 }
 
 func normalizeListWindow(limit int, offset int) (int, int) {

@@ -8,11 +8,12 @@ Implemented browser workflows:
 - dashboard summary with recently modified tickets, biggest projects, active sprints, unread notifications, and ticket/project counts;
 - project list and project creation;
 - project detail pages under `/projects/{project_id}`;
-- issue detail pages under `/issues/{ticket_id}` with comments, attachments, custom fields, and activity history;
+- issue detail pages under `/issues/{ticket_id}` with linked issues, comments, attachments, custom fields, and activity history;
 - ticket list for the selected project with label, component, and version filters;
 - ticket creation;
 - ticket status changes;
 - ticket label entry, display, update from ticket cards, and project label filtering with ticket counts;
+- ticket link list, creation, and removal from ticket cards and issue detail pages;
 - ticket comment list, creation, and deletion from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
 - notification inbox listing with a persistent unread badge, unread filter, read/unread toggle, refresh, and mark-all-read;
@@ -45,7 +46,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline board edits, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, roadmap drag/drop dependencies and capacity planning, richer component/version reporting beyond compact live version reports, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline board edits, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, roadmap drag/drop dependency graph visualization and capacity planning, richer component/version reporting beyond compact live version reports, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
