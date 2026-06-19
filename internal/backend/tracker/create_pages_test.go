@@ -149,6 +149,29 @@ func TestCreatePagePermissionsAndConflicts(t *testing.T) {
 	if _, err := pageService.Create(ctx, principal("user-member"), tracker.CreateCreatePageInput{ProjectID: project.ID, Name: "Nope", Slug: "nope", Enabled: true}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected member management forbidden, got %v", err)
 	}
+	if _, err := pageService.Create(ctx, admin, tracker.CreateCreatePageInput{
+		ProjectID: project.ID,
+		Name:      "Unsafe Layout",
+		Slug:      "unsafe-layout",
+		FieldLayout: []map[string]any{{
+			"type": "section",
+			"fields": []any{
+				map[string]any{"html": "<strong>no</strong>"},
+			},
+		}},
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected nested raw HTML layout validation, got %v", err)
+	}
+	unsafeUpdate := []map[string]any{{
+		"type": "section",
+		"fields": []any{
+			map[string]any{"key": "title", "type": "text"},
+			map[string]any{"type": "help", "html": "<em>no</em>"},
+		},
+	}}
+	if _, err := pageService.Update(ctx, admin, page.ID, tracker.UpdateCreatePageInput{FieldLayout: &unsafeUpdate}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected nested raw HTML update validation, got %v", err)
+	}
 	if _, err := pageService.Submit(ctx, principal("user-viewer"), project.ID, page.Slug, tracker.SubmitCreatePageInput{Ticket: tracker.CreateTicketInput{Title: "Viewer submit"}}); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("expected viewer submit forbidden from ticket create path, got %v", err)
 	}
