@@ -2939,6 +2939,22 @@ p {
   grid-template-columns: minmax(180px, 1fr) 130px 130px 150px minmax(160px, 1fr) minmax(210px, 1.2fr) auto auto auto;
 }
 
+.custom-field-search-controls {
+  min-width: 0;
+}
+
+.custom-field-search-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.6fr) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.custom-field-search-value {
+  min-width: 0;
+  display: grid;
+}
+
 .search-grid {
   min-width: 0;
   display: grid;
@@ -3675,6 +3691,7 @@ p {
   .ticket-filter-form,
   .columns,
   .search-form,
+  .custom-field-search-form,
   .saved-view-form,
   .search-grid,
   .sprint-form,

@@ -237,7 +237,7 @@ Roadmap dependency list items use `metadata` for the ticket link identity, `spec
 
 ## Custom Fields
 
-The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/update/delete controls and JSON ticket custom-field value editing. Custom create page layouts, richer field schemas, and field-aware search/layout screens are **Planned**.
+The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/update/delete controls, JSON ticket custom-field value editing, and field-aware `/search` controls that append safe custom-field CEL clauses to the search filter. Custom create page layouts, richer field schemas, and richer field-aware layout screens are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -384,7 +384,7 @@ Saved views:
 | `PATCH` | `/api/saved-views/{view_id}` | `{"spec":{...}}` with any subset of `name`, `query`, `sort`, `columns`, `display_mode`, `group_by`, `pinned`. |
 | `DELETE` | `/api/saved-views/{view_id}` | none |
 
-Saved-view responses use `metadata`, `spec`, and `status`. The view ID and timestamps are in `metadata`; scope, project, query, sort, columns, display mode, grouping, and pinned state are in `spec`. Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `labels`, `start_date`, and `due_date`. Only project-scoped views can be pinned. The embedded `/search` page exposes cursor-paginated search results plus saved-view list pagination, create, edit, apply, and delete controls. Project pages list applicable saved views in the board panel, prioritize `display_mode: "board"` views, and apply the selected view through project-scoped search before re-bucketing matching tickets into the selected board columns.
+Saved-view responses use `metadata`, `spec`, and `status`. The view ID and timestamps are in `metadata`; scope, project, query, sort, columns, display mode, grouping, and pinned state are in `spec`. Saved-view scopes are `user`, `project`, and `global`. Managing project/global views requires the matching `views:manage` permission. Display modes are `list`, `board`, and `backlog`. Supported grouping fields are `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `priority`, and `type`. Saved-view columns can include built-in ticket fields, including `labels`, `start_date`, and `due_date`. Only project-scoped views can be pinned. The embedded `/search` page exposes cursor-paginated search results, field-aware custom-field filter building for the selected project, plus saved-view list pagination, create, edit, apply, and delete controls. Project pages list applicable saved views in the board panel, prioritize `display_mode: "board"` views, and apply the selected view through project-scoped search before re-bucketing matching tickets into the selected board columns.
 
 ## Notifications
 

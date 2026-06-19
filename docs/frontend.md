@@ -49,7 +49,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a roadmap panel with a scheduled epic timeline, read-only monthly capacity summary buckets, drag/drop timeline rescheduling, quick scheduling for unscheduled epics, inline schedule edits, child-ticket progress, and dependency list/editing controls, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, updating, and deleting project fields, plus field-aware ticket create/card controls for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
-- compact search with text/CEL filters, cursor-paginated results, saved-view list pagination, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning, plus pinned project saved views in project navigation and saved-view filters in project boards;
+- compact search with text/CEL filters, field-aware custom-field filter building, cursor-paginated results, saved-view list pagination, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning, plus pinned project saved views in project navigation and saved-view filters in project boards;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`, with state/mode badges, explicit action-preview display, and raw JSON output;
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
@@ -63,7 +63,7 @@ Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints.
 
-Richer board settings beyond inline edits, saved-view filters, and WIP warnings, richer backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, custom-field search/layout screens beyond ticket controls, richer saved-view UI beyond pinned project navigation and board filters, and advanced release planning beyond version drilldowns are **Planned**.
+Richer board settings beyond inline edits, saved-view filters, and WIP warnings, richer backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout screens beyond ticket controls and search filter building, richer saved-view UI beyond pinned project navigation and board filters, and advanced release planning beyond version drilldowns are **Planned**.
 
 ## Design Variants
 

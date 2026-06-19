@@ -228,6 +228,7 @@ const els = {
   ticketVersionID: document.querySelector("#ticket-version-id"),
   searchPanel: document.querySelector("#search-panel"),
   searchForm: document.querySelector("#search-form"),
+  customFieldSearchControls: document.querySelector("#custom-field-search-controls"),
   savedViewForm: document.querySelector("#saved-view-form"),
   savedViewCancelEdit: document.querySelector("#saved-view-cancel-edit"),
   searchResults: document.querySelector("#search-results"),
@@ -1514,6 +1515,31 @@ function bindEvents() {
     }, "Search complete");
   });
 
+  els.customFieldSearchControls.addEventListener("change", (event) => {
+    if (!event.target.matches("select[name='field_key'], select[name='operator']")) {
+      return;
+    }
+    const form = event.target.closest("[data-custom-field-search-form]");
+    if (form) {
+      renderCustomFieldSearchValueControl(form);
+    }
+  });
+
+  els.customFieldSearchControls.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-custom-field-search-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    const expression = customFieldSearchExpression(form);
+    if (!expression || !els.searchForm) {
+      return;
+    }
+    const input = els.searchForm.elements.filter;
+    input.value = appendSearchFilter(input.value, expression);
+    input.focus();
+  });
+
   els.searchPagination.addEventListener("click", async (event) => {
     const next = event.target.closest("[data-search-next]");
     if (next) {
@@ -2553,6 +2579,9 @@ async function loadRouteData() {
     return;
   }
   if (route.page === "search") {
+    if (state.selectedProject) {
+      await loadCustomFields({ renderTickets: false });
+    }
     await loadSavedViews();
     return;
   }
@@ -3743,6 +3772,7 @@ function render() {
   renderTicketFormOptions();
   renderTicketCreateCustomFields();
   renderTicketFilters();
+  renderCustomFieldSearchControls();
   renderSearchResults();
   renderSavedViews();
   renderTokens();
@@ -5744,6 +5774,182 @@ function renderSearchPagination() {
   next.textContent = "Next";
 
   els.searchPagination.append(summary, previous, next);
+}
+
+function renderCustomFieldSearchControls() {
+  if (!els.customFieldSearchControls) {
+    return;
+  }
+  els.customFieldSearchControls.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to build custom-field filters";
+    els.customFieldSearchControls.append(empty);
+    return;
+  }
+  if (!state.customFields.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No custom fields for search filters";
+    els.customFieldSearchControls.append(empty);
+    return;
+  }
+
+  const form = document.createElement("form");
+  form.className = "custom-field-search-form";
+  form.dataset.customFieldSearchForm = "true";
+
+  const field = document.createElement("select");
+  field.name = "field_key";
+  field.setAttribute("aria-label", "Custom field");
+  for (const item of state.customFields) {
+    const option = document.createElement("option");
+    option.value = item.key;
+    option.textContent = `${item.name || item.key} (${item.field_type || "text"})`;
+    field.append(option);
+  }
+
+  const operator = document.createElement("select");
+  operator.name = "operator";
+  operator.setAttribute("aria-label", "Custom field operator");
+
+  const value = document.createElement("span");
+  value.className = "custom-field-search-value";
+  value.dataset.customFieldSearchValue = "true";
+
+  const add = document.createElement("button");
+  add.type = "submit";
+  add.textContent = "Add filter";
+
+  form.append(field, operator, value, add);
+  els.customFieldSearchControls.append(form);
+  renderCustomFieldSearchValueControl(form);
+}
+
+function renderCustomFieldSearchValueControl(form) {
+  const field = selectedCustomSearchField(form);
+  const operator = form.querySelector("select[name='operator']");
+  const value = form.querySelector("[data-custom-field-search-value]");
+  if (!field || !operator || !value) {
+    return;
+  }
+  const currentOperator = operator.value;
+  operator.replaceChildren();
+  for (const item of customFieldSearchOperators(field)) {
+    const option = document.createElement("option");
+    option.value = item.value;
+    option.textContent = item.label;
+    option.selected = item.value === currentOperator;
+    operator.append(option);
+  }
+  if (![...operator.options].some((item) => item.selected)) {
+    operator.selectedIndex = 0;
+  }
+  value.replaceChildren(customFieldSearchValueControl(field, operator.value));
+}
+
+function customFieldSearchOperators(field) {
+  switch (field.field_type) {
+    case "number":
+    case "date":
+      return [
+        { value: "==", label: "=" },
+        { value: "!=", label: "!=" },
+        { value: ">=", label: ">=" },
+        { value: "<=", label: "<=" },
+        { value: ">", label: ">" },
+        { value: "<", label: "<" }
+      ];
+    case "boolean":
+      return [
+        { value: "==", label: "is" },
+        { value: "!=", label: "is not" }
+      ];
+    case "multi_select":
+      return [
+        { value: "contains", label: "contains" },
+        { value: "not_contains", label: "does not contain" }
+      ];
+    default:
+      return [
+        { value: "==", label: "=" },
+        { value: "!=", label: "!=" }
+      ];
+  }
+}
+
+function customFieldSearchValueControl(field) {
+  if (field.field_type === "boolean") {
+    const select = document.createElement("select");
+    select.name = "value";
+    appendCustomFieldOption(select, "true", "true");
+    appendCustomFieldOption(select, "false", "false");
+    return select;
+  }
+  if (field.field_type === "single_select" || field.field_type === "multi_select") {
+    const select = document.createElement("select");
+    select.name = "value";
+    for (const option of field.options || []) {
+      appendCustomFieldOption(select, option, option);
+    }
+    return select;
+  }
+  const input = document.createElement("input");
+  input.name = "value";
+  input.placeholder = field.name || field.key;
+  if (field.field_type === "number") {
+    input.type = "number";
+    input.step = "any";
+  } else if (field.field_type === "date") {
+    input.type = "date";
+  } else {
+    input.type = "text";
+  }
+  return input;
+}
+
+function customFieldSearchExpression(form) {
+  const field = selectedCustomSearchField(form);
+  const operator = formData(form).operator || "==";
+  const rawValue = formData(form).value;
+  if (!field || rawValue === undefined || rawValue === "") {
+    return "";
+  }
+  const literal = customFieldSearchLiteral(rawValue, field.field_type);
+  if (!literal) {
+    return "";
+  }
+  const key = `custom.${field.key}`;
+  if (operator === "contains" || operator === "not_contains") {
+    const expression = `${customFieldSearchLiteral(rawValue, "text")} in ${key}`;
+    return operator === "not_contains" ? `!(${expression})` : expression;
+  }
+  return `${key} ${operator} ${literal}`;
+}
+
+function selectedCustomSearchField(form) {
+  const key = formData(form).field_key || "";
+  return state.customFields.find((field) => field.key === key) || state.customFields[0] || null;
+}
+
+function customFieldSearchLiteral(value, fieldType) {
+  if (fieldType === "number") {
+    const number = Number(value);
+    return Number.isFinite(number) ? String(number) : "";
+  }
+  if (fieldType === "boolean") {
+    return value === true || value === "true" ? "true" : "false";
+  }
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+}
+
+function appendSearchFilter(current, expression) {
+  const filter = String(current || "").trim();
+  if (!filter) {
+    return expression;
+  }
+  return `(${filter}) && (${expression})`;
 }
 
 function renderSavedViews() {
