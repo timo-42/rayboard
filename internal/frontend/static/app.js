@@ -1794,6 +1794,7 @@ function bindEvents() {
         body: { spec: { status: button.dataset.ticketStatus } }
       });
       await refreshTicketViews(button.dataset.ticketId);
+      await refreshSelectedVersionReport();
     }, "Ticket updated");
   });
 
