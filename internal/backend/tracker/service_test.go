@@ -519,11 +519,13 @@ func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
 	member := principal("user-member")
 	viewer := principal("user-viewer")
 
-	source, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Implement checkout"})
+	sourcePoints := 2.0
+	source, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Implement checkout", StoryPoints: &sourcePoints})
 	if err != nil {
 		t.Fatalf("create source ticket: %v", err)
 	}
-	target, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix payment gateway"})
+	targetPoints := 5.0
+	target, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix payment gateway", StoryPoints: &targetPoints})
 	if err != nil {
 		t.Fatalf("create target ticket: %v", err)
 	}
@@ -549,6 +551,9 @@ func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
 	}
 	if len(links) != 1 || links[0].ID != link.ID || links[0].Target.Key != target.Key {
 		t.Fatalf("unexpected links: %#v", links)
+	}
+	if links[0].Source.StoryPoints == nil || *links[0].Source.StoryPoints != 2 || links[0].Target.StoryPoints == nil || *links[0].Target.StoryPoints != 5 {
+		t.Fatalf("expected link tickets to include story points, got source=%#v target=%#v", links[0].Source.StoryPoints, links[0].Target.StoryPoints)
 	}
 
 	if _, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: target.ID, LinkType: "blocks"}); !errors.Is(err, tracker.ErrConflict) {
