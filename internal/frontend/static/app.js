@@ -7105,19 +7105,12 @@ function notificationHookRunListNode(runs) {
     summary.textContent = [
       run.state || "queued",
       run.trigger_type,
-      run.trigger_ref ? `ref ${run.trigger_ref}` : "",
-      run.project_id ? `project ${run.project_id}` : "",
-      run.ticket_id ? `ticket ${run.ticket_id}` : "",
-      run.created_at ? `created ${formatDateTime(run.created_at)}` : "",
-      run.started_at ? `started ${formatDateTime(run.started_at)}` : "",
-      run.finished_at ? `finished ${formatDateTime(run.finished_at)}` : "",
+      run.created_at ? formatDateTime(run.created_at) : "",
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
-    const input = document.createElement("pre");
-    input.textContent = JSON.stringify({ input: run.input || {} }, null, 2);
     const output = document.createElement("pre");
-    output.textContent = JSON.stringify({ output: run.output || {} }, null, 2);
-    item.append(summary, input, output);
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
     list.append(item);
   }
   return list;
@@ -7366,12 +7359,19 @@ function cronRunListNode(runs) {
     summary.textContent = [
       run.state || "queued",
       run.trigger_type,
-      run.created_at ? formatDateTime(run.created_at) : "",
+      run.trigger_ref ? `ref ${run.trigger_ref}` : "",
+      run.project_id ? `project ${run.project_id}` : "",
+      run.ticket_id ? `ticket ${run.ticket_id}` : "",
+      run.created_at ? `created ${formatDateTime(run.created_at)}` : "",
+      run.started_at ? `started ${formatDateTime(run.started_at)}` : "",
+      run.finished_at ? `finished ${formatDateTime(run.finished_at)}` : "",
       run.error ? `error: ${run.error}` : ""
     ].filter(Boolean).join(" / ");
+    const input = document.createElement("pre");
+    input.textContent = JSON.stringify({ input: run.input || {} }, null, 2);
     const output = document.createElement("pre");
-    output.textContent = JSON.stringify(run.output || {}, null, 2);
-    item.append(summary, output);
+    output.textContent = JSON.stringify({ output: run.output || {} }, null, 2);
+    item.append(summary, input, output);
     list.append(item);
   }
   return list;
