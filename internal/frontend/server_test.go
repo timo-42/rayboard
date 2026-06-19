@@ -811,6 +811,12 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"scheduleRoadmapItem",
 		"scheduleRoadmapItemSpec",
 		"renderRoadmap",
+		"loadRoadmapCapacityTickets",
+		"roadmapCapacityNode",
+		"roadmapCapacitySummary",
+		"roadmapCapacityItemWork",
+		"roadmapCapacityBucketNode",
+		"roadmapCapacityChildTickets",
 		"roadmapTimelineNode",
 		"roadmapScheduleFormNode",
 		"roadmapQuickScheduleNode",
@@ -822,6 +828,7 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"normalizeRoadmapItem",
 		"roadmapEpics",
 		"/api/projects/${state.selectedProject.id}/roadmap",
+		"/api/projects/${state.selectedProject.id}/tickets",
 		"/api/projects/${state.selectedProject.id}/roadmap/dependencies",
 		"/api/projects/${state.selectedProject.id}/roadmap/schedule",
 		"ticket-parent-id",
@@ -835,6 +842,8 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"els.roadmapDependencies.addEventListener(\"click\"",
 		"els.roadmapDependencies.addEventListener(\"change\"",
 		"application/rayboard-roadmap-epic",
+		"Capacity summary",
+		"Remaining pts",
 		"roadmap-progress",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -845,6 +854,8 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 	for _, expected := range []string{
 		".roadmap-panel",
 		".roadmap-list",
+		".roadmap-capacity",
+		".roadmap-capacity-bucket",
 		".roadmap-timeline",
 		".roadmap-unscheduled",
 		".roadmap-dependencies",

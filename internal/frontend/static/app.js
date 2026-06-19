@@ -32,6 +32,7 @@ const state = {
   versionReport: null,
   customFields: [],
   roadmap: [],
+  roadmapCapacityTickets: [],
   roadmapDependencies: [],
   attachments: {},
   comments: {},
@@ -318,6 +319,7 @@ function bindEvents() {
       state.versions = [];
       state.customFields = [];
       state.roadmap = [];
+      state.roadmapCapacityTickets = [];
       state.attachments = {};
       state.comments = {};
       state.ticketLinks = {};
@@ -2949,6 +2951,7 @@ async function loadCustomFields(options = {}) {
 async function loadRoadmap(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.roadmap = [];
+    state.roadmapCapacityTickets = [];
     state.roadmapDependencies = [];
     renderRoadmap();
     renderRoadmapDependencies();
@@ -2960,10 +2963,24 @@ async function loadRoadmap(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/roadmap`);
   state.roadmap = listItems(data).map(normalizeRoadmapItem);
+  await loadRoadmapCapacityTickets();
   renderRoadmap();
   renderTicketFormOptions();
   if (options.renderTickets !== false) {
     renderTickets();
+  }
+}
+
+async function loadRoadmapCapacityTickets() {
+  if (!state.selectedProject) {
+    state.roadmapCapacityTickets = [];
+    return;
+  }
+  try {
+    const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
+    state.roadmapCapacityTickets = listItems(data).map(normalizeTicket).filter(Boolean);
+  } catch (_) {
+    state.roadmapCapacityTickets = [];
   }
 }
 
@@ -3128,6 +3145,7 @@ async function loadProjects(selectedID = "") {
     state.projectLabels = [];
     state.customFields = [];
     state.roadmap = [];
+    state.roadmapCapacityTickets = [];
     state.roadmapDependencies = [];
     state.attachments = {};
     state.comments = {};
@@ -5135,6 +5153,7 @@ function renderRoadmap() {
 
   const scheduled = state.roadmap.filter((item) => item.epic && (item.epic.start_date || item.epic.due_date));
   const unscheduled = state.roadmap.filter((item) => !item.epic || (!item.epic.start_date && !item.epic.due_date));
+  els.roadmap.append(roadmapCapacityNode(state.roadmap));
   if (scheduled.length) {
     els.roadmap.append(roadmapTimelineNode(scheduled));
   }
@@ -5304,6 +5323,210 @@ function roadmapEpicName(epicID) {
     return epicID || "";
   }
   return `${item.epic.key || item.epic.id} ${item.epic.title || ""}`.trim();
+}
+
+function roadmapCapacityNode(items) {
+  const summary = roadmapCapacitySummary(items);
+  const section = document.createElement("section");
+  section.className = "roadmap-capacity";
+
+  const header = document.createElement("div");
+  header.className = "roadmap-capacity-header";
+  const title = document.createElement("h3");
+  title.textContent = "Capacity summary";
+  const meta = document.createElement("span");
+  meta.textContent = `${summary.scheduled} scheduled / ${summary.unscheduled} unscheduled epics`;
+  header.append(title, meta);
+
+  const metrics = document.createElement("div");
+  metrics.className = "roadmap-capacity-metrics";
+  metrics.append(
+    sprintMetricNode("Epics", summary.total),
+    sprintMetricNode("Scheduled", summary.scheduled),
+    sprintMetricNode("Open children", summary.openChildren),
+    sprintMetricNode("Done children", `${summary.doneChildren}/${summary.childTickets}`),
+    sprintMetricNode("Points", formatStoryPoints(summary.storyPointsTotal)),
+    sprintMetricNode("Remaining pts", formatStoryPoints(summary.storyPointsRemaining)),
+    sprintMetricNode("Unestimated", summary.unestimatedChildren)
+  );
+
+  const buckets = document.createElement("div");
+  buckets.className = "roadmap-capacity-buckets";
+  if (summary.buckets.length) {
+    for (const bucket of summary.buckets) {
+      buckets.append(roadmapCapacityBucketNode(bucket));
+    }
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Schedule epics to see monthly capacity.";
+    buckets.append(empty);
+  }
+
+  section.append(header, metrics, buckets);
+  return section;
+}
+
+function roadmapCapacitySummary(items) {
+  const summary = {
+    total: 0,
+    scheduled: 0,
+    unscheduled: 0,
+    childTickets: 0,
+    doneChildren: 0,
+    openChildren: 0,
+    storyPointsTotal: 0,
+    storyPointsDone: 0,
+    storyPointsRemaining: 0,
+    unestimatedChildren: 0,
+    buckets: []
+  };
+  const buckets = new Map();
+  for (const item of items) {
+    if (!item || !item.epic) {
+      summary.unscheduled += 1;
+      continue;
+    }
+    summary.total += 1;
+    const work = roadmapCapacityItemWork(item);
+    summary.childTickets += work.childTickets;
+    summary.doneChildren += work.doneChildren;
+    summary.openChildren += work.openChildren;
+    summary.storyPointsTotal += work.storyPointsTotal;
+    summary.storyPointsDone += work.storyPointsDone;
+    summary.storyPointsRemaining += work.storyPointsRemaining;
+    summary.unestimatedChildren += work.unestimatedChildren;
+    const epic = item.epic;
+    const bucketKey = roadmapCapacityBucketKey(epic);
+    if (!bucketKey) {
+      summary.unscheduled += 1;
+      continue;
+    }
+    summary.scheduled += 1;
+    if (!buckets.has(bucketKey)) {
+      buckets.set(bucketKey, {
+        key: bucketKey,
+        label: roadmapCapacityBucketLabel(bucketKey),
+        epics: 0,
+        childTickets: 0,
+        doneChildren: 0,
+        openChildren: 0,
+        storyPointsTotal: 0,
+        storyPointsDone: 0,
+        storyPointsRemaining: 0,
+        unestimatedChildren: 0
+      });
+    }
+    const bucket = buckets.get(bucketKey);
+    bucket.epics += 1;
+    bucket.childTickets += work.childTickets;
+    bucket.doneChildren += work.doneChildren;
+    bucket.openChildren += work.openChildren;
+    bucket.storyPointsTotal += work.storyPointsTotal;
+    bucket.storyPointsDone += work.storyPointsDone;
+    bucket.storyPointsRemaining += work.storyPointsRemaining;
+    bucket.unestimatedChildren += work.unestimatedChildren;
+  }
+  summary.buckets = Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
+  return summary;
+}
+
+function roadmapCapacityItemWork(item) {
+  const epic = item.epic || {};
+  const children = roadmapCapacityChildTickets(epic.id);
+  if (children.length) {
+    const work = {
+      childTickets: children.length,
+      doneChildren: 0,
+      openChildren: 0,
+      storyPointsTotal: 0,
+      storyPointsDone: 0,
+      storyPointsRemaining: 0,
+      unestimatedChildren: 0
+    };
+    for (const ticket of children) {
+      const done = ticket.status === "done";
+      if (done) {
+        work.doneChildren += 1;
+      } else {
+        work.openChildren += 1;
+      }
+      if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+        work.unestimatedChildren += 1;
+      } else {
+        const points = Number(ticket.story_points || 0);
+        work.storyPointsTotal += points;
+        if (done) {
+          work.storyPointsDone += points;
+        } else {
+          work.storyPointsRemaining += points;
+        }
+      }
+    }
+    return work;
+  }
+  const progress = item.progress || {};
+  const childTickets = Number(progress.total || 0);
+  const doneChildren = Number(progress.done || 0);
+  return {
+    childTickets,
+    doneChildren,
+    openChildren: Math.max(childTickets - doneChildren, 0),
+    storyPointsTotal: 0,
+    storyPointsDone: 0,
+    storyPointsRemaining: 0,
+    unestimatedChildren: childTickets
+  };
+}
+
+function roadmapCapacityChildTickets(epicID) {
+  if (!epicID || !Array.isArray(state.roadmapCapacityTickets)) {
+    return [];
+  }
+  return state.roadmapCapacityTickets.filter((ticket) => ticket.parent_ticket_id === epicID);
+}
+
+function roadmapCapacityBucketKey(epic) {
+  const date = dateToUTC(epic.due_date || epic.start_date);
+  if (!date) {
+    return "";
+  }
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function roadmapCapacityBucketLabel(key) {
+  const date = dateToUTC(`${key}-01`);
+  if (!date) {
+    return key;
+  }
+  return date.toLocaleString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function roadmapCapacityBucketNode(bucket) {
+  const ratio = bucket.childTickets > 0 ? bucket.doneChildren / bucket.childTickets : 1;
+  const atRisk = bucket.openChildren >= 8 || (bucket.childTickets > 0 && ratio < 0.35);
+  const article = document.createElement("article");
+  article.className = atRisk ? "roadmap-capacity-bucket is-at-risk" : "roadmap-capacity-bucket";
+
+  const title = document.createElement("strong");
+  title.textContent = bucket.label;
+  const meta = document.createElement("span");
+  meta.textContent = `${bucket.epics} epics / ${bucket.openChildren} open children`;
+  const progress = document.createElement("div");
+  progress.className = "roadmap-progress";
+  progress.setAttribute("aria-label", `${Math.round(ratio * 100)}% complete`);
+  const fill = document.createElement("span");
+  fill.style.width = `${Math.round(ratio * 100)}%`;
+  progress.append(fill);
+  const detail = document.createElement("small");
+  const pointText = bucket.storyPointsTotal > 0
+    ? `${formatStoryPoints(bucket.storyPointsRemaining)} pts remaining`
+    : `${bucket.unestimatedChildren} unestimated`;
+  detail.textContent = `${bucket.doneChildren}/${bucket.childTickets} child tickets done / ${pointText}${atRisk ? " / capacity risk" : ""}`;
+  article.append(title, meta, progress, detail);
+  return article;
 }
 
 function roadmapTimelineNode(items) {
