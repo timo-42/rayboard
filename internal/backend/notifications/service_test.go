@@ -89,6 +89,9 @@ func TestNotificationEventHandlers(t *testing.T) {
 	seedNotificationUser(t, ctx, db, "reporter")
 	seedNotificationUser(t, ctx, db, "assignee")
 	seedNotificationUser(t, ctx, db, "watcher")
+	seedNotificationUser(t, ctx, db, "mentioned")
+	seedNotificationUser(t, ctx, db, "disabled")
+	disableNotificationUser(t, ctx, db, "disabled")
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
 	seedNotificationWatcher(t, ctx, db, "ticket-1", "watcher")
 
@@ -107,6 +110,36 @@ func TestNotificationEventHandlers(t *testing.T) {
 	}
 	if got := countNotifications(t, ctx, db, "comment_added"); got != 3 {
 		t.Fatalf("expected 2 comment notifications, got %d", got)
+	}
+	for _, event := range []events.Event{
+		{
+			Type:     "comment.mentioned",
+			ActorID:  "actor",
+			ObjectID: "comment-1",
+			Data:     map[string]any{"ticket_id": "ticket-1", "mentioned_user_id": "mentioned", "mentioned_username": "mentioned"},
+		},
+		{
+			Type:     "comment.mentioned",
+			ActorID:  "actor",
+			ObjectID: "comment-1",
+			Data:     map[string]any{"ticket_id": "ticket-1", "mentioned_user_id": "disabled", "mentioned_username": "disabled"},
+		},
+		{
+			Type:     "comment.mentioned",
+			ActorID:  "actor",
+			ObjectID: "comment-1",
+			Data:     map[string]any{"ticket_id": "ticket-1", "mentioned_user_id": "actor", "mentioned_username": "actor"},
+		},
+	} {
+		if errs := bus.Publish(ctx, event); len(errs) != 0 {
+			t.Fatalf("mention event errors: %v", errs)
+		}
+	}
+	if got := countNotifications(t, ctx, db, "comment_mentioned"); got != 1 {
+		t.Fatalf("expected 1 mention notification, got %d", got)
+	}
+	if got := countNotificationsForUser(t, ctx, db, "mentioned", "comment_mentioned"); got != 1 {
+		t.Fatalf("expected mentioned user notification, got %d", got)
 	}
 
 	errs = bus.Publish(ctx, events.Event{
@@ -145,6 +178,7 @@ func TestNotificationEventHandlersDeduplicateWatchersAndExcludeActor(t *testing.
 	seedNotificationUser(t, ctx, db, "actor")
 	seedNotificationUser(t, ctx, db, "reporter")
 	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationUser(t, ctx, db, "mentioned")
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
 	seedNotificationWatcher(t, ctx, db, "ticket-1", "reporter")
 	seedNotificationWatcher(t, ctx, db, "ticket-1", "actor")
@@ -173,6 +207,7 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	seedNotificationUser(t, ctx, db, "actor")
 	seedNotificationUser(t, ctx, db, "reporter")
 	seedNotificationUser(t, ctx, db, "assignee")
+	seedNotificationUser(t, ctx, db, "mentioned")
 	seedNotificationTicket(t, ctx, db, "ticket-1", "AUTO-1", "reporter", "assignee")
 
 	eventStore := events.NewStore(db.SQL)
@@ -184,6 +219,14 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 		Data:     map[string]any{"ticket_id": "ticket-1"},
 	}); err != nil {
 		t.Fatalf("append comment event: %v", err)
+	}
+	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "comment.mentioned",
+		ActorID:  "actor",
+		ObjectID: "comment-1",
+		Data:     map[string]any{"ticket_id": "ticket-1", "mentioned_user_id": "mentioned", "mentioned_username": "mentioned"},
+	}); err != nil {
+		t.Fatalf("append comment mention event: %v", err)
 	}
 	if err := eventStore.Append(ctx, nil, events.Event{
 		Type:     "ticket.updated",
@@ -205,11 +248,14 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("process pending domain events: %v", err)
 	}
-	if processed != 2 {
-		t.Fatalf("expected 2 processed events, got %d", processed)
+	if processed != 3 {
+		t.Fatalf("expected 3 processed events, got %d", processed)
 	}
 	if got := countNotifications(t, ctx, db, "comment_added"); got != 2 {
 		t.Fatalf("expected 2 comment notifications, got %d", got)
+	}
+	if got := countNotifications(t, ctx, db, "comment_mentioned"); got != 1 {
+		t.Fatalf("expected 1 mention notification, got %d", got)
 	}
 	if got := countNotifications(t, ctx, db, "ticket_status_changed"); got != 2 {
 		t.Fatalf("expected 2 status notifications, got %d", got)
@@ -224,6 +270,7 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 		t.Fatalf("expected 2 release notifications, got %d", got)
 	}
 	assertDomainEventStatus(t, ctx, db, "comment.created", "processed", 1, "")
+	assertDomainEventStatus(t, ctx, db, "comment.mentioned", "processed", 1, "")
 	assertDomainEventStatus(t, ctx, db, "ticket.updated", "processed", 1, "")
 
 	processed, err = service.ProcessPendingDomainEvents(ctx, 10)
@@ -233,7 +280,7 @@ func TestProcessPendingDomainEvents(t *testing.T) {
 	if processed != 0 {
 		t.Fatalf("expected no processed events on rerun, got %d", processed)
 	}
-	if got := totalNotifications(t, ctx, db); got != 9 {
+	if got := totalNotifications(t, ctx, db); got != 10 {
 		t.Fatalf("expected no duplicate notifications on rerun, got %d", got)
 	}
 }
@@ -264,7 +311,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	mustNotificationPolicy(t, ctx, service, CreatePolicyInput{
 		Name:           "global comments",
 		ScopeType:      PolicyScopeGlobal,
-		EventTypes:     []string{"comment_added"},
+		EventTypes:     []string{"comment_added", "comment_mentioned"},
 		DestinationIDs: []string{globalDestination.ID},
 		Enabled:        true,
 	})
@@ -293,6 +340,14 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 		t.Fatalf("append comment event: %v", err)
 	}
 	if err := eventStore.Append(ctx, nil, events.Event{
+		Type:     "comment.mentioned",
+		ActorID:  "actor",
+		ObjectID: "comment-1",
+		Data:     map[string]any{"ticket_id": "ticket-1", "mentioned_user_id": "assignee", "mentioned_username": "assignee"},
+	}); err != nil {
+		t.Fatalf("append mention event: %v", err)
+	}
+	if err := eventStore.Append(ctx, nil, events.Event{
 		Type:      "ticket.updated",
 		ActorID:   "actor",
 		ProjectID: "project-1",
@@ -313,11 +368,14 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("process pending domain events: %v", err)
 	}
-	if processed != 2 {
-		t.Fatalf("expected 2 processed events, got %d", processed)
+	if processed != 3 {
+		t.Fatalf("expected 3 processed events, got %d", processed)
 	}
 	if got := countDeliveries(t, ctx, db, "comment_added"); got != 1 {
 		t.Fatalf("expected 1 comment delivery, got %d", got)
+	}
+	if got := countDeliveries(t, ctx, db, "comment_mentioned"); got != 1 {
+		t.Fatalf("expected 1 mention delivery, got %d", got)
 	}
 	if got := countDeliveries(t, ctx, db, "ticket_status_changed"); got != 2 {
 		t.Fatalf("expected 2 status deliveries, got %d", got)
@@ -339,7 +397,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	`).Scan(&keyCount); err != nil {
 		t.Fatalf("count idempotent deliveries: %v", err)
 	}
-	if keyCount != 9 {
+	if keyCount != 10 {
 		t.Fatalf("expected all deliveries to have idempotency keys and domain events, got %d", keyCount)
 	}
 
@@ -350,7 +408,7 @@ func TestProcessPendingDomainEventsEnqueuesPolicyDeliveries(t *testing.T) {
 	if processed != 0 {
 		t.Fatalf("expected no processed events on rerun, got %d", processed)
 	}
-	if got := totalDeliveries(t, ctx, db); got != 9 {
+	if got := totalDeliveries(t, ctx, db); got != 10 {
 		t.Fatalf("expected no duplicate deliveries, got %d", got)
 	}
 }
@@ -413,6 +471,14 @@ func seedNotificationUser(t *testing.T, ctx context.Context, db *store.DB, id st
 	}
 }
 
+func disableNotificationUser(t *testing.T, ctx context.Context, db *store.DB, id string) {
+	t.Helper()
+
+	if _, err := db.SQL.ExecContext(ctx, "UPDATE users SET is_disabled = 1 WHERE id = ?", id); err != nil {
+		t.Fatalf("disable user %s: %v", id, err)
+	}
+}
+
 func seedNotificationProject(t *testing.T, ctx context.Context, db *store.DB, id string, key string) {
 	t.Helper()
 
@@ -458,6 +524,16 @@ func countNotifications(t *testing.T, ctx context.Context, db *store.DB, notific
 	var count int
 	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notifications WHERE type = ?", notificationType).Scan(&count); err != nil {
 		t.Fatalf("count notifications: %v", err)
+	}
+	return count
+}
+
+func countNotificationsForUser(t *testing.T, ctx context.Context, db *store.DB, userID string, notificationType string) int {
+	t.Helper()
+
+	var count int
+	if err := db.SQL.QueryRowContext(ctx, "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = ?", userID, notificationType).Scan(&count); err != nil {
+		t.Fatalf("count user notifications: %v", err)
 	}
 	return count
 }

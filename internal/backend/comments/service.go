@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,11 +20,14 @@ import (
 const (
 	activityCommentCreated = "comment.created"
 	activityCommentDeleted = "comment.deleted"
+	eventCommentMentioned  = "comment.mentioned"
 )
 
 var (
 	ErrNotFound   = errors.New("comments: not found")
 	ErrValidation = errors.New("comments: validation failed")
+
+	mentionPattern = regexp.MustCompile(`(^|[^A-Za-z0-9_.-])@([A-Za-z0-9_.-]+)`)
 )
 
 type ValidationError struct {
@@ -170,11 +175,23 @@ func (s *Service) Create(ctx context.Context, principal authz.Principal, input C
 	if err := s.appendDomainEvent(ctx, tx, event); err != nil {
 		return Comment{}, err
 	}
+	mentionEvents, err := s.commentMentionEvents(ctx, tx, comment, projectID)
+	if err != nil {
+		return Comment{}, err
+	}
+	for _, mentionEvent := range mentionEvents {
+		if err := s.appendDomainEvent(ctx, tx, mentionEvent); err != nil {
+			return Comment{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return Comment{}, fmt.Errorf("commit create comment: %w", err)
 	}
 
 	s.publish(ctx, event)
+	for _, mentionEvent := range mentionEvents {
+		s.publish(ctx, mentionEvent)
+	}
 	return comment, nil
 }
 
@@ -312,6 +329,117 @@ func (s *Service) ticketProject(ctx context.Context, ticketID string) (string, e
 		return "", fmt.Errorf("query comment ticket project: %w", err)
 	}
 	return projectID, nil
+}
+
+func (s *Service) commentMentionEvents(ctx context.Context, tx *sql.Tx, comment Comment, projectID string) ([]events.Event, error) {
+	usernames := mentionedUsernames(comment.Body)
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+	mentions, err := s.resolveMentions(ctx, tx, usernames)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]events.Event, 0, len(mentions))
+	for _, mention := range mentions {
+		if mention.UserID == "" || mention.UserID == comment.AuthorID {
+			continue
+		}
+		if !s.canMentionUser(mention.UserID, projectID) {
+			continue
+		}
+		result = append(result, events.Event{
+			Type:        eventCommentMentioned,
+			ActorID:     comment.AuthorID,
+			ProjectID:   projectID,
+			ObjectID:    comment.ID,
+			SubjectType: "comment",
+			SubjectID:   comment.ID,
+			RelatedType: "ticket",
+			RelatedID:   comment.TicketID,
+			At:          comment.CreatedAt,
+			Data: map[string]any{
+				"comment_id":          comment.ID,
+				"ticket_id":           comment.TicketID,
+				"mentioned_user_id":   mention.UserID,
+				"mentioned_username":  mention.Username,
+				"mentioned_user_name": mention.DisplayName,
+			},
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) canMentionUser(userID string, projectID string) bool {
+	if s == nil || s.authorizer == nil || userID == "" || projectID == "" {
+		return false
+	}
+	return s.authorizer.Can(authz.Principal{UserID: userID, AuthKind: authz.AuthKindSession}, authz.PermissionTicketsRead, authz.ProjectScope(projectID))
+}
+
+type mentionUser struct {
+	UserID      string
+	Username    string
+	DisplayName string
+}
+
+func (s *Service) resolveMentions(ctx context.Context, tx *sql.Tx, usernames []string) ([]mentionUser, error) {
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, 0, len(usernames))
+	args := make([]any, 0, len(usernames))
+	for _, username := range usernames {
+		placeholders = append(placeholders, "?")
+		args = append(args, username)
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, username, display_name
+		FROM users
+		WHERE deleted_at IS NULL AND is_disabled = 0 AND username IN (`+strings.Join(placeholders, ",")+`)
+		ORDER BY username ASC
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("resolve comment mentions: %w", err)
+	}
+	defer rows.Close()
+	var mentions []mentionUser
+	for rows.Next() {
+		var mention mentionUser
+		if err := rows.Scan(&mention.UserID, &mention.Username, &mention.DisplayName); err != nil {
+			return nil, fmt.Errorf("scan comment mention: %w", err)
+		}
+		mentions = append(mentions, mention)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate comment mentions: %w", err)
+	}
+	return mentions, nil
+}
+
+func mentionedUsernames(body string) []string {
+	matches := mentionPattern.FindAllStringSubmatch(body, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+		username := strings.ToLower(strings.TrimSpace(match[2]))
+		username = strings.Trim(username, ".-_")
+		if username == "" {
+			continue
+		}
+		seen[username] = struct{}{}
+	}
+	usernames := make([]string, 0, len(seen))
+	for username := range seen {
+		usernames = append(usernames, username)
+	}
+	sort.Strings(usernames)
+	return usernames
 }
 
 func (s *Service) require(principal authz.Principal, permission authz.Permission, scope authz.Scope) error {

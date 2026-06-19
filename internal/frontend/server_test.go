@@ -405,6 +405,7 @@ func TestEmbeddedAppSupportsComments(t *testing.T) {
 		"/api/comments/${deleteComment.dataset.deleteCommentId}",
 		"data-delete-comment-id",
 		"data-comment-form",
+		"@username",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -510,6 +511,8 @@ func TestEmbeddedAppSupportsNotifications(t *testing.T) {
 		"/api/notifications/read-all",
 		"/api/notifications/${button.dataset.notificationId}/${action}",
 		"data-notification-read-state",
+		"comment_mentioned",
+		"notificationTypeLabel",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)

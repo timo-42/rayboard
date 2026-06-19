@@ -40,9 +40,9 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket label entry on create plus ticket-card label display, comma-separated label updates, and project label filtering with ticket counts;
 - ticket watch/unwatch controls and watcher lists on ticket cards and issue detail pages;
 - ticket link listing, creation, and removal on ticket cards and issue detail pages;
-- ticket comment listing, creation, and deletion on ticket cards;
+- ticket comment listing, creation, deletion, and `@username` mention notification support on ticket cards;
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
-- a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
+- a notification inbox with unread filtering, mention notification labels, read/unread toggles, refresh, and mark-all-read;
 - a sprint panel for listing, creating, starting, completing, and deleting project sprints, plus ticket-card sprint assignment/removal;
 - a backlog panel with up/down controls and native drag/drop ticket reordering through `/api/projects/{project_id}/backlog`;
 - a release-planning panel for listing, creating, updating, and deleting components and versions, changing version state, assigning tickets to components/versions, and viewing compact live reports for the selected version;

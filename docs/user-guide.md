@@ -15,9 +15,9 @@ Implemented browser workflows:
 - ticket label entry, display, update from ticket cards, and project label filtering with ticket counts;
 - ticket watch/unwatch controls and watcher lists from ticket cards and issue detail pages;
 - ticket link list, creation, and removal from ticket cards and issue detail pages;
-- ticket comment list, creation, and deletion from each ticket card;
+- ticket comment list, creation, deletion, and `@username` mention notifications from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
-- notification inbox listing with a persistent unread badge, unread filter, read/unread toggle, refresh, and mark-all-read;
+- notification inbox listing with a persistent unread badge, unread filter, mention notification labels, read/unread toggle, refresh, and mark-all-read;
 - sprint list, create, start, complete, delete, and ticket sprint assignment/removal for the selected project;
 - component and version list/create/edit/delete, version release/archive state changes, ticket component/version assignment, and project ticket filtering by component/version;
 - roadmap scheduled epic timeline, unscheduled epic list, inline schedule edits, and child-ticket progress, plus ticket form fields for epics, parent epics, and roadmap dates;
@@ -50,7 +50,7 @@ Rich backlog planning beyond reorder controls and drag/drop, richer board settin
 
 ## Notifications
 
-The browser inbox exposes notification listing, unread filtering, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries in `/settings` or through the API. `read_at` is `null` while a notification is unread. Notifications for comments and ticket updates are generated from durable backend events so pending notifications can be processed after restart. Watched tickets include the watcher in comment, status, sprint, and release-change in-app notifications while excluding the actor and deduplicating reporter or assignee overlaps.
+The browser inbox exposes notification listing, unread filtering, mention notification labels, individual read/unread toggles, refresh, and mark-all-read. Authenticated users can update personal notification preferences in `/settings`. Notification managers can create, edit, enable/disable, rotate, test, and delete global or selected-project Shoutrrr destinations in `/settings`; destination URLs are write-only and are not shown after save. Project notification managers can set project notification defaults, inspect delivery history, and manually retry failed external deliveries in `/settings` or through the API. `read_at` is `null` while a notification is unread. Notifications for comments, mentions, and ticket updates are generated from durable backend events so pending notifications can be processed after restart. Watched tickets include the watcher in comment, status, sprint, and release-change in-app notifications while excluding the actor and deduplicating reporter or assignee overlaps.
 
 Richer hook routing controls are **Planned**.
 

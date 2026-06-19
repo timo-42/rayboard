@@ -3369,7 +3369,7 @@ function notificationNode(notification) {
   body.textContent = notification.body || notification.type || "Notification";
 
   const meta = document.createElement("span");
-  meta.textContent = [notification.type, notification.subject_type, notification.subject_id].filter(Boolean).join(" / ");
+  meta.textContent = [notificationTypeLabel(notification.type), notification.subject_type, notification.subject_id].filter(Boolean).join(" / ");
 
   const button = document.createElement("button");
   button.type = "button";
@@ -3379,6 +3379,18 @@ function notificationNode(notification) {
 
   article.append(body, meta, button);
   return article;
+}
+
+function notificationTypeLabel(type) {
+  const labels = {
+    comment_added: "Comment",
+    comment_mentioned: "Mention",
+    release_changed: "Release",
+    sprint_changed: "Sprint",
+    ticket_assigned: "Assignment",
+    ticket_status_changed: "Status"
+  };
+  return labels[type] || type || "";
 }
 
 function renderBacklog() {
@@ -7138,7 +7150,7 @@ function commentNode(ticket) {
   const textarea = document.createElement("textarea");
   textarea.name = "body";
   textarea.rows = 2;
-  textarea.placeholder = "Add a comment";
+  textarea.placeholder = "Add a comment. Mention people with @username";
   textarea.required = true;
 
   const submit = document.createElement("button");
