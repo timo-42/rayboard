@@ -558,9 +558,9 @@ func (r *Repository) listTicketLinks(ctx context.Context, ticketID string) ([]Ti
 		SELECT
 			links.id, links.project_id, links.link_type, links.created_by, links.created_at,
 			source.id, source.project_id, source.key, source.title, source.description, source.status, source.priority, source.type,
-			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.created_at, source.updated_at, source.deleted_at,
+			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.story_points, source.created_at, source.updated_at, source.deleted_at,
 			target.id, target.project_id, target.key, target.title, target.description, target.status, target.priority, target.type,
-			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.created_at, target.updated_at, target.deleted_at
+			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.story_points, target.created_at, target.updated_at, target.deleted_at
 		FROM ticket_links AS links
 		JOIN tickets AS source ON source.id = links.source_ticket_id
 		JOIN tickets AS target ON target.id = links.target_ticket_id
@@ -595,9 +595,9 @@ func (r *Repository) getTicketLink(ctx context.Context, linkID string) (TicketLi
 		SELECT
 			links.id, links.project_id, links.link_type, links.created_by, links.created_at,
 			source.id, source.project_id, source.key, source.title, source.description, source.status, source.priority, source.type,
-			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.created_at, source.updated_at, source.deleted_at,
+			source.reporter_id, source.assignee_id, source.parent_ticket_id, source.sprint_id, source.component_id, source.version_id, source.rank, source.start_date, source.due_date, source.story_points, source.created_at, source.updated_at, source.deleted_at,
 			target.id, target.project_id, target.key, target.title, target.description, target.status, target.priority, target.type,
-			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.created_at, target.updated_at, target.deleted_at
+			target.reporter_id, target.assignee_id, target.parent_ticket_id, target.sprint_id, target.component_id, target.version_id, target.rank, target.start_date, target.due_date, target.story_points, target.created_at, target.updated_at, target.deleted_at
 		FROM ticket_links AS links
 		JOIN tickets AS source ON source.id = links.source_ticket_id
 		JOIN tickets AS target ON target.id = links.target_ticket_id
@@ -819,6 +819,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 	var sourceRank sql.NullString
 	var sourceStartDate sql.NullString
 	var sourceDueDate sql.NullString
+	var sourceStoryPoints sql.NullFloat64
 	var sourceCreatedAt string
 	var sourceUpdatedAt string
 	var sourceDeletedAt sql.NullString
@@ -834,6 +835,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 	var targetRank sql.NullString
 	var targetStartDate sql.NullString
 	var targetDueDate sql.NullString
+	var targetStoryPoints sql.NullFloat64
 	var targetCreatedAt string
 	var targetUpdatedAt string
 	var targetDeletedAt sql.NullString
@@ -860,6 +862,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 		&sourceRank,
 		&sourceStartDate,
 		&sourceDueDate,
+		&sourceStoryPoints,
 		&sourceCreatedAt,
 		&sourceUpdatedAt,
 		&sourceDeletedAt,
@@ -880,6 +883,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 		&targetRank,
 		&targetStartDate,
 		&targetDueDate,
+		&targetStoryPoints,
 		&targetCreatedAt,
 		&targetUpdatedAt,
 		&targetDeletedAt,
@@ -899,6 +903,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 	link.Source.Rank = nullString(sourceRank)
 	link.Source.StartDate = nullString(sourceStartDate)
 	link.Source.DueDate = nullString(sourceDueDate)
+	link.Source.StoryPoints = nullFloat(sourceStoryPoints)
 	link.Source.DeletedAt = parseNullableTime(sourceDeletedAt)
 	link.Target.Description = nullString(targetDescription)
 	link.Target.Priority = nullString(targetPriority)
@@ -912,6 +917,7 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 	link.Target.Rank = nullString(targetRank)
 	link.Target.StartDate = nullString(targetStartDate)
 	link.Target.DueDate = nullString(targetDueDate)
+	link.Target.StoryPoints = nullFloat(targetStoryPoints)
 	link.Target.DeletedAt = parseNullableTime(targetDeletedAt)
 	var err error
 	link.CreatedAt, err = parseTime(createdAt)
