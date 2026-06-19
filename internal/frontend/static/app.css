@@ -1823,6 +1823,60 @@ p {
   overflow-wrap: anywhere;
 }
 
+.sprint-report-health {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.4fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 8px;
+}
+
+.sprint-report-health.is-overdue {
+  border-left-color: #b6403a;
+}
+
+.sprint-report-health.is-due-soon {
+  border-left-color: var(--accent);
+}
+
+.sprint-report-health.is-completed {
+  border-left-color: var(--primary);
+}
+
+.sprint-report-health.is-unscheduled,
+.sprint-report-health.is-planned {
+  border-left-color: var(--border-strong);
+}
+
+.sprint-report-health strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.sprint-report-health span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sprint-report-health-dates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 6px;
+}
+
+.sprint-report-health-dates span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  padding: 3px 8px;
+}
+
 .version-report-health {
   display: grid;
   grid-template-columns: minmax(120px, 0.4fr) minmax(0, 0.8fr) minmax(0, 1fr);
@@ -4006,6 +4060,7 @@ p {
   .saved-view-form,
   .search-grid,
   .sprint-form,
+  .sprint-report-health,
   .sprint-item,
   .sprint-edit-form,
   .backlog-summary,
