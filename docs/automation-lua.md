@@ -192,7 +192,7 @@ if comment_err then return { error = comment_err.message } end
 
 ## Ticket Hooks
 
-The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua and AI hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD, single-hook preview, and real execution run history are available through the API. The `/automation` browser UI provides basic project ticket-hook list, create, delete, enable/disable, and preview controls using the saved-hook endpoints; richer editing screens remain **Planned**.
+The backend ticket hook runner is implemented in the tracker service. Project-scoped Lua and AI hooks can run before ticket create/update to validate or transform the pending payload. After hooks run after commit, may inspect/log, and do not roll back committed ticket changes if they fail. Hook CRUD, single-hook preview, and real execution run history are available through the API. The `/automation` browser UI provides project ticket-hook list, create, inline edit, delete, enable/disable, and preview controls using the saved-hook endpoints; richer run-history screens remain **Planned**.
 
 Hook Lua receives `context`, `ticket`, and for update hooks `current`. The preview API uses the same globals for one saved hook without changing tickets or persisting `last_error` or run history. Real create/update hook executions persist shared automation run records at `GET /api/ticket-hooks/{hook_id}/runs`. The only Rayboard helper exposed in this first hook sandbox is `rayboard.log(message)`.
 
