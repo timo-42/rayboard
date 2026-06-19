@@ -5024,7 +5024,7 @@ function roadmapDependencyNode(dependency) {
   article.className = "roadmap-dependency";
 
   const title = document.createElement("p");
-  title.textContent = `${ticketKeyTitle(source)} ${ticketLinkLabel(link.link_type)} ${ticketKeyTitle(target)}`;
+  title.textContent = `${ticketKeyTitle(source)} ${ticketLinkTypeLabel(link.link_type)} ${ticketKeyTitle(target)}`;
 
   const meta = document.createElement("span");
   meta.textContent = [
