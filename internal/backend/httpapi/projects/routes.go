@@ -35,6 +35,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/tickets", "Tickets", "Create ticket", http.StatusCreated), provider.createTicket)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/labels", "Labels", "List project labels"), provider.listLabels)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap", "Roadmap", "List project roadmap"), provider.listRoadmap)
+	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/roadmap/schedule", "Roadmap", "Schedule roadmap epics"), provider.scheduleRoadmap)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/sprints", "Sprints", "List project sprints"), provider.listSprints)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/sprints", "Sprints", "Create project sprint", http.StatusCreated), provider.createSprint)
 }
@@ -275,6 +276,18 @@ func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput)
 		return nil, err
 	}
 	items, err := provider.Tracker.ListRoadmap(ctx, principal, input.ProjectID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListRoadmapOutput{Body: shared.NewListResource[RoadmapItemResource](roadmapItemResources(items))}, nil
+}
+
+func (provider Provider) scheduleRoadmap(ctx context.Context, input *ScheduleRoadmapInput) (*ListRoadmapOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	items, err := provider.Tracker.ScheduleRoadmap(ctx, principal, input.ProjectID, input.Body.Spec.ToScheduleInput())
 	if err != nil {
 		return nil, shared.TrackerError(err)
 	}

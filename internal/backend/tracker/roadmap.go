@@ -72,6 +72,72 @@ func (s *Service) ListRoadmap(ctx context.Context, principal authz.Principal, pr
 	return items, nil
 }
 
+func (s *Service) ScheduleRoadmap(ctx context.Context, principal authz.Principal, projectID string, input RoadmapScheduleInput) ([]RoadmapItem, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, validationFailed(map[string]string{"project_id": "Required"})
+	}
+	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(projectID)); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.GetProject(ctx, projectID); err != nil {
+		return nil, err
+	}
+	if fields := s.roadmapScheduleFields(ctx, projectID, input); len(fields) > 0 {
+		return nil, validationFailed(fields)
+	}
+	for _, item := range input.Items {
+		startDate := strings.TrimSpace(item.StartDate)
+		dueDate := strings.TrimSpace(item.DueDate)
+		if _, err := s.UpdateTicket(ctx, principal, strings.TrimSpace(item.TicketID), UpdateTicketInput{
+			StartDate: &startDate,
+			DueDate:   &dueDate,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return s.ListRoadmap(ctx, principal, projectID)
+}
+
+func (s *Service) roadmapScheduleFields(ctx context.Context, projectID string, input RoadmapScheduleInput) map[string]string {
+	fields := map[string]string{}
+	if len(input.Items) == 0 {
+		fields["items"] = "Required"
+		return fields
+	}
+	if len(input.Items) > 100 {
+		fields["items"] = "Must contain 100 or fewer schedule updates"
+	}
+	seen := map[string]bool{}
+	for index, item := range input.Items {
+		prefix := fmt.Sprintf("items[%d].", index)
+		ticketID := strings.TrimSpace(item.TicketID)
+		if ticketID == "" {
+			fields[prefix+"ticket_id"] = "Required"
+		} else if seen[ticketID] {
+			fields[prefix+"ticket_id"] = "Ticket IDs must be unique"
+		} else {
+			seen[ticketID] = true
+			ticket, err := s.repo.GetTicket(ctx, ticketID)
+			if err != nil || ticket.ProjectID != projectID || ticket.Type != "epic" {
+				fields[prefix+"ticket_id"] = "Epic not found in project"
+			}
+		}
+		startDate := strings.TrimSpace(item.StartDate)
+		dueDate := strings.TrimSpace(item.DueDate)
+		validateTicketDate(fields, prefix+"start_date", startDate)
+		validateTicketDate(fields, prefix+"due_date", dueDate)
+		if startDate != "" && dueDate != "" {
+			dateFields := map[string]string{}
+			validateTicketDates(dateFields, startDate, dueDate)
+			if message, ok := dateFields["due_date"]; ok {
+				fields[prefix+"due_date"] = message
+			}
+		}
+	}
+	return fields
+}
+
 func (s *Service) roadmapProgress(ctx context.Context, epicID string) (RoadmapProgress, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT status, COUNT(*)

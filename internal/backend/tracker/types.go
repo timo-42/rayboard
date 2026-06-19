@@ -170,6 +170,16 @@ type RoadmapItem struct {
 	Progress RoadmapProgress `json:"progress"`
 }
 
+type RoadmapScheduleInput struct {
+	Items []RoadmapScheduleItem `json:"items"`
+}
+
+type RoadmapScheduleItem struct {
+	TicketID  string `json:"ticket_id"`
+	StartDate string `json:"start_date,omitempty"`
+	DueDate   string `json:"due_date,omitempty"`
+}
+
 type RoadmapProgress struct {
 	Total    int            `json:"total"`
 	Done     int            `json:"done"`

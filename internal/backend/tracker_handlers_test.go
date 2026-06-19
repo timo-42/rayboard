@@ -386,6 +386,56 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Status.Items[0].Spec.Epic.Spec.Labels)
 	}
 
+	scheduleRoadmapReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/roadmap/schedule", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"items": []map[string]any{
+				{
+					"ticket_id":  epic.ID,
+					"start_date": "2026-08-01",
+					"due_date":   "2026-08-31",
+				},
+			},
+		},
+	}))
+	addSessionCSRF(scheduleRoadmapReq, session, csrf)
+	scheduleRoadmap := httptest.NewRecorder()
+	handler.ServeHTTP(scheduleRoadmap, scheduleRoadmapReq)
+	if scheduleRoadmap.Code != http.StatusOK {
+		t.Fatalf("expected schedule roadmap status 200, got %d: %s", scheduleRoadmap.Code, scheduleRoadmap.Body.String())
+	}
+	var scheduledRoadmapBody struct {
+		Status struct {
+			Items []struct {
+				Spec struct {
+					Epic ticketResourceBody `json:"epic"`
+				} `json:"spec"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(scheduleRoadmap.Body.Bytes(), &scheduledRoadmapBody); err != nil {
+		t.Fatalf("decode scheduled roadmap: %v", err)
+	}
+	if len(scheduledRoadmapBody.Status.Items) != 1 || scheduledRoadmapBody.Status.Items[0].Spec.Epic.Spec.StartDate != "2026-08-01" || scheduledRoadmapBody.Status.Items[0].Spec.Epic.Spec.DueDate != "2026-08-31" {
+		t.Fatalf("unexpected scheduled roadmap: %#v", scheduledRoadmapBody.Status.Items)
+	}
+
+	badScheduleReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/roadmap/schedule", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"items": []map[string]any{
+				{
+					"ticket_id":  second.ID,
+					"start_date": "2026-08-01",
+				},
+			},
+		},
+	}))
+	addSessionCSRF(badScheduleReq, session, csrf)
+	badSchedule := httptest.NewRecorder()
+	handler.ServeHTTP(badSchedule, badScheduleReq)
+	if badSchedule.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad roadmap schedule status 400, got %d: %s", badSchedule.Code, badSchedule.Body.String())
+	}
+
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"name":        "API",

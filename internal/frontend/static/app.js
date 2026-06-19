@@ -1112,6 +1112,18 @@ function bindEvents() {
     }, "Version updated");
   });
 
+  els.roadmap.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-roadmap-schedule-form]");
+    if (!form || !state.selectedProject) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await scheduleRoadmapItem(form);
+      await loadTickets();
+    }, "Roadmap scheduled");
+  });
+
   els.fieldForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.selectedProject) {
@@ -2367,6 +2379,25 @@ async function loadRoadmap(options = {}) {
   if (options.renderTickets !== false) {
     renderTickets();
   }
+}
+
+async function scheduleRoadmapItem(form) {
+  const data = formData(form);
+  const response = await api(`/api/projects/${state.selectedProject.id}/roadmap/schedule`, {
+    method: "PATCH",
+    body: {
+      spec: {
+        items: [{
+          ticket_id: form.dataset.roadmapScheduleForm,
+          start_date: data.start_date || "",
+          due_date: data.due_date || ""
+        }]
+      }
+    }
+  });
+  state.roadmap = listItems(response).map(normalizeRoadmapItem);
+  renderRoadmap();
+  renderTicketFormOptions();
 }
 
 async function loadProjectLabels(options = {}) {
@@ -3971,9 +4002,48 @@ function renderRoadmap() {
     els.roadmap.append(empty);
     return;
   }
-  for (const item of state.roadmap) {
-    els.roadmap.append(roadmapNode(item));
+
+  const scheduled = state.roadmap.filter((item) => item.epic && (item.epic.start_date || item.epic.due_date));
+  const unscheduled = state.roadmap.filter((item) => !item.epic || (!item.epic.start_date && !item.epic.due_date));
+  if (scheduled.length) {
+    els.roadmap.append(roadmapTimelineNode(scheduled));
   }
+  if (unscheduled.length) {
+    const group = document.createElement("section");
+    group.className = "roadmap-unscheduled";
+    const heading = document.createElement("h3");
+    heading.textContent = "Unscheduled";
+    group.append(heading);
+    for (const item of unscheduled) {
+      group.append(roadmapNode(item));
+    }
+    els.roadmap.append(group);
+  }
+}
+
+function roadmapTimelineNode(items) {
+  const group = document.createElement("section");
+  group.className = "roadmap-timeline";
+  const heading = document.createElement("h3");
+  heading.textContent = "Timeline";
+  const track = document.createElement("div");
+  track.className = "roadmap-timeline-track";
+  const bounds = roadmapTimelineBounds(items);
+  for (const item of items) {
+    const row = roadmapNode(item);
+    row.classList.add("roadmap-timeline-item");
+    const epic = item.epic || {};
+    const start = dateToUTC(epic.start_date || epic.due_date);
+    const due = dateToUTC(epic.due_date || epic.start_date);
+    const offsetDays = Math.max(daysBetween(bounds.start, start), 0);
+    const durationDays = Math.max(daysBetween(start, due) + 1, 1);
+    const span = Math.max(daysBetween(bounds.start, bounds.end) + 1, 1);
+    row.style.setProperty("--roadmap-offset", `${Math.round((offsetDays / span) * 100)}%`);
+    row.style.setProperty("--roadmap-width", `${Math.max(12, Math.round((durationDays / span) * 100))}%`);
+    track.append(row);
+  }
+  group.append(heading, track);
+  return group;
 }
 
 function roadmapNode(item) {
@@ -4007,8 +4077,60 @@ function roadmapNode(item) {
     .map(([status, count]) => `${status}: ${count}`)
     .join(" / ") || "No child tickets";
 
-  article.append(title, meta, bar, counts);
+  article.append(title, meta, bar, counts, roadmapScheduleFormNode(epic));
   return article;
+}
+
+function roadmapScheduleFormNode(epic) {
+  const form = document.createElement("form");
+  form.className = "roadmap-schedule-form";
+  form.dataset.roadmapScheduleForm = epic.id;
+  form.append(
+    inputNode("start_date", epic.start_date || "", "start date", "date"),
+    inputNode("due_date", epic.due_date || "", "due date", "date")
+  );
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Schedule";
+  form.append(save);
+  return form;
+}
+
+function roadmapTimelineBounds(items) {
+  const dates = [];
+  for (const item of items) {
+    const epic = item.epic || {};
+    if (epic.start_date) {
+      dates.push(dateToUTC(epic.start_date));
+    }
+    if (epic.due_date) {
+      dates.push(dateToUTC(epic.due_date));
+    }
+  }
+  const valid = dates.filter(Boolean);
+  if (!valid.length) {
+    const today = dateToUTC(new Date().toISOString().slice(0, 10));
+    return { start: today, end: today };
+  }
+  return {
+    start: new Date(Math.min(...valid.map((date) => date.getTime()))),
+    end: new Date(Math.max(...valid.map((date) => date.getTime())))
+  };
+}
+
+function dateToUTC(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daysBetween(start, end) {
+  if (!start || !end) {
+    return 0;
+  }
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
 }
 
 function renderSearchResults() {
