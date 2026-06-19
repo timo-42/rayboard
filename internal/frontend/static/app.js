@@ -9111,6 +9111,9 @@ function renderTickets() {
   els.selectedProject.textContent = state.selectedProject ? `${state.selectedProject.key} ${state.selectedProject.name}` : "No project selected";
   els.ticketColumns.replaceChildren();
   const columns = ticketColumns();
+  if (state.boardTickets) {
+    els.ticketColumns.append(boardSummaryNode(state.boardTickets, columns));
+  }
   for (const column of columns) {
     els.ticketColumns.append(ticketColumnNode(column));
   }
@@ -9241,6 +9244,46 @@ function ticketColumns() {
   }
   const statuses = state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses();
   return statuses.map((status) => ({ slug: status.slug, name: status.name }));
+}
+
+function boardSummaryNode(boardTickets, columns) {
+  const metrics = boardSummaryMetrics(boardTickets, columns);
+  const section = document.createElement("section");
+  section.className = "board-summary";
+  section.append(
+    boardSummaryMetricNode("Tickets", metrics.total_tickets),
+    boardSummaryMetricNode("Columns", metrics.column_count),
+    boardSummaryMetricNode("WIP warnings", metrics.wip_warnings),
+    boardSummaryMetricNode("Saved view", metrics.saved_view_filter)
+  );
+  return section;
+}
+
+function boardSummaryMetrics(boardTickets, columns = []) {
+  const boardColumns = Array.isArray(boardTickets && boardTickets.columns) ? boardTickets.columns : columns;
+  const totalTickets = boardColumns.reduce((sum, column) => {
+    if (Number.isFinite(column.ticket_count)) {
+      return sum + column.ticket_count;
+    }
+    return sum + (Array.isArray(column.tickets) ? column.tickets.length : 0);
+  }, 0);
+  return {
+    total_tickets: totalTickets,
+    column_count: boardColumns.length,
+    wip_warnings: boardColumns.filter((column) => column.over_wip_limit).length,
+    saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets"
+  };
+}
+
+function boardSummaryMetricNode(label, value) {
+  const item = document.createElement("div");
+  item.className = "board-summary-metric";
+  const strong = document.createElement("strong");
+  strong.textContent = String(value);
+  const span = document.createElement("span");
+  span.textContent = label;
+  item.append(strong, span);
+  return item;
 }
 
 function ticketColumnNode(column) {
