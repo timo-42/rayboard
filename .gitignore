@@ -1,3 +1,4 @@
 dist/
 *.sqlite
 *.sqlite-*
+.plan/
