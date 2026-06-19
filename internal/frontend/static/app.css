@@ -3593,6 +3593,28 @@ p {
   gap: 6px;
 }
 
+.automation-run-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.automation-run-summary span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.automation-run-summary .automation-run-summary-error {
+  border-color: var(--danger);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
 .webhook-token {
   border: 1px solid var(--border);
   border-radius: 6px;

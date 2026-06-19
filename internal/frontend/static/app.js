@@ -7377,6 +7377,7 @@ function automationTextarea(name, value, rows) {
 function cronRunListNode(runs) {
   const list = document.createElement("div");
   list.className = "cron-run-list";
+  list.append(automationRunSummaryNode(runs));
   for (const run of runs) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
@@ -7393,6 +7394,60 @@ function cronRunListNode(runs) {
     list.append(item);
   }
   return list;
+}
+
+function automationRunSummaryNode(runs) {
+  const summary = summarizeAutomationRuns(runs);
+  const section = document.createElement("div");
+  section.className = "automation-run-summary";
+
+  for (const metric of [
+    ["total", summary.total],
+    ["completed", summary.completed],
+    ["failed", summary.failed],
+    ["active", summary.active]
+  ]) {
+    const item = document.createElement("span");
+    item.textContent = `${metric[0]} ${metric[1]}`;
+    section.append(item);
+  }
+
+  if (summary.latestFailure) {
+    const error = document.createElement("span");
+    error.className = "automation-run-summary-error";
+    error.textContent = `latest failure: ${summary.latestFailure}`;
+    section.append(error);
+  }
+
+  return section;
+}
+
+function summarizeAutomationRuns(runs) {
+  const summary = {
+    total: 0,
+    completed: 0,
+    failed: 0,
+    active: 0,
+    latestFailure: ""
+  };
+  for (const run of runs || []) {
+    if (!run) {
+      continue;
+    }
+    summary.total += 1;
+    const state = String(run.state || "queued").toLowerCase();
+    if (run.error || ["failed", "error", "canceled", "cancelled"].includes(state)) {
+      summary.failed += 1;
+      if (!summary.latestFailure) {
+        summary.latestFailure = run.error || state;
+      }
+    } else if (["completed", "complete", "success", "succeeded", "done"].includes(state)) {
+      summary.completed += 1;
+    } else {
+      summary.active += 1;
+    }
+  }
+  return summary;
 }
 
 function renderWebhooks() {
@@ -7598,6 +7653,7 @@ function webhookTextarea(name, value, rows) {
 function webhookRunListNode(runs) {
   const list = document.createElement("div");
   list.className = "webhook-run-list";
+  list.append(automationRunSummaryNode(runs));
   for (const run of runs) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
@@ -7940,6 +7996,7 @@ function ticketHookNode(hook) {
 function ticketHookRunListNode(runs) {
   const list = document.createElement("div");
   list.className = "ticket-hook-run-list";
+  list.append(automationRunSummaryNode(runs));
   for (const run of runs) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
@@ -8249,6 +8306,7 @@ function createPageTextarea(name, value, rows) {
 function createPageRunListNode(runs) {
   const list = document.createElement("div");
   list.className = "create-page-run-list";
+  list.append(automationRunSummaryNode(runs));
   for (const run of runs) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
