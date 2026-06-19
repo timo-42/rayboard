@@ -2387,11 +2387,9 @@ async function scheduleRoadmapItem(form) {
     method: "PATCH",
     body: {
       spec: {
-        items: [{
-          ticket_id: form.dataset.roadmapScheduleForm,
-          start_date: data.start_date || "",
-          due_date: data.due_date || ""
-        }]
+        ticket_id: form.dataset.roadmapScheduleForm,
+        start_date: data.start_date || "",
+        due_date: data.due_date || ""
       }
     }
   });

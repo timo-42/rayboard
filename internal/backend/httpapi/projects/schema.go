@@ -139,25 +139,17 @@ func (spec BacklogOrderSpec) ToReorderInput() tracker.ReorderBacklogInput {
 }
 
 type RoadmapScheduleSpec struct {
-	Items []RoadmapScheduleItemSpec `json:"items,omitempty"`
-}
-
-type RoadmapScheduleItemSpec struct {
 	TicketID  string `json:"ticket_id,omitempty"`
 	StartDate string `json:"start_date,omitempty"`
 	DueDate   string `json:"due_date,omitempty"`
 }
 
 func (spec RoadmapScheduleSpec) ToScheduleInput() tracker.RoadmapScheduleInput {
-	items := make([]tracker.RoadmapScheduleItem, 0, len(spec.Items))
-	for _, item := range spec.Items {
-		items = append(items, tracker.RoadmapScheduleItem{
-			TicketID:  item.TicketID,
-			StartDate: item.StartDate,
-			DueDate:   item.DueDate,
-		})
+	return tracker.RoadmapScheduleInput{
+		TicketID:  spec.TicketID,
+		StartDate: spec.StartDate,
+		DueDate:   spec.DueDate,
 	}
-	return tracker.RoadmapScheduleInput{Items: items}
 }
 
 type ProjectStatusMetadata struct {

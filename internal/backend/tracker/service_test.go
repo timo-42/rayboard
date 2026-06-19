@@ -926,20 +926,20 @@ func TestRoadmapEpicsDatesAndProgress(t *testing.T) {
 		t.Fatalf("expected updated due date, got %#v", updated)
 	}
 
-	scheduled, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+	scheduled, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{
 		TicketID:  epic.ID,
 		StartDate: "2026-08-01",
 		DueDate:   "2026-08-31",
-	}}})
+	})
 	if err != nil {
 		t.Fatalf("schedule roadmap: %v", err)
 	}
 	if len(scheduled) != 1 || scheduled[0].Epic.StartDate != "2026-08-01" || scheduled[0].Epic.DueDate != "2026-08-31" {
 		t.Fatalf("unexpected scheduled roadmap: %#v", scheduled)
 	}
-	cleared, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+	cleared, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{
 		TicketID: epic.ID,
-	}}})
+	})
 	if err != nil {
 		t.Fatalf("clear roadmap schedule: %v", err)
 	}
@@ -949,17 +949,17 @@ func TestRoadmapEpicsDatesAndProgress(t *testing.T) {
 	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{}); !errors.Is(err, tracker.ErrValidation) {
 		t.Fatalf("expected empty schedule validation, got %v", err)
 	}
-	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{
 		TicketID:  childTodo.ID,
 		StartDate: "2026-08-01",
-	}}}); !errors.Is(err, tracker.ErrValidation) {
+	}); !errors.Is(err, tracker.ErrValidation) {
 		t.Fatalf("expected non-epic schedule validation, got %v", err)
 	}
-	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{
 		TicketID:  epic.ID,
 		StartDate: "2026-09-01",
 		DueDate:   "2026-08-01",
-	}}}); !errors.Is(err, tracker.ErrValidation) {
+	}); !errors.Is(err, tracker.ErrValidation) {
 		t.Fatalf("expected schedule date range validation, got %v", err)
 	}
 }

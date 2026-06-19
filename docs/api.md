@@ -210,9 +210,9 @@ The roadmap API lists epics and direct child-ticket progress. Epics are regular 
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/roadmap` | none |
-| `PATCH` | `/api/projects/{project_id}/roadmap/schedule` | `{"spec":{"items":[{"ticket_id":"ticket_...","start_date":"2026-08-01","due_date":"2026-08-31"}]}}` |
+| `PATCH` | `/api/projects/{project_id}/roadmap/schedule` | `{"spec":{"ticket_id":"ticket_...","start_date":"2026-08-01","due_date":"2026-08-31"}}` |
 
-Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. The schedule endpoint updates one or more epics in the addressed project, rejects non-epic or cross-project ticket IDs, and returns the refreshed roadmap list. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
+Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. The schedule endpoint updates one epic in the addressed project, rejects non-epic or cross-project ticket IDs, and returns the refreshed roadmap list. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
 ## Custom Fields
 
