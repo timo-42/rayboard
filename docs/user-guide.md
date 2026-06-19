@@ -31,7 +31,8 @@ Implemented browser workflows:
 - cron job list, create, inline edit, delete, enable/disable, manual run, and run-output inspection for the selected project;
 - project webhook list, create, inline edit, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
 - project ticket-hook list, create, inline edit, delete, enable/disable, preview, and run-history controls for the selected project;
-- rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}` with safe section/help/group layout widgets, nested fields, and preview run-history controls;
+- custom ticket create-page list, create, enable/disable, delete, schema preview, preview run-history, and intake-form links for the selected project;
+- rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}` with safe section/help/group layout widgets and nested fields;
 - compact selected-sprint reports with totals, status counts, story-point totals when estimates exist, velocity, remaining and burnup summaries, ticket links, and live-versus-completed snapshot scope labels.
 
 API token secrets are shown once when created and are not listed later.
