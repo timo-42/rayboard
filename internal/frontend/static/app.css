@@ -2508,7 +2508,24 @@ p {
   gap: 6px;
 }
 
-.saved-view-actions button {
+.search-pagination,
+.saved-view-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-pagination span,
+.saved-view-pagination span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.saved-view-actions button,
+.search-pagination button,
+.saved-view-pagination button {
   min-height: 30px;
   border-color: var(--border-strong);
   background: var(--panel-bg);
@@ -2516,9 +2533,17 @@ p {
   padding: 0 9px;
 }
 
-.saved-view-actions button:hover {
+.saved-view-actions button:hover,
+.search-pagination button:hover:not(:disabled),
+.saved-view-pagination button:hover:not(:disabled) {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.search-pagination button:disabled,
+.saved-view-pagination button:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .account-panel {
