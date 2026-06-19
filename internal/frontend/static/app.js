@@ -83,6 +83,7 @@ const state = {
   webhookTokens: {},
   webhooksError: "",
   ticketHooks: [],
+  ticketHookRuns: {},
   ticketHooksError: "",
   ticketHookPreview: null,
   createPages: [],
@@ -371,6 +372,7 @@ function bindEvents() {
       state.webhookTokens = {};
       state.webhooksError = "";
       state.ticketHooks = [];
+      state.ticketHookRuns = {};
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
       state.createPages = [];
@@ -675,6 +677,14 @@ function bindEvents() {
   });
 
   els.ticketHooks.addEventListener("click", async (event) => {
+    const showRuns = event.target.closest("[data-load-ticket-hook-runs-id]");
+    if (showRuns) {
+      await runAction(async () => {
+        await loadTicketHookRuns(showRuns.dataset.loadTicketHookRunsId);
+      }, "Ticket hook runs loaded");
+      return;
+    }
+
     const preview = event.target.closest("[data-preview-ticket-hook-id]");
     if (preview) {
       await runAction(async () => {
@@ -707,6 +717,7 @@ function bindEvents() {
         if (state.ticketHookPreview && state.ticketHookPreview.metadata && state.ticketHookPreview.metadata.hook_id === remove.dataset.deleteTicketHookId) {
           state.ticketHookPreview = null;
         }
+        delete state.ticketHookRuns[remove.dataset.deleteTicketHookId];
         await loadTicketHooks();
       }, "Ticket hook deleted");
     }
@@ -3732,6 +3743,11 @@ async function loadTicketHooks(projectID = selectedTicketHookProjectID()) {
     state.ticketHooks = [];
     state.ticketHooksError = error.message || "Ticket hooks are not available";
   }
+  renderTicketHooks();
+}
+
+async function loadTicketHookRuns(hookID) {
+  state.ticketHookRuns[hookID] = listItems(await api(`/api/ticket-hooks/${hookID}/runs?limit=10`)).map(normalizeTicketHookRun);
   renderTicketHooks();
 }
 
@@ -7855,6 +7871,11 @@ function ticketHookNode(hook) {
   preview.dataset.previewTicketHookId = hook.id;
   preview.textContent = "Preview";
 
+  const runs = document.createElement("button");
+  runs.type = "button";
+  runs.dataset.loadTicketHookRunsId = hook.id;
+  runs.textContent = "Runs";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.dataset.toggleTicketHookId = hook.id;
@@ -7866,9 +7887,35 @@ function ticketHookNode(hook) {
   remove.dataset.deleteTicketHookId = hook.id;
   remove.textContent = "Delete";
 
-  actions.append(preview, toggle, remove);
+  actions.append(preview, runs, toggle, remove);
   article.append(header, meta, actions, ticketHookEditForm(hook));
+  const runsList = state.ticketHookRuns[hook.id] || [];
+  if (runsList.length) {
+    article.append(ticketHookRunListNode(runsList));
+  }
   return article;
+}
+
+function ticketHookRunListNode(runs) {
+  const list = document.createElement("div");
+  list.className = "ticket-hook-run-list";
+  for (const run of runs) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      run.state || "queued",
+      run.trigger_type,
+      run.ticket_id ? `ticket ${run.ticket_id}` : "",
+      run.created_at ? formatDateTime(run.created_at) : "",
+      run.error ? `error: ${run.error}` : ""
+    ].filter(Boolean).join(" / ");
+    const output = document.createElement("pre");
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
+    list.append(item);
+  }
+  return list;
 }
 
 function ticketHookEditForm(hook) {
@@ -10880,6 +10927,29 @@ function normalizeTicketHook(hook) {
     };
   }
   return hook;
+}
+
+function normalizeTicketHookRun(run) {
+  if (!run) {
+    return null;
+  }
+  if (run.metadata && run.spec && run.status) {
+    return {
+      id: run.metadata.id || "",
+      created_at: run.metadata.created_at || "",
+      trigger_type: run.spec.trigger_type || "",
+      trigger_ref: run.spec.trigger_ref || "",
+      project_id: run.spec.project_id || "",
+      ticket_id: run.spec.ticket_id || "",
+      input: run.spec.input || {},
+      state: run.status.state || "",
+      output: run.status.output || {},
+      error: run.status.error || "",
+      started_at: run.status.started_at || "",
+      finished_at: run.status.finished_at || ""
+    };
+  }
+  return run;
 }
 
 function normalizeCreatePage(page) {

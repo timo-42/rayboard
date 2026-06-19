@@ -30,7 +30,7 @@ Implemented browser workflows:
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - cron job list, create, inline edit, delete, enable/disable, manual run, and run-output inspection for the selected project;
 - project webhook list, create, inline edit, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
-- project ticket-hook list, create, inline edit, delete, enable/disable, and preview controls for the selected project;
+- project ticket-hook list, create, inline edit, delete, enable/disable, preview, and run-history controls for the selected project;
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}` with safe section/help/group layout widgets and nested fields;
 - compact selected-sprint reports with totals, status counts, story-point totals when estimates exist, velocity, remaining and burnup summaries, ticket links, and live-versus-completed snapshot scope labels.
 
@@ -45,7 +45,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Rich backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer board settings beyond inline edits, saved-view filters, and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout integration beyond ticket controls and search filter building, advanced release planning beyond version drilldowns, richer notification delivery analytics beyond loaded Settings summaries and policy-aware routing previews, richer automation run-history screens beyond inline cron, webhook, and ticket-hook edits, and richer saved-view UI beyond the current paginated list, pinned project navigation, and board filters are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Rich backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer board settings beyond inline edits, saved-view filters, and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout integration beyond ticket controls and search filter building, advanced release planning beyond version drilldowns, richer notification delivery analytics beyond loaded Settings summaries and policy-aware routing previews, richer automation run-history analytics beyond loaded cron, webhook, and ticket-hook rows, and richer saved-view UI beyond the current paginated list, pinned project navigation, and board filters are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
