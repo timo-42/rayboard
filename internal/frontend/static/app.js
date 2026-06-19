@@ -1290,34 +1290,6 @@ function bindEvents() {
   });
 
   els.roadmap.addEventListener("submit", async (event) => {
-    const dependencyForm = event.target.closest("[data-roadmap-dependency-form]");
-    if (dependencyForm) {
-      event.preventDefault();
-      const data = formData(dependencyForm);
-      if (!data.source_ticket_id || !data.target_ticket_id) {
-        setNotice("Choose source and target issues first");
-        return;
-      }
-      if (data.source_ticket_id === data.target_ticket_id) {
-        setNotice("Choose two different roadmap issues");
-        return;
-      }
-      await runAction(async () => {
-        await api(`/api/tickets/${data.source_ticket_id}/links`, {
-          method: "POST",
-          body: {
-            spec: {
-              target_ticket_id: data.target_ticket_id || "",
-              link_type: data.link_type || "relates_to"
-            }
-          }
-        });
-        dependencyForm.reset();
-        await refreshRoadmapDependencyViews(data.source_ticket_id, data.target_ticket_id);
-      }, "Roadmap dependency added");
-      return;
-    }
-
     const form = event.target.closest("[data-roadmap-schedule-form]");
     if (!form || !state.selectedProject) {
       return;
@@ -1330,15 +1302,6 @@ function bindEvents() {
   });
 
   els.roadmap.addEventListener("click", async (event) => {
-    const deleteDependency = event.target.closest("[data-delete-roadmap-dependency-id]");
-    if (deleteDependency) {
-      await runAction(async () => {
-        await api(`/api/tickets/${deleteDependency.dataset.sourceTicketId}/links/${deleteDependency.dataset.deleteRoadmapDependencyId}`, { method: "DELETE" });
-        await refreshRoadmapDependencyViews(deleteDependency.dataset.sourceTicketId, deleteDependency.dataset.targetTicketId);
-      }, "Roadmap dependency removed");
-      return;
-    }
-
     const quickSchedule = event.target.closest("[data-roadmap-quick-schedule-id]");
     if (!quickSchedule || !state.selectedProject) {
       return;
@@ -1427,7 +1390,48 @@ function bindEvents() {
     }, "Roadmap rescheduled");
   });
 
-  els.roadmap.addEventListener("change", (event) => {
+  els.roadmapDependencies.addEventListener("submit", async (event) => {
+    const dependencyForm = event.target.closest("[data-roadmap-dependency-form]");
+    if (!dependencyForm) {
+      return;
+    }
+    event.preventDefault();
+    const data = formData(dependencyForm);
+    if (!data.source_ticket_id || !data.target_ticket_id) {
+      setNotice("Choose source and target issues first");
+      return;
+    }
+    if (data.source_ticket_id === data.target_ticket_id) {
+      setNotice("Choose two different roadmap issues");
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/tickets/${data.source_ticket_id}/links`, {
+        method: "POST",
+        body: {
+          spec: {
+            target_ticket_id: data.target_ticket_id || "",
+            link_type: data.link_type || "relates_to"
+          }
+        }
+      });
+      dependencyForm.reset();
+      await refreshRoadmapDependencyViews(data.source_ticket_id, data.target_ticket_id);
+    }, "Roadmap dependency added");
+  });
+
+  els.roadmapDependencies.addEventListener("click", async (event) => {
+    const deleteDependency = event.target.closest("[data-delete-roadmap-dependency-id]");
+    if (!deleteDependency) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/tickets/${deleteDependency.dataset.sourceTicketId}/links/${deleteDependency.dataset.deleteRoadmapDependencyId}`, { method: "DELETE" });
+      await refreshRoadmapDependencyViews(deleteDependency.dataset.sourceTicketId, deleteDependency.dataset.targetTicketId);
+    }, "Roadmap dependency removed");
+  });
+
+  els.roadmapDependencies.addEventListener("change", (event) => {
     const form = event.target.closest("[data-roadmap-dependency-form]");
     if (form) {
       syncRoadmapDependencyTargetOptions(form);
