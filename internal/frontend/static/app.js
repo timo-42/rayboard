@@ -17,6 +17,8 @@ const state = {
   selectedBoardID: "",
   boardTickets: null,
   sprints: [],
+  selectedSprintReportID: "",
+  sprintReport: null,
   components: [],
   versions: [],
   customFields: [],
@@ -174,6 +176,7 @@ const els = {
   sprintPanel: document.querySelector("#sprint-panel"),
   sprintForm: document.querySelector("#sprint-form"),
   sprints: document.querySelector("#sprints"),
+  sprintReport: document.querySelector("#sprint-report"),
   backlogPanel: document.querySelector("#backlog-panel"),
   backlog: document.querySelector("#backlog"),
   workflowPanel: document.querySelector("#workflow-panel"),
@@ -275,6 +278,8 @@ function bindEvents() {
       state.selectedBoardID = "";
       state.boardTickets = null;
       state.sprints = [];
+      state.selectedSprintReportID = "";
+      state.sprintReport = null;
       state.components = [];
       state.versions = [];
       state.customFields = [];
@@ -727,6 +732,15 @@ function bindEvents() {
   });
 
   els.sprints.addEventListener("click", async (event) => {
+    const report = event.target.closest("[data-sprint-report-id]");
+    if (report) {
+      state.selectedSprintReportID = report.dataset.sprintReportId;
+      await runAction(async () => {
+        await loadSprintReport(state.selectedSprintReportID);
+      }, "Sprint report loaded");
+      return;
+    }
+
     const start = event.target.closest("[data-start-sprint-id]");
     if (start) {
       await runAction(async () => {
@@ -741,6 +755,9 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/sprints/${complete.dataset.completeSprintId}/complete`, { method: "POST" });
         await loadSprints();
+        if (state.selectedSprintReportID === complete.dataset.completeSprintId) {
+          await loadSprintReport(state.selectedSprintReportID);
+        }
       }, "Sprint completed");
       return;
     }
@@ -1707,6 +1724,7 @@ function bindEvents() {
           body: { spec: { sprint_id: sprintID } }
         });
         await refreshTicketViews(assignSprint.dataset.assignSprintId, { roadmap: false });
+        await refreshSelectedSprintReport();
       }, "Ticket assigned to sprint");
       return;
     }
@@ -1716,6 +1734,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/tickets/${removeSprint.dataset.removeSprintId}/sprint`, { method: "DELETE" });
         await refreshTicketViews(removeSprint.dataset.removeSprintId, { roadmap: false });
+        await refreshSelectedSprintReport();
       }, "Ticket removed from sprint");
       return;
     }
@@ -1981,7 +2000,10 @@ async function loadSavedViews() {
 async function loadSprints(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.sprints = [];
+    state.selectedSprintReportID = "";
+    state.sprintReport = null;
     renderSprints();
+    renderSprintReport();
     if (options.renderTickets !== false) {
       renderTickets();
     }
@@ -1989,9 +2011,32 @@ async function loadSprints(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/sprints`);
   state.sprints = listItems(data).map(normalizeSprint);
+  if (state.selectedSprintReportID && !state.sprints.some((sprint) => sprint.id === state.selectedSprintReportID)) {
+    state.selectedSprintReportID = "";
+    state.sprintReport = null;
+  }
   renderSprints();
+  renderSprintReport();
   if (options.renderTickets !== false) {
     renderTickets();
+  }
+}
+
+async function loadSprintReport(sprintID) {
+  if (!state.user || !state.selectedProject || !sprintID) {
+    state.sprintReport = null;
+    renderSprintReport();
+    return;
+  }
+  const data = await api(`/api/sprints/${sprintID}/report`);
+  state.sprintReport = normalizeSprintReport(data);
+  renderSprints();
+  renderSprintReport();
+}
+
+async function refreshSelectedSprintReport() {
+  if (state.selectedSprintReportID) {
+    await loadSprintReport(state.selectedSprintReportID);
   }
 }
 
@@ -2213,6 +2258,8 @@ async function loadProjects(selectedID = "") {
     state.boardTickets = null;
     state.ticketFilters = { label: "" };
     state.sprints = [];
+    state.selectedSprintReportID = "";
+    state.sprintReport = null;
     state.components = [];
     state.versions = [];
     state.projectLabels = [];
@@ -2740,6 +2787,7 @@ function render() {
   renderBacklog();
   renderWorkflowPanel();
   renderSprints();
+  renderSprintReport();
   renderComponents();
   renderVersions();
   renderCustomFields();
@@ -3125,6 +3173,99 @@ function renderSprints() {
   }
 }
 
+function renderSprintReport() {
+  if (!els.sprintReport) {
+    return;
+  }
+  els.sprintReport.replaceChildren();
+  if (!state.selectedProject) {
+    return;
+  }
+
+  const report = state.sprintReport;
+  const sprint = report ? report.sprint : state.sprints.find((item) => item.id === state.selectedSprintReportID);
+  if (!sprint) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a sprint report";
+    els.sprintReport.append(empty);
+    return;
+  }
+
+  const header = document.createElement("div");
+  header.className = "sprint-report-header";
+  const title = document.createElement("h3");
+  title.textContent = `${sprint.name || "Sprint"} report`;
+  const scope = document.createElement("span");
+  scope.textContent = sprintReportScopeText(report);
+  header.append(title, scope);
+
+  const progress = report ? report.progress : { total: 0, done: 0, by_status: {} };
+  const metrics = document.createElement("div");
+  metrics.className = "sprint-report-metrics";
+  metrics.append(
+    sprintMetricNode("Total", progress.total || 0),
+    sprintMetricNode("Done", progress.done || 0),
+    sprintMetricNode("Open", Math.max((progress.total || 0) - (progress.done || 0), 0))
+  );
+
+  const statuses = document.createElement("div");
+  statuses.className = "sprint-report-statuses";
+  for (const [status, count] of Object.entries(progress.by_status || {})) {
+    const item = document.createElement("span");
+    item.textContent = `${status}: ${count}`;
+    statuses.append(item);
+  }
+
+  const tickets = document.createElement("div");
+  tickets.className = "sprint-report-tickets";
+  if (report && report.tickets && report.tickets.length) {
+    for (const ticket of report.tickets) {
+      tickets.append(sprintReportTicketNode(ticket));
+    }
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = report ? "No tickets in this report scope" : "Report tickets will appear here";
+    tickets.append(empty);
+  }
+
+  els.sprintReport.append(header, metrics, statuses, tickets);
+}
+
+function sprintReportScopeText(report) {
+  if (!report) {
+    return "Report not loaded";
+  }
+  if (report.scope === "completed_snapshot") {
+    return report.snapshot_at ? `Completed snapshot ${formatDateTime(report.snapshot_at)}` : "Completed snapshot";
+  }
+  return "Live current assignment";
+}
+
+function sprintMetricNode(label, value) {
+  const metric = document.createElement("div");
+  metric.className = "sprint-report-metric";
+  const number = document.createElement("strong");
+  number.textContent = String(value);
+  const caption = document.createElement("span");
+  caption.textContent = label;
+  metric.append(number, caption);
+  return metric;
+}
+
+function sprintReportTicketNode(ticket) {
+  const row = document.createElement("a");
+  row.className = "sprint-report-ticket";
+  row.href = `/issues/${encodeURIComponent(ticket.id)}`;
+  const title = document.createElement("span");
+  title.textContent = `${ticket.key || ticket.id} ${ticket.title || "Untitled"}`;
+  const meta = document.createElement("small");
+  meta.textContent = [ticket.status || "todo", ticket.priority || ""].filter(Boolean).join(" / ");
+  row.append(title, meta);
+  return row;
+}
+
 function sprintNode(sprint) {
   const article = document.createElement("article");
   article.className = "sprint-item";
@@ -3147,6 +3288,13 @@ function sprintNode(sprint) {
 
   const actions = document.createElement("div");
   actions.className = "sprint-actions";
+
+  const report = document.createElement("button");
+  report.type = "button";
+  report.dataset.sprintReportId = sprint.id;
+  report.disabled = sprint.id === state.selectedSprintReportID && Boolean(state.sprintReport);
+  report.textContent = sprint.id === state.selectedSprintReportID ? "Report" : "View report";
+  actions.append(report);
 
   if (sprint.state === "planned") {
     const start = document.createElement("button");
@@ -6839,6 +6987,29 @@ function normalizeSprint(sprint) {
     };
   }
   return sprint;
+}
+
+function normalizeSprintReport(report) {
+  if (!report) {
+    return null;
+  }
+  if (report.metadata && report.spec && report.status) {
+    return {
+      sprint: normalizeSprint(report.spec.sprint) || {
+        id: report.metadata.id,
+        project_id: report.metadata.project_id
+      },
+      scope: report.status.scope || "current",
+      snapshot_at: report.status.snapshot_at || "",
+      progress: {
+        total: Number(report.status.progress && report.status.progress.total) || 0,
+        done: Number(report.status.progress && report.status.progress.done) || 0,
+        by_status: (report.status.progress && report.status.progress.by_status) || {}
+      },
+      tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)
+    };
+  }
+  return report;
 }
 
 function normalizeComponent(component) {

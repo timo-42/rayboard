@@ -199,6 +199,20 @@ type Sprint struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
+type SprintReport struct {
+	Sprint     Sprint               `json:"sprint"`
+	Scope      string               `json:"scope"`
+	SnapshotAt *time.Time           `json:"snapshot_at,omitempty"`
+	Progress   SprintReportProgress `json:"progress"`
+	Tickets    []Ticket             `json:"tickets"`
+}
+
+type SprintReportProgress struct {
+	Total    int            `json:"total"`
+	Done     int            `json:"done"`
+	ByStatus map[string]int `json:"by_status"`
+}
+
 type ProjectLabel struct {
 	ProjectID   string `json:"project_id"`
 	Label       string `json:"label"`

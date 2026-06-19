@@ -1538,6 +1538,95 @@ p {
   font-size: 12px;
 }
 
+.sprint-report {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  padding: 12px;
+}
+
+.sprint-report:empty {
+  display: none;
+}
+
+.sprint-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sprint-report-header h3 {
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.sprint-report-header span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sprint-report-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sprint-report-metric {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.sprint-report-metric strong {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.sprint-report-metric span,
+.sprint-report-ticket small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sprint-report-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sprint-report-statuses span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.sprint-report-tickets {
+  display: grid;
+  gap: 6px;
+}
+
+.sprint-report-ticket {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px;
+  text-decoration: none;
+}
+
+.sprint-report-ticket:hover {
+  border-color: var(--primary);
+}
+
 .backlog-panel {
   display: grid;
   gap: 12px;

@@ -53,12 +53,13 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
 - basic project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/deletion, and board-backed ticket columns through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, and `/api/boards/{board_id}/tickets`.
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`, using the resolved structured schema and submitting through `/api/projects/{project_id}/ticket-create-pages/{slug}/submit`.
+- compact sprint reports with live current-assignment and completed snapshot scope markers for the selected project.
 
 Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints. Advanced search pagination and component/version filtering are API-only for now.
 
-Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, sprint report screens, release reports, richer roadmap timeline controls, component/version filtering and reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries, release reports, richer roadmap timeline controls, component/version filtering and reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

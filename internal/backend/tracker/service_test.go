@@ -991,6 +991,13 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	if started.State != tracker.SprintStateActive || started.StartedAt == nil {
 		t.Fatalf("unexpected started sprint: %#v", started)
 	}
+	activeReport, err := service.GetSprintReport(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("get active sprint report: %v", err)
+	}
+	if activeReport.Scope != tracker.SprintReportScopeCurrent || activeReport.SnapshotAt != nil || activeReport.Progress.Total != 1 || activeReport.Progress.Done != 0 || len(activeReport.Tickets) != 1 || activeReport.Tickets[0].ID != ticket.ID {
+		t.Fatalf("unexpected active sprint report: %#v", activeReport)
+	}
 	other, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{ProjectID: project.ID, Name: "Sprint 2"})
 	if err != nil {
 		t.Fatalf("create other sprint: %v", err)
@@ -1006,12 +1013,42 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	if completed.State != tracker.SprintStateCompleted || completed.CompletedAt == nil {
 		t.Fatalf("unexpected completed sprint: %#v", completed)
 	}
+	completedReport, err := service.GetSprintReport(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("get completed sprint report: %v", err)
+	}
+	if completedReport.Scope != tracker.SprintReportScopeSnapshot || completedReport.SnapshotAt == nil || !completedReport.SnapshotAt.Equal(*completed.CompletedAt) || completedReport.Progress.Total != 1 || len(completedReport.Tickets) != 1 || completedReport.Tickets[0].ID != ticket.ID {
+		t.Fatalf("unexpected completed sprint report: %#v", completedReport)
+	}
 	removed, err := service.SetTicketSprint(ctx, admin, ticket.ID, "")
 	if err != nil {
 		t.Fatalf("remove ticket sprint: %v", err)
 	}
 	if removed.SprintID != "" {
 		t.Fatalf("expected sprint removal, got %#v", removed)
+	}
+	completedReportAfterMove, err := service.GetSprintReport(ctx, admin, sprint.ID)
+	if err != nil {
+		t.Fatalf("get completed sprint report after move: %v", err)
+	}
+	if completedReportAfterMove.Scope != tracker.SprintReportScopeSnapshot || completedReportAfterMove.Progress.Total != 1 || len(completedReportAfterMove.Tickets) != 1 || completedReportAfterMove.Tickets[0].ID != ticket.ID {
+		t.Fatalf("expected completed report to keep committed scope, got %#v", completedReportAfterMove)
+	}
+
+	emptyStarted, err := service.StartSprint(ctx, admin, other.ID)
+	if err != nil {
+		t.Fatalf("start empty sprint: %v", err)
+	}
+	emptyCompleted, err := service.CompleteSprint(ctx, admin, emptyStarted.ID)
+	if err != nil {
+		t.Fatalf("complete empty sprint: %v", err)
+	}
+	emptyReport, err := service.GetSprintReport(ctx, admin, emptyStarted.ID)
+	if err != nil {
+		t.Fatalf("get empty completed sprint report: %v", err)
+	}
+	if emptyReport.Scope != tracker.SprintReportScopeSnapshot || emptyReport.SnapshotAt == nil || !emptyReport.SnapshotAt.Equal(*emptyCompleted.CompletedAt) || emptyReport.Progress.Total != 0 || len(emptyReport.Tickets) != 0 {
+		t.Fatalf("unexpected empty completed sprint report: %#v", emptyReport)
 	}
 }
 

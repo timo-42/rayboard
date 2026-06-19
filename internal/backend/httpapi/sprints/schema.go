@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
+	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -25,6 +26,10 @@ type CompleteSprintInput struct {
 
 type SprintOutput struct {
 	Body SprintResource
+}
+
+type SprintReportOutput struct {
+	Body SprintReportResource
 }
 
 type SprintMetadata struct {
@@ -55,6 +60,24 @@ type SprintStatus struct {
 }
 
 type SprintResource = shared.Resource[SprintMetadata, SprintSpec, SprintStatus]
+
+type SprintReportMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type SprintReportSpec struct {
+	Sprint SprintResource `json:"sprint"`
+}
+
+type SprintReportStatus struct {
+	Scope      string                       `json:"scope"`
+	SnapshotAt *time.Time                   `json:"snapshot_at,omitempty"`
+	Progress   tracker.SprintReportProgress `json:"progress"`
+	Tickets    []ticketapi.TicketResource   `json:"tickets"`
+}
+
+type SprintReportResource = shared.Resource[SprintReportMetadata, SprintReportSpec, SprintReportStatus]
 
 func (spec SprintSpec) ToCreateInput(projectID string) tracker.CreateSprintInput {
 	return tracker.CreateSprintInput{
@@ -103,4 +126,22 @@ func Resources(sprints []tracker.Sprint) []SprintResource {
 		resources = append(resources, Resource(sprint))
 	}
 	return resources
+}
+
+func ReportResource(report tracker.SprintReport) SprintReportResource {
+	return SprintReportResource{
+		Metadata: SprintReportMetadata{
+			ID:        report.Sprint.ID,
+			ProjectID: report.Sprint.ProjectID,
+		},
+		Spec: SprintReportSpec{
+			Sprint: Resource(report.Sprint),
+		},
+		Status: SprintReportStatus{
+			Scope:      report.Scope,
+			SnapshotAt: report.SnapshotAt,
+			Progress:   report.Progress,
+			Tickets:    ticketapi.ResourcesFromTracker(report.Tickets),
+		},
+	}
 }
