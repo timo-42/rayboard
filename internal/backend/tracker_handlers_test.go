@@ -85,6 +85,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 			"name":         "Review Board",
 			"description":  "Review workflow",
 			"status_slugs": []string{"todo", "review", "done"},
+			"wip_limits":   map[string]int{"todo": 0, "review": 2},
 		},
 	}))
 	addSessionCSRF(createBoardReq, session, csrf)
@@ -98,7 +99,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("decode board: %v", err)
 	}
 	board := boardBody.toTracker()
-	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "review" {
+	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "review" || board.Columns[0].WIPLimit == nil || *board.Columns[0].WIPLimit != 0 {
 		t.Fatalf("unexpected board: %#v", board)
 	}
 
@@ -196,8 +197,10 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		} `json:"spec"`
 		Status struct {
 			Columns []struct {
-				Column  tracker.BoardColumn  `json:"column"`
-				Tickets []ticketResourceBody `json:"tickets"`
+				Column       tracker.BoardColumn  `json:"column"`
+				Tickets      []ticketResourceBody `json:"tickets"`
+				TicketCount  int                  `json:"ticket_count"`
+				OverWIPLimit bool                 `json:"over_wip_limit"`
 			} `json:"columns"`
 		} `json:"status"`
 	}
@@ -206,6 +209,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 	if boardTicketsBody.Spec.Board.Metadata.ID != board.ID || len(boardTicketsBody.Status.Columns) != 3 || len(boardTicketsBody.Status.Columns[0].Tickets) != 1 {
 		t.Fatalf("unexpected board tickets: %#v", boardTicketsBody)
+	}
+	if boardTicketsBody.Status.Columns[0].TicketCount != 1 || !boardTicketsBody.Status.Columns[0].OverWIPLimit {
+		t.Fatalf("unexpected board capacity status: %#v", boardTicketsBody.Status.Columns[0])
 	}
 	if !slices.Equal(boardTicketsBody.Status.Columns[0].Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected board ticket labels: %#v", boardTicketsBody.Status.Columns[0].Tickets[0].Spec.Labels)
@@ -1081,9 +1087,10 @@ type boardResourceBody struct {
 		CreatedBy string `json:"created_by"`
 	} `json:"metadata"`
 	Spec struct {
-		Name        string   `json:"name"`
-		Description string   `json:"description"`
-		StatusSlugs []string `json:"status_slugs"`
+		Name        string         `json:"name"`
+		Description string         `json:"description"`
+		StatusSlugs []string       `json:"status_slugs"`
+		WIPLimits   map[string]int `json:"wip_limits"`
 	} `json:"spec"`
 	Status struct {
 		Columns []tracker.BoardColumn `json:"columns"`

@@ -977,6 +977,13 @@ func nullableFloat(value *float64) any {
 	return *value
 }
 
+func nullableInt(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 func nullString(value sql.NullString) string {
 	if !value.Valid {
 		return ""

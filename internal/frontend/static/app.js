@@ -970,7 +970,8 @@ function bindEvents() {
         body: { spec: {
           name: data.name || "",
           description: data.description || "",
-          status_slugs: parseCommaList(data.status_slugs)
+          status_slugs: parseCommaList(data.status_slugs),
+          wip_limits: parseBoardWIPLimits(data.wip_limits)
         } }
       }));
       form.reset();
@@ -1015,7 +1016,8 @@ function bindEvents() {
           spec: {
             name: data.name || "",
             description: data.description || "",
-            status_slugs: parseCommaList(data.status_slugs)
+            status_slugs: parseCommaList(data.status_slugs),
+            wip_limits: parseBoardWIPLimits(data.wip_limits)
           }
         }
       });
@@ -3711,7 +3713,8 @@ function boardNode(board) {
   edit.append(
     inputNode("name", board.name || "", "name"),
     inputNode("description", board.description || "", "description"),
-    inputNode("status_slugs", board.status_slugs.join(", "), "status slugs")
+    inputNode("status_slugs", board.status_slugs.join(", "), "status slugs"),
+    inputNode("wip_limits", formatBoardWIPLimits(board.wip_limits), "wip limits")
   );
   const save = document.createElement("button");
   save.type = "submit";
@@ -6755,7 +6758,10 @@ function ticketColumns() {
   if (state.boardTickets && Array.isArray(state.boardTickets.columns) && state.boardTickets.columns.length) {
     return state.boardTickets.columns.map((column) => ({
       slug: column.slug,
-      name: column.name || statusName(column.slug)
+      name: column.name || statusName(column.slug),
+      ticket_count: column.ticket_count,
+      wip_limit: column.wip_limit,
+      over_wip_limit: column.over_wip_limit
     }));
   }
   const statuses = state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses();
@@ -6770,11 +6776,27 @@ function ticketColumnNode(column) {
   const heading = document.createElement("h3");
   heading.textContent = column.name || column.slug;
 
+  const meta = document.createElement("span");
+  meta.className = "column-capacity";
+  const ticketCount = Number.isFinite(column.ticket_count) ? column.ticket_count : 0;
+  if (Number.isFinite(column.wip_limit)) {
+    meta.textContent = `${ticketCount}/${column.wip_limit}`;
+    if (column.over_wip_limit) {
+      section.classList.add("is-over-wip");
+    }
+  } else {
+    meta.textContent = `${ticketCount}`;
+  }
+
+  const header = document.createElement("div");
+  header.className = "column-header";
+  header.append(heading, meta);
+
   const list = document.createElement("div");
   list.className = "ticket-list";
   list.dataset.boardDropStatus = column.slug;
 
-  section.append(heading, list);
+  section.append(header, list);
   return section;
 }
 
@@ -7794,6 +7816,30 @@ function parseCommaList(value) {
     .filter(Boolean);
 }
 
+function parseBoardWIPLimits(value) {
+  const limits = {};
+  for (const item of parseCommaList(value)) {
+    const [rawSlug, rawLimit, ...rest] = item.split("=");
+    const slug = String(rawSlug || "").trim();
+    const limitText = String(rawLimit || "").trim();
+    if (!slug || rest.length || limitText === "") {
+      throw new Error("Board WIP limits must use status=limit pairs");
+    }
+    const limit = Number(limitText);
+    if (!Number.isInteger(limit) || limit < 0) {
+      throw new Error("Board WIP limits must be whole numbers zero or greater");
+    }
+    limits[slug] = limit;
+  }
+  return limits;
+}
+
+function formatBoardWIPLimits(limits) {
+  return Object.entries(limits || {})
+    .map(([status, limit]) => `${status}=${limit}`)
+    .join(", ");
+}
+
 function parseOptions(value) {
   return String(value || "")
     .split(",")
@@ -8237,6 +8283,7 @@ function normalizeBoard(board) {
       name: board.spec.name || "",
       description: board.spec.description || "",
       status_slugs: board.spec.status_slugs || [],
+      wip_limits: board.spec.wip_limits || {},
       columns: board.status.columns || []
     };
   }
@@ -8254,6 +8301,9 @@ function normalizeBoardTickets(data) {
     columns: (data.status.columns || []).map((column) => ({
       slug: column.column ? column.column.status_slug : "",
       name: column.column ? column.column.name : "",
+      wip_limit: column.column && Number.isFinite(column.column.wip_limit) ? column.column.wip_limit : null,
+      ticket_count: Number.isFinite(column.ticket_count) ? column.ticket_count : (column.tickets || []).length,
+      over_wip_limit: Boolean(column.over_wip_limit),
       tickets: (column.tickets || []).map(normalizeTicket).filter(Boolean)
     }))
   };

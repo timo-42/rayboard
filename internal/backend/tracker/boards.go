@@ -121,7 +121,7 @@ func (s *Service) CreateBoard(ctx context.Context, principal authz.Principal, in
 		return Board{}, err
 	}
 	if err := s.withTx(ctx, func(tx *sql.Tx) error {
-		columns, err := s.buildBoardColumns(ctx, tx, board.ID, input.ProjectID, input.StatusSlugs, board.CreatedAt)
+		columns, err := s.buildBoardColumns(ctx, tx, board.ID, input.ProjectID, input.StatusSlugs, input.WIPLimits, board.CreatedAt)
 		if err != nil {
 			return err
 		}
@@ -170,8 +170,23 @@ func (s *Service) UpdateBoard(ctx context.Context, principal authz.Principal, bo
 
 	updated.UpdatedAt = s.now().UTC()
 	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		currentColumns, err := s.listBoardColumns(ctx, tx, updated.ID)
+		if err != nil {
+			return err
+		}
+		updated.Columns = currentColumns
 		if input.StatusSlugs != nil {
-			columns, err := s.buildBoardColumns(ctx, tx, updated.ID, updated.ProjectID, *input.StatusSlugs, updated.UpdatedAt)
+			wipLimits := wipLimitsFromBoardColumns(currentColumns)
+			if input.WIPLimits != nil {
+				wipLimits = *input.WIPLimits
+			}
+			columns, err := s.buildBoardColumns(ctx, tx, updated.ID, updated.ProjectID, *input.StatusSlugs, wipLimits, updated.UpdatedAt)
+			if err != nil {
+				return err
+			}
+			updated.Columns = columns
+		} else if input.WIPLimits != nil {
+			columns, err := applyBoardWIPLimits(currentColumns, *input.WIPLimits)
 			if err != nil {
 				return err
 			}
@@ -180,7 +195,7 @@ func (s *Service) UpdateBoard(ctx context.Context, principal authz.Principal, bo
 		if err := s.updateBoard(ctx, tx, updated); err != nil {
 			return err
 		}
-		if input.StatusSlugs != nil {
+		if input.StatusSlugs != nil || input.WIPLimits != nil {
 			return s.replaceBoardColumns(ctx, tx, updated.ID, updated.Columns)
 		}
 		return nil
@@ -232,8 +247,10 @@ func (s *Service) ListBoardTickets(ctx context.Context, principal authz.Principa
 			return BoardTickets{}, err
 		}
 		result.Columns = append(result.Columns, BoardTicketsColumn{
-			Column:  column,
-			Tickets: tickets,
+			Column:       column,
+			Tickets:      tickets,
+			TicketCount:  len(tickets),
+			OverWIPLimit: column.WIPLimit != nil && len(tickets) > *column.WIPLimit,
 		})
 	}
 	return result, nil
@@ -259,7 +276,7 @@ func (s *Service) seedDefaultProjectWorkflow(ctx context.Context, q sqlRunner, p
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	columns, err := s.boardColumnsFromStatuses(board.ID, statuses, now)
+	columns, err := s.boardColumnsFromStatuses(board.ID, statuses, nil, now)
 	if err != nil {
 		return err
 	}
@@ -347,13 +364,17 @@ func boardFields(name string, description string) map[string]string {
 	return fields
 }
 
-func (s *Service) buildBoardColumns(ctx context.Context, q sqlRunner, boardID string, projectID string, statusSlugs []string, createdAt time.Time) ([]BoardColumn, error) {
+func (s *Service) buildBoardColumns(ctx context.Context, q sqlRunner, boardID string, projectID string, statusSlugs []string, wipLimits map[string]int, createdAt time.Time) ([]BoardColumn, error) {
+	normalizedWIPLimits, err := normalizeBoardWIPLimits(wipLimits)
+	if err != nil {
+		return nil, err
+	}
 	if len(statusSlugs) == 0 {
 		statuses, err := s.listProjectStatuses(ctx, q, projectID)
 		if err != nil {
 			return nil, err
 		}
-		return s.boardColumnsFromStatuses(boardID, statuses, createdAt)
+		return s.boardColumnsFromStatuses(boardID, statuses, normalizedWIPLimits, createdAt)
 	}
 
 	statusNames, err := s.projectStatusNames(ctx, q, projectID)
@@ -384,13 +405,17 @@ func (s *Service) buildBoardColumns(ctx context.Context, q sqlRunner, boardID st
 			StatusSlug: slug,
 			Name:       name,
 			Position:   index,
+			WIPLimit:   wipLimitForStatus(normalizedWIPLimits, slug),
 			CreatedAt:  createdAt,
 		})
+	}
+	if err := requireWIPLimitStatuses(normalizedWIPLimits, columns); err != nil {
+		return nil, err
 	}
 	return columns, nil
 }
 
-func (s *Service) boardColumnsFromStatuses(boardID string, statuses []ProjectStatus, createdAt time.Time) ([]BoardColumn, error) {
+func (s *Service) boardColumnsFromStatuses(boardID string, statuses []ProjectStatus, wipLimits map[string]int, createdAt time.Time) ([]BoardColumn, error) {
 	columns := make([]BoardColumn, 0, len(statuses))
 	for index, status := range statuses {
 		columns = append(columns, BoardColumn{
@@ -399,10 +424,85 @@ func (s *Service) boardColumnsFromStatuses(boardID string, statuses []ProjectSta
 			StatusSlug: status.Slug,
 			Name:       status.Name,
 			Position:   index,
+			WIPLimit:   wipLimitForStatus(wipLimits, status.Slug),
 			CreatedAt:  createdAt,
 		})
 	}
+	if err := requireWIPLimitStatuses(wipLimits, columns); err != nil {
+		return nil, err
+	}
 	return columns, nil
+}
+
+func normalizeBoardWIPLimits(input map[string]int) (map[string]int, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	limits := map[string]int{}
+	for status, limit := range input {
+		status = normalizeSlug(status)
+		if status == "" {
+			return nil, validationFailed(map[string]string{"wip_limits": "Status slugs must be non-empty"})
+		}
+		if limit < 0 {
+			return nil, validationFailed(map[string]string{"wip_limits": "Limits must be zero or greater"})
+		}
+		limits[status] = limit
+	}
+	return limits, nil
+}
+
+func applyBoardWIPLimits(columns []BoardColumn, input map[string]int) ([]BoardColumn, error) {
+	limits, err := normalizeBoardWIPLimits(input)
+	if err != nil {
+		return nil, err
+	}
+	updated := make([]BoardColumn, 0, len(columns))
+	for _, column := range columns {
+		column.WIPLimit = wipLimitForStatus(limits, column.StatusSlug)
+		updated = append(updated, column)
+	}
+	if err := requireWIPLimitStatuses(limits, updated); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func requireWIPLimitStatuses(limits map[string]int, columns []BoardColumn) error {
+	if len(limits) == 0 {
+		return nil
+	}
+	allowed := map[string]struct{}{}
+	for _, column := range columns {
+		allowed[column.StatusSlug] = struct{}{}
+	}
+	for status := range limits {
+		if _, ok := allowed[status]; !ok {
+			return validationFailed(map[string]string{"wip_limits": "Limits must reference board status slugs"})
+		}
+	}
+	return nil
+}
+
+func wipLimitForStatus(limits map[string]int, status string) *int {
+	if limits == nil {
+		return nil
+	}
+	limit, ok := limits[status]
+	if !ok {
+		return nil
+	}
+	return &limit
+}
+
+func wipLimitsFromBoardColumns(columns []BoardColumn) map[string]int {
+	limits := map[string]int{}
+	for _, column := range columns {
+		if column.WIPLimit != nil {
+			limits[column.StatusSlug] = *column.WIPLimit
+		}
+	}
+	return limits
 }
 
 func (s *Service) requireUsedTicketStatuses(ctx context.Context, q sqlRunner, projectID string, statuses []ProjectStatus) error {
@@ -559,9 +659,9 @@ func (s *Service) replaceBoardColumns(ctx context.Context, q sqlRunner, boardID 
 	}
 	for _, column := range columns {
 		if _, err := q.ExecContext(ctx, `
-			INSERT INTO board_columns (id, board_id, status_slug, name, position, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, column.ID, column.BoardID, column.StatusSlug, column.Name, column.Position, formatTime(column.CreatedAt)); err != nil {
+			INSERT INTO board_columns (id, board_id, status_slug, name, position, wip_limit, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, column.ID, column.BoardID, column.StatusSlug, column.Name, column.Position, nullableInt(column.WIPLimit), formatTime(column.CreatedAt)); err != nil {
 			return fmt.Errorf("insert board column: %w", err)
 		}
 	}
@@ -589,7 +689,7 @@ func (s *Service) getBoard(ctx context.Context, boardID string) (Board, error) {
 
 func (s *Service) listBoardColumns(ctx context.Context, q sqlRunner, boardID string) ([]BoardColumn, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, board_id, status_slug, name, position, created_at
+		SELECT id, board_id, status_slug, name, position, wip_limit, created_at
 		FROM board_columns
 		WHERE board_id = ?
 		ORDER BY position ASC, status_slug ASC
@@ -686,9 +786,14 @@ func scanBoard(scanner rowScanner) (Board, error) {
 
 func scanBoardColumn(scanner rowScanner) (BoardColumn, error) {
 	var column BoardColumn
+	var wipLimit sql.NullInt64
 	var createdAt string
-	if err := scanner.Scan(&column.ID, &column.BoardID, &column.StatusSlug, &column.Name, &column.Position, &createdAt); err != nil {
+	if err := scanner.Scan(&column.ID, &column.BoardID, &column.StatusSlug, &column.Name, &column.Position, &wipLimit, &createdAt); err != nil {
 		return BoardColumn{}, err
+	}
+	if wipLimit.Valid {
+		limit := int(wipLimit.Int64)
+		column.WIPLimit = &limit
 	}
 	var err error
 	column.CreatedAt, err = parseTime(createdAt)

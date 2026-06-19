@@ -51,20 +51,23 @@ type BoardColumn struct {
 	StatusSlug string    `json:"status_slug"`
 	Name       string    `json:"name"`
 	Position   int       `json:"position"`
+	WIPLimit   *int      `json:"wip_limit,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
 type CreateBoardInput struct {
-	ProjectID   string   `json:"project_id,omitempty"`
-	Name        string   `json:"name,omitempty"`
-	Description string   `json:"description,omitempty"`
-	StatusSlugs []string `json:"status_slugs,omitempty"`
+	ProjectID   string         `json:"project_id,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	Description string         `json:"description,omitempty"`
+	StatusSlugs []string       `json:"status_slugs,omitempty"`
+	WIPLimits   map[string]int `json:"wip_limits,omitempty"`
 }
 
 type UpdateBoardInput struct {
-	Name        *string   `json:"name,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	StatusSlugs *[]string `json:"status_slugs,omitempty"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	StatusSlugs *[]string       `json:"status_slugs,omitempty"`
+	WIPLimits   *map[string]int `json:"wip_limits,omitempty"`
 }
 
 type BoardTickets struct {
@@ -73,8 +76,10 @@ type BoardTickets struct {
 }
 
 type BoardTicketsColumn struct {
-	Column  BoardColumn `json:"column"`
-	Tickets []Ticket    `json:"tickets"`
+	Column       BoardColumn `json:"column"`
+	Tickets      []Ticket    `json:"tickets"`
+	TicketCount  int         `json:"ticket_count"`
+	OverWIPLimit bool        `json:"over_wip_limit"`
 }
 
 type CreateProjectInput struct {
