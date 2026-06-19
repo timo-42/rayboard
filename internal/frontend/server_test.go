@@ -78,6 +78,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="workflow-panel"`) ||
 		!strings.Contains(body, `id="status-form"`) ||
 		!strings.Contains(body, `id="board-form"`) ||
+		!strings.Contains(body, `id="board-saved-view-filter"`) ||
+		!strings.Contains(body, `id="board-saved-view-status"`) ||
 		!strings.Contains(body, `id="boards"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="sprint-report"`) ||
@@ -276,8 +278,11 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/tickets/${removeSprint.dataset.backlogRemoveSprintId}/sprint",
 		"/api/projects/${state.selectedProject.id}/statuses",
 		"/api/projects/${state.selectedProject.id}/boards",
+		"/api/saved-views?project_id=${projectID}&limit=200&offset=0",
 		"/api/boards/${form.dataset.boardEditForm}",
 		"/api/boards/${boardID}/tickets",
+		"selectedBoardSavedViewID",
+		"boardTicketsFromSavedViewMatches",
 		"parseBoardWIPLimits",
 		"over_wip_limit",
 		"data-select-board-id",
@@ -346,6 +351,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".workflow-panel",
 		".status-form",
 		".board-form",
+		".board-saved-view-filter",
 		".board-edit-form",
 		".board-list",
 		".column-capacity",
