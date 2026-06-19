@@ -150,7 +150,7 @@ Board ticket responses use `metadata` for the board view identity, `spec.board` 
 
 ## Sprints
 
-The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, and compact sprint reports for the selected project. Browser backlog planning, board drag/drop, detailed sprint editing, and sprint filtering are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, and compact sprint reports for the selected project. Browser backlog planning, board drag/drop, detailed sprint editing, and sprint filtering are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -167,9 +167,9 @@ The sprint API supports sprint CRUD within a project, starting and completing sp
 
 Sprint responses use `metadata`, `spec`, and `status`. Sprint states are returned in `status.state` and can be `planned`, `active`, or `completed`. Start and complete actions validate state transitions. Ticket assignment keeps the ticket in its existing project; cross-project sprint assignment is invalid.
 
-Sprint report responses use `spec.sprint` for the sprint resource and `status.scope`, `status.snapshot_at`, `status.progress`, and `status.tickets` for computed report data. Planned and active sprint reports use scope `current` and read the current ticket assignments. Completed sprint reports use scope `completed_snapshot` and read a committed ticket membership snapshot captured in the same transaction that completed the sprint. Snapshot reports keep membership stable when tickets are later moved out of the sprint; ticket fields such as title, status, assignee, and priority are still read from the current ticket records, and deleted tickets are omitted.
+Sprint report responses use `spec.sprint` for the sprint resource and `status.scope`, `status.snapshot_at`, `status.progress`, `status.analytics`, and `status.tickets` for computed report data. Planned and active sprint reports use scope `current` and read the current ticket assignments. Completed sprint reports use scope `completed_snapshot` and read a committed ticket membership snapshot captured in the same transaction that completed the sprint. Snapshot reports keep membership stable when tickets are later moved out of the sprint; ticket fields such as title, status, assignee, and priority are still read from the current ticket records, and deleted tickets are omitted.
 
-Burndown, velocity, burnup, and other agile analytics are **Planned**.
+Sprint analytics are ticket-count based because tickets do not currently store story points. `status.analytics.burndown` contains daily `date` and `remaining` points, `status.analytics.burnup` contains daily `date`, `total`, and `done` points, and `status.analytics.velocity` reports completed ticket count with `unit: "tickets"`. Richer charting and additional agile analytics are **Planned**.
 
 ## Components and Versions
 

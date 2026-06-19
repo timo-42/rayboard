@@ -526,6 +526,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.Scope != tracker.SprintReportScopeCurrent ||
 		activeReportBody.Status.SnapshotAt != "" ||
 		activeReportBody.Status.Progress.Total != 1 ||
+		activeReportBody.Status.Analytics.Velocity.Unit != "tickets" ||
 		len(activeReportBody.Status.Tickets) != 1 ||
 		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID {
 		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
@@ -717,6 +718,7 @@ type sprintReportResourceBody struct {
 		Scope      string                       `json:"scope"`
 		SnapshotAt string                       `json:"snapshot_at"`
 		Progress   tracker.SprintReportProgress `json:"progress"`
+		Analytics  tracker.SprintAnalytics      `json:"analytics"`
 		Tickets    []ticketResourceBody         `json:"tickets"`
 	} `json:"status"`
 }

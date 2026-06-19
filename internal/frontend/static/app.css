@@ -1608,6 +1608,36 @@ p {
   font-size: 12px;
 }
 
+.sprint-report-analytics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sprint-report-chart {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  min-height: 72px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.sprint-report-chart span {
+  flex: 1 1 10px;
+  min-width: 8px;
+  max-width: 28px;
+  border-radius: 3px 3px 0 0;
+  background: var(--primary);
+}
+
+.sprint-report-chart small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .sprint-report-tickets {
   display: grid;
   gap: 6px;

@@ -204,6 +204,7 @@ type SprintReport struct {
 	Scope      string               `json:"scope"`
 	SnapshotAt *time.Time           `json:"snapshot_at,omitempty"`
 	Progress   SprintReportProgress `json:"progress"`
+	Analytics  SprintAnalytics      `json:"analytics"`
 	Tickets    []Ticket             `json:"tickets"`
 }
 
@@ -211,6 +212,28 @@ type SprintReportProgress struct {
 	Total    int            `json:"total"`
 	Done     int            `json:"done"`
 	ByStatus map[string]int `json:"by_status"`
+}
+
+type SprintAnalytics struct {
+	Burndown []SprintBurndownPoint `json:"burndown"`
+	Burnup   []SprintBurnupPoint   `json:"burnup"`
+	Velocity SprintVelocity        `json:"velocity"`
+}
+
+type SprintBurndownPoint struct {
+	Date      string `json:"date"`
+	Remaining int    `json:"remaining"`
+}
+
+type SprintBurnupPoint struct {
+	Date  string `json:"date"`
+	Total int    `json:"total"`
+	Done  int    `json:"done"`
+}
+
+type SprintVelocity struct {
+	Completed int    `json:"completed"`
+	Unit      string `json:"unit"`
 }
 
 type ProjectLabel struct {

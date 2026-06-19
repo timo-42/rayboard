@@ -74,6 +74,7 @@ type SprintReportStatus struct {
 	Scope      string                       `json:"scope"`
 	SnapshotAt *time.Time                   `json:"snapshot_at,omitempty"`
 	Progress   tracker.SprintReportProgress `json:"progress"`
+	Analytics  tracker.SprintAnalytics      `json:"analytics"`
 	Tickets    []ticketapi.TicketResource   `json:"tickets"`
 }
 
@@ -141,6 +142,7 @@ func ReportResource(report tracker.SprintReport) SprintReportResource {
 			Scope:      report.Scope,
 			SnapshotAt: report.SnapshotAt,
 			Progress:   report.Progress,
+			Analytics:  report.Analytics,
 			Tickets:    ticketapi.ResourcesFromTracker(report.Tickets),
 		},
 	}
