@@ -179,6 +179,7 @@ type CreateInput struct {
 
 type UpdateInput struct {
 	Name        *string
+	Direction   *string
 	Enabled     *bool
 	ActorUserID *string
 	EventTypes  *[]string
@@ -324,6 +325,9 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, webhook
 	if input.Name != nil {
 		current.Name = normalizeName(*input.Name)
 	}
+	if input.Direction != nil {
+		current.Direction = strings.TrimSpace(*input.Direction)
+	}
 	if input.Enabled != nil {
 		current.Enabled = *input.Enabled
 	}
@@ -342,10 +346,10 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, webhook
 	}
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE webhooks
-		SET name = ?, enabled = ?, actor_user_id = ?, engine_type = ?,
+		SET name = ?, direction = ?, enabled = ?, actor_user_id = ?, engine_type = ?,
 			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, event_types_json = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
-	`, current.Name, current.Enabled, current.ActorUserID, current.Engine.Type,
+	`, current.Name, current.Direction, current.Enabled, current.ActorUserID, current.Engine.Type,
 		nullableString(current.Engine.Script), nullableString(current.Engine.Prompt),
 		nullableString(current.Engine.ProviderID), mustEventTypesJSON(current.EventTypes), formatTime(current.UpdatedAt), webhookID)
 	if err != nil {

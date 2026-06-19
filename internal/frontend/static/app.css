@@ -3370,6 +3370,7 @@ p {
 
 .cron-job-form,
 .webhook-form,
+.webhook-edit-form,
 .ticket-hook-form,
 .ticket-hook-edit-form,
 .ticket-hook-preview-form,
@@ -3389,6 +3390,7 @@ p {
 
 .cron-job-form textarea,
 .webhook-form textarea,
+.webhook-edit-form textarea,
 .ticket-hook-form textarea,
 .ticket-hook-edit-form textarea,
 .ticket-hook-preview-form textarea,
@@ -3510,6 +3512,27 @@ p {
 }
 
 .ticket-hook-edit-form button {
+  min-height: 34px;
+}
+
+.webhook-edit-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  align-items: end;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.webhook-edit-form [data-webhook-edit-engine-field] {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.webhook-edit-form [data-webhook-edit-engine-field][hidden] {
+  display: none;
+}
+
+.webhook-edit-form button {
   min-height: 34px;
 }
 
