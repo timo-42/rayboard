@@ -508,6 +508,13 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"savedViewSpecFromForm",
 		"savedViewUpdateSpec",
 		"editSavedView",
+		"searchNextCursor",
+		"searchCursorStack",
+		"renderSearchPagination",
+		"renderSavedViewPagination",
+		"dataset.searchNext",
+		"dataset.savedViewNext",
+		"limit=${savedViewPageSize + 1}&offset=${state.savedViewOffset}",
 		"/api/search",
 		"/api/saved-views",
 		"/api/saved-views/${editingID}",
@@ -523,7 +530,9 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 	for _, expected := range []string{
 		".search-panel",
 		".search-results",
+		".search-pagination",
 		".saved-view-list",
+		".saved-view-pagination",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

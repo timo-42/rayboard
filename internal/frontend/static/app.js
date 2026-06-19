@@ -1,3 +1,6 @@
+const searchPageSize = 20;
+const savedViewPageSize = 20;
+
 const state = {
   user: null,
   projects: [],
@@ -32,7 +35,12 @@ const state = {
   notifications: [],
   unreadNotificationsOnly: false,
   searchResults: [],
+  searchNextCursor: "",
+  searchCursorStack: [""],
+  searchCursorIndex: 0,
   savedViews: [],
+  savedViewOffset: 0,
+  savedViewHasMore: false,
   lastSearchSpec: { text: "", filter: "" },
   tokens: [],
   createdToken: null,
@@ -207,7 +215,9 @@ const els = {
   savedViewCancelEdit: document.querySelector("#saved-view-cancel-edit"),
   searchResults: document.querySelector("#search-results"),
   searchResultCount: document.querySelector("#search-result-count"),
+  searchPagination: document.querySelector("#search-pagination"),
   savedViews: document.querySelector("#saved-views"),
+  savedViewPagination: document.querySelector("#saved-view-pagination"),
   accountPanel: document.querySelector("#account-panel"),
   accountUser: document.querySelector("#account-user"),
   tokenForm: document.querySelector("#token-form"),
@@ -297,7 +307,9 @@ function bindEvents() {
       state.notifications = [];
       state.unreadNotificationsOnly = false;
       state.searchResults = [];
+      resetSearchPagination();
       state.savedViews = [];
+      resetSavedViewPagination();
       state.lastSearchSpec = { text: "", filter: "" };
       state.tokens = [];
       state.createdToken = null;
@@ -1196,8 +1208,35 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     await runAction(async () => {
-      await runSearch(searchSpecFromForm(form));
+      await runSearch(searchSpecFromForm(form), { reset: true });
     }, "Search complete");
+  });
+
+  els.searchPagination.addEventListener("click", async (event) => {
+    const next = event.target.closest("[data-search-next]");
+    if (next) {
+      if (!state.searchNextCursor) {
+        return;
+      }
+      await runAction(async () => {
+        const nextIndex = state.searchCursorIndex + 1;
+        state.searchCursorStack[nextIndex] = state.searchNextCursor;
+        state.searchCursorIndex = nextIndex;
+        await runSearch(state.lastSearchSpec, { cursor: state.searchCursorStack[state.searchCursorIndex], reset: false });
+      }, "Search page loaded");
+      return;
+    }
+
+    const previous = event.target.closest("[data-search-previous]");
+    if (previous) {
+      if (state.searchCursorIndex <= 0) {
+        return;
+      }
+      await runAction(async () => {
+        state.searchCursorIndex -= 1;
+        await runSearch(state.lastSearchSpec, { cursor: state.searchCursorStack[state.searchCursorIndex] || "", reset: false });
+      }, "Search page loaded");
+    }
   });
 
   els.savedViewForm.addEventListener("submit", async (event) => {
@@ -1216,6 +1255,7 @@ function bindEvents() {
         await api("/api/saved-views", { method: "POST", body: { spec } });
       }
       resetSavedViewForm();
+      resetSavedViewPagination();
       await loadSavedViews();
     }, form.dataset.savedViewEditId ? "Saved view updated" : "Saved view created");
   });
@@ -1236,8 +1276,9 @@ function bindEvents() {
         await runSearch({
           text: view.query.text || "",
           filter: view.query.filter || "",
-          project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : "")
-        });
+          project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : ""),
+          sort: view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }]
+        }, { reset: true });
       }, "Saved view applied");
       return;
     }
@@ -1257,6 +1298,25 @@ function bindEvents() {
         await api(`/api/saved-views/${remove.dataset.deleteSavedViewId}`, { method: "DELETE" });
         await loadSavedViews();
       }, "Saved view deleted");
+    }
+  });
+
+  els.savedViewPagination.addEventListener("click", async (event) => {
+    const next = event.target.closest("[data-saved-view-next]");
+    if (next) {
+      await runAction(async () => {
+        state.savedViewOffset += savedViewPageSize;
+        await loadSavedViews();
+      }, "Saved view page loaded");
+      return;
+    }
+
+    const previous = event.target.closest("[data-saved-view-previous]");
+    if (previous) {
+      await runAction(async () => {
+        state.savedViewOffset = Math.max(0, state.savedViewOffset - savedViewPageSize);
+        await loadSavedViews();
+      }, "Saved view page loaded");
     }
   });
 
@@ -2110,6 +2170,10 @@ async function loadRouteData() {
     await loadSettingsPage();
     return;
   }
+  if (route.page === "search") {
+    await loadSavedViews();
+    return;
+  }
   if (route.page === "automation") {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
@@ -2174,12 +2238,20 @@ async function loadTokens() {
 async function loadSavedViews() {
   if (!state.user) {
     state.savedViews = [];
+    resetSavedViewPagination();
     renderSavedViews();
     return;
   }
   const projectPart = state.selectedProject ? `project_id=${encodeURIComponent(state.selectedProject.id)}&` : "";
-  const data = await api(`/api/saved-views?${projectPart}limit=20`);
-  state.savedViews = listItems(data).map(normalizeSavedView);
+  const data = await api(`/api/saved-views?${projectPart}limit=${savedViewPageSize + 1}&offset=${state.savedViewOffset}`);
+  const items = listItems(data).map(normalizeSavedView).filter(Boolean);
+  state.savedViewHasMore = items.length > savedViewPageSize;
+  state.savedViews = items.slice(0, savedViewPageSize);
+  if (!state.savedViews.length && state.savedViewOffset > 0) {
+    state.savedViewOffset = Math.max(0, state.savedViewOffset - savedViewPageSize);
+    await loadSavedViews();
+    return;
+  }
   renderSavedViews();
 }
 
@@ -2471,17 +2543,30 @@ async function loadProjectDetails() {
   await loadSavedViews();
 }
 
-async function runSearch(spec) {
+async function runSearch(spec, options = {}) {
+  const reset = options.reset !== false;
+  const cursor = reset ? "" : options.cursor || "";
   const normalized = {
     project_id: spec.project_id || (state.selectedProject ? state.selectedProject.id : ""),
     text: spec.text || "",
     filter: spec.filter || "",
-    sort: [{ field: "updated_at", direction: "desc" }],
-    limit: 20
+    sort: spec.sort && spec.sort.length ? spec.sort : [{ field: "updated_at", direction: "desc" }],
+    limit: searchPageSize,
+    cursor
   };
   const data = await api("/api/search", { method: "POST", body: { spec: normalized } });
-  state.lastSearchSpec = { text: normalized.text, filter: normalized.filter };
-  state.searchResults = listItems(data).map(normalizeTicket);
+  state.lastSearchSpec = {
+    project_id: normalized.project_id,
+    text: normalized.text,
+    filter: normalized.filter,
+    sort: normalized.sort
+  };
+  if (reset) {
+    state.searchCursorStack = [""];
+    state.searchCursorIndex = 0;
+  }
+  state.searchNextCursor = data && data.status ? data.status.next_cursor || "" : "";
+  state.searchResults = listItems(data).map(normalizeTicket).filter(Boolean);
   renderSearchResults();
 }
 
@@ -4194,6 +4279,7 @@ function renderSearchResults() {
   }
   els.searchResultCount.textContent = String(state.searchResults.length);
   els.searchResults.replaceChildren();
+  renderSearchPagination();
   if (!state.searchResults.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -4216,11 +4302,36 @@ function renderSearchResults() {
   }
 }
 
+function renderSearchPagination() {
+  if (!els.searchPagination) {
+    return;
+  }
+  els.searchPagination.replaceChildren();
+
+  const summary = document.createElement("span");
+  summary.textContent = `Page ${state.searchCursorIndex + 1}`;
+
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.dataset.searchPrevious = "true";
+  previous.disabled = state.searchCursorIndex <= 0;
+  previous.textContent = "Previous";
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.dataset.searchNext = "true";
+  next.disabled = !state.searchNextCursor;
+  next.textContent = "Next";
+
+  els.searchPagination.append(summary, previous, next);
+}
+
 function renderSavedViews() {
   if (!els.savedViews) {
     return;
   }
   els.savedViews.replaceChildren();
+  renderSavedViewPagination();
   if (!state.savedViews.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -4231,6 +4342,32 @@ function renderSavedViews() {
   for (const view of state.savedViews) {
     els.savedViews.append(savedViewNode(view));
   }
+}
+
+function renderSavedViewPagination() {
+  if (!els.savedViewPagination) {
+    return;
+  }
+  els.savedViewPagination.replaceChildren();
+
+  const summary = document.createElement("span");
+  const first = state.savedViewOffset + 1;
+  const last = state.savedViewOffset + state.savedViews.length;
+  summary.textContent = state.savedViews.length ? `${first}-${last}` : "0";
+
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.dataset.savedViewPrevious = "true";
+  previous.disabled = state.savedViewOffset <= 0;
+  previous.textContent = "Previous";
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.dataset.savedViewNext = "true";
+  next.disabled = !state.savedViewHasMore;
+  next.textContent = "Next";
+
+  els.savedViewPagination.append(summary, previous, next);
 }
 
 function savedViewNode(view) {
@@ -7389,6 +7526,17 @@ function savedViewUpdateSpec(spec) {
     group_by: spec.group_by,
     pinned: spec.pinned
   };
+}
+
+function resetSearchPagination() {
+  state.searchNextCursor = "";
+  state.searchCursorStack = [""];
+  state.searchCursorIndex = 0;
+}
+
+function resetSavedViewPagination() {
+  state.savedViewOffset = 0;
+  state.savedViewHasMore = false;
 }
 
 function setSearchForm(query) {
