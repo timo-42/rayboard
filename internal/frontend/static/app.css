@@ -3398,6 +3398,7 @@ p {
 .ticket-hook-preview-form textarea,
 .ticket-hook-preview pre,
 .create-page-form textarea,
+.create-page-edit-form textarea,
 .create-page-config {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 13px;
@@ -3556,6 +3557,30 @@ p {
 }
 
 .webhook-edit-form button {
+  min-height: 34px;
+}
+
+.create-page-edit-form {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.create-page-edit-form .create-page-edit-wide,
+.create-page-edit-form [data-create-page-edit-logic-field] {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.create-page-edit-form [data-create-page-edit-logic-field][hidden] {
+  display: none;
+}
+
+.create-page-edit-form button {
   min-height: 34px;
 }
 

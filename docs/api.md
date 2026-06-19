@@ -266,7 +266,7 @@ Ticket custom-field values use field keys:
 
 ## Custom Ticket Create Pages
 
-The custom create-page slice lets project owners/admins define project-scoped ticket intake pages with a slug, optional target ticket type/status, a structured field layout, default ticket values, and optional Lua or OpenRouter AI form logic. The embedded `/automation` page exposes project management for listing, creating, enabling/disabling, deleting, previewing resolved schema output, inspecting recent preview run history, and opening enabled intake forms at `/projects/{project_id}/create/{slug}`. Browser intake forms render supported structured fields plus safe section/help/group layout widgets with nested fields, never raw HTML, and submit tickets through the normal backend path as the submitting user, so RBAC, ticket validation, custom-field validation, and before ticket hooks still apply.
+The custom create-page slice lets project owners/admins define project-scoped ticket intake pages with a slug, optional target ticket type/status, a structured field layout, default ticket values, and optional Lua or OpenRouter AI form logic. The embedded `/automation` page exposes project management for listing, creating, inline editing, enabling/disabling, deleting, previewing resolved schema output, inspecting recent preview run history, and opening enabled intake forms at `/projects/{project_id}/create/{slug}`. Browser intake forms render supported structured fields plus safe section/help/group layout widgets with nested fields, never raw HTML, and submit tickets through the normal backend path as the submitting user, so RBAC, ticket validation, custom-field validation, and before ticket hooks still apply.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
