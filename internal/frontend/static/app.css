@@ -2686,6 +2686,7 @@ p {
 }
 
 .roadmap-timeline,
+.roadmap-capacity,
 .roadmap-unscheduled,
 .roadmap-dependencies {
   display: grid;
@@ -2693,11 +2694,69 @@ p {
 }
 
 .roadmap-timeline h3,
+.roadmap-capacity h3,
 .roadmap-unscheduled h3,
 .roadmap-dependencies h3 {
   color: var(--heading);
   font-size: 13px;
   text-transform: uppercase;
+}
+
+.roadmap-capacity {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.roadmap-capacity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.roadmap-capacity-header span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-capacity-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.roadmap-capacity-buckets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.roadmap-capacity-bucket {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.roadmap-capacity-bucket.is-at-risk {
+  border-left: 4px solid var(--accent);
+}
+
+.roadmap-capacity-bucket strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.roadmap-capacity-bucket span,
+.roadmap-capacity-bucket small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .roadmap-timeline-track {
