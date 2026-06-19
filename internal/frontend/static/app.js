@@ -913,6 +913,34 @@ function bindEvents() {
   });
 
   els.backlog.addEventListener("click", async (event) => {
+    const assignSprint = event.target.closest("[data-backlog-assign-sprint-id]");
+    if (assignSprint) {
+      const control = assignSprint.closest("[data-backlog-sprint-control]");
+      const select = control ? control.querySelector("select") : null;
+      const sprintID = select ? select.value : "";
+      if (!sprintID) {
+        setNotice("Choose a sprint first");
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${assignSprint.dataset.backlogAssignSprintId}/sprint`, {
+          method: "PUT",
+          body: { spec: { sprint_id: sprintID } }
+        });
+        await refreshBacklogSprintViews(assignSprint.dataset.backlogAssignSprintId);
+      }, "Backlog ticket assigned to sprint");
+      return;
+    }
+
+    const removeSprint = event.target.closest("[data-backlog-remove-sprint-id]");
+    if (removeSprint) {
+      await runAction(async () => {
+        await api(`/api/tickets/${removeSprint.dataset.backlogRemoveSprintId}/sprint`, { method: "DELETE" });
+        await refreshBacklogSprintViews(removeSprint.dataset.backlogRemoveSprintId);
+      }, "Backlog ticket removed from sprint");
+      return;
+    }
+
     const move = event.target.closest("[data-backlog-move-id]");
     if (!move || !state.selectedProject) {
       return;
@@ -2978,6 +3006,12 @@ async function refreshTicketViews(ticketID, options = {}) {
   }
 }
 
+async function refreshBacklogSprintViews(ticketID) {
+  await refreshTicketViews(ticketID, { roadmap: false });
+  await loadSprints({ renderTickets: false });
+  await refreshSelectedSprintReport();
+}
+
 async function loadAttachments(ticketID, options = {}) {
   const data = await api(`/api/tickets/${ticketID}/attachments`);
   state.attachments[ticketID] = listItems(data).map(normalizeAttachment);
@@ -3695,8 +3729,55 @@ function backlogItemNode(ticket, index) {
   down.textContent = "Down";
 
   actions.append(up, down);
-  article.append(body, actions);
+  article.append(body, backlogSprintControlNode(ticket), actions);
   return article;
+}
+
+function backlogSprintControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "backlog-sprint";
+  section.setAttribute("data-backlog-sprint-control", "true");
+  section.setAttribute("aria-label", `${ticket.key || ticket.id} sprint planning`);
+
+  const heading = document.createElement("p");
+  heading.className = "backlog-sprint-heading";
+  heading.textContent = ticket.sprint_id ? `Sprint: ${sprintName(ticket.sprint_id)}` : "No sprint";
+
+  const controls = document.createElement("div");
+  controls.className = "backlog-sprint-controls";
+
+  const select = document.createElement("select");
+  select.setAttribute("aria-label", "Backlog sprint");
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Choose sprint";
+  select.append(empty);
+  for (const sprint of state.sprints) {
+    if (sprint.state === "completed" && sprint.id !== ticket.sprint_id) {
+      continue;
+    }
+    const option = document.createElement("option");
+    option.value = sprint.id;
+    option.textContent = `${sprint.name} (${sprint.state})`;
+    option.selected = sprint.id === ticket.sprint_id;
+    select.append(option);
+  }
+
+  const assign = document.createElement("button");
+  assign.type = "button";
+  assign.dataset.backlogAssignSprintId = ticket.id;
+  assign.textContent = "Assign";
+  assign.disabled = !state.sprints.some((sprint) => sprint.state !== "completed" || sprint.id === ticket.sprint_id);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.backlogRemoveSprintId = ticket.id;
+  remove.textContent = "Remove";
+  remove.disabled = !ticket.sprint_id;
+
+  controls.append(select, assign, remove);
+  section.append(heading, controls);
+  return section;
 }
 
 function renderWorkflowPanel() {
