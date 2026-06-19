@@ -146,6 +146,15 @@ func (t filterTranslator) expr(expr *exprpb.Expr) (wherePart, error) {
 			SQL:  "(" + left.SQL + joiner + right.SQL + ")",
 			Args: append(left.Args, right.Args...),
 		}, nil
+	case operators.LogicalNot:
+		if len(args) != 1 {
+			return wherePart{}, fmt.Errorf("invalid negation expression")
+		}
+		part, err := t.expr(args[0])
+		if err != nil {
+			return wherePart{}, err
+		}
+		return wherePart{SQL: "NOT (" + part.SQL + ")", Args: part.Args}, nil
 	case operators.Equals, operators.NotEquals, operators.Less, operators.LessEquals, operators.Greater, operators.GreaterEquals:
 		if len(args) != 2 {
 			return wherePart{}, fmt.Errorf("invalid comparison expression")
@@ -389,6 +398,29 @@ func (t filterTranslator) customInList(key string, value filterValue, negated bo
 	return wherePart{SQL: sql, Args: args}, nil
 }
 
+func (t filterTranslator) customArrayContains(key string, value filterValue) (wherePart, error) {
+	if !validCustomFieldKey(key) {
+		return wherePart{}, fmt.Errorf("unsupported custom field %q", key)
+	}
+	if value.Kind != filterKindString {
+		return wherePart{}, fmt.Errorf("custom multi-select membership requires a string value")
+	}
+	return wherePart{
+		SQL: `EXISTS (
+			SELECT 1
+			FROM ticket_custom_field_values cfv
+			JOIN custom_field_definitions cfd ON cfd.id = cfv.field_id
+			JOIN json_each(cfv.value_json) cfv_item
+			WHERE cfv.ticket_id = t.id
+			  AND cfd.project_id = t.project_id
+			  AND cfd.key = ?
+			  AND cfd.field_type = 'multi_select'
+			  AND cfv_item.value = ?
+		)`,
+		Args: []any{key, value.Value.(string)},
+	}, nil
+}
+
 func (t filterTranslator) inExpression(leftExpr *exprpb.Expr, rightExpr *exprpb.Expr) (wherePart, error) {
 	if field, ok := fieldFromExpr(rightExpr); ok && field == "labels" {
 		value, err := t.value(leftExpr)
@@ -399,6 +431,13 @@ func (t filterTranslator) inExpression(leftExpr *exprpb.Expr, rightExpr *exprpb.
 			return wherePart{}, fmt.Errorf("labels require string values")
 		}
 		return labelClause(operators.Equals, strings.ToLower(value.Value.(string)))
+	}
+	if field, ok := fieldFromExpr(rightExpr); ok && strings.HasPrefix(field, "custom.") {
+		value, err := t.value(leftExpr)
+		if err != nil {
+			return wherePart{}, err
+		}
+		return t.customArrayContains(strings.TrimPrefix(field, "custom."), value)
 	}
 	if field, ok := fieldFromExpr(leftExpr); ok {
 		value, err := t.value(rightExpr)
