@@ -242,6 +242,29 @@ func (s *Service) GetVersion(ctx context.Context, principal authz.Principal, ver
 	return version, nil
 }
 
+func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principal, versionID string) (VersionReport, error) {
+	version, err := s.getVersion(ctx, versionID)
+	if err != nil {
+		return VersionReport{}, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(version.ProjectID)); err != nil {
+		return VersionReport{}, err
+	}
+	tickets, err := s.listVersionReportTickets(ctx, version.ID)
+	if err != nil {
+		return VersionReport{}, err
+	}
+	tickets, err = s.attachTicketDetailsToTickets(ctx, tickets)
+	if err != nil {
+		return VersionReport{}, err
+	}
+	return VersionReport{
+		Version:  version,
+		Progress: versionReportProgress(tickets),
+		Tickets:  tickets,
+	}, nil
+}
+
 func (s *Service) UpdateVersion(ctx context.Context, principal authz.Principal, versionID string, input UpdateVersionInput) (Version, error) {
 	current, err := s.getVersion(ctx, versionID)
 	if err != nil {
@@ -463,6 +486,49 @@ func (s *Service) getVersion(ctx context.Context, versionID string) (Version, er
 		return Version{}, fmt.Errorf("get version: %w", err)
 	}
 	return version, nil
+}
+
+func (s *Service) listVersionReportTickets(ctx context.Context, versionID string) ([]Ticket, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, key, title, description, status, priority, type,
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+		FROM tickets
+		WHERE version_id = ? AND deleted_at IS NULL
+		ORDER BY status ASC, created_at DESC, key DESC
+	`, versionID)
+	if err != nil {
+		return nil, fmt.Errorf("list version report tickets: %w", err)
+	}
+	defer rows.Close()
+
+	tickets := []Ticket{}
+	for rows.Next() {
+		ticket, err := scanTicket(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan version report ticket: %w", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate version report tickets: %w", err)
+	}
+	return tickets, nil
+}
+
+func versionReportProgress(tickets []Ticket) VersionReportProgress {
+	progress := VersionReportProgress{ByStatus: map[string]int{}}
+	for _, ticket := range tickets {
+		progress.Total++
+		progress.ByStatus[ticket.Status]++
+		if ticket.Status == "done" {
+			progress.Done++
+		}
+		if ticket.ComponentID == "" {
+			progress.UnassignedComponent++
+		}
+	}
+	progress.Open = progress.Total - progress.Done
+	return progress
 }
 
 func scanComponent(scanner rowScanner) (Component, error) {

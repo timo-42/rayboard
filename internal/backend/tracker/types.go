@@ -214,6 +214,20 @@ type SprintReportProgress struct {
 	ByStatus map[string]int `json:"by_status"`
 }
 
+type VersionReport struct {
+	Version  Version               `json:"version"`
+	Progress VersionReportProgress `json:"progress"`
+	Tickets  []Ticket              `json:"tickets"`
+}
+
+type VersionReportProgress struct {
+	Total               int            `json:"total"`
+	Done                int            `json:"done"`
+	Open                int            `json:"open"`
+	UnassignedComponent int            `json:"unassigned_component"`
+	ByStatus            map[string]int `json:"by_status"`
+}
+
 type SprintAnalytics struct {
 	Burndown []SprintBurndownPoint `json:"burndown"`
 	Burnup   []SprintBurnupPoint   `json:"burnup"`

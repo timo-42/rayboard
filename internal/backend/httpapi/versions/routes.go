@@ -10,6 +10,7 @@ import (
 
 func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/versions/{version_id}", "Versions", "Get version"), provider.getVersion)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/versions/{version_id}/report", "Versions", "Get version report"), provider.getVersionReport)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/versions/{version_id}", "Versions", "Update version"), provider.updateVersion)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/versions/{version_id}", "Versions", "Delete version", http.StatusNoContent), provider.deleteVersion)
 }
@@ -24,6 +25,18 @@ func (provider Provider) getVersion(ctx context.Context, input *VersionIDInput) 
 		return nil, shared.TrackerError(err)
 	}
 	return &VersionOutput{Body: ResourceFromTracker(version)}, nil
+}
+
+func (provider Provider) getVersionReport(ctx context.Context, input *VersionIDInput) (*VersionReportOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	report, err := provider.Tracker.GetVersionReport(ctx, principal, input.VersionID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &VersionReportOutput{Body: ReportResourceFromTracker(report)}, nil
 }
 
 func (provider Provider) updateVersion(ctx context.Context, input *UpdateVersionInput) (*VersionOutput, error) {

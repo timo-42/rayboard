@@ -42,7 +42,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
 - a sprint panel for listing, creating, starting, completing, and deleting project sprints, plus ticket-card sprint assignment/removal;
-- a release-planning panel for listing, creating, updating, and deleting components and versions, changing version state, and assigning tickets to components/versions;
+- a release-planning panel for listing, creating, updating, and deleting components and versions, changing version state, assigning tickets to components/versions, and viewing compact live reports for the selected version;
 - a roadmap panel that lists project epics, schedule dates, and child-ticket progress, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, updating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
@@ -54,12 +54,13 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - basic project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/deletion, and board-backed ticket columns through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, and `/api/boards/{board_id}/tickets`.
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`, using the resolved structured schema and submitting through `/api/projects/{project_id}/ticket-create-pages/{slug}/submit`.
 - compact sprint reports with live current-assignment and completed snapshot scope markers, ticket-count velocity, remaining count, burnup summary, and ticket links for the selected project.
+- compact version release reports with total/done/open counts, status counts, component-gap counts, and ticket links for the selected version.
 
 Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints. Advanced search pagination is API-only for now.
 
-Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, release reports, richer roadmap timeline controls, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, richer roadmap timeline controls, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

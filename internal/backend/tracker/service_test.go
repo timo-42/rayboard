@@ -1394,6 +1394,89 @@ func TestComponentsVersionsAndTicketAssignment(t *testing.T) {
 	}
 }
 
+func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+	seedRole(t, ctx, db.SQL, authz.RoleProjectMember)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "REL", Name: "Release Reports"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	version, err := service.CreateVersion(ctx, admin, tracker.CreateVersionInput{ProjectID: project.ID, Name: "2026.7"})
+	if err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+	otherVersion, err := service.CreateVersion(ctx, admin, tracker.CreateVersionInput{ProjectID: project.ID, Name: "2026.8"})
+	if err != nil {
+		t.Fatalf("create other version: %v", err)
+	}
+	component, err := service.CreateComponent(ctx, admin, tracker.CreateComponentInput{ProjectID: project.ID, Name: "API"})
+	if err != nil {
+		t.Fatalf("create component: %v", err)
+	}
+
+	doneStatus := "done"
+	versionID := version.ID
+	componentID := component.ID
+	first, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix blocker", VersionID: version.ID})
+	if err != nil {
+		t.Fatalf("create first ticket: %v", err)
+	}
+	second, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Ship feature", ComponentID: component.ID, VersionID: version.ID})
+	if err != nil {
+		t.Fatalf("create second ticket: %v", err)
+	}
+	second, err = service.UpdateTicket(ctx, admin, second.ID, tracker.UpdateTicketInput{Status: &doneStatus, ComponentID: &componentID, VersionID: &versionID})
+	if err != nil {
+		t.Fatalf("mark second ticket done: %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Other release", VersionID: otherVersion.ID}); err != nil {
+		t.Fatalf("create other version ticket: %v", err)
+	}
+
+	report, err := service.GetVersionReport(ctx, admin, version.ID)
+	if err != nil {
+		t.Fatalf("get version report: %v", err)
+	}
+	if report.Version.ID != version.ID ||
+		report.Progress.Total != 2 ||
+		report.Progress.Done != 1 ||
+		report.Progress.Open != 1 ||
+		report.Progress.UnassignedComponent != 1 ||
+		report.Progress.ByStatus["todo"] != 1 ||
+		report.Progress.ByStatus["done"] != 1 ||
+		len(report.Tickets) != 2 {
+		t.Fatalf("unexpected version report: %#v", report)
+	}
+	reportIDs := map[string]bool{}
+	for _, ticket := range report.Tickets {
+		reportIDs[ticket.ID] = true
+		if ticket.VersionID != version.ID {
+			t.Fatalf("unexpected ticket version in report: %#v", ticket)
+		}
+	}
+	if !reportIDs[first.ID] || !reportIDs[second.ID] {
+		t.Fatalf("expected assigned tickets in report, got %#v", report.Tickets)
+	}
+
+	member := principal("user-member")
+	if _, err := service.GetVersionReport(ctx, member, version.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden version report, got %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	if _, err := service.GetVersionReport(ctx, member, version.ID); err != nil {
+		t.Fatalf("expected project member to read version report: %v", err)
+	}
+}
+
 func TestCustomFieldsAndTicketValues(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

@@ -21,6 +21,8 @@ const state = {
   sprintReport: null,
   components: [],
   versions: [],
+  selectedVersionReportID: "",
+  versionReport: null,
   customFields: [],
   roadmap: [],
   attachments: {},
@@ -189,6 +191,7 @@ const els = {
   versionForm: document.querySelector("#version-form"),
   components: document.querySelector("#components"),
   versions: document.querySelector("#versions"),
+  versionReport: document.querySelector("#version-report"),
   fieldPanel: document.querySelector("#field-panel"),
   fieldForm: document.querySelector("#field-form"),
   customFields: document.querySelector("#custom-fields"),
@@ -940,6 +943,15 @@ function bindEvents() {
   });
 
   els.versions.addEventListener("click", async (event) => {
+    const report = event.target.closest("[data-version-report-id]");
+    if (report) {
+      state.selectedVersionReportID = report.dataset.versionReportId;
+      await runAction(async () => {
+        await loadVersionReport(state.selectedVersionReportID);
+      }, "Version report loaded");
+      return;
+    }
+
     const status = event.target.closest("[data-version-status]");
     if (status) {
       await runAction(async () => {
@@ -948,6 +960,9 @@ function bindEvents() {
           body: { spec: { status: status.dataset.versionStatus } }
         });
         await loadVersions();
+        if (state.selectedVersionReportID === status.dataset.versionId) {
+          await loadVersionReport(state.selectedVersionReportID);
+        }
       }, "Version updated");
       return;
     }
@@ -958,6 +973,10 @@ function bindEvents() {
     }
     await runAction(async () => {
       await api(`/api/versions/${remove.dataset.deleteVersionId}`, { method: "DELETE" });
+      if (state.selectedVersionReportID === remove.dataset.deleteVersionId) {
+        state.selectedVersionReportID = "";
+        state.versionReport = null;
+      }
       await loadVersions();
       await loadTickets();
     }, "Version deleted");
@@ -977,6 +996,9 @@ function bindEvents() {
       await loadVersions();
       await loadTickets();
       await loadRoadmap();
+      if (state.selectedVersionReportID === form.dataset.versionEditForm) {
+        await loadVersionReport(state.selectedVersionReportID);
+      }
     }, "Version updated");
   });
 
@@ -1707,6 +1729,7 @@ function bindEvents() {
           }
         });
         await refreshTicketViews(assignPlanning.dataset.assignPlanningId);
+        await refreshSelectedVersionReport();
       }, "Ticket planning fields updated");
       return;
     }
@@ -2130,8 +2153,11 @@ async function loadComponents(options = {}) {
 async function loadVersions(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.versions = [];
+    state.selectedVersionReportID = "";
+    state.versionReport = null;
     pruneTicketFilters();
     renderVersions();
+    renderVersionReport();
     renderTicketFormOptions();
     renderTicketFilters();
     if (options.renderTickets !== false) {
@@ -2141,12 +2167,35 @@ async function loadVersions(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/versions`);
   state.versions = listItems(data).map(normalizeVersion);
+  if (state.selectedVersionReportID && !state.versions.some((version) => version.id === state.selectedVersionReportID)) {
+    state.selectedVersionReportID = "";
+    state.versionReport = null;
+  }
   pruneTicketFilters();
   renderVersions();
+  renderVersionReport();
   renderTicketFormOptions();
   renderTicketFilters();
   if (options.renderTickets !== false) {
     renderTickets();
+  }
+}
+
+async function loadVersionReport(versionID) {
+  if (!versionID) {
+    state.versionReport = null;
+    renderVersionReport();
+    return;
+  }
+  const data = await api(`/api/versions/${versionID}/report`);
+  state.versionReport = normalizeVersionReport(data);
+  renderVersions();
+  renderVersionReport();
+}
+
+async function refreshSelectedVersionReport() {
+  if (state.selectedVersionReportID) {
+    await loadVersionReport(state.selectedVersionReportID);
   }
 }
 
@@ -2802,6 +2851,7 @@ function render() {
   renderSprintReport();
   renderComponents();
   renderVersions();
+  renderVersionReport();
   renderCustomFields();
   renderRoadmap();
   renderTicketFormOptions();
@@ -3235,7 +3285,9 @@ function renderSprintReport() {
   tickets.className = "sprint-report-tickets";
   if (report && report.tickets && report.tickets.length) {
     for (const ticket of report.tickets) {
-      tickets.append(sprintReportTicketNode(ticket));
+      const row = sprintReportTicketNode(ticket);
+      row.classList.add("version-report-ticket");
+      tickets.append(row);
     }
   } else {
     const empty = document.createElement("p");
@@ -3464,6 +3516,67 @@ function renderVersions() {
   }
 }
 
+function renderVersionReport() {
+  if (!els.versionReport) {
+    return;
+  }
+  els.versionReport.replaceChildren();
+  if (!state.selectedProject) {
+    return;
+  }
+
+  const report = state.versionReport;
+  const version = report ? report.version : state.versions.find((item) => item.id === state.selectedVersionReportID);
+  if (!version) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a version report";
+    els.versionReport.append(empty);
+    return;
+  }
+
+  const header = document.createElement("div");
+  header.className = "version-report-header";
+  const title = document.createElement("h3");
+  title.textContent = `${version.name || "Version"} report`;
+  const scope = document.createElement("span");
+  scope.textContent = "Live current assignment";
+  header.append(title, scope);
+
+  const progress = report ? report.progress : { total: 0, done: 0, open: 0, unassigned_component: 0, by_status: {} };
+  const metrics = document.createElement("div");
+  metrics.className = "version-report-metrics";
+  metrics.append(
+    sprintMetricNode("Total", progress.total || 0),
+    sprintMetricNode("Done", progress.done || 0),
+    sprintMetricNode("Open", progress.open || Math.max((progress.total || 0) - (progress.done || 0), 0)),
+    sprintMetricNode("No component", progress.unassigned_component || 0)
+  );
+
+  const statuses = document.createElement("div");
+  statuses.className = "version-report-statuses";
+  for (const [status, count] of Object.entries(progress.by_status || {})) {
+    const item = document.createElement("span");
+    item.textContent = `${status}: ${count}`;
+    statuses.append(item);
+  }
+
+  const tickets = document.createElement("div");
+  tickets.className = "version-report-tickets";
+  if (report && report.tickets && report.tickets.length) {
+    for (const ticket of report.tickets) {
+      tickets.append(sprintReportTicketNode(ticket));
+    }
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = report ? "No tickets assigned to this version" : "Report tickets will appear here";
+    tickets.append(empty);
+  }
+
+  els.versionReport.append(header, metrics, statuses, tickets);
+}
+
 function versionNode(version) {
   const article = document.createElement("article");
   article.className = "version-item";
@@ -3503,6 +3616,13 @@ function versionNode(version) {
 
   const actions = document.createElement("div");
   actions.className = "version-actions";
+
+  const report = document.createElement("button");
+  report.type = "button";
+  report.dataset.versionReportId = version.id;
+  report.disabled = version.id === state.selectedVersionReportID && Boolean(state.versionReport);
+  report.textContent = version.id === state.selectedVersionReportID ? "Report" : "View report";
+  actions.append(report);
 
   if (version.state !== "released") {
     const release = document.createElement("button");
@@ -7168,6 +7288,29 @@ function normalizeVersion(version) {
     };
   }
   return version;
+}
+
+function normalizeVersionReport(report) {
+  if (!report) {
+    return null;
+  }
+  if (report.metadata && report.spec && report.status) {
+    return {
+      version: normalizeVersion(report.spec.version) || {
+        id: report.metadata.id,
+        project_id: report.metadata.project_id
+      },
+      progress: {
+        total: Number(report.status.progress && report.status.progress.total) || 0,
+        done: Number(report.status.progress && report.status.progress.done) || 0,
+        open: Number(report.status.progress && report.status.progress.open) || 0,
+        unassigned_component: Number(report.status.progress && report.status.progress.unassigned_component) || 0,
+        by_status: (report.status.progress && report.status.progress.by_status) || {}
+      },
+      tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)
+    };
+  }
+  return report;
 }
 
 function normalizeCustomField(field) {

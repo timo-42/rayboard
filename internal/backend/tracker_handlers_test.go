@@ -465,6 +465,27 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected component/version ticket list: %#v", planningList.Status.Items)
 	}
 
+	versionReportReq := httptest.NewRequest(http.MethodGet, "/api/versions/"+version.ID+"/report", nil)
+	versionReportReq.AddCookie(session)
+	versionReport := httptest.NewRecorder()
+	handler.ServeHTTP(versionReport, versionReportReq)
+	if versionReport.Code != http.StatusOK {
+		t.Fatalf("expected version report status 200, got %d: %s", versionReport.Code, versionReport.Body.String())
+	}
+	var versionReportBody versionReportResourceBody
+	if err := json.Unmarshal(versionReport.Body.Bytes(), &versionReportBody); err != nil {
+		t.Fatalf("decode version report: %v", err)
+	}
+	if versionReportBody.Spec.Version.Metadata.ID != version.ID ||
+		versionReportBody.Status.Progress.Total != 1 ||
+		versionReportBody.Status.Progress.Open != 1 ||
+		versionReportBody.Status.Progress.ByStatus["todo"] != 1 ||
+		len(versionReportBody.Status.Tickets) != 1 ||
+		versionReportBody.Status.Tickets[0].Metadata.ID != second.ID ||
+		versionReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
+		t.Fatalf("unexpected version report: %#v", versionReportBody)
+	}
+
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"name":       "Sprint 1",
@@ -720,6 +741,16 @@ type sprintReportResourceBody struct {
 		Progress   tracker.SprintReportProgress `json:"progress"`
 		Analytics  tracker.SprintAnalytics      `json:"analytics"`
 		Tickets    []ticketResourceBody         `json:"tickets"`
+	} `json:"status"`
+}
+
+type versionReportResourceBody struct {
+	Spec struct {
+		Version versionResourceBody `json:"version"`
+	} `json:"spec"`
+	Status struct {
+		Progress tracker.VersionReportProgress `json:"progress"`
+		Tickets  []ticketResourceBody          `json:"tickets"`
 	} `json:"status"`
 }
 

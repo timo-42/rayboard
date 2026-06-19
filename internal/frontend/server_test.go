@@ -79,6 +79,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="sprint-panel"`) ||
 		!strings.Contains(body, `id="sprint-report"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
+		!strings.Contains(body, `id="version-report"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
 		!strings.Contains(body, `id="field-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
@@ -589,17 +590,23 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	for _, expected := range []string{
 		"loadComponents",
 		"loadVersions",
+		"loadVersionReport",
+		"refreshSelectedVersionReport",
+		"renderVersionReport",
 		"normalizeComponent",
 		"normalizeVersion",
+		"normalizeVersionReport",
 		"componentUpdateSpec",
 		"versionUpdateSpec",
 		"/api/projects/${state.selectedProject.id}/components",
 		"/api/projects/${state.selectedProject.id}/versions",
+		"/api/versions/${versionID}/report",
 		"/api/components/${form.dataset.componentEditForm}",
 		"/api/versions/${form.dataset.versionEditForm}",
 		"/api/tickets/${assignPlanning.dataset.assignPlanningId}",
 		"data-component-edit-form",
 		"data-version-edit-form",
+		"data-version-report-id",
 		"data-ticket-planning-control",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -611,6 +618,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".release-panel",
 		".component-form",
 		".version-form",
+		".version-report",
+		".version-report-ticket",
 		".component-edit-form",
 		".version-edit-form",
 		".ticket-planning",

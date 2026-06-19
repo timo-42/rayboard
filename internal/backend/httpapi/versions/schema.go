@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
+	ticketapi "github.com/timo-42/rayboard/internal/backend/httpapi/tickets"
 	"github.com/timo-42/rayboard/internal/backend/tracker"
 )
 
@@ -20,6 +21,10 @@ type UpdateVersionInput struct {
 
 type VersionOutput struct {
 	Body VersionResource
+}
+
+type VersionReportOutput struct {
+	Body VersionReportResource
 }
 
 type VersionMetadata struct {
@@ -49,6 +54,22 @@ type VersionStatus struct {
 }
 
 type VersionResource = shared.Resource[VersionMetadata, VersionSpec, VersionStatus]
+
+type VersionReportMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type VersionReportSpec struct {
+	Version VersionResource `json:"version"`
+}
+
+type VersionReportStatus struct {
+	Progress tracker.VersionReportProgress `json:"progress"`
+	Tickets  []ticketapi.TicketResource    `json:"tickets"`
+}
+
+type VersionReportResource = shared.Resource[VersionReportMetadata, VersionReportSpec, VersionReportStatus]
 
 func (spec VersionSpec) ToCreateInput(projectID string) tracker.CreateVersionInput {
 	return tracker.CreateVersionInput{
@@ -86,6 +107,22 @@ func ResourceFromTracker(version tracker.Version) VersionResource {
 		},
 		Status: VersionStatus{
 			State: version.Status,
+		},
+	}
+}
+
+func ReportResourceFromTracker(report tracker.VersionReport) VersionReportResource {
+	return VersionReportResource{
+		Metadata: VersionReportMetadata{
+			ID:        report.Version.ID,
+			ProjectID: report.Version.ProjectID,
+		},
+		Spec: VersionReportSpec{
+			Version: ResourceFromTracker(report.Version),
+		},
+		Status: VersionReportStatus{
+			Progress: report.Progress,
+			Tickets:  ticketapi.ResourcesFromTracker(report.Tickets),
 		},
 	}
 }
