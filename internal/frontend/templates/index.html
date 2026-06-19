@@ -261,6 +261,24 @@
         <div id="notifications" class="notification-list"></div>
       </section>
 
+      <section id="label-panel" class="label-panel" hidden>
+        <header class="label-header">
+          <div>
+            <p class="eyebrow">Labels</p>
+            <h2>Project Labels</h2>
+          </div>
+        </header>
+
+        <form id="project-label-form" class="project-label-form">
+          <input name="label" placeholder="label" required>
+          <input name="description" placeholder="Description">
+          <input name="color" type="color" value="#5b7cfa" aria-label="Label color">
+          <button type="submit">Create</button>
+        </form>
+
+        <div id="project-labels" class="project-label-list"></div>
+      </section>
+
       <section id="sprint-panel" class="sprint-panel" hidden>
         <header class="sprint-header">
           <div>

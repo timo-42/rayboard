@@ -344,6 +344,51 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 		t.Fatalf("expected forbidden project label list, got %v", err)
 	}
 
+	catalogLabel, err := service.CreateProjectLabel(ctx, admin, tracker.CreateProjectLabelInput{
+		ProjectID:   project.ID,
+		Label:       "customer-escalation",
+		Description: "Customer-facing escalations",
+		Color:       "#FFAA00",
+	})
+	if err != nil {
+		t.Fatalf("create project label: %v", err)
+	}
+	if catalogLabel.Label != "customer-escalation" || catalogLabel.Description != "Customer-facing escalations" || catalogLabel.Color != "#ffaa00" || catalogLabel.TicketCount != 0 || catalogLabel.CreatedAt.IsZero() {
+		t.Fatalf("unexpected catalog label: %#v", catalogLabel)
+	}
+	if _, err := service.CreateProjectLabel(ctx, admin, tracker.CreateProjectLabelInput{ProjectID: project.ID, Label: "customer-escalation"}); !errors.Is(err, tracker.ErrConflict) {
+		t.Fatalf("expected duplicate catalog label conflict, got %v", err)
+	}
+	if _, err := service.CreateProjectLabel(ctx, admin, tracker.CreateProjectLabelInput{ProjectID: project.ID, Label: "bad-label", Color: "orange"}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected invalid catalog label color validation, got %v", err)
+	}
+	description := "Escalations owned by support"
+	color := "#00bbcc"
+	catalogLabel, err = service.UpdateProjectLabel(ctx, admin, project.ID, "customer-escalation", tracker.UpdateProjectLabelInput{Description: &description, Color: &color})
+	if err != nil {
+		t.Fatalf("update project label: %v", err)
+	}
+	if catalogLabel.Description != description || catalogLabel.Color != "#00bbcc" || catalogLabel.UpdatedAt.IsZero() {
+		t.Fatalf("unexpected updated catalog label: %#v", catalogLabel)
+	}
+	projectLabels, err = service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list project labels with catalog label: %v", err)
+	}
+	if len(projectLabels) != 1 || projectLabels[0].Label != "customer-escalation" || projectLabels[0].TicketCount != 0 {
+		t.Fatalf("expected unused catalog label in list, got %#v", projectLabels)
+	}
+	if err := service.DeleteProjectLabel(ctx, admin, project.ID, "customer-escalation"); err != nil {
+		t.Fatalf("delete project label: %v", err)
+	}
+	projectLabels, err = service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list project labels after catalog delete: %v", err)
+	}
+	if len(projectLabels) != 0 {
+		t.Fatalf("expected catalog label to be removed without ticket labels, got %#v", projectLabels)
+	}
+
 	activities, err = service.ListTicketActivity(ctx, member, ticket.ID)
 	if err != nil {
 		t.Fatalf("list updated activity: %v", err)

@@ -189,6 +189,9 @@ const els = {
   sprintForm: document.querySelector("#sprint-form"),
   sprints: document.querySelector("#sprints"),
   sprintReport: document.querySelector("#sprint-report"),
+  labelPanel: document.querySelector("#label-panel"),
+  projectLabelForm: document.querySelector("#project-label-form"),
+  projectLabels: document.querySelector("#project-labels"),
   backlogPanel: document.querySelector("#backlog-panel"),
   backlog: document.querySelector("#backlog"),
   workflowPanel: document.querySelector("#workflow-panel"),
@@ -792,6 +795,76 @@ function bindEvents() {
         await loadTickets();
       }, "Sprint deleted");
     }
+  });
+
+  els.projectLabelForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.selectedProject) {
+      setNotice("Select a project before creating a label");
+      return;
+    }
+    const form = event.currentTarget;
+    const data = formData(form);
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/labels`, {
+        method: "POST",
+        body: {
+          spec: {
+            label: data.label || "",
+            description: data.description || "",
+            color: data.color || ""
+          }
+        }
+      });
+      form.reset();
+      setFormValue(form, "color", "#5b7cfa");
+      await loadProjectLabels();
+    }, "Label created");
+  });
+
+  els.projectLabels.addEventListener("click", async (event) => {
+    const remove = event.target.closest("[data-delete-project-label]");
+    if (!remove || !state.selectedProject) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/projects/${state.selectedProject.id}/labels/${encodeURIComponent(remove.dataset.deleteProjectLabel)}`, { method: "DELETE" });
+      await loadProjectLabels();
+    }, "Label deleted");
+  });
+
+  els.projectLabels.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-project-label-edit-form]");
+    if (!form || !state.selectedProject) {
+      return;
+    }
+    event.preventDefault();
+    const data = formData(form);
+    await runAction(async () => {
+      if (form.dataset.projectLabelCatalog === "true") {
+        await api(`/api/projects/${state.selectedProject.id}/labels/${encodeURIComponent(form.dataset.projectLabelEditForm)}`, {
+          method: "PATCH",
+          body: {
+            spec: {
+              description: data.description || "",
+              color: data.color || ""
+            }
+          }
+        });
+      } else {
+        await api(`/api/projects/${state.selectedProject.id}/labels`, {
+          method: "POST",
+          body: {
+            spec: {
+              label: form.dataset.projectLabelEditForm || "",
+              description: data.description || "",
+              color: data.color || ""
+            }
+          }
+        });
+      }
+      await loadProjectLabels();
+    }, "Label updated");
   });
 
   els.backlog.addEventListener("click", async (event) => {
@@ -2583,6 +2656,7 @@ async function loadProjectLabels(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.projectLabels = [];
     renderTicketFilters();
+    renderProjectLabels();
     if (options.renderTickets !== false) {
       renderTickets();
     }
@@ -2592,6 +2666,7 @@ async function loadProjectLabels(options = {}) {
   state.projectLabels = listItems(data).map(normalizeProjectLabel);
   pruneTicketFilters();
   renderTicketFilters();
+  renderProjectLabels();
   if (options.renderTickets !== false) {
     renderTickets();
   }
@@ -3219,6 +3294,7 @@ function render() {
   els.dashboardView.hidden = !signedIn || route.page !== "dashboard";
   els.notificationInbox.hidden = !signedIn || route.page !== "dashboard";
   els.sprintPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
+  els.labelPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.backlogPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.workflowPanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
   els.releasePanel.hidden = !signedIn || route.page !== "projects" || !state.selectedProject;
@@ -3248,6 +3324,7 @@ function render() {
   renderWorkflowPanel();
   renderSprints();
   renderSprintReport();
+  renderProjectLabels();
   renderComponents();
   renderVersions();
   renderVersionReport();
@@ -4019,6 +4096,81 @@ function renderVersionReport() {
   }
 
   els.versionReport.append(header, metrics, statuses, tickets);
+}
+
+function renderProjectLabels() {
+  if (!els.projectLabels) {
+    return;
+  }
+  els.projectLabels.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project to manage labels";
+    els.projectLabels.append(empty);
+    return;
+  }
+  if (!state.projectLabels.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No labels";
+    els.projectLabels.append(empty);
+    return;
+  }
+  for (const label of state.projectLabels) {
+    els.projectLabels.append(projectLabelNode(label));
+  }
+}
+
+function projectLabelNode(label) {
+  const article = document.createElement("article");
+  article.className = "project-label-item";
+
+  const body = document.createElement("div");
+  body.className = "project-label-body";
+
+  const heading = document.createElement("p");
+  const swatch = document.createElement("span");
+  swatch.className = "label-color-swatch";
+  swatch.style.backgroundColor = label.color || "transparent";
+  swatch.setAttribute("aria-hidden", "true");
+  const name = document.createElement("span");
+  name.textContent = label.label || "label";
+  heading.append(swatch, name);
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    `${label.ticket_count || 0} ticket${label.ticket_count === 1 ? "" : "s"}`,
+    label.description || ""
+  ].filter(Boolean).join(" / ");
+  body.append(heading, meta);
+
+  const edit = document.createElement("form");
+  edit.className = "project-label-edit-form";
+  edit.dataset.projectLabelEditForm = label.label || "";
+  edit.dataset.projectLabelCatalog = label.created_at ? "true" : "false";
+  edit.append(
+    inputNode("description", label.description || "", "description"),
+    inputNode("color", label.color || "#5b7cfa", "color", "color")
+  );
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  edit.append(save);
+
+  const actions = document.createElement("div");
+  actions.className = "project-label-actions";
+  if (label.created_at) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.deleteProjectLabel = label.label || "";
+    remove.textContent = "Delete";
+    actions.append(remove);
+  }
+
+  article.append(body, edit, actions);
+  return article;
 }
 
 function versionReportScopeText(report) {
@@ -7876,7 +8028,11 @@ function normalizeProjectLabel(label) {
     return {
       id: label.metadata.id || label.spec.label || "",
       project_id: label.metadata.project_id || "",
+      created_at: label.metadata.created_at || "",
+      updated_at: label.metadata.updated_at || "",
       label: label.spec.label || label.metadata.id || "",
+      description: label.spec.description || "",
+      color: label.spec.color || "",
       ticket_count: Number(label.status.ticket_count) || 0
     };
   }

@@ -296,9 +296,25 @@ type SprintVelocity struct {
 }
 
 type ProjectLabel struct {
-	ProjectID   string `json:"project_id"`
-	Label       string `json:"label"`
-	TicketCount int    `json:"ticket_count"`
+	ProjectID   string    `json:"project_id"`
+	Label       string    `json:"label"`
+	Description string    `json:"description,omitempty"`
+	Color       string    `json:"color,omitempty"`
+	TicketCount int       `json:"ticket_count"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+}
+
+type CreateProjectLabelInput struct {
+	ProjectID   string `json:"project_id,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color,omitempty"`
+}
+
+type UpdateProjectLabelInput struct {
+	Description *string `json:"description,omitempty"`
+	Color       *string `json:"color,omitempty"`
 }
 
 type Component struct {

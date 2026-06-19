@@ -30,6 +30,12 @@ type ProjectIDInput struct {
 	ProjectID string `path:"project_id"`
 }
 
+type ProjectLabelIDInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Label     string `path:"label"`
+}
+
 type ReorderBacklogInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
@@ -65,6 +71,19 @@ type CreateTicketInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
 	Body      shared.ResourceInput[ticketapi.TicketSpec]
+}
+
+type CreateProjectLabelInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Body      shared.ResourceInput[ProjectLabelSpec]
+}
+
+type UpdateProjectLabelInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Label     string `path:"label"`
+	Body      shared.ResourceInput[UpdateProjectLabelSpec]
 }
 
 type CreateBoardInput struct {
@@ -171,12 +190,21 @@ type ProjectStatusResourceStatus struct {
 type ProjectStatusResource = shared.Resource[ProjectStatusMetadata, ProjectStatusSpec, ProjectStatusResourceStatus]
 
 type ProjectLabelMetadata struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"project_id"`
+	ID        string     `json:"id"`
+	ProjectID string     `json:"project_id"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type ProjectLabelSpec struct {
-	Label string `json:"label"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color,omitempty"`
+}
+
+type UpdateProjectLabelSpec struct {
+	Description *string `json:"description,omitempty"`
+	Color       *string `json:"color,omitempty"`
 }
 
 type ProjectLabelStatus struct {
@@ -202,6 +230,10 @@ type ListTicketsOutput = shared.ListOutput[ticketapi.TicketResource]
 type CreateTicketOutput = shared.CreatedOutput[ticketapi.TicketResource]
 type ListStatusesOutput = shared.ListOutput[ProjectStatusResource]
 type ListLabelsOutput = shared.ListOutput[ProjectLabelResource]
+type CreateProjectLabelOutput = shared.CreatedOutput[ProjectLabelResource]
+type ProjectLabelOutput struct {
+	Body ProjectLabelResource
+}
 type ListBoardsOutput = shared.ListOutput[boardapi.BoardResource]
 type CreateBoardOutput = shared.CreatedOutput[boardapi.BoardResource]
 type ListComponentsOutput = shared.ListOutput[componentapi.ComponentResource]
@@ -234,6 +266,22 @@ func (spec ProjectSpec) ToCreateInput() tracker.CreateProjectInput {
 		Name:        spec.Name,
 		Description: spec.Description,
 		LeadUserID:  spec.LeadUserID,
+	}
+}
+
+func (spec ProjectLabelSpec) ToCreateInput(projectID string) tracker.CreateProjectLabelInput {
+	return tracker.CreateProjectLabelInput{
+		ProjectID:   projectID,
+		Label:       spec.Label,
+		Description: spec.Description,
+		Color:       spec.Color,
+	}
+}
+
+func (spec UpdateProjectLabelSpec) ToUpdateInput() tracker.UpdateProjectLabelInput {
+	return tracker.UpdateProjectLabelInput{
+		Description: spec.Description,
+		Color:       spec.Color,
 	}
 }
 
@@ -294,20 +342,36 @@ func projectStatusResources(statuses []tracker.ProjectStatus) []ProjectStatusRes
 func projectLabelResources(labels []tracker.ProjectLabel) []ProjectLabelResource {
 	resources := make([]ProjectLabelResource, 0, len(labels))
 	for _, label := range labels {
-		resources = append(resources, ProjectLabelResource{
-			Metadata: ProjectLabelMetadata{
-				ID:        label.Label,
-				ProjectID: label.ProjectID,
-			},
-			Spec: ProjectLabelSpec{
-				Label: label.Label,
-			},
-			Status: ProjectLabelStatus{
-				TicketCount: label.TicketCount,
-			},
-		})
+		resources = append(resources, projectLabelResource(label))
 	}
 	return resources
+}
+
+func projectLabelResource(label tracker.ProjectLabel) ProjectLabelResource {
+	var createdAt *time.Time
+	if !label.CreatedAt.IsZero() {
+		createdAt = &label.CreatedAt
+	}
+	var updatedAt *time.Time
+	if !label.UpdatedAt.IsZero() {
+		updatedAt = &label.UpdatedAt
+	}
+	return ProjectLabelResource{
+		Metadata: ProjectLabelMetadata{
+			ID:        label.Label,
+			ProjectID: label.ProjectID,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+		},
+		Spec: ProjectLabelSpec{
+			Label:       label.Label,
+			Description: label.Description,
+			Color:       label.Color,
+		},
+		Status: ProjectLabelStatus{
+			TicketCount: label.TicketCount,
+		},
+	}
 }
 
 func roadmapItemResources(items []tracker.RoadmapItem) []RoadmapItemResource {

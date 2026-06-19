@@ -2042,7 +2042,8 @@ p {
 }
 
 .component-form,
-.version-form {
+.version-form,
+.project-label-form {
   display: grid;
   gap: 8px;
 }
@@ -2055,14 +2056,20 @@ p {
   grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.2fr) auto;
 }
 
+.project-label-form {
+  grid-template-columns: minmax(130px, 1fr) minmax(180px, 1.3fr) 48px auto;
+}
+
 .component-list,
-.version-list {
+.version-list,
+.project-label-list {
   display: grid;
   gap: 8px;
 }
 
 .component-item,
-.version-item {
+.version-item,
+.project-label-item {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 2fr) auto;
@@ -2086,14 +2093,16 @@ p {
 }
 
 .component-item-body,
-.version-item-body {
+.version-item-body,
+.project-label-body {
   min-width: 0;
   display: grid;
   gap: 5px;
 }
 
 .component-edit-form,
-.version-edit-form {
+.version-edit-form,
+.project-label-edit-form {
   min-width: 0;
   display: grid;
   gap: 8px;
@@ -2104,12 +2113,17 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
 }
 
+.project-label-edit-form {
+  grid-template-columns: minmax(0, 1fr) 48px auto;
+}
+
 .version-edit-form {
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
 }
 
 .component-item p,
 .version-item p,
+.project-label-item p,
 .planning-heading {
   color: var(--text);
   font-size: 14px;
@@ -2118,14 +2132,31 @@ p {
 }
 
 .component-item span,
-.version-item span {
+.version-item span,
+.project-label-item span {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
+.project-label-item p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.label-color-swatch {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+}
+
 .component-actions button,
 .component-edit-form button,
+.project-label-actions button,
+.project-label-edit-form button,
 .version-edit-form button,
 .version-actions button,
 .ticket-planning-controls button,
@@ -2139,6 +2170,8 @@ p {
 
 .component-actions button:hover,
 .component-edit-form button:hover,
+.project-label-actions button:hover,
+.project-label-edit-form button:hover,
 .version-edit-form button:hover,
 .version-actions button:hover,
 .ticket-planning-controls button:hover,
@@ -2148,6 +2181,7 @@ p {
 }
 
 .component-actions,
+.project-label-actions,
 .version-actions,
 .ticket-planning-controls,
 .ticket-story-points-controls {
@@ -2156,7 +2190,8 @@ p {
   gap: 6px;
 }
 
-.component-actions {
+.component-actions,
+.project-label-actions {
   justify-content: flex-end;
 }
 
