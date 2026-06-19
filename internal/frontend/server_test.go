@@ -1077,6 +1077,11 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 	for _, expected := range []string{
 		"loadCustomFields",
 		"renderCustomFields",
+		"customFieldMetadataNode",
+		"customFieldMetadataItems",
+		"customFieldOptionsSummary",
+		"`type ${field.field_type}`",
+		"no options",
 		"normalizeCustomField",
 		"parseCustomFields",
 		"customFieldsFromControls",
@@ -1104,6 +1109,7 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		".field-form",
 		".field-edit-form",
 		".field-list",
+		".field-metadata",
 		".ticket-custom-fields",
 		".custom-field-input",
 	} {

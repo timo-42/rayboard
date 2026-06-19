@@ -5323,15 +5323,7 @@ function customFieldNode(field) {
   const name = document.createElement("p");
   name.textContent = field.name || field.key;
 
-  const meta = document.createElement("span");
-  meta.textContent = [
-    field.key,
-    field.field_type,
-    field.required ? "required" : "optional",
-    optionsList.length ? `options: ${optionsList.join(", ")}` : ""
-  ].filter(Boolean).join(" / ");
-
-  body.append(name, meta);
+  body.append(name, customFieldMetadataNode(field, optionsList));
 
   const edit = document.createElement("form");
   edit.className = "field-edit-form";
@@ -5368,6 +5360,40 @@ function customFieldNode(field) {
 
   article.append(body, edit, actions);
   return article;
+}
+
+function customFieldMetadataNode(field, optionsList = []) {
+  const metadata = document.createElement("div");
+  metadata.className = "field-metadata";
+
+  for (const item of customFieldMetadataItems(field, optionsList)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    metadata.append(chip);
+  }
+
+  return metadata;
+}
+
+function customFieldMetadataItems(field, optionsList = []) {
+  const options = Array.isArray(optionsList) ? optionsList : [];
+  return [
+    field.key ? `key ${field.key}` : "",
+    field.field_type ? `type ${field.field_type}` : "",
+    field.required ? "required" : "optional",
+    customFieldOptionsSummary(field, options)
+  ].filter(Boolean);
+}
+
+function customFieldOptionsSummary(field, optionsList = []) {
+  if (!["single_select", "multi_select"].includes(field.field_type || "")) {
+    return "";
+  }
+  const count = optionsList.length;
+  if (!count) {
+    return "no options";
+  }
+  return `${count} option${count === 1 ? "" : "s"}`;
 }
 
 function customFieldTypeSelect(value) {
