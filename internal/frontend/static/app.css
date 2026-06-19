@@ -3562,6 +3562,7 @@ p {
 .cron-run-list,
 .webhook-run-list,
 .ticket-hook-run-list,
+.create-page-run-list,
 .webhook-delivery-list {
   display: grid;
   gap: 6px;

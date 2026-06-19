@@ -87,6 +87,7 @@ const state = {
   ticketHooksError: "",
   ticketHookPreview: null,
   createPages: [],
+  createPageRuns: {},
   createPagesError: "",
   engineResult: null
 };
@@ -376,6 +377,7 @@ function bindEvents() {
       state.ticketHooksError = "";
       state.ticketHookPreview = null;
       state.createPages = [];
+      state.createPageRuns = {};
       state.createPagesError = "";
       render();
     }, "Signed out");
@@ -781,6 +783,14 @@ function bindEvents() {
   });
 
   els.createPages.addEventListener("click", async (event) => {
+    const showRuns = event.target.closest("[data-load-create-page-runs-id]");
+    if (showRuns) {
+      await runAction(async () => {
+        await loadCreatePageRuns(showRuns.dataset.loadCreatePageRunsId);
+      }, "Create page runs loaded");
+      return;
+    }
+
     const schema = event.target.closest("[data-load-create-page-schema-id]");
     if (schema) {
       await runAction(async () => {
@@ -808,6 +818,7 @@ function bindEvents() {
       }
       await runAction(async () => {
         await api(`/api/ticket-create-pages/${remove.dataset.deleteCreatePageId}`, { method: "DELETE" });
+        delete state.createPageRuns[remove.dataset.deleteCreatePageId];
         await loadCreatePages();
       }, "Create page deleted");
     }
@@ -3771,6 +3782,11 @@ async function loadCreatePages(projectID = selectedCreatePageProjectID()) {
 async function loadCreatePageSchema(pageID, projectID, slug) {
   const schema = await api(`/api/projects/${projectID}/ticket-create-pages/${encodeURIComponent(slug)}/schema`);
   state.createPages = state.createPages.map((page) => page.id === pageID ? { ...page, schema } : page);
+  renderCreatePages();
+}
+
+async function loadCreatePageRuns(pageID) {
+  state.createPageRuns[pageID] = listItems(await api(`/api/ticket-create-pages/${pageID}/runs?limit=10`)).map(normalizeCreatePageRun);
   renderCreatePages();
 }
 
@@ -8062,6 +8078,11 @@ function createPageNode(page) {
   schema.dataset.createPageSlug = page.slug;
   schema.textContent = "Schema";
 
+  const runs = document.createElement("button");
+  runs.type = "button";
+  runs.dataset.loadCreatePageRunsId = page.id;
+  runs.textContent = "Runs";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.dataset.toggleCreatePageId = page.id;
@@ -8078,7 +8099,7 @@ function createPageNode(page) {
   open.href = `/projects/${encodeURIComponent(page.project_id)}/create/${encodeURIComponent(page.slug)}`;
   open.textContent = "Open";
 
-  actions.append(open, schema, toggle, remove);
+  actions.append(open, schema, runs, toggle, remove);
   article.append(header, meta, actions);
 
   if (page.description) {
@@ -8102,7 +8123,32 @@ function createPageNode(page) {
     schemaOutput.textContent = JSON.stringify(page.schema, null, 2);
     article.append(schemaOutput);
   }
+  const runsList = state.createPageRuns[page.id] || [];
+  if (runsList.length) {
+    article.append(createPageRunListNode(runsList));
+  }
   return article;
+}
+
+function createPageRunListNode(runs) {
+  const list = document.createElement("div");
+  list.className = "create-page-run-list";
+  for (const run of runs) {
+    const item = document.createElement("article");
+    item.className = "cron-run-item";
+    const summary = document.createElement("span");
+    summary.textContent = [
+      run.state || "queued",
+      run.trigger_type,
+      run.created_at ? formatDateTime(run.created_at) : "",
+      run.error ? `error: ${run.error}` : ""
+    ].filter(Boolean).join(" / ");
+    const output = document.createElement("pre");
+    output.textContent = JSON.stringify(run.output || {}, null, 2);
+    item.append(summary, output);
+    list.append(item);
+  }
+  return list;
 }
 
 function renderEngineFields() {
@@ -10978,6 +11024,29 @@ function normalizeCreatePage(page) {
     };
   }
   return page;
+}
+
+function normalizeCreatePageRun(run) {
+  if (!run) {
+    return null;
+  }
+  if (run.metadata && run.spec && run.status) {
+    return {
+      id: run.metadata.id || "",
+      created_at: run.metadata.created_at || "",
+      trigger_type: run.spec.trigger_type || "",
+      trigger_ref: run.spec.trigger_ref || "",
+      project_id: run.spec.project_id || "",
+      ticket_id: run.spec.ticket_id || "",
+      input: run.spec.input || {},
+      state: run.status.state || "",
+      output: run.status.output || {},
+      error: run.status.error || "",
+      started_at: run.status.started_at || "",
+      finished_at: run.status.finished_at || ""
+    };
+  }
+  return run;
 }
 
 function normalizeCreatePageSchema(schema) {
