@@ -169,6 +169,7 @@ const els = {
   notificationPolicyForm: document.querySelector("#notification-policy-form"),
   notificationPolicyScope: document.querySelector("#notification-policy-scope"),
   notificationPolicyProject: document.querySelector("#notification-policy-project"),
+  notificationPolicyDestinations: document.querySelector("#notification-policy-destinations"),
   notificationPolicyStatus: document.querySelector("#notification-policy-status"),
   notificationPolicies: document.querySelector("#notification-policies"),
   notificationHookForm: document.querySelector("#notification-hook-form"),
@@ -176,6 +177,8 @@ const els = {
   notificationHookProject: document.querySelector("#notification-hook-project"),
   notificationHookEngineType: document.querySelector("#notification-hook-engine-type"),
   notificationHookPreviewForm: document.querySelector("#notification-hook-preview-form"),
+  notificationHookPreviewPolicy: document.querySelector("#notification-hook-preview-policy"),
+  notificationHookPreviewDestinations: document.querySelector("#notification-hook-preview-destinations"),
   notificationHookStatus: document.querySelector("#notification-hook-status"),
   notificationHooks: document.querySelector("#notification-hooks"),
   notificationHookPreviewOutput: document.querySelector("#notification-hook-preview-output"),
@@ -2045,6 +2048,9 @@ function bindEvents() {
   els.notificationPolicyScope.addEventListener("change", async () => {
     renderNotificationPolicyProjectOptions();
     await runAction(async () => {
+      if (els.notificationPolicyScope.value !== "project") {
+        await loadNotificationDestinations("");
+      }
       await loadNotificationPolicies();
     }, "Notification policies refreshed");
   });
@@ -2055,6 +2061,7 @@ function bindEvents() {
       state.selectedProject = project;
     }
     await runAction(async () => {
+      await loadNotificationDestinations(project ? project.id : "");
       await loadNotificationPolicies();
     }, "Notification policies refreshed");
   });
@@ -2116,6 +2123,9 @@ function bindEvents() {
   els.notificationHookScope.addEventListener("change", async () => {
     renderNotificationHookProjectOptions();
     await runAction(async () => {
+      if (els.notificationHookScope.value !== "project") {
+        await loadNotificationDestinations("");
+      }
       await loadNotificationHooks();
     }, "Notification hooks refreshed");
   });
@@ -2126,8 +2136,15 @@ function bindEvents() {
       state.selectedProject = project;
     }
     await runAction(async () => {
+      await loadNotificationDestinations(project ? project.id : "");
       await loadNotificationHooks();
     }, "Notification hooks refreshed");
+  });
+
+  els.notificationHookPreviewForm.addEventListener("change", (event) => {
+    if (event.target.matches("select[name='policy_id']")) {
+      applyNotificationHookPreviewPolicy(event.target.value);
+    }
   });
 
   els.notificationHookForm.addEventListener("submit", async (event) => {
@@ -6589,6 +6606,8 @@ function renderNotificationPolicies() {
     return;
   }
   renderNotificationPolicyProjectOptions();
+  renderNotificationPolicyDestinationOptions();
+  renderNotificationHookPreviewPolicyOptions();
   els.notificationPolicies.replaceChildren();
   if (state.notificationPoliciesError) {
     els.notificationPolicyForm.hidden = true;
@@ -6628,6 +6647,16 @@ function renderNotificationPolicyProjectOptions() {
   els.notificationPolicyProject.disabled = scopeType !== "project";
 }
 
+function renderNotificationPolicyDestinationOptions() {
+  if (!els.notificationPolicyDestinations || !els.notificationPolicyForm) {
+    return;
+  }
+  const data = formData(els.notificationPolicyForm);
+  const scopeType = data.scope_type || "global";
+  const projectID = data.project_id || selectedNotificationPolicyProjectID();
+  renderDestinationMultiSelect(els.notificationPolicyDestinations, [], scopeType, projectID);
+}
+
 function notificationPolicyNode(policy) {
   const article = document.createElement("article");
   article.className = "notification-policy-item";
@@ -6659,11 +6688,11 @@ function notificationPolicyNode(policy) {
   events.rows = 2;
   events.placeholder = "event types";
   events.value = policy.event_types.join(", ");
-  const destinations = document.createElement("textarea");
+  const destinations = document.createElement("select");
   destinations.name = "destination_ids";
-  destinations.rows = 2;
-  destinations.placeholder = "destination ids";
-  destinations.value = policy.destination_ids.join(", ");
+  destinations.multiple = true;
+  destinations.size = 3;
+  renderDestinationMultiSelect(destinations, policy.destination_ids, policy.scope_type, policy.project_id);
   const enabled = document.createElement("label");
   enabled.className = "inline-toggle";
   const enabledInput = document.createElement("input");
@@ -6692,6 +6721,8 @@ function renderNotificationHooks() {
   }
   renderNotificationHookProjectOptions();
   renderNotificationHookEngineFields();
+  renderNotificationHookPreviewPolicyOptions();
+  renderNotificationHookPreviewDestinationOptions();
   renderNotificationHookPreview();
   els.notificationHooks.replaceChildren();
   if (state.notificationHooksError) {
@@ -6745,7 +6776,80 @@ function renderNotificationHookPreview() {
   if (!els.notificationHookPreviewOutput) {
     return;
   }
-  els.notificationHookPreviewOutput.textContent = JSON.stringify(state.notificationHookPreview || {}, null, 2);
+  els.notificationHookPreviewOutput.textContent = JSON.stringify(notificationHookPreviewDisplay(state.notificationHookPreview), null, 2);
+}
+
+function renderNotificationHookPreviewPolicyOptions() {
+  if (!els.notificationHookPreviewPolicy) {
+    return;
+  }
+  const current = els.notificationHookPreviewPolicy.value;
+  els.notificationHookPreviewPolicy.replaceChildren();
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Preview policy";
+  empty.selected = !current;
+  els.notificationHookPreviewPolicy.append(empty);
+  for (const policy of state.notificationPolicies) {
+    const option = document.createElement("option");
+    option.value = policy.id;
+    option.textContent = [
+      policy.name || policy.id,
+      policy.scope_type === "project" ? projectLabel(policy.project_id) : "global"
+    ].filter(Boolean).join(" / ");
+    option.selected = policy.id === current;
+    els.notificationHookPreviewPolicy.append(option);
+  }
+}
+
+function renderNotificationHookPreviewDestinationOptions() {
+  if (!els.notificationHookPreviewDestinations || !els.notificationHookPreviewForm) {
+    return;
+  }
+  const data = formData(els.notificationHookPreviewForm);
+  const policy = state.notificationPolicies.find((item) => item.id === data.policy_id);
+  const projectID = policy ? policy.project_id : selectedNotificationHookProjectID();
+  const scopeType = policy ? policy.scope_type : (projectID ? "project" : "global");
+  renderDestinationMultiSelect(
+    els.notificationHookPreviewDestinations,
+    selectedFormValues(els.notificationHookPreviewForm, "destination_ids"),
+    scopeType,
+    projectID
+  );
+}
+
+function applyNotificationHookPreviewPolicy(policyID) {
+  const policy = state.notificationPolicies.find((item) => item.id === policyID);
+  if (!policy || !els.notificationHookPreviewForm) {
+    renderNotificationHookPreviewDestinationOptions();
+    return;
+  }
+  setFormValue(els.notificationHookPreviewForm, "event_type", policy.event_types[0] || "");
+  renderDestinationMultiSelect(els.notificationHookPreviewDestinations, policy.destination_ids, policy.scope_type, policy.project_id);
+}
+
+function notificationHookPreviewDisplay(preview) {
+  if (!preview || !preview.status) {
+    return {};
+  }
+  const plan = preview.status.plan || {};
+  return {
+    state: preview.status.state || "",
+    suppressed: Boolean(plan.suppressed),
+    plan: {
+      event_type: plan.event_type || "",
+      project: plan.project_id ? projectLabel(plan.project_id) : "",
+      subject_type: plan.subject_type || "",
+      subject_id: plan.subject_id || "",
+      message: plan.message || "",
+      destination_ids: plan.destination_ids || [],
+      destinations: (plan.destination_ids || []).map(destinationLabel),
+      payload: plan.payload || {}
+    },
+    output: preview.status.output || {},
+    error: preview.status.error || "",
+    run_id: preview.metadata ? preview.metadata.run_id || "" : ""
+  };
 }
 
 function notificationHookNode(hook) {
@@ -6838,6 +6942,44 @@ function userLabel(userID) {
 function destinationLabel(destinationID) {
   const destination = state.notificationDestinations.find((item) => item.id === destinationID);
   return destination ? `${destination.name || destination.id} (${destination.id})` : destinationID;
+}
+
+function availableNotificationDestinations(scopeType, projectID) {
+  return state.notificationDestinations.filter((destination) => {
+    if (destination.deleted) {
+      return false;
+    }
+    if (scopeType !== "project") {
+      return destination.scope_type === "global";
+    }
+    return destination.scope_type === "global" || destination.project_id === projectID;
+  });
+}
+
+function renderDestinationMultiSelect(select, selectedIDs, scopeType, projectID) {
+  if (!select) {
+    return;
+  }
+  const selected = new Set(selectedIDs || []);
+  const destinations = availableNotificationDestinations(scopeType, projectID);
+  select.replaceChildren();
+  for (const destination of destinations) {
+    const option = document.createElement("option");
+    option.value = destination.id;
+    option.textContent = destinationLabel(destination.id);
+    option.selected = selected.has(destination.id);
+    select.append(option);
+  }
+  for (const id of selected) {
+    if (destinations.some((destination) => destination.id === id)) {
+      continue;
+    }
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = destinationLabel(id);
+    option.selected = true;
+    select.append(option);
+  }
 }
 
 function inputNode(name, value, placeholder, type = "text") {
@@ -7798,7 +7940,7 @@ function notificationPolicySpec(form) {
   return {
     name: data.name || "",
     event_types: parseCommaList(data.event_types),
-    destination_ids: parseCommaList(data.destination_ids),
+    destination_ids: selectedFormValues(form, "destination_ids"),
     enabled: Boolean(data.enabled)
   };
 }
@@ -7843,9 +7985,10 @@ function notificationHookPreviewSpec() {
   }
   const data = formData(els.notificationHookPreviewForm);
   const spec = {
+    policy_id: data.policy_id || "",
     event_type: data.event_type || "",
     message: data.message || "",
-    destination_ids: parseCommaList(data.destination_ids),
+    destination_ids: selectedFormValues(els.notificationHookPreviewForm, "destination_ids"),
     payload: parseJSONField(data.payload, "Notification hook payload JSON")
   };
   const projectID = selectedNotificationHookProjectID();
@@ -9316,6 +9459,17 @@ function dataTransferHasType(event, type) {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function selectedFormValues(form, name) {
+  if (!form || !form.elements[name]) {
+    return [];
+  }
+  const field = form.elements[name];
+  if (field.selectedOptions) {
+    return [...field.selectedOptions].map((option) => option.value).filter(Boolean);
+  }
+  return parseCommaList(field.value);
 }
 
 function setFormValue(form, name, value) {

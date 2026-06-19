@@ -504,7 +504,7 @@ Notification hooks are global/project automation rules that run after a notifica
 | `GET` | `/api/notification-hooks/{hook_id}/runs` | Lists saved hook preview and event-triggered execution history. |
 | `DELETE` | `/api/notification-hooks/{hook_id}` | Soft-deletes and disables a notification hook. |
 
-Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigned AUTO-1","payload":{"ticket_id":"ticket_123"},"destination_ids":["dest_123"]}}`. Hook run resources use `metadata` for run identity, `spec` for trigger/input context, and `status` for state, output, error, and timestamps. Dashboard/view notification policies, recipient rules, and richer destination-name routing are **Planned**.
+Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigned AUTO-1","payload":{"ticket_id":"ticket_123"},"destination_ids":["dest_123"]}}`. Hook run resources use `metadata` for run identity, `spec` for trigger/input context, and `status` for state, output, error, and timestamps. The embedded Settings page supports scoped destination-name selection for policies, policy-seeded hook previews, and preview output with destination names and suppression state. Dashboard/view notification delivery analytics and richer recipient rules are **Planned**.
 
 ## Webhooks
 

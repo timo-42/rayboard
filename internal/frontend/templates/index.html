@@ -745,7 +745,7 @@
               </select>
               <select id="notification-policy-project" name="project_id"></select>
               <textarea name="event_types" rows="2" placeholder="ticket_assigned, comment_added"></textarea>
-              <textarea name="destination_ids" rows="2" placeholder="destination ids"></textarea>
+              <select id="notification-policy-destinations" name="destination_ids" multiple size="3"></select>
               <label class="inline-toggle">
                 <input name="enabled" type="checkbox" checked>
                 Enabled
@@ -795,9 +795,10 @@
               <button type="submit">Create hook</button>
             </form>
             <form id="notification-hook-preview-form" class="notification-hook-preview-form">
+              <select id="notification-hook-preview-policy" name="policy_id"></select>
               <input name="event_type" placeholder="ticket_assigned" value="ticket_assigned">
               <input name="message" placeholder="Assigned AUTO-1" value="Assigned AUTO-1">
-              <input name="destination_ids" placeholder="destination ids">
+              <select id="notification-hook-preview-destinations" name="destination_ids" multiple size="3"></select>
               <textarea name="payload" rows="3">{"ticket_id":"ticket_123"}</textarea>
             </form>
             <div id="notification-hook-status" class="settings-status"></div>
