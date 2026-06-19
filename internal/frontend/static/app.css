@@ -716,9 +716,12 @@ p {
 
 .openrouter-provider-form textarea,
 .openrouter-provider-edit-form textarea,
+.notification-policy-form select[multiple],
+.notification-policy-edit-form select[multiple],
 .notification-policy-form textarea,
 .notification-policy-edit-form textarea,
 .notification-hook-form textarea,
+.notification-hook-preview-form select[multiple],
 .notification-hook-preview-form textarea,
 .notification-hook-preview pre {
   resize: vertical;

@@ -29,7 +29,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - issue pages under `/issues/{ticket_id}` for one ticket with metadata, watch/unwatch controls, labels, custom fields, planning controls, linked issues, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, creating/deleting role bindings, and inspecting effective permissions by user/scope when the signed-in user has permission;
-- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, project notification defaults, notification delivery history/manual retry, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
+- a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD with scoped destination-name selection, project notification defaults, notification delivery history/manual retry, notification hook CRUD plus policy-aware preview/routing inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
 - login/logout using backend API sessions;
 - CSRF header handling from the `rayboard_csrf` cookie;
 - an unread notification badge in the persistent Dashboard nav item;
@@ -63,7 +63,7 @@ Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints.
 
-Richer board settings beyond inline edits, saved-view filters, and WIP warnings, richer backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout screens beyond ticket controls and search filter building, richer saved-view UI beyond pinned project navigation and board filters, and advanced release planning beyond version drilldowns are **Planned**.
+Richer board settings beyond inline edits, saved-view filters, and WIP warnings, richer backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout screens beyond ticket controls and search filter building, richer saved-view UI beyond pinned project navigation and board filters, richer notification delivery analytics beyond policy-aware routing previews, and advanced release planning beyond version drilldowns are **Planned**.
 
 ## Design Variants
 
