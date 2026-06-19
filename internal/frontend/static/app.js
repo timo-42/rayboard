@@ -4602,13 +4602,46 @@ function renderVersionReport() {
   header.append(title, scope);
 
   const progress = report ? report.progress : { total: 0, done: 0, open: 0, unassigned_component: 0, by_status: {} };
+  const tickets = report && Array.isArray(report.tickets) ? report.tickets : [];
+  els.versionReport.append(
+    header,
+    versionReportSummaryNode(progress),
+    versionReportBreakdownNode(progress, tickets),
+    versionReportTicketListNode(report, tickets)
+  );
+}
+
+function versionReportSummaryNode(progress) {
+  const total = Number(progress.total || 0);
+  const done = Number(progress.done || 0);
+  const open = progress.open !== undefined ? Number(progress.open || 0) : Math.max(total - done, 0);
+  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const hasPointMetrics = Number(progress.story_points_total || 0) > 0 || Number(progress.story_points_unestimated || 0) > 0;
+
+  const section = document.createElement("section");
+  section.className = "version-report-summary";
+
+  const progressBox = document.createElement("div");
+  progressBox.className = "version-report-progress";
+  const label = document.createElement("span");
+  label.textContent = "Progress";
+  const value = document.createElement("strong");
+  value.textContent = `${percent}%`;
+  const bar = document.createElement("div");
+  bar.className = "version-report-progress-bar";
+  const fill = document.createElement("span");
+  fill.style.width = `${percent}%`;
+  bar.append(fill);
+  const detail = document.createElement("small");
+  detail.textContent = `${done} done / ${open} open / ${total} total`;
+  progressBox.append(label, value, bar, detail);
+
   const metrics = document.createElement("div");
   metrics.className = "version-report-metrics";
   metrics.append(
-    sprintMetricNode("Total", progress.total || 0),
-    sprintMetricNode("Done", progress.done || 0),
-    sprintMetricNode("Open", progress.open || Math.max((progress.total || 0) - (progress.done || 0), 0)),
+    sprintMetricNode("Total", total),
+    sprintMetricNode("Done", done),
+    sprintMetricNode("Open", open),
     sprintMetricNode("No component", progress.unassigned_component || 0)
   );
   if (hasPointMetrics) {
@@ -4619,29 +4652,154 @@ function renderVersionReport() {
       sprintMetricNode("Unestimated", progress.story_points_unestimated || 0)
     );
   }
+  section.append(progressBox, metrics);
+  return section;
+}
 
-  const statuses = document.createElement("div");
-  statuses.className = "version-report-statuses";
-  for (const [status, count] of Object.entries(progress.by_status || {})) {
+function versionReportBreakdownNode(progress, tickets) {
+  const section = document.createElement("section");
+  section.className = "version-report-breakdown";
+  section.append(
+    versionReportStatusNode(progress.by_status || {}),
+    versionReportComponentNode(tickets)
+  );
+  return section;
+}
+
+function versionReportStatusNode(statuses) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Status breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-statuses";
+  for (const [status, count] of Object.entries(statuses)) {
     const item = document.createElement("span");
     item.textContent = `${status}: ${count}`;
-    statuses.append(item);
+    list.append(item);
   }
+  if (!list.childElementCount) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No status data";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
 
-  const tickets = document.createElement("div");
-  tickets.className = "version-report-tickets";
-  if (report && report.tickets && report.tickets.length) {
-    for (const ticket of report.tickets) {
-      tickets.append(sprintReportTicketNode(ticket));
+function versionReportComponentNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Component breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-components";
+  const components = versionReportComponents(tickets);
+  for (const component of components) {
+    list.append(versionReportComponentItemNode(component));
+  }
+  if (!components.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No component assignments";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportComponents(tickets) {
+  const groups = new Map();
+  for (const ticket of tickets) {
+    const id = ticket.component_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? componentName(id) : "No component",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    if (!a.id && b.id) {
+      return 1;
+    }
+    if (a.id && !b.id) {
+      return -1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function versionReportComponentItemNode(component) {
+  const item = document.createElement("article");
+  item.className = component.id ? "version-report-component" : "version-report-component is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = component.name;
+  const meta = document.createElement("small");
+  const pointText = component.story_points_total > 0
+    ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
+    : `${component.unestimated} unestimated`;
+  meta.textContent = `${component.done}/${component.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
+}
+
+function versionReportTicketListNode(report, tickets) {
+  const section = document.createElement("section");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Report tickets";
+  const list = document.createElement("div");
+  list.className = "version-report-tickets";
+  if (tickets.length) {
+    for (const ticket of tickets) {
+      list.append(versionReportTicketNode(ticket));
     }
   } else {
     const empty = document.createElement("p");
     empty.className = "muted";
     empty.textContent = report ? "No tickets assigned to this version" : "Report tickets will appear here";
-    tickets.append(empty);
+    list.append(empty);
   }
+  section.append(title, list);
+  return section;
+}
 
-  els.versionReport.append(header, metrics, statuses, tickets);
+function versionReportTicketNode(ticket) {
+  const row = document.createElement("a");
+  row.className = ticket.component_id ? "version-report-ticket" : "version-report-ticket is-unassigned";
+  row.href = `/issues/${encodeURIComponent(ticket.id)}`;
+  const title = document.createElement("span");
+  title.textContent = `${ticket.key || ticket.id} ${ticket.title || "Untitled"}`;
+  const meta = document.createElement("small");
+  meta.textContent = [
+    ticket.status || "todo",
+    ticket.component_id ? componentName(ticket.component_id) : "No component",
+    storyPointLabel(ticket.story_points)
+  ].filter(Boolean).join(" / ");
+  row.append(title, meta);
+  return row;
 }
 
 function renderProjectLabels() {
