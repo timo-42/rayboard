@@ -445,6 +445,96 @@ func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
 	}
 }
 
+func TestTicketWatchersListWatchUnwatchAndAuthorize(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedUser(t, ctx, db.SQL, "user-viewer")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	evaluator.BindRole(authz.UserBinding("user-viewer", authz.RoleProjectViewer, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+	viewer := principal("user-viewer")
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Watch me"})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	watched, err := service.WatchTicket(ctx, viewer, ticket.ID)
+	if err != nil {
+		t.Fatalf("watch ticket: %v", err)
+	}
+	if !watched.Watching || watched.WatcherCount != 1 {
+		t.Fatalf("expected viewer watch state on watched ticket, got %#v", watched)
+	}
+	fetchedByMember, err := service.GetTicket(ctx, member, ticket.ID)
+	if err != nil {
+		t.Fatalf("get ticket as member: %v", err)
+	}
+	if fetchedByMember.Watching || fetchedByMember.WatcherCount != 1 {
+		t.Fatalf("expected member to see count but not own watch state, got %#v", fetchedByMember)
+	}
+	listed, err := service.ListTickets(ctx, viewer, tracker.ListTicketsInput{ProjectID: project.ID})
+	if err != nil {
+		t.Fatalf("list tickets as viewer: %v", err)
+	}
+	if len(listed) != 1 || !listed[0].Watching || listed[0].WatcherCount != 1 {
+		t.Fatalf("expected watcher status in list, got %#v", listed)
+	}
+	watchers, err := service.ListTicketWatchers(ctx, member, ticket.ID)
+	if err != nil {
+		t.Fatalf("list watchers: %v", err)
+	}
+	if len(watchers) != 1 || watchers[0].UserID != "user-viewer" || watchers[0].DisplayName != "user-viewer" {
+		t.Fatalf("unexpected watchers: %#v", watchers)
+	}
+	if _, err := service.WatchTicket(ctx, viewer, ticket.ID); err != nil {
+		t.Fatalf("watch ticket idempotently: %v", err)
+	}
+	watchers, err = service.ListTicketWatchers(ctx, member, ticket.ID)
+	if err != nil {
+		t.Fatalf("list watchers after duplicate watch: %v", err)
+	}
+	if len(watchers) != 1 {
+		t.Fatalf("expected duplicate watch to be idempotent, got %#v", watchers)
+	}
+	activities, err := service.ListTicketActivity(ctx, member, ticket.ID)
+	if err != nil {
+		t.Fatalf("list activity: %v", err)
+	}
+	if ticketActivityByType(activities, "ticket.watcher_added") == nil {
+		t.Fatalf("expected watcher added activity, got %#v", activities)
+	}
+
+	unwatched, err := service.UnwatchTicket(ctx, viewer, ticket.ID)
+	if err != nil {
+		t.Fatalf("unwatch ticket: %v", err)
+	}
+	if unwatched.Watching || unwatched.WatcherCount != 0 {
+		t.Fatalf("expected watch state cleared, got %#v", unwatched)
+	}
+	if _, err := service.UnwatchTicket(ctx, viewer, ticket.ID); err != nil {
+		t.Fatalf("unwatch ticket idempotently: %v", err)
+	}
+	if _, err := service.WatchTicket(ctx, principal("user-outsider"), ticket.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden watch for outsider, got %v", err)
+	}
+	if _, err := service.ListTicketWatchers(ctx, principal("user-outsider"), ticket.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden watcher list for outsider, got %v", err)
+	}
+}
+
 func TestTicketMutationsAppendDomainEvents(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

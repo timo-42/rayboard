@@ -457,6 +457,42 @@ func TestEmbeddedAppSupportsTicketActivity(t *testing.T) {
 	}
 }
 
+func TestEmbeddedAppSupportsTicketWatchers(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"loadTicketWatchers",
+		"normalizeTicketWatcher",
+		"watcherNode",
+		"/api/tickets/${ticketID}/watchers",
+		"/api/tickets/${ticketID}/watchers/me",
+		"ticket.watcher_added",
+		"watcher_count",
+		"watching",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".ticket-watchers",
+		".watcher-heading",
+		".watcher-list",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
 func TestEmbeddedAppSupportsNotifications(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {

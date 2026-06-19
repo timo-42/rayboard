@@ -31,6 +31,7 @@ const state = {
   attachments: {},
   comments: {},
   ticketLinks: {},
+  ticketWatchers: {},
   activities: {},
   notifications: [],
   unreadNotificationsOnly: false,
@@ -303,6 +304,7 @@ function bindEvents() {
       state.attachments = {};
       state.comments = {};
       state.ticketLinks = {};
+      state.ticketWatchers = {};
       state.activities = {};
       state.notifications = [];
       state.unreadNotificationsOnly = false;
@@ -1978,6 +1980,26 @@ function bindEvents() {
       return;
     }
 
+    const watch = event.target.closest("[data-watch-ticket-id]");
+    if (watch) {
+      const ticketID = watch.dataset.watchTicketId;
+      await runAction(async () => {
+        await api(`/api/tickets/${ticketID}/watchers/me`, { method: "PUT" });
+        await refreshTicketViews(ticketID, { roadmap: false });
+      }, "Watching ticket");
+      return;
+    }
+
+    const unwatch = event.target.closest("[data-unwatch-ticket-id]");
+    if (unwatch) {
+      const ticketID = unwatch.dataset.unwatchTicketId;
+      await runAction(async () => {
+        await api(`/api/tickets/${ticketID}/watchers/me`, { method: "DELETE" });
+        await refreshTicketViews(ticketID, { roadmap: false });
+      }, "Stopped watching ticket");
+      return;
+    }
+
     const button = event.target.closest("[data-ticket-status]");
     if (!button) {
       return;
@@ -2670,11 +2692,13 @@ async function loadTickets() {
   state.attachments = {};
   state.comments = {};
   state.ticketLinks = {};
+  state.ticketWatchers = {};
   state.activities = {};
   await Promise.all(state.tickets.flatMap((ticket) => [
     loadAttachments(ticket.id, { renderAfter: false }),
     loadComments(ticket.id, { renderAfter: false }),
-    loadTicketLinks(ticket.id, { renderAfter: false })
+    loadTicketLinks(ticket.id, { renderAfter: false }),
+    loadTicketWatchers(ticket.id, { renderAfter: false })
   ]));
   render();
 }
@@ -2703,6 +2727,7 @@ async function loadSelectedIssue(ticketID) {
     loadAttachments(ticket.id, { renderAfter: false }),
     loadComments(ticket.id, { renderAfter: false }),
     loadTicketLinks(ticket.id, { renderAfter: false }),
+    loadTicketWatchers(ticket.id, { renderAfter: false }),
     loadActivity(ticket.id, { renderAfter: false })
   ]);
 }
@@ -2741,6 +2766,17 @@ async function loadComments(ticketID, options = {}) {
 async function loadTicketLinks(ticketID, options = {}) {
   const data = await api(`/api/tickets/${ticketID}/links`);
   state.ticketLinks[ticketID] = listItems(data).map(normalizeTicketLink).filter(Boolean);
+  if (options.renderAfter !== false) {
+    renderTickets();
+    if (state.selectedIssue && state.selectedIssue.id === ticketID) {
+      renderIssue();
+    }
+  }
+}
+
+async function loadTicketWatchers(ticketID, options = {}) {
+  const data = await api(`/api/tickets/${ticketID}/watchers`);
+  state.ticketWatchers[ticketID] = listItems(data).map(normalizeTicketWatcher).filter(Boolean);
   if (options.renderAfter !== false) {
     renderTickets();
     if (state.selectedIssue && state.selectedIssue.id === ticketID) {
@@ -6445,6 +6481,7 @@ function renderIssue() {
     ["Sprint", ticket.sprint_id ? sprintName(ticket.sprint_id) : "None"],
     ["Component", ticket.component_id ? componentName(ticket.component_id) : "None"],
     ["Version", ticket.version_id ? versionName(ticket.version_id) : "None"],
+    ["Watchers", String(ticket.watcher_count || 0)],
     ["Updated", ticket.updated_at ? formatDateTime(ticket.updated_at) : ""]
   ]) {
     const item = document.createElement("article");
@@ -6470,6 +6507,7 @@ function renderIssue() {
     labelControlNode(ticket),
     customFieldControlNode(ticket),
     planningControlNode(ticket),
+    watcherNode(ticket),
     ticketLinksNode(ticket),
     sprintControlNode(ticket),
     commentNode(ticket),
@@ -6734,8 +6772,48 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, watcherNode(ticket), labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function watcherNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-watchers";
+  section.setAttribute("aria-label", `${ticket.key} watchers`);
+
+  const watchers = state.ticketWatchers[ticket.id] || [];
+  const summary = document.createElement("p");
+  summary.className = "watcher-heading";
+  const count = Number(ticket.watcher_count || watchers.length || 0);
+  summary.textContent = `${count} watcher${count === 1 ? "" : "s"}`;
+
+  const names = document.createElement("div");
+  names.className = "watcher-list";
+  if (!watchers.length) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No watchers";
+    names.append(empty);
+  } else {
+    for (const watcher of watchers) {
+      const item = document.createElement("span");
+      item.textContent = watcher.display_name || watcher.username || watcher.user_id;
+      names.append(item);
+    }
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  if (ticket.watching) {
+    button.dataset.unwatchTicketId = ticket.id;
+    button.textContent = "Unwatch";
+  } else {
+    button.dataset.watchTicketId = ticket.id;
+    button.textContent = "Watch";
+  }
+
+  section.append(summary, names, button);
+  return section;
 }
 
 function labelControlNode(ticket) {
@@ -7190,6 +7268,8 @@ function activityLabel(activity) {
     "ticket.updated": "Ticket updated",
     "ticket.link_created": "Issue link added",
     "ticket.link_deleted": "Issue link removed",
+    "ticket.watcher_added": "Watcher added",
+    "ticket.watcher_removed": "Watcher removed",
     "comment.created": "Comment added",
     "comment.deleted": "Comment deleted",
     "attachment.uploaded": "Attachment uploaded",
@@ -7658,10 +7738,28 @@ function normalizeTicket(ticket) {
       start_date: ticket.spec.start_date || "",
       due_date: ticket.spec.due_date || "",
       labels: ticket.spec.labels || [],
-      custom_fields: ticket.spec.custom_fields || {}
+      custom_fields: ticket.spec.custom_fields || {},
+      watcher_count: Number(ticket.status.watcher_count || 0),
+      watching: Boolean(ticket.status.watching)
     };
   }
   return ticket;
+}
+
+function normalizeTicketWatcher(watcher) {
+  if (!watcher) {
+    return null;
+  }
+  if (watcher.metadata && watcher.spec) {
+    return {
+      ticket_id: watcher.metadata.ticket_id || "",
+      user_id: watcher.metadata.user_id || "",
+      created_at: watcher.metadata.created_at || "",
+      username: watcher.spec.username || "",
+      display_name: watcher.spec.display_name || ""
+    };
+  }
+  return watcher;
 }
 
 function normalizeTicketLink(link) {

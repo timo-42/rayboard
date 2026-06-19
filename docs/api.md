@@ -103,6 +103,9 @@ Effective-permission requests default to global scope when `scope` is omitted. `
 | `GET` | `/api/tickets/{ticket_id}` | none |
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
+| `GET` | `/api/tickets/{ticket_id}/watchers` | none |
+| `PUT` | `/api/tickets/{ticket_id}/watchers/me` | Watch the ticket as the authenticated user. |
+| `DELETE` | `/api/tickets/{ticket_id}/watchers/me` | Stop watching the ticket as the authenticated user. |
 | `GET` | `/api/tickets/{ticket_id}/links` | none |
 | `POST` | `/api/tickets/{ticket_id}/links` | `{"spec":{"target_ticket_id":"ticket_...","link_type":"blocks"}}` |
 | `DELETE` | `/api/tickets/{ticket_id}/links/{link_id}` | none |
@@ -111,7 +114,7 @@ Ticket statuses are stored as strings. Workflow status APIs define the ordered p
 
 Project responses use `metadata`, `spec`, and `status`. Project IDs are returned as `metadata.id`; project key, name, description, and lead user are returned in `spec`; archive/delete lifecycle fields are returned in `status`.
 
-Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, and delete state are returned in `status`.
+Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, watcher count, current-user watch state, and delete state are returned in `status`.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
@@ -120,6 +123,8 @@ Ticket `labels` is a string array on create, update, get, list, board/backlog, a
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
 Ticket activity responses use a list resource with `metadata.count` and `status.items`. Each activity item uses `metadata.id`, `metadata.ticket_id`, `metadata.created_at`, `spec.activity_type`, optional `spec.data`, and `status.actor_id`. Common activity types include `ticket.created`, `ticket.updated`, `comment.created`, `comment.deleted`, `attachment.uploaded`, and `attachment.deleted`. The embedded issue page at `/issues/{ticket_id}` renders this activity history.
+
+Ticket watcher responses use a list resource with `metadata.count` and `status.items`. Each watcher item uses `metadata.ticket_id`, `metadata.user_id`, `metadata.created_at`, `spec.username`, and `spec.display_name`. Watching and unwatching require ticket read access, are idempotent for the authenticated user, update ticket resource `status.watching` and `status.watcher_count`, and record `ticket.watcher_added` or `ticket.watcher_removed` activity only when the stored watch state changes. Comment and ticket-change notifications include watchers, excluding the actor and deduplicating reporter, assignee, and watcher overlaps.
 
 Ticket links model directed issue relationships for lightweight dependency tracking. Supported link types are `blocks`, `is_blocked_by`, and `relates_to`. Link responses use `metadata.id`, `metadata.project_id`, `metadata.created_at`, `spec.link_type`, `spec.source`, `spec.target`, and `status.created_by`. Creating a link requires write permission on the source ticket and read permission on the target ticket, rejects self-links and duplicate active links, and records `ticket.link_created` activity on the source ticket. Deleting a link soft-deletes it and records `ticket.link_deleted` activity. The embedded browser UI lists linked issues and exposes add/remove controls from ticket cards and issue detail pages. Richer dependency graph visualization is **Planned**.
 
@@ -456,7 +461,7 @@ Notification policies define which event types should route to named destination
 | `PATCH` | `/api/notification-policies/{policy_id}` | `{"spec":{"enabled":false}}` or any subset of name, event types, destination IDs, and enabled state. |
 | `DELETE` | `/api/notification-policies/{policy_id}` | soft-deletes and disables the policy. |
 
-Generated policy event types currently include `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, and `release_changed`. `automation_failed` is accepted for policy configuration and reserved for automation failure events as that surface grows. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
+Generated policy event types currently include `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, and `release_changed`. Watchers are in-app recipients for comment and ticket-change notifications; external policies still route by generated event type. `automation_failed` is accepted for policy configuration and reserved for automation failure events as that surface grows. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
 
 ## Notification Deliveries
 

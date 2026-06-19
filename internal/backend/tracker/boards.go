@@ -227,6 +227,10 @@ func (s *Service) ListBoardTickets(ctx context.Context, principal authz.Principa
 		if err != nil {
 			return BoardTickets{}, err
 		}
+		tickets, err = s.attachTicketWatcherStatus(ctx, principal, tickets)
+		if err != nil {
+			return BoardTickets{}, err
+		}
 		result.Columns = append(result.Columns, BoardTicketsColumn{
 			Column:  column,
 			Tickets: tickets,

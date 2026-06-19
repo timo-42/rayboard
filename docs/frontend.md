@@ -26,7 +26,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a persistent app navigation for Dashboard, Projects, Search, Automation, RBAC, Profile, Docs, Swagger, and Redoc;
 - a dashboard overview at `/` with project/ticket summary metrics, recently modified tickets, biggest projects, active sprints, and notifications;
 - project pages under `/projects` and `/projects/{project_id}` for project-scoped tickets, sprints, components, versions, roadmap epics, and custom fields;
-- issue pages under `/issues/{ticket_id}` for one ticket with metadata, labels, custom fields, planning controls, linked issues, comments, attachments, and activity history;
+- issue pages under `/issues/{ticket_id}` for one ticket with metadata, watch/unwatch controls, labels, custom fields, planning controls, linked issues, comments, attachments, and activity history;
 - a profile page under `/profile` for current user metadata and self-service API token management;
 - an RBAC page under `/rbac` for creating users and groups, managing group members, enabling/disabling/deleting users, creating/deleting role bindings, and inspecting effective permissions by user/scope when the signed-in user has permission;
 - a settings page under `/settings` for global attachment/webhook/demo settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, project notification defaults, notification delivery history/manual retry, notification hook CRUD/preview/run inspection, security audit-log inspection when permitted, and personal notification preferences for every signed-in user;
@@ -38,6 +38,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket creation;
 - ticket status changes between `todo`, `in_progress`, and `done`;
 - ticket label entry on create plus ticket-card label display, comma-separated label updates, and project label filtering with ticket counts;
+- ticket watch/unwatch controls and watcher lists on ticket cards and issue detail pages;
 - ticket link listing, creation, and removal on ticket cards and issue detail pages;
 - ticket comment listing, creation, and deletion on ticket cards;
 - ticket attachment listing, upload, download, and delete controls on ticket cards;

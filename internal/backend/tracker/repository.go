@@ -94,6 +94,14 @@ func (r *Repository) ListTicketActivity(ctx context.Context, ticketID string) ([
 	return r.listTicketActivity(ctx, runner, ticketID)
 }
 
+func (r *Repository) ListTicketWatchers(ctx context.Context, ticketID string) ([]TicketWatcher, error) {
+	runner, err := r.runner()
+	if err != nil {
+		return nil, err
+	}
+	return r.listTicketWatchers(ctx, runner, ticketID)
+}
+
 func (r *Repository) runner() (sqlRunner, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("tracker: nil database")
@@ -384,6 +392,143 @@ func (r *Repository) listTicketActivity(ctx context.Context, q sqlRunner, ticket
 	return activities, nil
 }
 
+func (r *Repository) listTicketWatchers(ctx context.Context, q sqlRunner, ticketID string) ([]TicketWatcher, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT tw.ticket_id, tw.user_id, u.username, u.display_name, tw.created_at
+		FROM ticket_watchers tw
+		JOIN users u ON u.id = tw.user_id
+		WHERE tw.ticket_id = ? AND u.deleted_at IS NULL
+		ORDER BY u.display_name ASC, u.username ASC, tw.user_id ASC
+	`, ticketID)
+	if err != nil {
+		return nil, fmt.Errorf("list ticket watchers: %w", err)
+	}
+	defer rows.Close()
+
+	var watchers []TicketWatcher
+	for rows.Next() {
+		watcher, err := scanTicketWatcher(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan ticket watcher: %w", err)
+		}
+		watchers = append(watchers, watcher)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket watchers: %w", err)
+	}
+	return watchers, nil
+}
+
+func (r *Repository) setTicketWatcher(ctx context.Context, q sqlRunner, ticketID string, userID string, createdAt time.Time) (bool, error) {
+	result, err := q.ExecContext(ctx, `
+		INSERT INTO ticket_watchers (ticket_id, user_id, created_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(ticket_id, user_id) DO NOTHING
+	`, ticketID, userID, formatTime(createdAt))
+	if err != nil {
+		return false, fmt.Errorf("set ticket watcher: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read ticket watcher insert rows: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (r *Repository) deleteTicketWatcher(ctx context.Context, q sqlRunner, ticketID string, userID string) (bool, error) {
+	result, err := q.ExecContext(ctx, `
+		DELETE FROM ticket_watchers
+		WHERE ticket_id = ? AND user_id = ?
+	`, ticketID, userID)
+	if err != nil {
+		return false, fmt.Errorf("delete ticket watcher: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read ticket watcher delete rows: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (r *Repository) attachWatcherStatus(ctx context.Context, q sqlRunner, tickets []Ticket, userID string) ([]Ticket, error) {
+	if len(tickets) == 0 {
+		return tickets, nil
+	}
+	ids := make([]string, 0, len(tickets))
+	indexByID := make(map[string]int, len(tickets))
+	for index := range tickets {
+		ids = append(ids, tickets[index].ID)
+		indexByID[tickets[index].ID] = index
+	}
+	args := make([]any, 0, len(ids)*2+1)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	query := `
+		SELECT ticket_id, COUNT(*)
+		FROM ticket_watchers tw
+		JOIN users u ON u.id = tw.user_id
+		WHERE ticket_id IN (` + placeholders(len(ids)) + `) AND u.deleted_at IS NULL
+		GROUP BY ticket_id
+	`
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count ticket watchers: %w", err)
+	}
+	for rows.Next() {
+		var ticketID string
+		var count int
+		if err := rows.Scan(&ticketID, &count); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan ticket watcher count: %w", err)
+		}
+		if index, ok := indexByID[ticketID]; ok {
+			tickets[index].WatcherCount = count
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close ticket watcher counts: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ticket watcher counts: %w", err)
+	}
+
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return tickets, nil
+	}
+	args = args[:0]
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	args = append(args, userID)
+	rows, err = q.QueryContext(ctx, `
+		SELECT ticket_id
+		FROM ticket_watchers
+		WHERE ticket_id IN (`+placeholders(len(ids))+`) AND user_id = ?
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list current user ticket watches: %w", err)
+	}
+	for rows.Next() {
+		var ticketID string
+		if err := rows.Scan(&ticketID); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan current user ticket watch: %w", err)
+		}
+		if index, ok := indexByID[ticketID]; ok {
+			tickets[index].Watching = true
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close current user ticket watches: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate current user ticket watches: %w", err)
+	}
+	return tickets, nil
+}
+
 func (r *Repository) listTicketLinks(ctx context.Context, ticketID string) ([]TicketLink, error) {
 	runner, err := r.runner()
 	if err != nil {
@@ -622,6 +767,20 @@ func scanTicketActivity(scanner rowScanner) (TicketActivity, error) {
 	return activity, nil
 }
 
+func scanTicketWatcher(scanner rowScanner) (TicketWatcher, error) {
+	var watcher TicketWatcher
+	var createdAt string
+	if err := scanner.Scan(&watcher.TicketID, &watcher.UserID, &watcher.Username, &watcher.DisplayName, &createdAt); err != nil {
+		return TicketWatcher{}, err
+	}
+	var err error
+	watcher.CreatedAt, err = parseTime(createdAt)
+	if err != nil {
+		return TicketWatcher{}, fmt.Errorf("parse ticket watcher created_at: %w", err)
+	}
+	return watcher, nil
+}
+
 func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 	var link TicketLink
 	var createdBy sql.NullString
@@ -754,6 +913,13 @@ func scanTicketLink(scanner rowScanner) (TicketLink, error) {
 		return TicketLink{}, fmt.Errorf("parse target ticket updated_at: %w", err)
 	}
 	return link, nil
+}
+
+func placeholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.TrimRight(strings.Repeat("?,", count), ",")
 }
 
 func normalizeListWindow(limit int, offset int) (int, int) {
