@@ -89,6 +89,7 @@ const state = {
   createPages: [],
   createPageRuns: {},
   createPagesError: "",
+  automationRunFilters: {},
   engineResult: null
 };
 
@@ -499,12 +500,16 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/cron-jobs/${remove.dataset.deleteCronJobId}`, { method: "DELETE" });
         delete state.cronRuns[remove.dataset.deleteCronJobId];
+        delete state.automationRunFilters[automationRunFilterKey("cron", remove.dataset.deleteCronJobId)];
         await loadCronJobs();
       }, "Cron job deleted");
     }
   });
 
   els.cronJobs.addEventListener("change", (event) => {
+    if (handleAutomationRunFilterChange(event, renderCronJobs)) {
+      return;
+    }
     if (!event.target.matches("select[name='engine_type']")) {
       return;
     }
@@ -622,12 +627,16 @@ function bindEvents() {
         delete state.webhookRuns[remove.dataset.deleteWebhookId];
         delete state.webhookDeliveries[remove.dataset.deleteWebhookId];
         delete state.webhookTokens[remove.dataset.deleteWebhookId];
+        delete state.automationRunFilters[automationRunFilterKey("webhook", remove.dataset.deleteWebhookId)];
         await loadWebhooks();
       }, "Webhook deleted");
     }
   });
 
   els.webhooks.addEventListener("change", (event) => {
+    if (handleAutomationRunFilterChange(event, renderWebhooks)) {
+      return;
+    }
     if (!event.target.matches("select[name='engine_type']")) {
       return;
     }
@@ -720,12 +729,16 @@ function bindEvents() {
           state.ticketHookPreview = null;
         }
         delete state.ticketHookRuns[remove.dataset.deleteTicketHookId];
+        delete state.automationRunFilters[automationRunFilterKey("ticket-hook", remove.dataset.deleteTicketHookId)];
         await loadTicketHooks();
       }, "Ticket hook deleted");
     }
   });
 
   els.ticketHooks.addEventListener("change", (event) => {
+    if (handleAutomationRunFilterChange(event, renderTicketHooks)) {
+      return;
+    }
     if (!event.target.matches("select[name='engine_type']")) {
       return;
     }
@@ -755,6 +768,9 @@ function bindEvents() {
   });
 
   els.createPages.addEventListener("change", (event) => {
+    if (handleAutomationRunFilterChange(event, renderCreatePages)) {
+      return;
+    }
     if (!event.target.matches("select[name='logic_type']")) {
       return;
     }
@@ -829,6 +845,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/ticket-create-pages/${remove.dataset.deleteCreatePageId}`, { method: "DELETE" });
         delete state.createPageRuns[remove.dataset.deleteCreatePageId];
+        delete state.automationRunFilters[automationRunFilterKey("create-page", remove.dataset.deleteCreatePageId)];
         await loadCreatePages();
       }, "Create page deleted");
     }
@@ -7302,7 +7319,7 @@ function cronJobNode(job) {
 
   const jobRuns = state.cronRuns[job.id] || [];
   if (jobRuns.length) {
-    article.append(cronRunListNode(jobRuns));
+    article.append(cronRunListNode(job.id, jobRuns));
   }
   return article;
 }
@@ -7374,11 +7391,17 @@ function automationTextarea(name, value, rows) {
   return textarea;
 }
 
-function cronRunListNode(runs) {
+function cronRunListNode(jobID, runs) {
   const list = document.createElement("div");
   list.className = "cron-run-list";
-  list.append(automationRunSummaryNode(runs));
-  for (const run of runs) {
+  const filterKey = automationRunFilterKey("cron", jobID);
+  const visibleRuns = filterAutomationRuns(runs, state.automationRunFilters[filterKey] || "all");
+  list.append(automationRunSummaryNode(runs, visibleRuns, filterKey));
+  if (!visibleRuns.length) {
+    list.append(automationRunEmptyNode());
+    return list;
+  }
+  for (const run of visibleRuns) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
     const summary = document.createElement("span");
@@ -7396,10 +7419,11 @@ function cronRunListNode(runs) {
   return list;
 }
 
-function automationRunSummaryNode(runs) {
+function automationRunSummaryNode(runs, visibleRuns, filterKey) {
   const summary = summarizeAutomationRuns(runs);
   const section = document.createElement("div");
   section.className = "automation-run-summary";
+  section.append(automationRunFilterNode(filterKey, visibleRuns.length, summary.total));
 
   for (const metric of [
     ["total", summary.total],
@@ -7422,6 +7446,69 @@ function automationRunSummaryNode(runs) {
   return section;
 }
 
+function automationRunFilterNode(filterKey, visibleCount, totalCount) {
+  const label = document.createElement("label");
+  label.className = "automation-run-filter";
+  const select = document.createElement("select");
+  select.dataset.automationRunFilter = filterKey;
+  const selectedValue = state.automationRunFilters[filterKey] || "all";
+  for (const [value, text] of [
+    ["all", "All"],
+    ["active", "Active"],
+    ["completed", "Completed"],
+    ["failed", "Failed"]
+  ]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    option.selected = value === selectedValue;
+    select.append(option);
+  }
+  const count = document.createElement("span");
+  count.textContent = `showing ${visibleCount} of ${totalCount}`;
+  label.append("Show", select, count);
+  return label;
+}
+
+function automationRunEmptyNode() {
+  const empty = document.createElement("p");
+  empty.className = "muted";
+  empty.textContent = "No runs match this filter";
+  return empty;
+}
+
+function automationRunFilterKey(kind, id) {
+  return `${kind}:${id || ""}`;
+}
+
+function handleAutomationRunFilterChange(event, renderFn) {
+  const select = event.target.closest("[data-automation-run-filter]");
+  if (!select) {
+    return false;
+  }
+  state.automationRunFilters[select.dataset.automationRunFilter] = select.value || "all";
+  renderFn();
+  return true;
+}
+
+function filterAutomationRuns(runs, filter) {
+  if (!filter || filter === "all") {
+    return runs || [];
+  }
+  return (runs || []).filter((run) => automationRunStateGroup(run) === filter);
+}
+
+function automationRunStateGroup(run) {
+  const stateValue = String(run && run.state ? run.state : "queued").toLowerCase();
+  if ((run && run.error) || ["failed", "error", "canceled", "cancelled"].includes(stateValue)) {
+    return "failed";
+  }
+  if (["completed", "complete", "success", "succeeded", "done"].includes(stateValue)) {
+    return "completed";
+  }
+  return "active";
+}
+
 function summarizeAutomationRuns(runs) {
   const summary = {
     total: 0,
@@ -7435,13 +7522,13 @@ function summarizeAutomationRuns(runs) {
       continue;
     }
     summary.total += 1;
-    const state = String(run.state || "queued").toLowerCase();
-    if (run.error || ["failed", "error", "canceled", "cancelled"].includes(state)) {
+    const stateGroup = automationRunStateGroup(run);
+    if (stateGroup === "failed") {
       summary.failed += 1;
       if (!summary.latestFailure) {
-        summary.latestFailure = run.error || state;
+        summary.latestFailure = run.error || run.state || "failed";
       }
-    } else if (["completed", "complete", "success", "succeeded", "done"].includes(state)) {
+    } else if (stateGroup === "completed") {
       summary.completed += 1;
     } else {
       summary.active += 1;
@@ -7571,7 +7658,7 @@ function webhookNode(webhook) {
 
   const runsList = state.webhookRuns[webhook.id] || [];
   if (runsList.length) {
-    article.append(webhookRunListNode(runsList));
+    article.append(webhookRunListNode(webhook.id, runsList));
   }
   const deliveriesList = state.webhookDeliveries[webhook.id] || [];
   if (deliveriesList.length) {
@@ -7650,11 +7737,17 @@ function webhookTextarea(name, value, rows) {
   return textarea;
 }
 
-function webhookRunListNode(runs) {
+function webhookRunListNode(webhookID, runs) {
   const list = document.createElement("div");
   list.className = "webhook-run-list";
-  list.append(automationRunSummaryNode(runs));
-  for (const run of runs) {
+  const filterKey = automationRunFilterKey("webhook", webhookID);
+  const visibleRuns = filterAutomationRuns(runs, state.automationRunFilters[filterKey] || "all");
+  list.append(automationRunSummaryNode(runs, visibleRuns, filterKey));
+  if (!visibleRuns.length) {
+    list.append(automationRunEmptyNode());
+    return list;
+  }
+  for (const run of visibleRuns) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
     const summary = document.createElement("span");
@@ -7988,16 +8081,22 @@ function ticketHookNode(hook) {
   article.append(header, meta, actions, ticketHookEditForm(hook));
   const runsList = state.ticketHookRuns[hook.id] || [];
   if (runsList.length) {
-    article.append(ticketHookRunListNode(runsList));
+    article.append(ticketHookRunListNode(hook.id, runsList));
   }
   return article;
 }
 
-function ticketHookRunListNode(runs) {
+function ticketHookRunListNode(hookID, runs) {
   const list = document.createElement("div");
   list.className = "ticket-hook-run-list";
-  list.append(automationRunSummaryNode(runs));
-  for (const run of runs) {
+  const filterKey = automationRunFilterKey("ticket-hook", hookID);
+  const visibleRuns = filterAutomationRuns(runs, state.automationRunFilters[filterKey] || "all");
+  list.append(automationRunSummaryNode(runs, visibleRuns, filterKey));
+  if (!visibleRuns.length) {
+    list.append(automationRunEmptyNode());
+    return list;
+  }
+  for (const run of visibleRuns) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
     const summary = document.createElement("span");
@@ -8216,7 +8315,7 @@ function createPageNode(page) {
   }
   const runsList = state.createPageRuns[page.id] || [];
   if (runsList.length) {
-    article.append(createPageRunListNode(runsList));
+    article.append(createPageRunListNode(page.id, runsList));
   }
   return article;
 }
@@ -8303,11 +8402,17 @@ function createPageTextarea(name, value, rows) {
   return textarea;
 }
 
-function createPageRunListNode(runs) {
+function createPageRunListNode(pageID, runs) {
   const list = document.createElement("div");
   list.className = "create-page-run-list";
-  list.append(automationRunSummaryNode(runs));
-  for (const run of runs) {
+  const filterKey = automationRunFilterKey("create-page", pageID);
+  const visibleRuns = filterAutomationRuns(runs, state.automationRunFilters[filterKey] || "all");
+  list.append(automationRunSummaryNode(runs, visibleRuns, filterKey));
+  if (!visibleRuns.length) {
+    list.append(automationRunEmptyNode());
+    return list;
+  }
+  for (const run of visibleRuns) {
     const item = document.createElement("article");
     item.className = "cron-run-item";
     const summary = document.createElement("span");
