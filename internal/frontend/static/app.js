@@ -6173,15 +6173,6 @@ function savedViewNode(view) {
   const name = document.createElement("p");
   name.textContent = view.name;
 
-  const meta = document.createElement("span");
-  meta.textContent = [
-    view.scope_type,
-    view.display_mode,
-    view.group_by ? `group ${view.group_by}` : "",
-    view.columns && view.columns.length ? `columns ${view.columns.join(", ")}` : "",
-    view.pinned ? "pinned" : ""
-  ].filter(Boolean).join(" / ");
-
   const actions = document.createElement("div");
   actions.className = "saved-view-actions";
 
@@ -6201,8 +6192,39 @@ function savedViewNode(view) {
   remove.textContent = "Delete";
 
   actions.append(apply, edit, remove);
-  article.append(name, meta, actions);
+  article.append(name, savedViewMetadataNode(view), actions);
   return article;
+}
+
+function savedViewMetadataNode(view) {
+  const metadata = document.createElement("div");
+  metadata.className = "saved-view-metadata";
+
+  for (const item of savedViewMetadataItems(view)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    metadata.append(chip);
+  }
+
+  return metadata;
+}
+
+function savedViewMetadataItems(view) {
+  const query = view.query || {};
+  const sortCount = Array.isArray(view.sort) ? view.sort.length : 0;
+  const columnCount = Array.isArray(view.columns) ? view.columns.length : 0;
+
+  return [
+    query.text ? `text: ${query.text}` : "",
+    query.filter ? `filter: ${query.filter}` : "",
+    sortCount ? `sort ${sortCount}` : "",
+    columnCount ? `columns ${columnCount}` : "",
+    view.display_mode ? `mode ${view.display_mode}` : "",
+    view.group_by ? `group ${view.group_by}` : "",
+    view.scope_type ? `scope ${view.scope_type}` : "",
+    view.project_id ? `project ${view.project_id}` : "",
+    view.pinned ? "pinned" : ""
+  ].filter(Boolean);
 }
 
 function renderTokens() {
