@@ -2619,6 +2619,21 @@ p {
   overflow-wrap: anywhere;
 }
 
+.field-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-metadata span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
 .field-item button,
 .ticket-custom-field-controls button {
   min-height: 30px;
