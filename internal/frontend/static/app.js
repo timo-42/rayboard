@@ -801,6 +801,44 @@ function bindEvents() {
     }, "Backlog reordered");
   });
 
+  els.backlog.addEventListener("dragstart", (event) => {
+    const item = event.target.closest("[data-backlog-drag-id]");
+    if (!item || event.target.closest("a, button, input, textarea, select")) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/rayboard-backlog-ticket", item.dataset.backlogDragId);
+    event.dataTransfer.setData("text/plain", item.dataset.backlogDragId);
+    item.classList.add("is-dragging");
+  });
+
+  els.backlog.addEventListener("dragend", (event) => {
+    const item = event.target.closest("[data-backlog-drag-id]");
+    if (item) {
+      item.classList.remove("is-dragging");
+    }
+  });
+
+  els.backlog.addEventListener("dragover", (event) => {
+    if (dataTransferHasType(event, "application/rayboard-backlog-ticket")) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }
+  });
+
+  els.backlog.addEventListener("drop", async (event) => {
+    const ticketID = event.dataTransfer.getData("application/rayboard-backlog-ticket");
+    if (!ticketID || !state.selectedProject) {
+      return;
+    }
+    event.preventDefault();
+    const target = event.target.closest("[data-backlog-drag-id]");
+    await runAction(async () => {
+      await reorderBacklogTicket(ticketID, target ? target.dataset.backlogDragId : "");
+    }, "Backlog reordered");
+  });
+
   els.statusForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.selectedProject) {
@@ -869,6 +907,78 @@ function bindEvents() {
       }
       await loadBoards();
     }, "Board deleted");
+  });
+
+  els.boards.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-board-edit-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    const data = formData(form);
+    await runAction(async () => {
+      await api(`/api/boards/${form.dataset.boardEditForm}`, {
+        method: "PATCH",
+        body: {
+          spec: {
+            name: data.name || "",
+            description: data.description || "",
+            status_slugs: parseCommaList(data.status_slugs)
+          }
+        }
+      });
+      await loadBoards();
+    }, "Board updated");
+  });
+
+  els.ticketColumns.addEventListener("dragstart", (event) => {
+    const ticket = event.target.closest("[data-board-ticket-id]");
+    if (!ticket || event.target.closest("a, button, input, textarea, select")) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/rayboard-board-ticket", ticket.dataset.boardTicketId);
+    event.dataTransfer.setData("text/plain", ticket.dataset.boardTicketId);
+    ticket.classList.add("is-dragging");
+  });
+
+  els.ticketColumns.addEventListener("dragend", (event) => {
+    const ticket = event.target.closest("[data-board-ticket-id]");
+    if (ticket) {
+      ticket.classList.remove("is-dragging");
+    }
+  });
+
+  els.ticketColumns.addEventListener("dragover", (event) => {
+    const list = event.target.closest("[data-board-drop-status]");
+    if (list && dataTransferHasType(event, "application/rayboard-board-ticket")) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }
+  });
+
+  els.ticketColumns.addEventListener("drop", async (event) => {
+    const list = event.target.closest("[data-board-drop-status]");
+    const ticketID = event.dataTransfer.getData("application/rayboard-board-ticket");
+    if (!list || !ticketID) {
+      return;
+    }
+    event.preventDefault();
+    const status = list.dataset.boardDropStatus;
+    const ticket = state.tickets.find((item) => item.id === ticketID);
+    if (!status || (ticket && ticket.status === status)) {
+      return;
+    }
+    await runAction(async () => {
+      await api(`/api/tickets/${ticketID}`, {
+        method: "PATCH",
+        body: { spec: { status } }
+      });
+      await refreshTicketViews(ticketID);
+      await refreshSelectedSprintReport();
+      await refreshSelectedVersionReport();
+    }, "Ticket moved");
   });
 
   els.componentForm.addEventListener("submit", async (event) => {
@@ -2077,6 +2187,29 @@ async function loadBacklog() {
   renderBacklog();
 }
 
+async function reorderBacklogTicket(ticketID, targetTicketID) {
+  if (ticketID === targetTicketID) {
+    return;
+  }
+  const sourceIndex = state.backlog.findIndex((ticket) => ticket.id === ticketID);
+  if (sourceIndex < 0) {
+    return;
+  }
+  const reordered = state.backlog.slice();
+  const [ticket] = reordered.splice(sourceIndex, 1);
+  let targetIndex = targetTicketID ? reordered.findIndex((item) => item.id === targetTicketID) : reordered.length;
+  if (targetIndex < 0) {
+    targetIndex = reordered.length;
+  }
+  reordered.splice(targetIndex, 0, ticket);
+  const data = await api(`/api/projects/${state.selectedProject.id}/backlog`, {
+    method: "PATCH",
+    body: { spec: { ticket_ids: reordered.map((item) => item.id) } }
+  });
+  state.backlog = listItems(data).map(normalizeTicket);
+  renderBacklog();
+}
+
 async function loadWorkflowStatuses() {
   if (!state.user || !state.selectedProject) {
     state.workflowStatuses = [];
@@ -3059,6 +3192,8 @@ function renderBacklog() {
 function backlogItemNode(ticket, index) {
   const article = document.createElement("article");
   article.className = "backlog-item";
+  article.draggable = true;
+  article.dataset.backlogDragId = ticket.id;
 
   const body = document.createElement("div");
   body.className = "backlog-item-body";
@@ -3193,6 +3328,19 @@ function boardNode(board) {
 
   body.append(title, meta);
 
+  const edit = document.createElement("form");
+  edit.className = "board-edit-form";
+  edit.dataset.boardEditForm = board.id;
+  edit.append(
+    inputNode("name", board.name || "", "name"),
+    inputNode("description", board.description || "", "description"),
+    inputNode("status_slugs", board.status_slugs.join(", "), "status slugs")
+  );
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  edit.append(save);
+
   const actions = document.createElement("div");
   actions.className = "board-actions";
 
@@ -3208,7 +3356,7 @@ function boardNode(board) {
   remove.textContent = "Delete";
 
   actions.append(select, remove);
-  article.append(body, actions);
+  article.append(body, edit, actions);
   return article;
 }
 
@@ -5938,6 +6086,7 @@ function ticketColumnNode(column) {
 
   const list = document.createElement("div");
   list.className = "ticket-list";
+  list.dataset.boardDropStatus = column.slug;
 
   section.append(heading, list);
   return section;
@@ -6233,6 +6382,8 @@ function titleize(value) {
 function ticketNode(ticket) {
   const article = document.createElement("article");
   article.className = "ticket";
+  article.draggable = true;
+  article.dataset.boardTicketId = ticket.id;
 
   const key = document.createElement("p");
   key.className = "ticket-key";
@@ -6688,6 +6839,10 @@ function cssEscape(value) {
     return window.CSS.escape(String(value || ""));
   }
   return String(value || "").replace(/"/g, '\\"');
+}
+
+function dataTransferHasType(event, type) {
+  return Array.from(event.dataTransfer && event.dataTransfer.types ? event.dataTransfer.types : []).includes(type);
 }
 
 function formData(form) {

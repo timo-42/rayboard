@@ -1711,6 +1711,17 @@ p {
   padding: 10px;
 }
 
+.backlog-item[draggable="true"],
+.ticket[draggable="true"] {
+  cursor: grab;
+}
+
+.backlog-item.is-dragging,
+.ticket.is-dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
 .backlog-item-body {
   min-width: 0;
   display: grid;
@@ -1819,7 +1830,7 @@ p {
 .board-item {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.4fr) auto;
   gap: 10px;
   align-items: center;
   border: 1px solid var(--border);
@@ -1843,6 +1854,14 @@ p {
   gap: 5px;
 }
 
+.board-edit-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .status-item p,
 .board-item p {
   color: var(--text);
@@ -1864,7 +1883,8 @@ p {
   gap: 6px;
 }
 
-.board-actions button {
+.board-actions button,
+.board-edit-form button {
   min-height: 30px;
   border-color: var(--border-strong);
   background: var(--panel-bg);
@@ -1872,7 +1892,8 @@ p {
   padding: 0 9px;
 }
 
-.board-actions button:hover:not(:disabled) {
+.board-actions button:hover:not(:disabled),
+.board-edit-form button:hover:not(:disabled) {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
@@ -3028,6 +3049,7 @@ p {
   .workflow-grid,
   .board-form,
   .board-item,
+  .board-edit-form,
   .release-grid,
   .component-form,
   .version-form,
