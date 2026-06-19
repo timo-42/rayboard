@@ -2240,7 +2240,7 @@ function bindEvents() {
           method: "PATCH",
           body: { spec }
         });
-        await refreshTicketViews(updateStoryPoints.dataset.updateStoryPointsId, { roadmap: false });
+        await refreshTicketViews(updateStoryPoints.dataset.updateStoryPointsId);
         await refreshSelectedSprintReport();
       }, "Ticket story points updated");
       return;

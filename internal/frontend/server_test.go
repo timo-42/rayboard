@@ -697,6 +697,7 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"/api/sprints/${complete.dataset.completeSprintId}/complete",
 		"/api/tickets/${assignSprint.dataset.assignSprintId}/sprint",
 		"/api/tickets/${updateStoryPoints.dataset.updateStoryPointsId}",
+		"await refreshTicketViews(updateStoryPoints.dataset.updateStoryPointsId);",
 		"data-ticket-sprint-control",
 		"data-ticket-story-points-control",
 		"data-sprint-edit-form",
