@@ -347,11 +347,15 @@ func (s *Service) Update(ctx context.Context, principal authz.Principal, webhook
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE webhooks
 		SET name = ?, direction = ?, enabled = ?, actor_user_id = ?, engine_type = ?,
-			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, event_types_json = ?, updated_at = ?
+			lua_script = ?, ai_prompt = ?, ai_provider_id = ?, event_types_json = ?,
+			token_hash = CASE WHEN ? = 'incoming' THEN token_hash ELSE NULL END,
+			token_rotated_at = CASE WHEN ? = 'incoming' THEN token_rotated_at ELSE NULL END,
+			updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`, current.Name, current.Direction, current.Enabled, current.ActorUserID, current.Engine.Type,
 		nullableString(current.Engine.Script), nullableString(current.Engine.Prompt),
-		nullableString(current.Engine.ProviderID), mustEventTypesJSON(current.EventTypes), formatTime(current.UpdatedAt), webhookID)
+		nullableString(current.Engine.ProviderID), mustEventTypesJSON(current.EventTypes),
+		current.Direction, current.Direction, formatTime(current.UpdatedAt), webhookID)
 	if err != nil {
 		if isUniqueConstraint(err) {
 			return Webhook{}, fmt.Errorf("%w: webhook name already exists in project", ErrValidation)

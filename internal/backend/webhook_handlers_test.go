@@ -129,6 +129,9 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	if !slices.Equal(eventTypes, updated.Spec.EventTypes) {
 		t.Fatalf("expected updated event types %#v, got %#v", eventTypes, updated.Spec.EventTypes)
 	}
+	if updated.Status.TokenSet {
+		t.Fatalf("expected outgoing direction update to clear token state, got %#v", updated.Status)
+	}
 
 	enabled = true
 	reenableReq := httptest.NewRequest(http.MethodPatch, "/api/webhook-definitions/"+created.Metadata.ID, mustJSON(t, map[string]any{
@@ -142,6 +145,20 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	handler.ServeHTTP(reenable, reenableReq)
 	if reenable.Code != http.StatusOK {
 		t.Fatalf("expected reenable webhook status 200, got %d: %s", reenable.Code, reenable.Body.String())
+	}
+	reenabled := decodeWebhookResource(t, reenable.Body.Bytes())
+	if reenabled.Status.TokenSet {
+		t.Fatalf("expected direction change back to incoming to require explicit token rotation, got %#v", reenabled.Status)
+	}
+
+	staleIncomingReq := httptest.NewRequest(http.MethodPost, "/api/webhooks/incoming/"+created.Metadata.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{"payload": map[string]any{"ok": true}},
+	}))
+	staleIncomingReq.Header.Set("Authorization", "Bearer "+created.Status.Token)
+	staleIncoming := httptest.NewRecorder()
+	handler.ServeHTTP(staleIncoming, staleIncomingReq)
+	if staleIncoming.Code != http.StatusNotFound {
+		t.Fatalf("expected stale webhook token status 404 after direction changes, got %d: %s", staleIncoming.Code, staleIncoming.Body.String())
 	}
 
 	rotateReq := httptest.NewRequest(http.MethodPost, "/api/webhook-definitions/"+created.Metadata.ID+"/rotate-token", nil)
