@@ -2085,6 +2085,34 @@ p {
   gap: 8px;
 }
 
+.backlog-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backlog-summary-metric {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
+.backlog-summary-metric strong {
+  color: var(--heading);
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.backlog-summary-metric span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .backlog-item {
   min-width: 0;
   display: grid;
@@ -3980,6 +4008,7 @@ p {
   .sprint-form,
   .sprint-item,
   .sprint-edit-form,
+  .backlog-summary,
   .backlog-item,
   .workflow-grid,
   .board-form,
