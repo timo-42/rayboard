@@ -4607,7 +4607,99 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, metrics, statuses, analytics, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, tickets);
+}
+
+function sprintReportHealthNode(sprint) {
+  const health = sprintReportHealth(sprint);
+  const section = document.createElement("section");
+  section.className = `sprint-report-health is-${health.state}`;
+
+  const title = document.createElement("strong");
+  title.textContent = health.label;
+
+  const detail = document.createElement("span");
+  detail.textContent = health.detail;
+
+  const dates = document.createElement("div");
+  dates.className = "sprint-report-health-dates";
+  for (const item of sprintReportHealthDates(sprint)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    dates.append(chip);
+  }
+
+  section.append(title, detail, dates);
+  return section;
+}
+
+function sprintReportHealth(sprint, todayValue = todayLocalISODate()) {
+  const state = sprint.state || "planned";
+  if (state === "completed") {
+    return {
+      state: "completed",
+      label: "Completed",
+      detail: sprint.completed_at ? `Completed ${formatDateTime(sprint.completed_at)}` : "Completed sprint"
+    };
+  }
+
+  const start = dateToUTC(sprint.start_date);
+  const end = dateToUTC(sprint.end_date);
+  if (!start && !end) {
+    return {
+      state: "unscheduled",
+      label: "No dates",
+      detail: "Add sprint dates to track schedule health"
+    };
+  }
+
+  const today = dateToUTC(todayValue);
+  if (state === "active" && end) {
+    const daysToEnd = daysBetween(today, end);
+    if (daysToEnd < 0) {
+      return {
+        state: "overdue",
+        label: "Overdue",
+        detail: `${Math.abs(daysToEnd)} day${Math.abs(daysToEnd) === 1 ? "" : "s"} past end date`
+      };
+    }
+    if (daysToEnd <= 3) {
+      return {
+        state: "due-soon",
+        label: "Due soon",
+        detail: daysToEnd === 0 ? "Sprint ends today" : `${daysToEnd} day${daysToEnd === 1 ? "" : "s"} remaining`
+      };
+    }
+    return {
+      state: "active",
+      label: "Active",
+      detail: `${daysToEnd} day${daysToEnd === 1 ? "" : "s"} remaining`
+    };
+  }
+
+  if (start) {
+    const daysToStart = daysBetween(today, start);
+    if (daysToStart > 0) {
+      return {
+        state: "scheduled",
+        label: "Scheduled",
+        detail: `${daysToStart} day${daysToStart === 1 ? "" : "s"} to start`
+      };
+    }
+  }
+
+  return {
+    state,
+    label: titleize(state),
+    detail: dateRange(sprint.start_date, sprint.end_date) || "Sprint dates are partially set"
+  };
+}
+
+function sprintReportHealthDates(sprint) {
+  return [
+    dateRange(sprint.start_date, sprint.end_date) || "no date range",
+    `state ${sprint.state || "planned"}`
+  ];
 }
 
 function sprintReportScopeText(report) {
@@ -6022,6 +6114,14 @@ function dateToUTC(value) {
 
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function todayLocalISODate() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(date, days) {
@@ -12028,4 +12128,15 @@ function mutates(method) {
 
 function setNotice(message) {
   els.notice.textContent = message;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    dateRange,
+    dateToUTC,
+    daysBetween,
+    sprintReportHealth,
+    sprintReportHealthDates,
+    todayLocalISODate
+  };
 }

@@ -3,6 +3,7 @@ package frontend
 import (
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -782,6 +783,10 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"renderSprints",
 		"renderSprintFilter",
 		"renderSprintReport",
+		"sprintReportHealthNode",
+		"sprintReportHealth",
+		"sprintReportHealthDates",
+		"todayLocalISODate",
 		"sprintReportAnalyticsNode",
 		"normalizeSprint",
 		"normalizeSprintReport",
@@ -807,6 +812,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"data-sprint-edit-form",
 		"data-sprint-report-id",
 		"completed_snapshot",
+		"Sprint ends today",
+		"Add sprint dates to track schedule health",
 		"Live current assignment",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -820,6 +827,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-edit-form",
 		".sprint-item",
 		".sprint-report",
+		".sprint-report-health",
+		".sprint-report-health-dates",
 		".sprint-report-analytics",
 		".sprint-report-chart",
 		".sprint-report-ticket",
@@ -829,6 +838,17 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestSprintReportHealthDateBoundaries(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_health_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint health node test failed: %v\n%s", err, output)
 	}
 }
 
