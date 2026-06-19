@@ -592,6 +592,7 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"loadVersions",
 		"loadVersionReport",
 		"refreshSelectedVersionReport",
+		"await refreshSelectedVersionReport();",
 		"renderVersionReport",
 		"normalizeComponent",
 		"normalizeVersion",
