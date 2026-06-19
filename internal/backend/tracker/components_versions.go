@@ -221,16 +221,26 @@ func (s *Service) CreateVersion(ctx context.Context, principal authz.Principal, 
 	if err != nil {
 		return Version{}, err
 	}
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO project_versions (
-			id, project_id, name, description, status, target_date, release_date, created_at, updated_at
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, version.ID, version.ProjectID, version.Name, nullableString(version.Description), version.Status, nullableString(version.TargetDate), nullableString(version.ReleaseDate), formatTime(version.CreatedAt), formatTime(version.UpdatedAt)); err != nil {
-		if isUniqueConstraint(err) {
-			return Version{}, conflict("version", "name", version.Name)
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO project_versions (
+				id, project_id, name, description, status, target_date, release_date, created_at, updated_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, version.ID, version.ProjectID, version.Name, nullableString(version.Description), version.Status, nullableString(version.TargetDate), nullableString(version.ReleaseDate), formatTime(version.CreatedAt), formatTime(version.UpdatedAt)); err != nil {
+			if isUniqueConstraint(err) {
+				return conflict("version", "name", version.Name)
+			}
+			return fmt.Errorf("insert version: %w", err)
 		}
-		return Version{}, fmt.Errorf("insert version: %w", err)
+		if version.Status == VersionStatusReleased {
+			if err := s.snapshotVersionReportTickets(ctx, tx, version.ID, version.CreatedAt); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return Version{}, err
 	}
 	return version, nil
 }
@@ -265,7 +275,7 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 		}
 		scope = VersionReportScopeSnapshot
 		if !snapshotExists {
-			tickets = nil
+			tickets = []Ticket{}
 		}
 	}
 	if tickets == nil {
