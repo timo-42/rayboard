@@ -7431,6 +7431,8 @@ function automationRunSummaryNode(runs, visibleRuns, filterKey) {
     ["completed", summary.completed],
     ["failed", summary.failed],
     ["active", summary.active],
+    ["completion rate", summary.completionRateLabel],
+    ["failure rate", summary.failureRateLabel],
     ["avg duration", summary.averageDurationLabel],
     ["max duration", summary.maxDurationLabel],
     ["oldest", summary.oldestRunLabel],
@@ -7530,6 +7532,8 @@ function summarizeAutomationRuns(runs) {
     failed: 0,
     active: 0,
     latestFailure: "",
+    completionRateLabel: "",
+    failureRateLabel: "",
     averageDurationLabel: "",
     maxDurationLabel: "",
     oldestRunLabel: "",
@@ -7575,6 +7579,10 @@ function summarizeAutomationRuns(runs) {
     summary.averageDurationLabel = formatDuration(Math.round(totalDurationMs / durationCount));
     summary.maxDurationLabel = formatDuration(maxDurationMs);
   }
+  if (summary.total > 0) {
+    summary.completionRateLabel = formatRunRate(summary.completed, summary.total);
+    summary.failureRateLabel = formatRunRate(summary.failed, summary.total);
+  }
   if (oldestRunMs > 0) {
     summary.oldestRunLabel = formatDateTime(new Date(oldestRunMs).toISOString());
   }
@@ -7582,6 +7590,10 @@ function summarizeAutomationRuns(runs) {
     summary.newestRunLabel = formatDateTime(new Date(newestRunMs).toISOString());
   }
   return summary;
+}
+
+function formatRunRate(count, total) {
+  return `${Math.round((count / total) * 100)}%`;
 }
 
 function automationRunDurationLabel(run) {
