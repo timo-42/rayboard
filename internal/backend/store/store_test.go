@@ -82,6 +82,8 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"system_settings",
 		"sprint_report_snapshots",
 		"sprint_report_tickets",
+		"version_report_snapshots",
+		"version_report_tickets",
 	} {
 		t.Run(table, func(t *testing.T) {
 			assertTableExists(t, ctx, db.SQL, table)
@@ -132,6 +134,52 @@ func TestSprintReportSnapshotMigrationBackfillsCompletedSprints(t *testing.T) {
 	}
 	if ticketID != "ticket_1" || position != 0 {
 		t.Fatalf("unexpected backfilled snapshot ticket %q at %d", ticketID, position)
+	}
+}
+
+func TestVersionReportSnapshotMigrationBackfillsReleasedVersions(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+
+	applyEmbeddedMigrationsThrough(t, ctx, db.SQL, 30)
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES ('project_1', 'CORE', 'Core');
+		INSERT INTO project_versions (id, project_id, name, status, release_date, created_at, updated_at)
+		VALUES ('version_released', 'project_1', '2026.7', 'released', '2026-07-03', '2026-06-01T10:00:00Z', '2026-07-03T12:30:00Z');
+		INSERT INTO tickets (id, project_id, key, title, status, version_id, created_at, updated_at)
+		VALUES ('ticket_1', 'project_1', 'CORE-1', 'Migrated release ticket', 'done', 'version_released', '2026-06-10T10:00:00Z', '2026-07-03T12:30:00Z');
+	`); err != nil {
+		t.Fatalf("seed pre-version-snapshot data: %v", err)
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate version snapshot backfill: %v", err)
+	}
+
+	var capturedAt string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT captured_at
+		FROM version_report_snapshots
+		WHERE version_id = 'version_released'
+	`).Scan(&capturedAt); err != nil {
+		t.Fatalf("get backfilled version snapshot: %v", err)
+	}
+	if capturedAt != "2026-07-03T00:00:00Z" {
+		t.Fatalf("expected release_date capture timestamp, got %q", capturedAt)
+	}
+
+	var ticketID string
+	var position int
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT ticket_id, position
+		FROM version_report_tickets
+		WHERE version_id = 'version_released'
+	`).Scan(&ticketID, &position); err != nil {
+		t.Fatalf("get backfilled version snapshot ticket: %v", err)
+	}
+	if ticketID != "ticket_1" || position != 0 {
+		t.Fatalf("unexpected backfilled version snapshot ticket %q at %d", ticketID, position)
 	}
 }
 

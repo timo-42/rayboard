@@ -13,7 +13,16 @@ CREATE TABLE version_report_tickets (
 CREATE INDEX version_report_tickets_ticket_id_idx ON version_report_tickets(ticket_id);
 
 INSERT INTO version_report_snapshots (version_id, captured_at)
-SELECT id, COALESCE(release_date, updated_at, created_at)
+SELECT
+	id,
+	COALESCE(
+		CASE
+			WHEN release_date IS NOT NULL AND release_date != '' THEN release_date || 'T00:00:00Z'
+			ELSE NULL
+		END,
+		updated_at,
+		created_at
+	)
 FROM project_versions
 WHERE status = 'released';
 

@@ -1841,6 +1841,10 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create other version: %v", err)
 	}
+	directReleasedVersion, err := service.CreateVersion(ctx, admin, tracker.CreateVersionInput{ProjectID: project.ID, Name: "2026.9", Status: tracker.VersionStatusReleased})
+	if err != nil {
+		t.Fatalf("create directly released version: %v", err)
+	}
 	component, err := service.CreateComponent(ctx, admin, tracker.CreateComponentInput{ProjectID: project.ID, Name: "API"})
 	if err != nil {
 		t.Fatalf("create component: %v", err)
@@ -1865,6 +1869,16 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	}
 	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Other release", VersionID: otherVersion.ID}); err != nil {
 		t.Fatalf("create other version ticket: %v", err)
+	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "After direct release", VersionID: directReleasedVersion.ID}); err != nil {
+		t.Fatalf("create ticket after direct release: %v", err)
+	}
+	directReleasedReport, err := service.GetVersionReport(ctx, admin, directReleasedVersion.ID)
+	if err != nil {
+		t.Fatalf("get directly released version report: %v", err)
+	}
+	if directReleasedReport.Scope != tracker.VersionReportScopeSnapshot || directReleasedReport.SnapshotAt == nil || directReleasedReport.Progress.Total != 0 || len(directReleasedReport.Tickets) != 0 {
+		t.Fatalf("expected directly released version to keep empty release snapshot, got %#v", directReleasedReport)
 	}
 
 	report, err := service.GetVersionReport(ctx, admin, version.ID)
