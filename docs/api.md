@@ -120,7 +120,7 @@ Ticket activity responses use a list resource with `metadata.count` and `status.
 
 ## Backlog
 
-The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a basic backlog list with up/down reorder controls. Browser drag/drop, richer backlog planning, and reports are **Planned**.
+The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls and browser drag/drop reorder. Richer backlog planning and reports are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -131,7 +131,7 @@ Backlog responses use the same persisted ticket shape as project ticket lists, o
 
 ## Boards and Workflows
 
-The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. The embedded project page exposes basic status replacement, board creation/selection/deletion, and board-backed ticket columns. Rich board editing and board drag/drop are **Planned**.
+The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. The embedded project page exposes status replacement, board creation/selection/edit/delete, board-backed ticket columns, and browser drag/drop movement between board columns. Richer board planning is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -146,11 +146,11 @@ The board/workflow API defines ordered project workflow statuses and board defin
 
 Status and board responses use `metadata`, `spec`, and `status`. Status slugs/names are returned in `spec`; board columns are returned in `status.columns`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
 
-Board ticket responses use `metadata` for the board view identity, `spec.board` for the board definition resource, and `status.columns` for computed columns with ticket resources. Moving tickets between columns continues to use ticket status updates.
+Board ticket responses use `metadata` for the board view identity, `spec.board` for the board definition resource, and `status.columns` for computed columns with ticket resources. Moving tickets between columns continues to use ticket status updates, including the embedded browser drag/drop flow.
 
 ## Sprints
 
-The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, and compact sprint reports for the selected project. Browser backlog planning, board drag/drop, detailed sprint editing, and sprint filtering are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, and compact sprint reports for the selected project. Richer backlog planning, detailed sprint editing, and sprint filtering are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

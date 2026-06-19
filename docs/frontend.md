@@ -42,6 +42,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - ticket attachment listing, upload, download, and delete controls on ticket cards;
 - a notification inbox with unread filtering, read/unread toggles, refresh, and mark-all-read;
 - a sprint panel for listing, creating, starting, completing, and deleting project sprints, plus ticket-card sprint assignment/removal;
+- a backlog panel with up/down controls and native drag/drop ticket reordering through `/api/projects/{project_id}/backlog`;
 - a release-planning panel for listing, creating, updating, and deleting components and versions, changing version state, assigning tickets to components/versions, and viewing compact live reports for the selected version;
 - a roadmap panel that lists project epics, schedule dates, and child-ticket progress, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, updating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
@@ -51,7 +52,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
-- basic project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/deletion, and board-backed ticket columns through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, and `/api/boards/{board_id}/tickets`.
+- project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/edit/deletion, board-backed ticket columns, and drag/drop card moves through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, `/api/boards/{board_id}`, and `/api/boards/{board_id}/tickets`.
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`, using the resolved structured schema and submitting through `/api/projects/{project_id}/ticket-create-pages/{slug}/submit`.
 - compact sprint reports with live current-assignment and completed snapshot scope markers, ticket-count velocity, remaining count, burnup summary, and ticket links for the selected project.
 - compact version release reports with total/done/open counts, status counts, component-gap counts, and ticket links for the selected version.
@@ -60,7 +61,7 @@ Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints. Advanced search pagination is API-only for now.
 
-Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, richer roadmap timeline controls, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Richer board settings beyond inline board edits, richer backlog planning beyond reorder controls and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, richer roadmap timeline controls, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 
@@ -81,7 +82,6 @@ Current assets are plain HTML, CSS, vanilla JavaScript, and the markdown files u
 Planned frontend dependencies:
 
 - HTMX for server-rendered partial workflows: https://htmx.org/
-- SortableJS for board/backlog drag-and-drop: https://sortablejs.github.io/Sortable/
 - CodeMirror for Lua/CEL editors: https://codemirror.net/
 
 These libraries are not currently vendored or used. When added, they should be embedded static assets so Rayboard remains a simple Go binary without a Node build pipeline.
