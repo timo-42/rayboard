@@ -43,7 +43,7 @@ func runDemoSeed(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	flags.StringVar(&adminPassword, "admin-password", "", "admin password")
 	flags.BoolVar(&freshReset, "fresh-reset", false, "confirm demo data should be seeded")
 	configureLongFlagUsage(flags, stderr, "usage: rayboard demo seed --backend-url http://host:port --admin-user admin --admin-password <password> --fresh-reset")
-	if err := rejectSingleDashFlags(args[1:]); err != nil {
+	if err := rejectSingleDashFlags(flags, args[1:]); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}

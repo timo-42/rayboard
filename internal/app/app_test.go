@@ -183,6 +183,28 @@ func TestDemoSeedRejectsSingleDashLongFlags(t *testing.T) {
 	}
 }
 
+func TestDemoSeedAllowsDashPrefixedStringFlagValue(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{
+		"demo", "seed",
+		"--backend-url", "http://127.0.0.1:8081",
+		"--admin-user", "admin",
+		"--admin-password", "-secret",
+	}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+	if strings.Contains(stderr.String(), "invalid flag") {
+		t.Fatalf("expected dash-prefixed password value to parse as a value, got: %s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "demo seed requires") {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
 func TestDemoSeedRequiresFreshReset(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
