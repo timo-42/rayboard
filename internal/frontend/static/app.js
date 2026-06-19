@@ -2977,8 +2977,19 @@ async function loadRoadmapCapacityTickets() {
     return;
   }
   try {
-    const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
-    state.roadmapCapacityTickets = listItems(data).map(normalizeTicket).filter(Boolean);
+    const tickets = [];
+    const limit = 100;
+    let offset = 0;
+    while (true) {
+      const data = await api(`/api/projects/${state.selectedProject.id}/tickets?limit=${limit}&offset=${offset}`);
+      const page = listItems(data).map(normalizeTicket).filter(Boolean);
+      tickets.push(...page);
+      if (page.length < limit) {
+        break;
+      }
+      offset += limit;
+    }
+    state.roadmapCapacityTickets = tickets;
   } catch (_) {
     state.roadmapCapacityTickets = [];
   }
