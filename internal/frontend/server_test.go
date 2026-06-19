@@ -282,6 +282,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/boards/${form.dataset.boardEditForm}",
 		"/api/boards/${boardID}/tickets",
 		"selectedBoardSavedViewID",
+		"searchAllBoardSavedViewTickets",
+		"next_cursor",
 		"boardTicketsFromSavedViewMatches",
 		"parseBoardWIPLimits",
 		"over_wip_limit",
