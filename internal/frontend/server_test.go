@@ -329,6 +329,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"max duration",
 		"oldestRunLabel",
 		"newestRunLabel",
+		"triggerCounts",
+		"trigger ${trigger} ${count}",
 		"[\"oldest\", summary.oldestRunLabel]",
 		"[\"newest\", summary.newestRunLabel]",
 		"duration ${formatDuration(durationMs)}",

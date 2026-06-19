@@ -7451,6 +7451,12 @@ function automationRunSummaryNode(runs, visibleRuns, filterKey) {
     section.append(error);
   }
 
+  for (const [trigger, count] of Object.entries(summary.triggerCounts)) {
+    const item = document.createElement("span");
+    item.textContent = `trigger ${trigger} ${count}`;
+    section.append(item);
+  }
+
   return section;
 }
 
@@ -7527,7 +7533,8 @@ function summarizeAutomationRuns(runs) {
     averageDurationLabel: "",
     maxDurationLabel: "",
     oldestRunLabel: "",
-    newestRunLabel: ""
+    newestRunLabel: "",
+    triggerCounts: {}
   };
   let durationCount = 0;
   let totalDurationMs = 0;
@@ -7540,6 +7547,8 @@ function summarizeAutomationRuns(runs) {
     }
     summary.total += 1;
     const stateGroup = automationRunStateGroup(run);
+    const triggerType = run.trigger_type || "unknown";
+    summary.triggerCounts[triggerType] = (summary.triggerCounts[triggerType] || 0) + 1;
     if (stateGroup === "failed") {
       summary.failed += 1;
       if (!summary.latestFailure) {
