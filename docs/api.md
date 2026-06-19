@@ -486,7 +486,7 @@ Notification deliveries are the durable queue/history foundation for external no
 | `GET` | `/api/notification-deliveries/{delivery_id}` | Delivery resource; requires notification management permission for that delivery scope. |
 | `POST` | `/api/notification-deliveries/{delivery_id}/retry` | Requeue a failed or canceled delivery. |
 
-Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error.
+Delivery resources use `metadata` for queue identity, scope, policy snapshot, and destination snapshot; `spec` for event/message payload and retry budget; and `status` for current state, attempt counts, timestamps, and last error. The embedded Settings page summarizes the currently loaded delivery rows with counts by state, delivered percentage, retryable failed/canceled count, and latest failure detail.
 
 ## Notification Hooks
 
@@ -504,7 +504,7 @@ Notification hooks are global/project automation rules that run after a notifica
 | `GET` | `/api/notification-hooks/{hook_id}/runs` | Lists saved hook preview and event-triggered execution history. |
 | `DELETE` | `/api/notification-hooks/{hook_id}` | Soft-deletes and disables a notification hook. |
 
-Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigned AUTO-1","payload":{"ticket_id":"ticket_123"},"destination_ids":["dest_123"]}}`. Hook run resources use `metadata` for run identity, `spec` for trigger/input context, and `status` for state, output, error, and timestamps. The embedded Settings page supports scoped destination-name selection for policies, policy-seeded hook previews, and preview output with destination names and suppression state. Dashboard/view notification delivery analytics and richer recipient rules are **Planned**.
+Preview requests use `{"spec":{"event_type":"ticket_assigned","message":"Assigned AUTO-1","payload":{"ticket_id":"ticket_123"},"destination_ids":["dest_123"]}}`. Hook run resources use `metadata` for run identity, `spec` for trigger/input context, and `status` for state, output, error, and timestamps. The embedded Settings page supports scoped destination-name selection for policies, policy-seeded hook previews, and preview output with destination names and suppression state. Dashboard/view notification delivery analytics beyond the loaded-row Settings summary and richer recipient rules are **Planned**.
 
 ## Webhooks
 
