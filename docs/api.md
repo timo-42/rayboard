@@ -532,7 +532,7 @@ Incoming webhook Lua helpers are `rayboard.log`, `rayboard.search`, `rayboard.ge
 
 ## Ticket Hooks
 
-Project ticket hooks are project-scoped automation resources that run during ticket create/update. Before hooks can validate or transform the pending ticket payload; after hooks run after commit and cannot roll back committed changes. The `/automation` browser UI provides basic project ticket-hook list, create, delete, enable/disable, and preview controls; the API remains the source of truth for the full resource shape.
+Project ticket hooks are project-scoped automation resources that run during ticket create/update. Before hooks can validate or transform the pending ticket payload; after hooks run after commit and cannot roll back committed changes. The `/automation` browser UI provides project ticket-hook list, create, inline edit, delete, enable/disable, and preview controls; the API remains the source of truth for the full resource shape.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

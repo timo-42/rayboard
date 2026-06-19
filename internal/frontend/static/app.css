@@ -3341,6 +3341,7 @@ p {
 .cron-job-form,
 .webhook-form,
 .ticket-hook-form,
+.ticket-hook-edit-form,
 .ticket-hook-preview-form,
 .create-page-form {
   display: grid;
@@ -3359,6 +3360,7 @@ p {
 .cron-job-form textarea,
 .webhook-form textarea,
 .ticket-hook-form textarea,
+.ticket-hook-edit-form textarea,
 .ticket-hook-preview-form textarea,
 .ticket-hook-preview pre,
 .create-page-form textarea,
@@ -3458,6 +3460,27 @@ p {
 .ticket-hook-actions button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.ticket-hook-edit-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  align-items: end;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.ticket-hook-edit-form [data-ticket-hook-edit-engine-field] {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.ticket-hook-edit-form [data-ticket-hook-edit-engine-field][hidden] {
+  display: none;
+}
+
+.ticket-hook-edit-form button {
+  min-height: 34px;
 }
 
 .cron-run-list,

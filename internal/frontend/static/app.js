@@ -661,6 +661,31 @@ function bindEvents() {
     }
   });
 
+  els.ticketHooks.addEventListener("change", (event) => {
+    if (!event.target.matches("select[name='engine_type']")) {
+      return;
+    }
+    const form = event.target.closest("[data-ticket-hook-form]");
+    if (form) {
+      renderTicketHookEditEngineFields(form);
+    }
+  });
+
+  els.ticketHooks.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-ticket-hook-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/ticket-hooks/${form.dataset.ticketHookForm}`, {
+        method: "PATCH",
+        body: { spec: ticketHookSpec(form) }
+      });
+      await loadTicketHooks();
+    }, "Ticket hook saved");
+  });
+
   els.createPageLogicType.addEventListener("change", () => {
     renderCreatePageLogicFields();
   });
@@ -7502,6 +7527,13 @@ function renderTicketHookEngineFields() {
   });
 }
 
+function renderTicketHookEditEngineFields(form) {
+  const type = form && form.elements.engine_type ? form.elements.engine_type.value : "lua";
+  form.querySelectorAll("[data-ticket-hook-edit-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.ticketHookEditEngineField !== type;
+  });
+}
+
 function renderTicketHookPreview() {
   if (!els.ticketHookPreviewOutput) {
     return;
@@ -7551,8 +7583,81 @@ function ticketHookNode(hook) {
   remove.textContent = "Delete";
 
   actions.append(preview, toggle, remove);
-  article.append(header, meta, actions);
+  article.append(header, meta, actions, ticketHookEditForm(hook));
   return article;
+}
+
+function ticketHookEditForm(hook) {
+  const form = document.createElement("form");
+  form.className = "ticket-hook-edit-form";
+  form.dataset.ticketHookForm = hook.id;
+
+  form.append(
+    inputNode("name", hook.name || "", "name"),
+    ticketHookSelect("event", [
+      ["ticket_create", "Ticket create"],
+      ["ticket_update", "Ticket update"]
+    ], hook.event || "ticket_create"),
+    ticketHookSelect("phase", [
+      ["before", "Before"],
+      ["after", "After"]
+    ], hook.phase || "before"),
+    inputNode("position", String(hook.position || 0), "position", "number"),
+    ticketHookSelect("engine_type", [
+      ["lua", "Lua"],
+      ["ai", "OpenRouter AI"]
+    ], hook.engine.type || "lua")
+  );
+
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = hook.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const lua = document.createElement("label");
+  lua.dataset.ticketHookEditEngineField = "lua";
+  lua.append("Lua Script", ticketHookTextarea("script", hook.engine.script || "", 4));
+
+  const ai = document.createElement("div");
+  ai.dataset.ticketHookEditEngineField = "ai";
+  const prompt = document.createElement("label");
+  prompt.append("AI Prompt", ticketHookTextarea("prompt", hook.engine.prompt || "", 4));
+  const provider = document.createElement("label");
+  provider.append("Provider ID", inputNode("provider_id", hook.engine.provider_id || "", "openrouter_provider_..."));
+  ai.append(prompt, provider);
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save hook";
+
+  form.append(enabled, lua, ai, save);
+  renderTicketHookEditEngineFields(form);
+  return form;
+}
+
+function ticketHookSelect(name, options, selectedValue) {
+  const select = document.createElement("select");
+  select.name = name;
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedValue;
+    select.append(option);
+  }
+  return select;
+}
+
+function ticketHookTextarea(name, value, rows) {
+  const textarea = document.createElement("textarea");
+  textarea.name = name;
+  textarea.rows = rows;
+  textarea.spellcheck = false;
+  textarea.value = value || "";
+  return textarea;
 }
 
 function renderCreatePages() {
