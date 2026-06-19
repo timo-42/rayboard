@@ -3035,6 +3035,22 @@ p {
   overflow-wrap: anywhere;
 }
 
+.saved-view-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saved-view-metadata span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 2px 7px;
+}
+
 .saved-view-actions {
   display: flex;
   flex-wrap: wrap;
