@@ -2641,6 +2641,15 @@ p {
   width: min(100%, max(var(--roadmap-width, 100%), 160px));
 }
 
+.roadmap-timeline-item[draggable="true"] {
+  cursor: grab;
+}
+
+.roadmap-timeline-item.is-dragging {
+  cursor: grabbing;
+  opacity: 0.58;
+}
+
 .roadmap-item p {
   color: var(--text);
   font-size: 14px;
@@ -2667,6 +2676,12 @@ p {
   height: 100%;
   border-radius: inherit;
   background: var(--primary);
+}
+
+.roadmap-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .roadmap-schedule-form {
@@ -2706,6 +2721,7 @@ p {
   overflow-wrap: anywhere;
 }
 
+.roadmap-quick-actions button,
 .roadmap-schedule-form button {
   min-height: 30px;
   border-color: var(--border-strong);
@@ -2714,6 +2730,7 @@ p {
   padding: 0 9px;
 }
 
+.roadmap-quick-actions button:hover,
 .roadmap-schedule-form button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);

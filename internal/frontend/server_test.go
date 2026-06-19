@@ -751,9 +751,11 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 	for _, expected := range []string{
 		"loadRoadmap",
 		"scheduleRoadmapItem",
+		"scheduleRoadmapItemSpec",
 		"renderRoadmap",
 		"roadmapTimelineNode",
 		"roadmapScheduleFormNode",
+		"roadmapQuickScheduleNode",
 		"renderRoadmapDependencies",
 		"normalizeRoadmapDependency",
 		"roadmapDependencyNode",
@@ -764,6 +766,10 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"/api/projects/${state.selectedProject.id}/roadmap/schedule",
 		"ticket-parent-id",
 		"data-roadmap-schedule-form",
+		"data-roadmap-drag-id",
+		"data-roadmap-timeline-track",
+		"data-roadmap-quick-schedule-id",
+		"application/rayboard-roadmap-epic",
 		"roadmap-progress",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -779,6 +785,7 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		".roadmap-dependencies",
 		".roadmap-dependency",
 		".roadmap-item",
+		".roadmap-quick-actions",
 		".roadmap-schedule-form",
 		".roadmap-progress",
 	} {

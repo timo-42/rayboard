@@ -1301,6 +1301,95 @@ function bindEvents() {
     }, "Roadmap scheduled");
   });
 
+  els.roadmap.addEventListener("click", async (event) => {
+    const quickSchedule = event.target.closest("[data-roadmap-quick-schedule-id]");
+    if (!quickSchedule || !state.selectedProject) {
+      return;
+    }
+    const start = todayISODate();
+    await runAction(async () => {
+      await scheduleRoadmapItemSpec(quickSchedule.dataset.roadmapQuickScheduleId, start, addDaysISO(start, 6));
+      await loadTickets();
+    }, "Roadmap scheduled");
+  });
+
+  els.roadmap.addEventListener("dragstart", (event) => {
+    const item = event.target.closest("[data-roadmap-drag-id]");
+    if (!item || event.target.closest("a, button, input, textarea, select")) {
+      event.preventDefault();
+      return;
+    }
+    const track = item.closest("[data-roadmap-timeline-track]");
+    const start = dateToUTC(item.dataset.roadmapStartDate);
+    const due = dateToUTC(item.dataset.roadmapDueDate);
+    if (!track || !start || !due) {
+      event.preventDefault();
+      return;
+    }
+    const bounds = {
+      start: item.dataset.roadmapBoundsStart,
+      end: item.dataset.roadmapBoundsEnd
+    };
+    const spanDays = Math.max(daysBetween(dateToUTC(bounds.start), dateToUTC(bounds.end)) + 1, 1);
+    const rect = track.getBoundingClientRect();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/rayboard-roadmap-epic", JSON.stringify({
+      id: item.dataset.roadmapDragId,
+      start: item.dataset.roadmapStartDate,
+      due: item.dataset.roadmapDueDate,
+      startX: event.clientX,
+      trackWidth: rect.width,
+      spanDays
+    }));
+    event.dataTransfer.setData("text/plain", item.dataset.roadmapDragId);
+    item.classList.add("is-dragging");
+  });
+
+  els.roadmap.addEventListener("dragend", (event) => {
+    const item = event.target.closest("[data-roadmap-drag-id]");
+    if (item) {
+      item.classList.remove("is-dragging");
+    }
+  });
+
+  els.roadmap.addEventListener("dragover", (event) => {
+    const track = event.target.closest("[data-roadmap-timeline-track]");
+    if (track && dataTransferHasType(event, "application/rayboard-roadmap-epic")) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }
+  });
+
+  els.roadmap.addEventListener("drop", async (event) => {
+    const track = event.target.closest("[data-roadmap-timeline-track]");
+    const payload = event.dataTransfer.getData("application/rayboard-roadmap-epic");
+    if (!track || !payload || !state.selectedProject) {
+      return;
+    }
+    event.preventDefault();
+    let details;
+    try {
+      details = JSON.parse(payload);
+    } catch {
+      return;
+    }
+    const start = dateToUTC(details.start);
+    const due = dateToUTC(details.due);
+    const trackWidth = Number(details.trackWidth || 0);
+    const spanDays = Number(details.spanDays || 0);
+    if (!details.id || !start || !due || trackWidth <= 0 || spanDays <= 0) {
+      return;
+    }
+    const deltaDays = Math.round(((event.clientX - Number(details.startX || 0)) / trackWidth) * spanDays);
+    if (deltaDays === 0) {
+      return;
+    }
+    await runAction(async () => {
+      await scheduleRoadmapItemSpec(details.id, formatISODate(addDays(start, deltaDays)), formatISODate(addDays(due, deltaDays)));
+      await loadTickets();
+    }, "Roadmap rescheduled");
+  });
+
   els.fieldForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.selectedProject) {
@@ -2843,13 +2932,17 @@ async function loadRoadmapDependencies() {
 
 async function scheduleRoadmapItem(form) {
   const data = formData(form);
+  await scheduleRoadmapItemSpec(form.dataset.roadmapScheduleForm, data.start_date || "", data.due_date || "");
+}
+
+async function scheduleRoadmapItemSpec(ticketID, startDate, dueDate) {
   const response = await api(`/api/projects/${state.selectedProject.id}/roadmap/schedule`, {
     method: "PATCH",
     body: {
       spec: {
-        ticket_id: form.dataset.roadmapScheduleForm,
-        start_date: data.start_date || "",
-        due_date: data.due_date || ""
+        ticket_id: ticketID,
+        start_date: startDate || "",
+        due_date: dueDate || ""
       }
     }
   });
@@ -4910,6 +5003,7 @@ function roadmapTimelineNode(items) {
   heading.textContent = "Timeline";
   const track = document.createElement("div");
   track.className = "roadmap-timeline-track";
+  track.dataset.roadmapTimelineTrack = "true";
   const bounds = roadmapTimelineBounds(items);
   for (const item of items) {
     const row = roadmapNode(item);
@@ -4922,6 +5016,12 @@ function roadmapTimelineNode(items) {
     const span = Math.max(daysBetween(bounds.start, bounds.end) + 1, 1);
     row.style.setProperty("--roadmap-offset", `${Math.round((offsetDays / span) * 100)}%`);
     row.style.setProperty("--roadmap-width", `${Math.max(12, Math.round((durationDays / span) * 100))}%`);
+    row.draggable = true;
+    row.dataset.roadmapDragId = epic.id || "";
+    row.dataset.roadmapStartDate = formatISODate(start);
+    row.dataset.roadmapDueDate = formatISODate(due);
+    row.dataset.roadmapBoundsStart = formatISODate(bounds.start);
+    row.dataset.roadmapBoundsEnd = formatISODate(bounds.end);
     track.append(row);
   }
   group.append(heading, track);
@@ -4959,8 +5059,23 @@ function roadmapNode(item) {
     .map(([status, count]) => `${status}: ${count}`)
     .join(" / ") || "No child tickets";
 
-  article.append(title, meta, bar, counts, roadmapScheduleFormNode(epic));
+  article.append(title, meta, bar, counts);
+  if (!epic.start_date && !epic.due_date) {
+    article.append(roadmapQuickScheduleNode(epic));
+  }
+  article.append(roadmapScheduleFormNode(epic));
   return article;
+}
+
+function roadmapQuickScheduleNode(epic) {
+  const actions = document.createElement("div");
+  actions.className = "roadmap-quick-actions";
+  const schedule = document.createElement("button");
+  schedule.type = "button";
+  schedule.dataset.roadmapQuickScheduleId = epic.id;
+  schedule.textContent = "Schedule this week";
+  actions.append(schedule);
+  return actions;
 }
 
 function roadmapScheduleFormNode(epic) {
@@ -5006,6 +5121,25 @@ function dateToUTC(value) {
   }
   const date = new Date(`${value}T00:00:00Z`);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function addDaysISO(value, days) {
+  const date = dateToUTC(value);
+  return date ? formatISODate(addDays(date, days)) : "";
+}
+
+function formatISODate(date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function daysBetween(start, end) {
