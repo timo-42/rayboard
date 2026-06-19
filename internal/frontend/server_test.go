@@ -65,6 +65,8 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="create-pages"`) ||
 		!strings.Contains(body, `id="ticket-filter-form"`) ||
 		!strings.Contains(body, `id="ticket-filter-label"`) ||
+		!strings.Contains(body, `id="ticket-filter-component"`) ||
+		!strings.Contains(body, `id="ticket-filter-version"`) ||
 		!strings.Contains(body, `id="ticket-filter-summary"`) ||
 		!strings.Contains(body, `id="notification-inbox"`) ||
 		!strings.Contains(body, `id="nav-unread-count"`) ||
@@ -664,6 +666,11 @@ func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 		"loadProjectLabels",
 		"normalizeProjectLabel",
 		"renderTicketFilters",
+		"ticketFilterParams",
+		"ticketFiltersFromForm",
+		"new URLSearchParams",
+		"component_id",
+		"version_id",
 		"/api/projects/${state.selectedProject.id}/labels",
 		"data-ticket-label-control",
 		"data-update-labels-id",

@@ -9,7 +9,7 @@ Implemented browser workflows:
 - project list and project creation;
 - project detail pages under `/projects/{project_id}`;
 - issue detail pages under `/issues/{ticket_id}` with comments, attachments, custom fields, and activity history;
-- ticket list for the selected project;
+- ticket list for the selected project with label, component, and version filters;
 - ticket creation;
 - ticket status changes;
 - ticket label entry, display, update from ticket cards, and project label filtering with ticket counts;
@@ -17,7 +17,7 @@ Implemented browser workflows:
 - ticket attachment list, upload, download, and delete from each ticket card;
 - notification inbox listing with a persistent unread badge, unread filter, read/unread toggle, refresh, and mark-all-read;
 - sprint list, create, start, complete, delete, and ticket sprint assignment/removal for the selected project;
-- component and version list/create/edit/delete, version release/archive state changes, and ticket component/version assignment;
+- component and version list/create/edit/delete, version release/archive state changes, ticket component/version assignment, and project ticket filtering by component/version;
 - roadmap epic list with schedule dates and child-ticket progress, plus ticket form fields for epics, parent epics, and roadmap dates;
 - custom field list/create/update/delete for the selected project, plus JSON custom-field values on ticket create and ticket cards;
 - workflow status replacement, board create/select/delete, and board-backed ticket columns for the selected project;
@@ -28,8 +28,9 @@ Implemented browser workflows:
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - basic cron job list, create, delete, enable/disable, manual run, and run-output inspection for the selected project;
 - basic project webhook list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
-- basic project ticket-hook list, create, delete, enable/disable, and preview controls for the selected project.
-- rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`.
+- basic project ticket-hook list, create, delete, enable/disable, and preview controls for the selected project;
+- rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`;
+- compact selected-sprint reports with totals, status counts, ticket links, and live-versus-completed snapshot scope labels.
 
 API token secrets are shown once when created and are not listed later.
 
@@ -37,16 +38,14 @@ Implemented API-only user workflows:
 
 - advanced saved-view pagination;
 - detailed sprint editing and sprint-state filtering;
-- component/version filtering;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
 - custom ticket create-page schema resolution and submission APIs.
-- compact selected-sprint reports with totals, status counts, ticket links, and live-versus-completed snapshot scope labels.
 
 See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, richer sprint reporting beyond compact selected-sprint summaries, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, component/version filtering and reporting, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Saved-view pagination is currently an API-only workflow. Rich backlog planning beyond basic up/down ordering, richer board settings/editing beyond basic status replacement and board create/select/delete, board/backlog drag/drop, richer sprint reporting beyond compact selected-sprint summaries, burndown/velocity/burnup reports, release reports, richer roadmap timeline screens, richer component/version reporting, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 

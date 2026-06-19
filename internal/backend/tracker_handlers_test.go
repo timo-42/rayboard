@@ -446,6 +446,25 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected component/version ticket: %#v", componentVersionTicket)
 	}
 
+	listByPlanningReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/tickets?component_id="+component.ID+"&version_id="+version.ID, nil)
+	listByPlanningReq.AddCookie(session)
+	listByPlanning := httptest.NewRecorder()
+	handler.ServeHTTP(listByPlanning, listByPlanningReq)
+	if listByPlanning.Code != http.StatusOK {
+		t.Fatalf("expected component/version ticket filter status 200, got %d: %s", listByPlanning.Code, listByPlanning.Body.String())
+	}
+	var planningList struct {
+		Status struct {
+			Items []ticketResourceBody `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listByPlanning.Body.Bytes(), &planningList); err != nil {
+		t.Fatalf("decode component/version ticket list: %v", err)
+	}
+	if len(planningList.Status.Items) != 1 || planningList.Status.Items[0].Metadata.ID != second.ID || planningList.Status.Items[0].Spec.ComponentID != component.ID || planningList.Status.Items[0].Spec.VersionID != version.ID {
+		t.Fatalf("unexpected component/version ticket list: %#v", planningList.Status.Items)
+	}
+
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"name":       "Sprint 1",
