@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	SprintStatePlanned   = "planned"
-	SprintStateActive    = "active"
-	SprintStateCompleted = "completed"
-	dateOnlyLayout       = "2006-01-02"
+	SprintStatePlanned        = "planned"
+	SprintStateActive         = "active"
+	SprintStateCompleted      = "completed"
+	SprintReportScopeCurrent  = "current"
+	SprintReportScopeSnapshot = "completed_snapshot"
+	dateOnlyLayout            = "2006-01-02"
 )
 
 func (s *Service) ListSprints(ctx context.Context, principal authz.Principal, projectID string, state string) ([]Sprint, error) {
@@ -98,6 +100,51 @@ func (s *Service) GetSprint(ctx context.Context, principal authz.Principal, spri
 		return Sprint{}, err
 	}
 	return sprint, nil
+}
+
+func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal, sprintID string) (SprintReport, error) {
+	sprint, err := s.getSprint(ctx, sprintID)
+	if err != nil {
+		return SprintReport{}, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(sprint.ProjectID)); err != nil {
+		return SprintReport{}, err
+	}
+
+	scope := SprintReportScopeCurrent
+	var snapshotAt *time.Time
+	var tickets []Ticket
+	if sprint.State == SprintStateCompleted {
+		var snapshotExists bool
+		tickets, snapshotAt, snapshotExists, err = s.listSprintSnapshotTickets(ctx, sprint.ID)
+		if err != nil {
+			return SprintReport{}, err
+		}
+		scope = SprintReportScopeSnapshot
+		if snapshotAt == nil {
+			snapshotAt = sprint.CompletedAt
+		}
+		if !snapshotExists {
+			tickets = nil
+		}
+	}
+	if tickets == nil {
+		tickets, err = s.listSprintReportTickets(ctx, sprint.ID)
+		if err != nil {
+			return SprintReport{}, err
+		}
+	}
+	tickets, err = s.attachTicketDetailsToTickets(ctx, tickets)
+	if err != nil {
+		return SprintReport{}, err
+	}
+	return SprintReport{
+		Sprint:     sprint,
+		Scope:      scope,
+		SnapshotAt: snapshotAt,
+		Progress:   sprintReportProgress(tickets),
+		Tickets:    tickets,
+	}, nil
 }
 
 func (s *Service) UpdateSprint(ctx context.Context, principal authz.Principal, sprintID string, input UpdateSprintInput) (Sprint, error) {
@@ -227,12 +274,141 @@ func (s *Service) CompleteSprint(ctx context.Context, principal authz.Principal,
 		`, current.State, formatTime(now), formatTime(now), current.ID); err != nil {
 			return fmt.Errorf("complete sprint: %w", err)
 		}
+		if err := s.snapshotSprintReportTickets(ctx, tx, current.ID, now); err != nil {
+			return err
+		}
 		return s.appendDomainEvent(ctx, tx, event)
 	}); err != nil {
 		return Sprint{}, err
 	}
 	s.publish(ctx, event)
 	return current, nil
+}
+
+func (s *Service) snapshotSprintReportTickets(ctx context.Context, tx *sql.Tx, sprintID string, capturedAt time.Time) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM sprint_report_tickets WHERE sprint_id = ?", sprintID); err != nil {
+		return fmt.Errorf("delete sprint report snapshot: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO sprint_report_snapshots (sprint_id, captured_at)
+		VALUES (?, ?)
+		ON CONFLICT(sprint_id) DO UPDATE SET captured_at = excluded.captured_at
+	`, sprintID, formatTime(capturedAt)); err != nil {
+		return fmt.Errorf("upsert sprint report snapshot: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id
+		FROM tickets
+		WHERE sprint_id = ? AND deleted_at IS NULL
+		ORDER BY status ASC, created_at DESC, key DESC
+	`, sprintID)
+	if err != nil {
+		return fmt.Errorf("list sprint report snapshot members: %w", err)
+	}
+	defer rows.Close()
+
+	position := 0
+	for rows.Next() {
+		var ticketID string
+		if err := rows.Scan(&ticketID); err != nil {
+			return fmt.Errorf("scan sprint report snapshot member: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO sprint_report_tickets (sprint_id, ticket_id, position)
+			VALUES (?, ?, ?)
+		`, sprintID, ticketID, position); err != nil {
+			return fmt.Errorf("insert sprint report snapshot: %w", err)
+		}
+		position++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate sprint report snapshot members: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) listSprintReportTickets(ctx context.Context, sprintID string) ([]Ticket, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, key, title, description, status, priority, type,
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+		FROM tickets
+		WHERE sprint_id = ? AND deleted_at IS NULL
+		ORDER BY status ASC, created_at DESC, key DESC
+	`, sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("list sprint report tickets: %w", err)
+	}
+	defer rows.Close()
+
+	tickets := []Ticket{}
+	for rows.Next() {
+		ticket, err := scanTicket(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan sprint report ticket: %w", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sprint report tickets: %w", err)
+	}
+	return tickets, nil
+}
+
+func (s *Service) listSprintSnapshotTickets(ctx context.Context, sprintID string) ([]Ticket, *time.Time, bool, error) {
+	var capturedAt string
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT captured_at
+		FROM sprint_report_snapshots
+		WHERE sprint_id = ?
+	`, sprintID).Scan(&capturedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, false, nil
+		}
+		return nil, nil, false, fmt.Errorf("get sprint report snapshot: %w", err)
+	}
+	snapshotAt, err := parseTime(capturedAt)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("parse sprint report snapshot captured_at: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT tickets.id, tickets.project_id, tickets.key, tickets.title, tickets.description, tickets.status, tickets.priority, tickets.type,
+			tickets.reporter_id, tickets.assignee_id, tickets.parent_ticket_id, tickets.sprint_id, tickets.component_id, tickets.version_id,
+			tickets.rank, tickets.start_date, tickets.due_date, tickets.created_at, tickets.updated_at, tickets.deleted_at
+		FROM sprint_report_tickets snapshot
+		JOIN tickets ON tickets.id = snapshot.ticket_id
+		WHERE snapshot.sprint_id = ? AND tickets.deleted_at IS NULL
+		ORDER BY snapshot.position ASC
+	`, sprintID)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("list sprint report snapshot tickets: %w", err)
+	}
+	defer rows.Close()
+
+	tickets := []Ticket{}
+	for rows.Next() {
+		ticket, err := scanTicket(rows)
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("scan sprint report snapshot ticket: %w", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, false, fmt.Errorf("iterate sprint report snapshot tickets: %w", err)
+	}
+	return tickets, &snapshotAt, true, nil
+}
+
+func sprintReportProgress(tickets []Ticket) SprintReportProgress {
+	progress := SprintReportProgress{ByStatus: map[string]int{}}
+	for _, ticket := range tickets {
+		progress.Total++
+		progress.ByStatus[ticket.Status]++
+		if ticket.Status == "done" {
+			progress.Done++
+		}
+	}
+	return progress
 }
 
 func (s *Service) SetTicketSprint(ctx context.Context, principal authz.Principal, ticketID string, sprintID string) (Ticket, error) {

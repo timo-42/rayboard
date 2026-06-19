@@ -2,10 +2,15 @@ package store_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/migrations"
@@ -75,10 +80,58 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		"audit_log",
 		"openrouter_providers",
 		"system_settings",
+		"sprint_report_snapshots",
+		"sprint_report_tickets",
 	} {
 		t.Run(table, func(t *testing.T) {
 			assertTableExists(t, ctx, db.SQL, table)
 		})
+	}
+}
+
+func TestSprintReportSnapshotMigrationBackfillsCompletedSprints(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+
+	applyEmbeddedMigrationsThrough(t, ctx, db.SQL, 26)
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO projects (id, key, name)
+		VALUES ('project_1', 'CORE', 'Core');
+		INSERT INTO sprints (id, project_id, name, state, completed_at, created_at, updated_at)
+		VALUES ('sprint_done', 'project_1', 'Done Sprint', 'completed', '2026-06-17T10:00:00Z', '2026-06-01T10:00:00Z', '2026-06-17T10:00:00Z');
+		INSERT INTO tickets (id, project_id, key, title, status, sprint_id, created_at, updated_at)
+		VALUES ('ticket_1', 'project_1', 'CORE-1', 'Migrated ticket', 'done', 'sprint_done', '2026-06-10T10:00:00Z', '2026-06-17T10:00:00Z');
+	`); err != nil {
+		t.Fatalf("seed pre-snapshot data: %v", err)
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate snapshot backfill: %v", err)
+	}
+
+	var capturedAt string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT captured_at
+		FROM sprint_report_snapshots
+		WHERE sprint_id = 'sprint_done'
+	`).Scan(&capturedAt); err != nil {
+		t.Fatalf("get backfilled snapshot: %v", err)
+	}
+	if capturedAt != "2026-06-17T10:00:00Z" {
+		t.Fatalf("expected completed_at capture, got %q", capturedAt)
+	}
+
+	var ticketID string
+	var position int
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT ticket_id, position
+		FROM sprint_report_tickets
+		WHERE sprint_id = 'sprint_done'
+	`).Scan(&ticketID, &position); err != nil {
+		t.Fatalf("get backfilled snapshot ticket: %v", err)
+	}
+	if ticketID != "ticket_1" || position != 0 {
+		t.Fatalf("unexpected backfilled snapshot ticket %q at %d", ticketID, position)
 	}
 }
 
@@ -90,6 +143,51 @@ func countMigrationFiles(t *testing.T) int {
 		t.Fatalf("list migration files: %v", err)
 	}
 	return len(names)
+}
+
+func applyEmbeddedMigrationsThrough(t *testing.T, ctx context.Context, db *sql.DB, maxVersion int) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			checksum TEXT NOT NULL,
+			applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+	`); err != nil {
+		t.Fatalf("create schema_migrations: %v", err)
+	}
+
+	names, err := fs.Glob(migrations.Files, "*.sql")
+	if err != nil {
+		t.Fatalf("list migrations: %v", err)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		versionText := filepath.Base(name)[:6]
+		version, err := strconv.Atoi(versionText)
+		if err != nil {
+			t.Fatalf("parse migration version %q: %v", name, err)
+		}
+		if version > maxVersion {
+			continue
+		}
+		content, err := migrations.Files.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		sum := sha256.Sum256(content)
+		if _, err := db.ExecContext(ctx, strings.TrimSpace(string(content))); err != nil {
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO schema_migrations (version, name, checksum)
+			VALUES (?, ?, ?)
+		`, version, filepath.Base(name), hex.EncodeToString(sum[:])); err != nil {
+			t.Fatalf("record migration %s: %v", name, err)
+		}
+	}
 }
 
 func TestForeignKeysEnforced(t *testing.T) {

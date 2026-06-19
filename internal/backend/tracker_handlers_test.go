@@ -492,12 +492,77 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected start sprint status 200, got %d: %s", startSprint.Code, startSprint.Body.String())
 	}
 
+	activeReportReq := httptest.NewRequest(http.MethodGet, "/api/sprints/"+sprint.Metadata.ID+"/report", nil)
+	activeReportReq.AddCookie(session)
+	activeReport := httptest.NewRecorder()
+	handler.ServeHTTP(activeReport, activeReportReq)
+	if activeReport.Code != http.StatusOK {
+		t.Fatalf("expected active sprint report status 200, got %d: %s", activeReport.Code, activeReport.Body.String())
+	}
+	var activeReportBody sprintReportResourceBody
+	if err := json.Unmarshal(activeReport.Body.Bytes(), &activeReportBody); err != nil {
+		t.Fatalf("decode active sprint report: %v", err)
+	}
+	if activeReportBody.Spec.Sprint.Metadata.ID != sprint.Metadata.ID ||
+		activeReportBody.Status.Scope != tracker.SprintReportScopeCurrent ||
+		activeReportBody.Status.SnapshotAt != "" ||
+		activeReportBody.Status.Progress.Total != 1 ||
+		len(activeReportBody.Status.Tickets) != 1 ||
+		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID {
+		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
+	}
+
 	completeSprintReq := httptest.NewRequest(http.MethodPost, "/api/sprints/"+sprint.Metadata.ID+"/complete", nil)
 	addSessionCSRF(completeSprintReq, session, csrf)
 	completeSprint := httptest.NewRecorder()
 	handler.ServeHTTP(completeSprint, completeSprintReq)
 	if completeSprint.Code != http.StatusOK {
 		t.Fatalf("expected complete sprint status 200, got %d: %s", completeSprint.Code, completeSprint.Body.String())
+	}
+
+	completedReportReq := httptest.NewRequest(http.MethodGet, "/api/sprints/"+sprint.Metadata.ID+"/report", nil)
+	completedReportReq.AddCookie(session)
+	completedReport := httptest.NewRecorder()
+	handler.ServeHTTP(completedReport, completedReportReq)
+	if completedReport.Code != http.StatusOK {
+		t.Fatalf("expected completed sprint report status 200, got %d: %s", completedReport.Code, completedReport.Body.String())
+	}
+	var completedReportBody sprintReportResourceBody
+	if err := json.Unmarshal(completedReport.Body.Bytes(), &completedReportBody); err != nil {
+		t.Fatalf("decode completed sprint report: %v", err)
+	}
+	if completedReportBody.Status.Scope != tracker.SprintReportScopeSnapshot ||
+		completedReportBody.Status.SnapshotAt == "" ||
+		completedReportBody.Status.Progress.Total != 1 ||
+		len(completedReportBody.Status.Tickets) != 1 ||
+		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
+		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
+	}
+
+	removeSprintReq := httptest.NewRequest(http.MethodDelete, "/api/tickets/"+ticket.ID+"/sprint", nil)
+	addSessionCSRF(removeSprintReq, session, csrf)
+	removeSprint := httptest.NewRecorder()
+	handler.ServeHTTP(removeSprint, removeSprintReq)
+	if removeSprint.Code != http.StatusNoContent {
+		t.Fatalf("expected remove sprint status 204, got %d: %s", removeSprint.Code, removeSprint.Body.String())
+	}
+
+	committedReportReq := httptest.NewRequest(http.MethodGet, "/api/sprints/"+sprint.Metadata.ID+"/report", nil)
+	committedReportReq.AddCookie(session)
+	committedReport := httptest.NewRecorder()
+	handler.ServeHTTP(committedReport, committedReportReq)
+	if committedReport.Code != http.StatusOK {
+		t.Fatalf("expected committed sprint report status 200, got %d: %s", committedReport.Code, committedReport.Body.String())
+	}
+	var committedReportBody sprintReportResourceBody
+	if err := json.Unmarshal(committedReport.Body.Bytes(), &committedReportBody); err != nil {
+		t.Fatalf("decode committed sprint report: %v", err)
+	}
+	if committedReportBody.Status.Scope != tracker.SprintReportScopeSnapshot ||
+		committedReportBody.Status.Progress.Total != 1 ||
+		len(committedReportBody.Status.Tickets) != 1 ||
+		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
+		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
 	}
 
 	status := "In_Progress"
@@ -622,6 +687,18 @@ type sprintResourceBody struct {
 	} `json:"metadata"`
 	Status struct {
 		State string `json:"state"`
+	} `json:"status"`
+}
+
+type sprintReportResourceBody struct {
+	Spec struct {
+		Sprint sprintResourceBody `json:"sprint"`
+	} `json:"spec"`
+	Status struct {
+		Scope      string                       `json:"scope"`
+		SnapshotAt string                       `json:"snapshot_at"`
+		Progress   tracker.SprintReportProgress `json:"progress"`
+		Tickets    []ticketResourceBody         `json:"tickets"`
 	} `json:"status"`
 }
 

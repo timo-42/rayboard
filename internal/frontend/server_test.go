@@ -75,6 +75,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="board-form"`) ||
 		!strings.Contains(body, `id="boards"`) ||
 		!strings.Contains(body, `id="sprint-panel"`) ||
+		!strings.Contains(body, `id="sprint-report"`) ||
 		!strings.Contains(body, `id="release-panel"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
 		!strings.Contains(body, `id="field-panel"`) ||
@@ -530,13 +531,22 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 	appText := string(app)
 	for _, expected := range []string{
 		"loadSprints",
+		"loadSprintReport",
+		"refreshSelectedSprintReport",
 		"renderSprints",
+		"renderSprintReport",
 		"normalizeSprint",
+		"normalizeSprintReport",
+		"selectedSprintReportID",
 		"/api/projects/${state.selectedProject.id}/sprints",
+		"/api/sprints/${sprintID}/report",
 		"/api/sprints/${start.dataset.startSprintId}/start",
 		"/api/sprints/${complete.dataset.completeSprintId}/complete",
 		"/api/tickets/${assignSprint.dataset.assignSprintId}/sprint",
 		"data-ticket-sprint-control",
+		"data-sprint-report-id",
+		"completed_snapshot",
+		"Live current assignment",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -547,6 +557,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-panel",
 		".sprint-form",
 		".sprint-item",
+		".sprint-report",
+		".sprint-report-ticket",
 		".ticket-sprint",
 	} {
 		if !strings.Contains(cssText, expected) {

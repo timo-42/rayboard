@@ -10,6 +10,7 @@ import (
 
 func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/sprints/{sprint_id}", "Sprints", "Get sprint"), provider.getSprint)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/sprints/{sprint_id}/report", "Sprints", "Get sprint report"), provider.getSprintReport)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/sprints/{sprint_id}", "Sprints", "Update sprint"), provider.updateSprint)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/sprints/{sprint_id}", "Sprints", "Delete sprint", http.StatusNoContent), provider.deleteSprint)
 	huma.Register(api, shared.Operation(http.MethodPost, "/api/sprints/{sprint_id}/start", "Sprints", "Start sprint"), provider.startSprint)
@@ -26,6 +27,18 @@ func (provider Provider) getSprint(ctx context.Context, input *SprintIDInput) (*
 		return nil, shared.TrackerError(err)
 	}
 	return &SprintOutput{Body: Resource(sprint)}, nil
+}
+
+func (provider Provider) getSprintReport(ctx context.Context, input *SprintIDInput) (*SprintReportOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	report, err := provider.Tracker.GetSprintReport(ctx, principal, input.SprintID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &SprintReportOutput{Body: ReportResource(report)}, nil
 }
 
 func (provider Provider) updateSprint(ctx context.Context, input *UpdateSprintInput) (*SprintOutput, error) {
