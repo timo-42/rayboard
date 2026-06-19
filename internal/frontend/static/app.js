@@ -4146,9 +4146,57 @@ function renderBacklog() {
     els.backlog.append(empty);
     return;
   }
+  els.backlog.append(backlogSummaryNode(state.backlog));
   state.backlog.forEach((ticket, index) => {
     els.backlog.append(backlogItemNode(ticket, index));
   });
+}
+
+function backlogSummaryNode(tickets) {
+  const metrics = backlogSummaryMetrics(tickets);
+  const section = document.createElement("section");
+  section.className = "backlog-summary";
+  section.append(
+    backlogSummaryMetricNode("Tickets", metrics.total),
+    backlogSummaryMetricNode("Sprint assigned", metrics.assigned),
+    backlogSummaryMetricNode("Unassigned", metrics.unassigned),
+    backlogSummaryMetricNode("Story points", metrics.story_points)
+  );
+  return section;
+}
+
+function backlogSummaryMetrics(tickets) {
+  const list = Array.isArray(tickets) ? tickets : [];
+  let storyPoints = 0;
+  let hasStoryPoints = false;
+  for (const ticket of list) {
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      continue;
+    }
+    const points = Number(ticket.story_points);
+    if (Number.isFinite(points)) {
+      storyPoints += points;
+      hasStoryPoints = true;
+    }
+  }
+  const assigned = list.filter((ticket) => Boolean(ticket.sprint_id)).length;
+  return {
+    total: list.length,
+    assigned,
+    unassigned: list.length - assigned,
+    story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none"
+  };
+}
+
+function backlogSummaryMetricNode(label, value) {
+  const item = document.createElement("div");
+  item.className = "backlog-summary-metric";
+  const strong = document.createElement("strong");
+  strong.textContent = String(value);
+  const span = document.createElement("span");
+  span.textContent = label;
+  item.append(strong, span);
+  return item;
 }
 
 function backlogItemNode(ticket, index) {
