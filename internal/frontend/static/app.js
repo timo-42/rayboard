@@ -1290,6 +1290,34 @@ function bindEvents() {
   });
 
   els.roadmap.addEventListener("submit", async (event) => {
+    const dependencyForm = event.target.closest("[data-roadmap-dependency-form]");
+    if (dependencyForm) {
+      event.preventDefault();
+      const data = formData(dependencyForm);
+      if (!data.source_ticket_id || !data.target_ticket_id) {
+        setNotice("Choose source and target issues first");
+        return;
+      }
+      if (data.source_ticket_id === data.target_ticket_id) {
+        setNotice("Choose two different roadmap issues");
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${data.source_ticket_id}/links`, {
+          method: "POST",
+          body: {
+            spec: {
+              target_ticket_id: data.target_ticket_id || "",
+              link_type: data.link_type || "relates_to"
+            }
+          }
+        });
+        dependencyForm.reset();
+        await refreshRoadmapDependencyViews(data.source_ticket_id, data.target_ticket_id);
+      }, "Roadmap dependency added");
+      return;
+    }
+
     const form = event.target.closest("[data-roadmap-schedule-form]");
     if (!form || !state.selectedProject) {
       return;
@@ -1302,6 +1330,15 @@ function bindEvents() {
   });
 
   els.roadmap.addEventListener("click", async (event) => {
+    const deleteDependency = event.target.closest("[data-delete-roadmap-dependency-id]");
+    if (deleteDependency) {
+      await runAction(async () => {
+        await api(`/api/tickets/${deleteDependency.dataset.sourceTicketId}/links/${deleteDependency.dataset.deleteRoadmapDependencyId}`, { method: "DELETE" });
+        await refreshRoadmapDependencyViews(deleteDependency.dataset.sourceTicketId, deleteDependency.dataset.targetTicketId);
+      }, "Roadmap dependency removed");
+      return;
+    }
+
     const quickSchedule = event.target.closest("[data-roadmap-quick-schedule-id]");
     if (!quickSchedule || !state.selectedProject) {
       return;
@@ -1388,6 +1425,13 @@ function bindEvents() {
       await scheduleRoadmapItemSpec(details.id, formatISODate(addDays(start, deltaDays)), formatISODate(addDays(due, deltaDays)));
       await loadTickets();
     }, "Roadmap rescheduled");
+  });
+
+  els.roadmap.addEventListener("change", (event) => {
+    const form = event.target.closest("[data-roadmap-dependency-form]");
+    if (form) {
+      syncRoadmapDependencyTargetOptions(form);
+    }
   });
 
   els.fieldForm.addEventListener("submit", async (event) => {
@@ -2928,6 +2972,18 @@ async function loadRoadmapDependencies() {
   const data = await api(`/api/projects/${state.selectedProject.id}/roadmap/dependencies`);
   state.roadmapDependencies = listItems(data).map(normalizeRoadmapDependency).filter(Boolean);
   renderRoadmapDependencies();
+}
+
+async function refreshRoadmapDependencyViews(sourceTicketID, targetTicketID) {
+  await loadRoadmapDependencies();
+  for (const ticketID of [sourceTicketID, targetTicketID].filter(Boolean)) {
+    await loadTicketLinks(ticketID, { renderAfter: false });
+    await loadActivity(ticketID, { renderAfter: false });
+  }
+  renderTickets();
+  if (state.selectedIssue && (state.selectedIssue.id === sourceTicketID || state.selectedIssue.id === targetTicketID)) {
+    renderIssue();
+  }
 }
 
 async function scheduleRoadmapItem(form) {
@@ -4944,6 +5000,7 @@ function renderRoadmapDependencies() {
   const heading = document.createElement("h3");
   heading.textContent = "Dependencies";
   els.roadmapDependencies.append(heading);
+  els.roadmapDependencies.append(roadmapDependencyFormNode());
   if (!state.roadmapDependencies.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -4977,8 +5034,99 @@ function roadmapDependencyNode(dependency) {
     target.status ? `target ${target.status}` : ""
   ].filter(Boolean).join(" / ");
 
-  article.append(title, meta);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteRoadmapDependencyId = link.id || dependency.id || "";
+  remove.dataset.sourceTicketId = source.id || "";
+  remove.dataset.targetTicketId = target.id || "";
+  remove.textContent = "Remove";
+  remove.disabled = !link.id || !source.id;
+
+  article.append(title, meta, remove);
   return article;
+}
+
+function roadmapDependencyFormNode() {
+  const form = document.createElement("form");
+  form.className = "roadmap-dependency-form";
+  form.dataset.roadmapDependencyForm = "true";
+
+  const source = document.createElement("select");
+  source.name = "source_ticket_id";
+  source.required = true;
+  source.setAttribute("aria-label", "Source roadmap issue");
+  appendRoadmapDependencyOptions(source, "Source");
+
+  const type = document.createElement("select");
+  type.name = "link_type";
+  type.setAttribute("aria-label", "Dependency type");
+  for (const [value, label] of [["blocks", "Blocks"], ["is_blocked_by", "Is blocked by"], ["relates_to", "Relates to"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    type.append(option);
+  }
+
+  const target = document.createElement("select");
+  target.name = "target_ticket_id";
+  target.required = true;
+  target.setAttribute("aria-label", "Target roadmap issue");
+  appendRoadmapDependencyOptions(target, "Target");
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Add dependency";
+  submit.disabled = roadmapDependencyCandidates().length < 2;
+
+  form.append(source, type, target, submit);
+  syncRoadmapDependencyTargetOptions(form);
+  return form;
+}
+
+function syncRoadmapDependencyTargetOptions(form) {
+  const source = form.querySelector("select[name='source_ticket_id']");
+  const target = form.querySelector("select[name='target_ticket_id']");
+  if (!source || !target) {
+    return;
+  }
+  for (const option of target.options) {
+    option.disabled = Boolean(option.value && option.value === source.value);
+  }
+  if (target.value && target.value === source.value) {
+    target.value = "";
+  }
+}
+
+function appendRoadmapDependencyOptions(select, emptyLabel) {
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = emptyLabel;
+  select.append(empty);
+  for (const ticket of roadmapDependencyCandidates()) {
+    const option = document.createElement("option");
+    option.value = ticket.id;
+    option.textContent = `${ticket.key || ticket.id} ${ticket.title || ""}`.trim();
+    select.append(option);
+  }
+}
+
+function roadmapDependencyCandidates() {
+  const ids = new Set();
+  const candidates = [];
+  for (const item of state.roadmap) {
+    const epic = item.epic;
+    if (epic && !ids.has(epic.id)) {
+      ids.add(epic.id);
+      candidates.push(epic);
+    }
+  }
+  for (const ticket of state.tickets) {
+    if (ticket.parent_ticket_id && ids.has(ticket.parent_ticket_id) && !ids.has(ticket.id)) {
+      ids.add(ticket.id);
+      candidates.push(ticket);
+    }
+  }
+  return candidates;
 }
 
 function ticketKeyTitle(ticket) {
