@@ -2048,9 +2048,9 @@ function bindEvents() {
   els.notificationPolicyScope.addEventListener("change", async () => {
     renderNotificationPolicyProjectOptions();
     await runAction(async () => {
-      if (els.notificationPolicyScope.value !== "project") {
-        await loadNotificationDestinations("");
-      }
+      await loadNotificationDestinations(
+        els.notificationPolicyScope.value === "project" ? selectedNotificationPolicyProjectID() : ""
+      );
       await loadNotificationPolicies();
     }, "Notification policies refreshed");
   });
@@ -2123,9 +2123,9 @@ function bindEvents() {
   els.notificationHookScope.addEventListener("change", async () => {
     renderNotificationHookProjectOptions();
     await runAction(async () => {
-      if (els.notificationHookScope.value !== "project") {
-        await loadNotificationDestinations("");
-      }
+      await loadNotificationDestinations(
+        els.notificationHookScope.value === "project" ? selectedNotificationHookProjectID() : ""
+      );
       await loadNotificationHooks();
     }, "Notification hooks refreshed");
   });

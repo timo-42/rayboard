@@ -214,6 +214,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderNotificationHookPreviewDestinationOptions",
 		"applyNotificationHookPreviewPolicy",
 		"notificationHookPreviewDisplay",
+		"els.notificationPolicyScope.value === \"project\" ? selectedNotificationPolicyProjectID() : \"\"",
+		"els.notificationHookScope.value === \"project\" ? selectedNotificationHookProjectID() : \"\"",
 		"availableNotificationDestinations",
 		"renderDestinationMultiSelect",
 		"selectedFormValues",
