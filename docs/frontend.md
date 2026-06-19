@@ -49,7 +49,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - a roadmap panel with a scheduled epic timeline, unscheduled epic list, inline schedule edits, child-ticket progress, and dependency list, plus ticket-form fields for epics, parent epics, and roadmap dates;
 - a custom-fields panel for listing, creating, updating, and deleting project fields, plus ticket create/card JSON entry for typed custom-field values;
 - an Account/API Tokens profile page where signed-in users can view token metadata, create API tokens with a one-time secret display, and revoke their own tokens;
-- compact search with text/CEL filters, cursor-paginated results, and saved-view list pagination, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning;
+- compact search with text/CEL filters, cursor-paginated results, saved-view list pagination, create, edit, apply, and delete controls for query, sort, columns, display mode, grouping, and pinning, plus pinned project saved views in project navigation;
 - an engine workbench for testing Lua, OpenRouter AI, and WASM engines through `/api/engines/test`, with state/mode badges, explicit action-preview display, and raw JSON output;
 - basic cron job management on `/automation`, including project-filtered list, create, delete, enable/disable, manual run, and recent run output through `/api/cron-jobs`;
 - basic project webhook management on `/automation`, including list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection through `/api/projects/{project_id}/webhooks`;
@@ -63,7 +63,7 @@ Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints.
 
-Richer board settings beyond inline edits and WIP warnings, richer backlog planning beyond reorder controls and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency editing and capacity planning, richer component/version reporting beyond compact release snapshots, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Richer board settings beyond inline edits and WIP warnings, richer backlog planning beyond reorder controls and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency editing and capacity planning, richer component/version reporting beyond compact release snapshots, custom-field search/layout screens, richer saved-view UI beyond pinned project navigation, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

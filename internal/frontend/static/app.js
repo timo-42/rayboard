@@ -43,6 +43,9 @@ const state = {
   savedViews: [],
   savedViewOffset: 0,
   savedViewHasMore: false,
+  pinnedProjectSavedViews: [],
+  pinnedProjectSavedViewsLoading: false,
+  pinnedProjectSavedViewsError: "",
   lastSearchSpec: { text: "", filter: "" },
   tokens: [],
   createdToken: null,
@@ -235,6 +238,7 @@ const els = {
   boardView: document.querySelector("#board-view"),
   sessionState: document.querySelector("#session-state"),
   projects: document.querySelector("#projects"),
+  pinnedProjectViews: document.querySelector("#pinned-project-views"),
   selectedProject: document.querySelector("#selected-project"),
   ticketFilterForm: document.querySelector("#ticket-filter-form"),
   ticketFilterLabel: document.querySelector("#ticket-filter-label"),
@@ -317,6 +321,9 @@ function bindEvents() {
       resetSearchPagination();
       state.savedViews = [];
       resetSavedViewPagination();
+      state.pinnedProjectSavedViews = [];
+      state.pinnedProjectSavedViewsLoading = false;
+      state.pinnedProjectSavedViewsError = "";
       state.lastSearchSpec = { text: "", filter: "" };
       state.tokens = [];
       state.createdToken = null;
@@ -1351,14 +1358,8 @@ function bindEvents() {
       if (!view) {
         return;
       }
-      setSearchForm(view.query);
       await runAction(async () => {
-        await runSearch({
-          text: view.query.text || "",
-          filter: view.query.filter || "",
-          project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : ""),
-          sort: view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }]
-        }, { reset: true });
+        await applySavedView(view);
       }, "Saved view applied");
       return;
     }
@@ -1398,6 +1399,20 @@ function bindEvents() {
         await loadSavedViews();
       }, "Saved view page loaded");
     }
+  });
+
+  els.pinnedProjectViews.addEventListener("click", async (event) => {
+    const apply = event.target.closest("[data-apply-pinned-project-view-id]");
+    if (!apply) {
+      return;
+    }
+    const view = state.pinnedProjectSavedViews.find((item) => item.id === apply.dataset.applyPinnedProjectViewId);
+    if (!view) {
+      return;
+    }
+    await runAction(async () => {
+      await applySavedView(view, { navigateToSearch: true });
+    }, "Pinned view applied");
   });
 
   els.tokenForm.addEventListener("submit", async (event) => {
@@ -2406,6 +2421,32 @@ async function loadSavedViews() {
   renderSavedViews();
 }
 
+async function loadPinnedProjectSavedViews() {
+  if (!state.user || !state.selectedProject) {
+    state.pinnedProjectSavedViews = [];
+    state.pinnedProjectSavedViewsLoading = false;
+    state.pinnedProjectSavedViewsError = "";
+    renderPinnedProjectSavedViews();
+    return;
+  }
+  state.pinnedProjectSavedViewsLoading = true;
+  state.pinnedProjectSavedViewsError = "";
+  renderPinnedProjectSavedViews();
+  try {
+    const projectID = encodeURIComponent(state.selectedProject.id);
+    const data = await api(`/api/saved-views?project_id=${projectID}&pinned=true&limit=20&offset=0`);
+    state.pinnedProjectSavedViews = listItems(data).map(normalizeSavedView).filter((view) =>
+      view && view.pinned && view.scope_type === "project" && view.project_id === state.selectedProject.id
+    );
+  } catch (error) {
+    state.pinnedProjectSavedViews = [];
+    state.pinnedProjectSavedViewsError = error.message || "Unable to load pinned views";
+  } finally {
+    state.pinnedProjectSavedViewsLoading = false;
+    renderPinnedProjectSavedViews();
+  }
+}
+
 async function loadSprints(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.sprints = [];
@@ -2707,6 +2748,7 @@ async function loadProjectDetails() {
   await loadRoadmapDependencies();
   await loadProjectLabels({ renderTickets: false });
   await loadTickets();
+  await loadPinnedProjectSavedViews();
   await loadSavedViews();
 }
 
@@ -2789,6 +2831,9 @@ async function loadProjects(selectedID = "") {
     state.activities = {};
     state.searchResults = [];
     state.savedViews = [];
+    state.pinnedProjectSavedViews = [];
+    state.pinnedProjectSavedViewsLoading = false;
+    state.pinnedProjectSavedViewsError = "";
   }
   render();
 }
@@ -3340,6 +3385,7 @@ function render() {
   renderNavigation(route);
   renderDashboard();
   renderProjects();
+  renderPinnedProjectSavedViews();
   renderTickets();
   renderIssue();
   renderCreatePageView();
@@ -5995,6 +6041,79 @@ function renderProjects() {
     button.append(key, name);
     els.projects.append(button);
   }
+}
+
+function renderPinnedProjectSavedViews() {
+  if (!els.pinnedProjectViews) {
+    return;
+  }
+  els.pinnedProjectViews.replaceChildren();
+  if (!state.selectedProject) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a project";
+    els.pinnedProjectViews.append(empty);
+    return;
+  }
+  if (state.pinnedProjectSavedViewsLoading) {
+    const loading = document.createElement("p");
+    loading.className = "muted";
+    loading.textContent = "Loading views";
+    els.pinnedProjectViews.append(loading);
+    return;
+  }
+  if (state.pinnedProjectSavedViewsError) {
+    const error = document.createElement("p");
+    error.className = "muted";
+    error.textContent = state.pinnedProjectSavedViewsError;
+    els.pinnedProjectViews.append(error);
+    return;
+  }
+  if (!state.pinnedProjectSavedViews.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No pinned views";
+    els.pinnedProjectViews.append(empty);
+    return;
+  }
+  for (const view of state.pinnedProjectSavedViews) {
+    els.pinnedProjectViews.append(pinnedProjectViewNode(view));
+  }
+}
+
+function pinnedProjectViewNode(view) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "pinned-project-view";
+  button.dataset.applyPinnedProjectViewId = view.id;
+
+  const title = document.createElement("span");
+  title.textContent = view.name || "Saved view";
+
+  const meta = document.createElement("small");
+  meta.textContent = [
+    view.display_mode || "list",
+    view.group_by ? `group ${view.group_by}` : "",
+    view.query && view.query.filter ? "filtered" : "",
+    view.query && view.query.text ? "text" : ""
+  ].filter(Boolean).join(" / ");
+
+  button.append(title, meta);
+  return button;
+}
+
+async function applySavedView(view, options = {}) {
+  const query = view.query || {};
+  if (options.navigateToSearch) {
+    await navigate("/search");
+  }
+  setSearchForm(query);
+  await runSearch({
+    text: query.text || "",
+    filter: query.filter || "",
+    project_id: view.project_id || (state.selectedProject ? state.selectedProject.id : ""),
+    sort: view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }]
+  }, { reset: true });
 }
 
 function renderTicketHooks() {
