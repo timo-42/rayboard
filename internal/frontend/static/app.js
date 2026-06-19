@@ -20,6 +20,7 @@ const state = {
   selectedBoardID: "",
   boardTickets: null,
   sprints: [],
+  sprintFilterState: "",
   selectedSprintReportID: "",
   sprintReport: null,
   components: [],
@@ -305,6 +306,7 @@ function bindEvents() {
       state.selectedBoardID = "";
       state.boardTickets = null;
       state.sprints = [];
+      state.sprintFilterState = "";
       state.selectedSprintReportID = "";
       state.sprintReport = null;
       state.components = [];
@@ -763,8 +765,40 @@ function bindEvents() {
         }
       });
       form.reset();
+      renderSprintFilter();
       await loadSprints();
     }, "Sprint created");
+  });
+
+  els.sprintForm.elements.state_filter.addEventListener("change", async (event) => {
+    state.sprintFilterState = event.target.value || "";
+    await loadSprints();
+  });
+
+  els.sprints.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-sprint-edit-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    const data = formData(form);
+    await runAction(async () => {
+      await api(`/api/sprints/${form.dataset.sprintEditForm}`, {
+        method: "PATCH",
+        body: {
+          spec: {
+            name: data.name || "",
+            goal: data.goal || "",
+            start_date: data.start_date || "",
+            end_date: data.end_date || ""
+          }
+        }
+      });
+      await loadSprints();
+      if (state.selectedSprintReportID === form.dataset.sprintEditForm) {
+        await loadSprintReport(state.selectedSprintReportID);
+      }
+    }, "Sprint updated");
   });
 
   els.sprints.addEventListener("click", async (event) => {
@@ -2460,7 +2494,8 @@ async function loadSprints(options = {}) {
     }
     return;
   }
-  const data = await api(`/api/projects/${state.selectedProject.id}/sprints`);
+  const query = state.sprintFilterState ? `?state=${encodeURIComponent(state.sprintFilterState)}` : "";
+  const data = await api(`/api/projects/${state.selectedProject.id}/sprints${query}`);
   state.sprints = listItems(data).map(normalizeSprint);
   if (state.selectedSprintReportID && !state.sprints.some((sprint) => sprint.id === state.selectedSprintReportID)) {
     state.selectedSprintReportID = "";
@@ -2819,6 +2854,7 @@ async function loadProjects(selectedID = "") {
     state.boardTickets = null;
     state.ticketFilters = emptyTicketFilters();
     state.sprints = [];
+    state.sprintFilterState = "";
     state.selectedSprintReportID = "";
     state.sprintReport = null;
     state.components = [];
@@ -3794,6 +3830,7 @@ function renderSprints() {
     return;
   }
   els.sprints.replaceChildren();
+  renderSprintFilter();
   if (!state.selectedProject) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -3811,6 +3848,13 @@ function renderSprints() {
   for (const sprint of state.sprints) {
     els.sprints.append(sprintNode(sprint));
   }
+}
+
+function renderSprintFilter() {
+  if (!els.sprintForm || !els.sprintForm.elements.state_filter) {
+    return;
+  }
+  els.sprintForm.elements.state_filter.value = state.sprintFilterState || "";
 }
 
 function renderSprintReport() {
@@ -3975,6 +4019,23 @@ function sprintNode(sprint) {
 
   body.append(name, meta);
 
+  let edit = null;
+  if (sprint.state !== "completed") {
+    edit = document.createElement("form");
+    edit.className = "sprint-edit-form";
+    edit.dataset.sprintEditForm = sprint.id;
+    edit.append(
+      inputNode("name", sprint.name || "", "name"),
+      inputNode("goal", sprint.goal || "", "goal"),
+      inputNode("start_date", sprint.start_date || "", "Start date", "date"),
+      inputNode("end_date", sprint.end_date || "", "End date", "date")
+    );
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.textContent = "Save";
+    edit.append(save);
+  }
+
   const actions = document.createElement("div");
   actions.className = "sprint-actions";
 
@@ -4008,7 +4069,11 @@ function sprintNode(sprint) {
   remove.textContent = "Delete";
   actions.append(remove);
 
-  article.append(body, actions);
+  article.append(body);
+  if (edit) {
+    article.append(edit);
+  }
+  article.append(actions);
   return article;
 }
 
