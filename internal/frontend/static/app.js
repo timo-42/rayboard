@@ -754,6 +754,16 @@ function bindEvents() {
     renderCreatePageLogicFields();
   });
 
+  els.createPages.addEventListener("change", (event) => {
+    if (!event.target.matches("select[name='logic_type']")) {
+      return;
+    }
+    const form = event.target.closest("[data-create-page-form]");
+    if (form) {
+      renderCreatePageEditLogicFields(form);
+    }
+  });
+
   els.createPageProject.addEventListener("change", async () => {
     const projectID = els.createPageProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
@@ -822,6 +832,21 @@ function bindEvents() {
         await loadCreatePages();
       }, "Create page deleted");
     }
+  });
+
+  els.createPages.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-create-page-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/ticket-create-pages/${form.dataset.createPageForm}`, {
+        method: "PATCH",
+        body: { spec: createPageSpec(form, { includeEmptyOptionals: true, clearUnselectedLogic: true }) }
+      });
+      await loadCreatePages();
+    }, "Create page saved");
   });
 
   els.engineForm.addEventListener("submit", async (event) => {
@@ -8045,6 +8070,13 @@ function renderCreatePageLogicFields() {
   });
 }
 
+function renderCreatePageEditLogicFields(form) {
+  const type = form && form.elements.logic_type ? form.elements.logic_type.value : "none";
+  form.querySelectorAll("[data-create-page-edit-logic-field]").forEach((field) => {
+    field.hidden = field.dataset.createPageEditLogicField !== type;
+  });
+}
+
 function createPageNode(page) {
   const article = document.createElement("article");
   article.className = "create-page-item";
@@ -8117,6 +8149,8 @@ function createPageNode(page) {
   }, null, 2);
   article.append(config);
 
+  article.append(createPageEditForm(page));
+
   if (page.schema) {
     const schemaOutput = document.createElement("pre");
     schemaOutput.className = "create-page-config";
@@ -8128,6 +8162,88 @@ function createPageNode(page) {
     article.append(createPageRunListNode(runsList));
   }
   return article;
+}
+
+function createPageEditForm(page) {
+  const form = document.createElement("form");
+  form.className = "create-page-edit-form";
+  form.dataset.createPageForm = page.id;
+  const logicType = page.form_lua_script ? "lua" : (page.form_ai_prompt || page.form_ai_provider_id ? "ai" : "none");
+
+  form.append(
+    inputNode("name", page.name || "", "name"),
+    inputNode("slug", page.slug || "", "slug"),
+    inputNode("target_type", page.target_type || "", "target type"),
+    inputNode("target_status", page.target_status || "", "target status"),
+    inputNode("owner_user_id", page.owner_user_id || "", "owner user id"),
+    createPageSelect("logic_type", [
+      ["none", "Static"],
+      ["lua", "Lua"],
+      ["ai", "OpenRouter AI"]
+    ], logicType)
+  );
+
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = page.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const description = document.createElement("label");
+  description.className = "create-page-edit-wide";
+  description.append("Description", createPageTextarea("description", page.description || "", 2));
+
+  const fieldLayout = document.createElement("label");
+  fieldLayout.className = "create-page-edit-wide";
+  fieldLayout.append("Field Layout JSON", createPageTextarea("field_layout", JSON.stringify(page.field_layout || [], null, 2), 5));
+
+  const defaults = document.createElement("label");
+  defaults.className = "create-page-edit-wide";
+  defaults.append("Defaults JSON", createPageTextarea("defaults", JSON.stringify(page.defaults || {}, null, 2), 4));
+
+  const lua = document.createElement("label");
+  lua.dataset.createPageEditLogicField = "lua";
+  lua.append("Lua Script", createPageTextarea("form_lua_script", page.form_lua_script || "", 5));
+
+  const ai = document.createElement("div");
+  ai.dataset.createPageEditLogicField = "ai";
+  const prompt = document.createElement("label");
+  prompt.append("AI Prompt", createPageTextarea("form_ai_prompt", page.form_ai_prompt || "", 5));
+  const provider = document.createElement("label");
+  provider.append("Provider ID", inputNode("form_ai_provider_id", page.form_ai_provider_id || "", "openrouter_provider_..."));
+  ai.append(prompt, provider);
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save page";
+
+  form.append(enabled, description, fieldLayout, defaults, lua, ai, save);
+  renderCreatePageEditLogicFields(form);
+  return form;
+}
+
+function createPageSelect(name, options, selectedValue) {
+  const select = document.createElement("select");
+  select.name = name;
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedValue;
+    select.append(option);
+  }
+  return select;
+}
+
+function createPageTextarea(name, value, rows) {
+  const textarea = document.createElement("textarea");
+  textarea.name = name;
+  textarea.rows = rows;
+  textarea.spellcheck = false;
+  textarea.value = value || "";
+  return textarea;
 }
 
 function createPageRunListNode(runs) {
@@ -8487,7 +8603,7 @@ function notificationHookPreviewSpec() {
   return spec;
 }
 
-function createPageSpec(form) {
+function createPageSpec(form, options = {}) {
   const data = formData(form);
   const logicType = data.logic_type || "none";
   const spec = {
@@ -8503,13 +8619,26 @@ function createPageSpec(form) {
   };
   if (logicType === "lua") {
     spec.form_lua_script = data.form_lua_script || "";
+    if (options.clearUnselectedLogic) {
+      spec.form_ai_prompt = "";
+      spec.form_ai_provider_id = "";
+    }
   } else if (logicType === "ai") {
+    if (options.clearUnselectedLogic) {
+      spec.form_lua_script = "";
+    }
     spec.form_ai_prompt = data.form_ai_prompt || "";
     spec.form_ai_provider_id = data.form_ai_provider_id || "";
+  } else if (options.clearUnselectedLogic) {
+    spec.form_lua_script = "";
+    spec.form_ai_prompt = "";
+    spec.form_ai_provider_id = "";
   }
   for (const key of ["target_type", "target_status", "owner_user_id", "form_lua_script", "form_ai_prompt", "form_ai_provider_id"]) {
     if (!spec[key]) {
-      delete spec[key];
+      if (!options.includeEmptyOptionals) {
+        delete spec[key];
+      }
     }
   }
   return spec;
@@ -11026,6 +11155,9 @@ function normalizeCreatePage(page) {
       defaults: page.spec.defaults || {},
       has_lua: Boolean(page.spec.form_lua_script),
       has_ai: Boolean(page.spec.form_ai_prompt || page.spec.form_ai_provider_id),
+      form_lua_script: page.spec.form_lua_script || "",
+      form_ai_prompt: page.spec.form_ai_prompt || "",
+      form_ai_provider_id: page.spec.form_ai_provider_id || "",
       deleted_at: page.status.deleted_at || "",
       schema: null
     };
