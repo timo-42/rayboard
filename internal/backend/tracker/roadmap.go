@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -70,6 +71,83 @@ func (s *Service) ListRoadmap(ctx context.Context, principal authz.Principal, pr
 		items[index].Epic = epics[index]
 	}
 	return items, nil
+}
+
+func (s *Service) ListRoadmapDependencies(ctx context.Context, principal authz.Principal, projectID string) ([]RoadmapDependency, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, validationFailed(map[string]string{"project_id": "Required"})
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(projectID)); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.GetProject(ctx, projectID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		WITH roadmap_epics AS (
+			SELECT id
+			FROM tickets
+			WHERE project_id = ? AND type = 'epic' AND deleted_at IS NULL
+		),
+		roadmap_tickets AS (
+			SELECT id, id AS epic_id
+			FROM tickets
+			WHERE project_id = ? AND type = 'epic' AND deleted_at IS NULL
+			UNION
+			SELECT tickets.id, tickets.parent_ticket_id AS epic_id
+			FROM tickets
+			JOIN roadmap_epics ON roadmap_epics.id = tickets.parent_ticket_id
+			WHERE tickets.project_id = ? AND tickets.deleted_at IS NULL
+		)
+		SELECT links.id, source_scope.epic_id, target_scope.epic_id
+		FROM ticket_links links
+		JOIN roadmap_tickets source_scope ON source_scope.id = links.source_ticket_id
+		JOIN roadmap_tickets target_scope ON target_scope.id = links.target_ticket_id
+		WHERE links.deleted_at IS NULL
+		ORDER BY links.created_at ASC, links.id ASC
+	`, projectID, projectID, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list roadmap dependency ids: %w", err)
+	}
+	defer rows.Close()
+
+	dependencies := []RoadmapDependency{}
+	for rows.Next() {
+		var linkID string
+		var sourceEpicID sql.NullString
+		var targetEpicID sql.NullString
+		if err := rows.Scan(&linkID, &sourceEpicID, &targetEpicID); err != nil {
+			return nil, fmt.Errorf("scan roadmap dependency id: %w", err)
+		}
+		link, err := s.repo.getTicketLink(ctx, linkID)
+		if err != nil {
+			return nil, err
+		}
+		dependencies = append(dependencies, RoadmapDependency{
+			Link:         link,
+			SourceEpicID: nullString(sourceEpicID),
+			TargetEpicID: nullString(targetEpicID),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate roadmap dependency ids: %w", err)
+	}
+
+	tickets := make([]Ticket, 0, len(dependencies)*2)
+	for _, dependency := range dependencies {
+		tickets = append(tickets, dependency.Link.Source, dependency.Link.Target)
+	}
+	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
+	if err != nil {
+		return nil, err
+	}
+	for index := range dependencies {
+		dependencies[index].Link.Source = tickets[index*2]
+		dependencies[index].Link.Target = tickets[index*2+1]
+	}
+	return dependencies, nil
 }
 
 func (s *Service) ScheduleRoadmap(ctx context.Context, principal authz.Principal, projectID string, input RoadmapScheduleInput) ([]RoadmapItem, error) {

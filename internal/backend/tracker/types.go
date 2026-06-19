@@ -176,6 +176,12 @@ type RoadmapItem struct {
 	Progress RoadmapProgress `json:"progress"`
 }
 
+type RoadmapDependency struct {
+	Link         TicketLink `json:"link"`
+	SourceEpicID string     `json:"source_epic_id,omitempty"`
+	TargetEpicID string     `json:"target_epic_id,omitempty"`
+}
+
 type RoadmapScheduleInput struct {
 	TicketID  string `json:"ticket_id"`
 	StartDate string `json:"start_date,omitempty"`

@@ -28,6 +28,7 @@ const state = {
   versionReport: null,
   customFields: [],
   roadmap: [],
+  roadmapDependencies: [],
   attachments: {},
   comments: {},
   ticketLinks: {},
@@ -210,6 +211,7 @@ const els = {
   customFields: document.querySelector("#custom-fields"),
   roadmapPanel: document.querySelector("#roadmap-panel"),
   roadmap: document.querySelector("#roadmap"),
+  roadmapDependencies: document.querySelector("#roadmap-dependencies"),
   ticketParentID: document.querySelector("#ticket-parent-id"),
   ticketComponentID: document.querySelector("#ticket-component-id"),
   ticketVersionID: document.querySelector("#ticket-version-id"),
@@ -2066,6 +2068,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/tickets/${deleteLink.dataset.ticketId}/links/${deleteLink.dataset.deleteTicketLinkId}`, { method: "DELETE" });
         await loadTicketLinks(deleteLink.dataset.ticketId);
+        await loadRoadmapDependencies();
         await loadActivity(deleteLink.dataset.ticketId);
       }, "Ticket link removed");
       return;
@@ -2087,6 +2090,7 @@ function bindEvents() {
         delete state.activities[ticketID];
         await loadProjectLabels({ renderTickets: false });
         await loadRoadmap({ renderTickets: false });
+        await loadRoadmapDependencies();
         await loadBacklog();
         if (state.selectedBoardID) {
           await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
@@ -2204,6 +2208,7 @@ function bindEvents() {
         });
         linkForm.reset();
         await loadTicketLinks(ticketID);
+        await loadRoadmapDependencies();
         await loadActivity(ticketID);
       }, "Ticket link added");
       return;
@@ -2619,7 +2624,9 @@ async function loadCustomFields(options = {}) {
 async function loadRoadmap(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.roadmap = [];
+    state.roadmapDependencies = [];
     renderRoadmap();
+    renderRoadmapDependencies();
     renderTicketFormOptions();
     if (options.renderTickets !== false) {
       renderTickets();
@@ -2633,6 +2640,17 @@ async function loadRoadmap(options = {}) {
   if (options.renderTickets !== false) {
     renderTickets();
   }
+}
+
+async function loadRoadmapDependencies() {
+  if (!state.user || !state.selectedProject) {
+    state.roadmapDependencies = [];
+    renderRoadmapDependencies();
+    return;
+  }
+  const data = await api(`/api/projects/${state.selectedProject.id}/roadmap/dependencies`);
+  state.roadmapDependencies = listItems(data).map(normalizeRoadmapDependency).filter(Boolean);
+  renderRoadmapDependencies();
 }
 
 async function scheduleRoadmapItem(form) {
@@ -2684,6 +2702,7 @@ async function loadProjectDetails() {
   await loadVersions({ renderTickets: false });
   await loadCustomFields({ renderTickets: false });
   await loadRoadmap({ renderTickets: false });
+  await loadRoadmapDependencies();
   await loadProjectLabels({ renderTickets: false });
   await loadTickets();
   await loadSavedViews();
@@ -2761,6 +2780,7 @@ async function loadProjects(selectedID = "") {
     state.projectLabels = [];
     state.customFields = [];
     state.roadmap = [];
+    state.roadmapDependencies = [];
     state.attachments = {};
     state.comments = {};
     state.ticketLinks = {};
@@ -3330,6 +3350,7 @@ function render() {
   renderVersionReport();
   renderCustomFields();
   renderRoadmap();
+  renderRoadmapDependencies();
   renderTicketFormOptions();
   renderTicketFilters();
   renderSearchResults();
@@ -4445,6 +4466,69 @@ function renderRoadmap() {
     }
     els.roadmap.append(group);
   }
+}
+
+function renderRoadmapDependencies() {
+  if (!els.roadmapDependencies) {
+    return;
+  }
+  els.roadmapDependencies.replaceChildren();
+  if (!state.selectedProject) {
+    return;
+  }
+  const heading = document.createElement("h3");
+  heading.textContent = "Dependencies";
+  els.roadmapDependencies.append(heading);
+  if (!state.roadmapDependencies.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No roadmap dependencies";
+    els.roadmapDependencies.append(empty);
+    return;
+  }
+  const list = document.createElement("div");
+  list.className = "roadmap-dependency-list";
+  for (const dependency of state.roadmapDependencies) {
+    list.append(roadmapDependencyNode(dependency));
+  }
+  els.roadmapDependencies.append(list);
+}
+
+function roadmapDependencyNode(dependency) {
+  const link = dependency.link || {};
+  const source = link.source || {};
+  const target = link.target || {};
+  const article = document.createElement("article");
+  article.className = "roadmap-dependency";
+
+  const title = document.createElement("p");
+  title.textContent = `${ticketKeyTitle(source)} ${ticketLinkLabel(link.link_type)} ${ticketKeyTitle(target)}`;
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    roadmapEpicName(dependency.source_epic_id),
+    dependency.target_epic_id && dependency.target_epic_id !== dependency.source_epic_id ? `to ${roadmapEpicName(dependency.target_epic_id)}` : "",
+    source.status ? `source ${source.status}` : "",
+    target.status ? `target ${target.status}` : ""
+  ].filter(Boolean).join(" / ");
+
+  article.append(title, meta);
+  return article;
+}
+
+function ticketKeyTitle(ticket) {
+  if (!ticket) {
+    return "issue";
+  }
+  return [ticket.key || ticket.id || "issue", ticket.title || ""].filter(Boolean).join(" ");
+}
+
+function roadmapEpicName(epicID) {
+  const item = state.roadmap.find((entry) => entry.epic && entry.epic.id === epicID);
+  if (!item || !item.epic) {
+    return epicID || "";
+  }
+  return `${item.epic.key || item.epic.id} ${item.epic.title || ""}`.trim();
 }
 
 function roadmapTimelineNode(items) {
@@ -8106,6 +8190,22 @@ function normalizeTicketLink(link) {
     };
   }
   return link;
+}
+
+function normalizeRoadmapDependency(dependency) {
+  if (!dependency) {
+    return null;
+  }
+  if (dependency.metadata && dependency.spec) {
+    return {
+      id: dependency.metadata.id || "",
+      project_id: dependency.metadata.project_id || "",
+      source_epic_id: dependency.spec.source_epic_id || "",
+      target_epic_id: dependency.spec.target_epic_id || "",
+      link: normalizeTicketLink(dependency.spec.link)
+    };
+  }
+  return dependency;
 }
 
 function normalizeWorkflowStatus(status) {

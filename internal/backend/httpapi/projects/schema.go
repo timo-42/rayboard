@@ -247,16 +247,32 @@ type RoadmapItemMetadata struct {
 	ProjectID string `json:"project_id"`
 }
 
+type RoadmapDependencyMetadata struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
 type RoadmapItemSpec struct {
 	Epic ticketapi.TicketResource `json:"epic"`
+}
+
+type RoadmapDependencySpec struct {
+	Link         ticketapi.TicketLinkResource `json:"link"`
+	SourceEpicID string                       `json:"source_epic_id,omitempty"`
+	TargetEpicID string                       `json:"target_epic_id,omitempty"`
 }
 
 type RoadmapItemStatus struct {
 	Progress tracker.RoadmapProgress `json:"progress"`
 }
 
+type RoadmapDependencyStatus struct {
+}
+
 type RoadmapItemResource = shared.Resource[RoadmapItemMetadata, RoadmapItemSpec, RoadmapItemStatus]
 type ListRoadmapOutput = shared.ListOutput[RoadmapItemResource]
+type RoadmapDependencyResource = shared.Resource[RoadmapDependencyMetadata, RoadmapDependencySpec, RoadmapDependencyStatus]
+type ListRoadmapDependenciesOutput = shared.ListOutput[RoadmapDependencyResource]
 type ListSprintsOutput = shared.ListOutput[sprintapi.SprintResource]
 type CreateSprintOutput = shared.CreatedOutput[sprintapi.SprintResource]
 
@@ -389,6 +405,25 @@ func roadmapItemResources(items []tracker.RoadmapItem) []RoadmapItemResource {
 			Status: RoadmapItemStatus{
 				Progress: item.Progress,
 			},
+		})
+	}
+	return resources
+}
+
+func roadmapDependencyResources(items []tracker.RoadmapDependency) []RoadmapDependencyResource {
+	resources := make([]RoadmapDependencyResource, 0, len(items))
+	for _, item := range items {
+		resources = append(resources, RoadmapDependencyResource{
+			Metadata: RoadmapDependencyMetadata{
+				ID:        item.Link.ID,
+				ProjectID: item.Link.ProjectID,
+			},
+			Spec: RoadmapDependencySpec{
+				Link:         ticketapi.LinkResourceFromTracker(item.Link),
+				SourceEpicID: item.SourceEpicID,
+				TargetEpicID: item.TargetEpicID,
+			},
+			Status: RoadmapDependencyStatus{},
 		})
 	}
 	return resources

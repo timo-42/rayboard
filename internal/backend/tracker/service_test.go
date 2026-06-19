@@ -649,6 +649,60 @@ func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
 	}
 }
 
+func TestRoadmapDependenciesIncludeEpicAndChildLinks(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+
+	epic, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Checkout epic", Type: "Epic"})
+	if err != nil {
+		t.Fatalf("create epic: %v", err)
+	}
+	child, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Checkout child", ParentTicketID: epic.ID})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	nonRoadmap, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Standalone task"})
+	if err != nil {
+		t.Fatalf("create non-roadmap ticket: %v", err)
+	}
+	link, err := service.CreateTicketLink(ctx, member, epic.ID, tracker.CreateTicketLinkInput{TargetTicketID: child.ID, LinkType: "blocks"})
+	if err != nil {
+		t.Fatalf("create roadmap link: %v", err)
+	}
+	if _, err := service.CreateTicketLink(ctx, member, epic.ID, tracker.CreateTicketLinkInput{TargetTicketID: nonRoadmap.ID, LinkType: "relates_to"}); err != nil {
+		t.Fatalf("create non-roadmap link: %v", err)
+	}
+
+	dependencies, err := service.ListRoadmapDependencies(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list roadmap dependencies: %v", err)
+	}
+	if len(dependencies) != 1 || dependencies[0].Link.ID != link.ID || dependencies[0].SourceEpicID != epic.ID || dependencies[0].TargetEpicID != epic.ID {
+		t.Fatalf("unexpected roadmap dependencies: %#v", dependencies)
+	}
+	if dependencies[0].Link.Source.ID != epic.ID || dependencies[0].Link.Target.ID != child.ID {
+		t.Fatalf("unexpected roadmap dependency tickets: %#v", dependencies[0].Link)
+	}
+	if _, err := service.ListRoadmapDependencies(ctx, principal("outsider"), project.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected forbidden roadmap dependency list, got %v", err)
+	}
+}
+
 func TestTicketWatchersListWatchUnwatchAndAuthorize(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)
