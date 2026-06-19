@@ -3596,7 +3596,24 @@ p {
 .automation-run-summary {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+.automation-run-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.automation-run-filter select {
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
 }
 
 .automation-run-summary span {
