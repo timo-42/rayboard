@@ -491,7 +491,7 @@ func (s *Service) getVersion(ctx context.Context, versionID string) (Version, er
 func (s *Service) listVersionReportTickets(ctx context.Context, versionID string) ([]Ticket, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, story_points, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE version_id = ? AND deleted_at IS NULL
 		ORDER BY status ASC, created_at DESC, key DESC

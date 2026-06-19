@@ -21,10 +21,10 @@ type compiledFilter struct {
 }
 
 type ticketFilterField struct {
-	Name        string
-	SQL         string
-	Kind        string
-	Normalize   func(string) string
+	Name      string
+	SQL       string
+	Kind      string
+	Normalize func(string) string
 }
 
 type filterValue struct {
@@ -60,6 +60,7 @@ var ticketFilterFields = map[string]ticketFilterField{
 	"version_id":       {Name: "version_id", SQL: "t.version_id", Kind: filterKindString},
 	"labels":           {Name: "labels", Kind: filterKindList, Normalize: strings.ToLower},
 	"start_date":       {Name: "start_date", SQL: "t.start_date", Kind: filterKindString},
+	"story_points":     {Name: "story_points", SQL: "t.story_points", Kind: filterKindNumber},
 	"due_date":         {Name: "due_date", SQL: "t.due_date", Kind: filterKindString},
 	"created_at":       {Name: "created_at", SQL: "t.created_at", Kind: filterKindString},
 	"updated_at":       {Name: "updated_at", SQL: "t.updated_at", Kind: filterKindString},
@@ -90,6 +91,7 @@ func compileTicketFilter(input string, principal authz.Principal, now time.Time)
 		cel.Variable("version_id", cel.StringType),
 		cel.Variable("labels", cel.DynType),
 		cel.Variable("start_date", cel.StringType),
+		cel.Variable("story_points", cel.DynType),
 		cel.Variable("due_date", cel.StringType),
 		cel.Variable("created_at", cel.StringType),
 		cel.Variable("updated_at", cel.StringType),
@@ -194,15 +196,32 @@ func (t filterTranslator) compareField(field string, operator string, value filt
 		}
 		return t.fieldInList(def, value, operator == operators.NotEquals)
 	}
+	if field == "labels" {
+		if value.Kind != filterKindString {
+			return wherePart{}, fmt.Errorf("field %q requires a string value", field)
+		}
+		text := value.Value.(string)
+		if def.Normalize != nil {
+			text = def.Normalize(text)
+		}
+		return labelClause(operator, text)
+	}
+	if def.Kind == filterKindNumber {
+		if value.Kind != filterKindNumber {
+			return wherePart{}, fmt.Errorf("field %q requires a number value", field)
+		}
+		sqlOperator, err := sqlComparisonOperator(operator)
+		if err != nil {
+			return wherePart{}, err
+		}
+		return wherePart{SQL: def.SQL + " " + sqlOperator + " ?", Args: []any{value.Value}}, nil
+	}
 	if value.Kind != filterKindString {
 		return wherePart{}, fmt.Errorf("field %q requires a string value", field)
 	}
 	text := value.Value.(string)
 	if def.Normalize != nil {
 		text = def.Normalize(text)
-	}
-	if field == "labels" {
-		return labelClause(operator, text)
 	}
 	sqlOperator, err := sqlComparisonOperator(operator)
 	if err != nil {

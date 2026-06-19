@@ -607,12 +607,16 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"burndown",
 		"burnup",
 		"velocity",
+		"story_points_total",
+		"formatStoryPoints",
 		"/api/projects/${state.selectedProject.id}/sprints",
 		"/api/sprints/${sprintID}/report",
 		"/api/sprints/${start.dataset.startSprintId}/start",
 		"/api/sprints/${complete.dataset.completeSprintId}/complete",
 		"/api/tickets/${assignSprint.dataset.assignSprintId}/sprint",
+		"/api/tickets/${updateStoryPoints.dataset.updateStoryPointsId}",
 		"data-ticket-sprint-control",
+		"data-ticket-story-points-control",
 		"data-sprint-report-id",
 		"completed_snapshot",
 		"Live current assignment",
@@ -631,6 +635,7 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-chart",
 		".sprint-report-ticket",
 		".ticket-sprint",
+		".ticket-story-points",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)

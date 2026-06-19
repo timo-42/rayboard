@@ -335,7 +335,7 @@ func (s *Service) snapshotSprintReportTickets(ctx context.Context, tx *sql.Tx, s
 func (s *Service) listSprintReportTickets(ctx context.Context, sprintID string) ([]Ticket, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, story_points, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE sprint_id = ? AND deleted_at IS NULL
 		ORDER BY status ASC, created_at DESC, key DESC
@@ -379,7 +379,7 @@ func (s *Service) listSprintSnapshotTickets(ctx context.Context, sprintID string
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT tickets.id, tickets.project_id, tickets.key, tickets.title, tickets.description, tickets.status, tickets.priority, tickets.type,
 			tickets.reporter_id, tickets.assignee_id, tickets.parent_ticket_id, tickets.sprint_id, tickets.component_id, tickets.version_id,
-			tickets.rank, tickets.start_date, tickets.due_date, tickets.created_at, tickets.updated_at, tickets.deleted_at
+			tickets.rank, tickets.start_date, tickets.due_date, tickets.story_points, tickets.created_at, tickets.updated_at, tickets.deleted_at
 		FROM sprint_report_tickets snapshot
 		JOIN tickets ON tickets.id = snapshot.ticket_id
 		WHERE snapshot.sprint_id = ? AND tickets.deleted_at IS NULL
@@ -409,10 +409,19 @@ func sprintReportProgress(tickets []Ticket) SprintReportProgress {
 	for _, ticket := range tickets {
 		progress.Total++
 		progress.ByStatus[ticket.Status]++
+		if ticket.StoryPoints == nil {
+			progress.StoryPointsUnestimated++
+		} else {
+			progress.StoryPointsTotal += *ticket.StoryPoints
+		}
 		if ticket.Status == "done" {
 			progress.Done++
+			if ticket.StoryPoints != nil {
+				progress.StoryPointsDone += *ticket.StoryPoints
+			}
 		}
 	}
+	progress.StoryPointsRemaining = progress.StoryPointsTotal - progress.StoryPointsDone
 	return progress
 }
 
@@ -432,16 +441,17 @@ func (s *Service) sprintAnalytics(ctx context.Context, sprint Sprint, tickets []
 	days := daysBetween(start, end)
 	burndown := make([]SprintBurndownPoint, 0, len(days))
 	burnup := make([]SprintBurnupPoint, 0, len(days))
-	completed := 0
+	completed := 0.0
+	usePoints := sprintHasStoryPoints(tickets)
 	for _, day := range days {
-		total := 0
-		done := 0
+		total := 0.0
+		done := 0.0
 		for _, ticket := range tickets {
 			if !dateOnly(ticket.CreatedAt).After(day) {
-				total++
+				total += sprintAnalyticsValue(ticket, usePoints)
 			}
 			if doneAt, ok := doneDates[ticket.ID]; ok && !doneAt.After(day) {
-				done++
+				done += sprintAnalyticsValue(ticket, usePoints)
 			}
 		}
 		date := day.Format(dateOnlyLayout)
@@ -449,11 +459,34 @@ func (s *Service) sprintAnalytics(ctx context.Context, sprint Sprint, tickets []
 		burnup = append(burnup, SprintBurnupPoint{Date: date, Total: total, Done: done})
 		completed = done
 	}
+	unit := "tickets"
+	if usePoints {
+		unit = "points"
+	}
 	return SprintAnalytics{
 		Burndown: burndown,
 		Burnup:   burnup,
-		Velocity: SprintVelocity{Completed: completed, Unit: "tickets"},
+		Velocity: SprintVelocity{Completed: completed, Unit: unit},
 	}, nil
+}
+
+func sprintHasStoryPoints(tickets []Ticket) bool {
+	for _, ticket := range tickets {
+		if ticket.StoryPoints != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func sprintAnalyticsValue(ticket Ticket, usePoints bool) float64 {
+	if !usePoints {
+		return 1
+	}
+	if ticket.StoryPoints == nil {
+		return 0
+	}
+	return *ticket.StoryPoints
 }
 
 func sprintAnalyticsWindow(sprint Sprint, tickets []Ticket, now time.Time) (time.Time, time.Time) {

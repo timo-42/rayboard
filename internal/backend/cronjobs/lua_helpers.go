@@ -100,6 +100,7 @@ func (s *Service) luaCreateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			ComponentID:    stringValue(input, "component_id"),
 			VersionID:      stringValue(input, "version_id"),
 			Rank:           stringValue(input, "rank"),
+			StoryPoints:    storyPointsValue(input, "story_points"),
 			Labels:         labels,
 			CustomFields:   customFields,
 		})
@@ -136,6 +137,8 @@ func (s *Service) luaUpdateTicket(ctx context.Context, sandbox *luasandbox.Sandb
 			ComponentID:    optionalString(input, "component_id"),
 			VersionID:      optionalString(input, "version_id"),
 			Rank:           optionalString(input, "rank"),
+			StoryPoints:    storyPointsValue(input, "story_points"),
+			StoryPointsSet: hasKey(input, "story_points"),
 		}
 		if hasCustomFields {
 			update.CustomFields = &customFields
@@ -265,6 +268,30 @@ func optionalString(input map[string]any, key string) *string {
 	}
 	value := stringValue(input, key)
 	return &value
+}
+
+func hasKey(input map[string]any, key string) bool {
+	_, ok := input[key]
+	return ok
+}
+
+func storyPointsValue(input map[string]any, key string) *float64 {
+	value, ok := input[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case float64:
+		return &typed
+	case int:
+		result := float64(typed)
+		return &result
+	case int64:
+		result := float64(typed)
+		return &result
+	default:
+		return nil
+	}
 }
 
 func stringSliceValue(input map[string]any, key string) ([]string, bool) {

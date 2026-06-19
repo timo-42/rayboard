@@ -98,10 +98,10 @@ Effective-permission requests default to global scope when `scope` is omitted. `
 | `POST` | `/api/projects` | `{"spec":{"key":"CORE","name":"Core","description":"Main project","lead_user_id":""}}` |
 | `GET` | `/api/projects/{project_id}` | none |
 | `GET` | `/api/projects/{project_id}/tickets` | Optional `status`, `assignee_id`, `sprint_id`, `component_id`, `version_id`, `label`, `limit`, `offset`. |
-| `POST` | `/api/projects/{project_id}/tickets` | `{"spec":{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","labels":["backend","auth"],"custom_fields":{}}}` |
+| `POST` | `/api/projects/{project_id}/tickets` | `{"spec":{"title":"Fix login","description":"...","status":"todo","priority":"High","type":"Bug","assignee_id":"","component_id":"","version_id":"","story_points":3,"labels":["backend","auth"],"custom_fields":{}}}` |
 | `GET` | `/api/projects/{project_id}/labels` | Lists labels currently used by non-deleted project tickets, with ticket counts. |
 | `GET` | `/api/tickets/{ticket_id}` | none |
-| `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
+| `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `story_points`, `labels`, `custom_fields`. Send `"story_points":null` to clear the estimate. |
 | `DELETE` | `/api/tickets/{ticket_id}` | none |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 | `GET` | `/api/tickets/{ticket_id}/watchers` | none |
@@ -115,7 +115,9 @@ Ticket statuses are stored as strings. Workflow status APIs define the ordered p
 
 Project responses use `metadata`, `spec`, and `status`. Project IDs are returned as `metadata.id`; project key, name, description, and lead user are returned in `spec`; archive/delete lifecycle fields are returned in `status`.
 
-Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, watcher count, current-user watch state, and delete state are returned in `status`. Deleting a ticket requires ticket write permission, soft-deletes the ticket by setting `deleted_at` and `updated_at`, records `ticket.deleted` activity and a durable domain event, and removes the ticket from list, board, backlog, roadmap, report, label, link, watcher, comment, and attachment surfaces that only expose active tickets.
+Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, story points, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, watcher count, current-user watch state, and delete state are returned in `status`. Deleting a ticket requires ticket write permission, soft-deletes the ticket by setting `deleted_at` and `updated_at`, records `ticket.deleted` activity and a durable domain event, and removes the ticket from list, board, backlog, roadmap, report, label, link, watcher, comment, and attachment surfaces that only expose active tickets.
+
+Ticket `story_points` is an optional non-negative number on create, update, get, list, board/backlog, report, custom create page, and search payloads. Omitting `story_points` on update preserves the current estimate; sending `null` clears it.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
@@ -161,7 +163,7 @@ Board ticket responses use `metadata` for the board view identity, `spec.board` 
 
 ## Sprints
 
-The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, and compact sprint reports for the selected project. Richer backlog planning, detailed sprint editing, and sprint filtering are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count or story-point analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes basic sprint list/create/start/complete/delete, ticket assignment/removal, story point editing, and compact sprint reports for the selected project. Richer backlog planning, detailed sprint editing, and sprint filtering are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -180,7 +182,7 @@ Sprint responses use `metadata`, `spec`, and `status`. Sprint states are returne
 
 Sprint report responses use `spec.sprint` for the sprint resource and `status.scope`, `status.snapshot_at`, `status.progress`, `status.analytics`, and `status.tickets` for computed report data. Planned and active sprint reports use scope `current` and read the current ticket assignments. Completed sprint reports use scope `completed_snapshot` and read a committed ticket membership snapshot captured in the same transaction that completed the sprint. Snapshot reports keep membership stable when tickets are later moved out of the sprint; ticket fields such as title, status, assignee, and priority are still read from the current ticket records, and deleted tickets are omitted.
 
-Sprint analytics are ticket-count based because tickets do not currently store story points. `status.analytics.burndown` contains daily `date` and `remaining` points, `status.analytics.burnup` contains daily `date`, `total`, and `done` points, and `status.analytics.velocity` reports completed ticket count with `unit: "tickets"`. Richer charting and additional agile analytics are **Planned**.
+Sprint progress includes ticket counts plus `story_points_total`, `story_points_done`, `story_points_remaining`, and `story_points_unestimated`. Sprint analytics use ticket counts when no report ticket has an estimate, returning velocity with `unit: "tickets"`. When at least one report ticket has `story_points`, burndown, burnup, and velocity use point values, and unestimated tickets contribute zero points.
 
 ## Components and Versions
 
@@ -342,7 +344,7 @@ Filters are CEL expressions parsed and type-checked with cel-go, then translated
 
 Current Rayboard CEL filter support:
 
-- fields: `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `labels`, `start_date`, `due_date`, `created_at`, and `updated_at`;
+- fields: `project`, `project_id`, `key`, `title`, `status`, `priority`, `type`, `reporter_id`, `assignee_id`, `parent_ticket_id`, `sprint_id`, `component_id`, `version_id`, `labels`, `start_date`, `due_date`, `story_points`, `created_at`, and `updated_at`;
 - custom fields through `custom.<field_key>`, for example `custom.severity == "critical"` or `custom.impact >= 8`;
 - operators: `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, parentheses, and `in` against literal lists or labels;
 - string helpers on string ticket fields: `contains`, `startsWith`, and `endsWith`;
@@ -354,12 +356,13 @@ Examples:
 (status == "todo" || key in ["CORE-12", "CORE-13"]) && assignee_id == currentUser()
 "backend" in labels && due_date <= today()
 custom.severity == "critical" && custom.impact >= 8
+story_points >= 3
 title.contains("login")
 ```
 
 CEL filters do not expose direct SQL, arbitrary host functions, or an unrestricted function registry. Sorting and pagination remain separate API inputs.
 
-Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, `priority`, `start_date`, and `due_date`.
+Supported sort fields are `created_at`, `updated_at`, `key`, `title`, `status`, `priority`, `start_date`, `due_date`, and `story_points`.
 
 Full-text search uses SQLite FTS5 virtual tables for ticket title/description, comments, and attachment metadata such as filename and content type. See https://www.sqlite.org/fts5.html. Current text input is tokenized into quoted FTS terms; it is not raw FTS syntax.
 

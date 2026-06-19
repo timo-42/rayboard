@@ -56,14 +56,14 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - basic project ticket-hook management on `/automation`, including list, create, delete, enable/disable, and preview through `/api/projects/{project_id}/ticket-hooks` and `/api/ticket-hooks/{hook_id}/preview`.
 - project workflow and board management on `/projects/{project_id}`, including status replacement, board creation/selection/edit/deletion, board-backed ticket columns, and drag/drop card moves through `/api/projects/{project_id}/statuses`, `/api/projects/{project_id}/boards`, `/api/boards/{board_id}`, and `/api/boards/{board_id}/tickets`.
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`, using the resolved structured schema and submitting through `/api/projects/{project_id}/ticket-create-pages/{slug}/submit`.
-- compact sprint reports with live current-assignment and completed snapshot scope markers, ticket-count velocity, remaining count, burnup summary, and ticket links for the selected project.
+- compact sprint reports with live current-assignment and completed snapshot scope markers, story-point velocity when estimates exist, ticket-count fallback analytics, remaining count, burnup summary, and ticket links for the selected project.
 - compact version release reports with total/done/open counts, status counts, component-gap counts, and ticket links for the selected version.
 
 Token secrets are shown only when created and are not listed later.
 
 It does not currently expose all backend endpoints.
 
-Richer board settings beyond inline board edits, richer backlog planning beyond reorder controls and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, roadmap drag/drop dependency graph visualization and capacity planning, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Richer board settings beyond inline board edits, richer backlog planning beyond reorder controls and drag/drop, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency graph visualization and capacity planning, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

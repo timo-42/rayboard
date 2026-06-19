@@ -226,10 +226,10 @@ func (r *Repository) insertTicket(ctx context.Context, q sqlRunner, ticket Ticke
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO tickets (
 			id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, story_points, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.ReporterID), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.ComponentID), nullableString(ticket.VersionID), nullableString(ticket.Rank), nullableString(ticket.StartDate), nullableString(ticket.DueDate), formatTime(ticket.CreatedAt), formatTime(ticket.UpdatedAt))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.ReporterID), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.ComponentID), nullableString(ticket.VersionID), nullableString(ticket.Rank), nullableString(ticket.StartDate), nullableString(ticket.DueDate), nullableFloat(ticket.StoryPoints), formatTime(ticket.CreatedAt), formatTime(ticket.UpdatedAt))
 	if err != nil {
 		if isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_UNIQUE) || isSQLiteCode(err, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY) {
 			return conflict("ticket", "key", ticket.Key)
@@ -242,7 +242,7 @@ func (r *Repository) insertTicket(ctx context.Context, q sqlRunner, ticket Ticke
 func (r *Repository) getTicket(ctx context.Context, q sqlRunner, ticketID string) (Ticket, error) {
 	ticket, err := scanTicket(q.QueryRowContext(ctx, `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, story_points, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE id = ? AND deleted_at IS NULL
 	`, ticketID))
@@ -259,7 +259,7 @@ func (r *Repository) listTickets(ctx context.Context, q sqlRunner, input ListTic
 	limit, offset := normalizeListWindow(input.Limit, input.Offset)
 	query := `
 		SELECT id, project_id, key, title, description, status, priority, type,
-			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, created_at, updated_at, deleted_at
+			reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, start_date, due_date, story_points, created_at, updated_at, deleted_at
 		FROM tickets
 		WHERE project_id = ? AND deleted_at IS NULL`
 	args := []any{input.ProjectID}
@@ -330,9 +330,10 @@ func (r *Repository) updateTicket(ctx context.Context, q sqlRunner, ticket Ticke
 			rank = ?,
 			start_date = ?,
 			due_date = ?,
+			story_points = ?,
 			updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
-	`, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.ComponentID), nullableString(ticket.VersionID), nullableString(ticket.Rank), nullableString(ticket.StartDate), nullableString(ticket.DueDate), formatTime(ticket.UpdatedAt), ticket.ID)
+	`, ticket.Title, nullableString(ticket.Description), ticket.Status, nullableString(ticket.Priority), nullableString(ticket.Type), nullableString(ticket.AssigneeID), nullableString(ticket.ParentTicketID), nullableString(ticket.SprintID), nullableString(ticket.ComponentID), nullableString(ticket.VersionID), nullableString(ticket.Rank), nullableString(ticket.StartDate), nullableString(ticket.DueDate), nullableFloat(ticket.StoryPoints), formatTime(ticket.UpdatedAt), ticket.ID)
 	if err != nil {
 		return fmt.Errorf("update ticket: %w", err)
 	}
@@ -728,11 +729,12 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	var rank sql.NullString
 	var startDate sql.NullString
 	var dueDate sql.NullString
+	var storyPoints sql.NullFloat64
 	var createdAt string
 	var updatedAt string
 	var deletedAt sql.NullString
 
-	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &sprintID, &componentID, &versionID, &rank, &startDate, &dueDate, &createdAt, &updatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&ticket.ID, &ticket.ProjectID, &ticket.Key, &ticket.Title, &description, &ticket.Status, &priority, &ticketType, &reporterID, &assigneeID, &parentTicketID, &sprintID, &componentID, &versionID, &rank, &startDate, &dueDate, &storyPoints, &createdAt, &updatedAt, &deletedAt); err != nil {
 		return Ticket{}, err
 	}
 
@@ -749,6 +751,7 @@ func scanTicket(scanner rowScanner) (Ticket, error) {
 	ticket.Rank = nullString(rank)
 	ticket.StartDate = nullString(startDate)
 	ticket.DueDate = nullString(dueDate)
+	ticket.StoryPoints = nullFloat(storyPoints)
 	ticket.CreatedAt, err = parseTime(createdAt)
 	if err != nil {
 		return Ticket{}, fmt.Errorf("parse ticket created_at: %w", err)
@@ -961,11 +964,26 @@ func nullableString(value string) any {
 	return value
 }
 
+func nullableFloat(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 func nullString(value sql.NullString) string {
 	if !value.Valid {
 		return ""
 	}
 	return value.String
+}
+
+func nullFloat(value sql.NullFloat64) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Float64
+	return &result
 }
 
 func formatTime(t time.Time) string {

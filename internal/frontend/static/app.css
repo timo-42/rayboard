@@ -2128,7 +2128,8 @@ p {
 .component-edit-form button,
 .version-edit-form button,
 .version-actions button,
-.ticket-planning-controls button {
+.ticket-planning-controls button,
+.ticket-story-points-controls button {
   min-height: 30px;
   border-color: var(--border-strong);
   background: var(--panel-bg);
@@ -2140,14 +2141,16 @@ p {
 .component-edit-form button:hover,
 .version-edit-form button:hover,
 .version-actions button:hover,
-.ticket-planning-controls button:hover {
+.ticket-planning-controls button:hover,
+.ticket-story-points-controls button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
 .component-actions,
 .version-actions,
-.ticket-planning-controls {
+.ticket-planning-controls,
+.ticket-story-points-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -2157,14 +2160,16 @@ p {
   justify-content: flex-end;
 }
 
-.ticket-planning {
+.ticket-planning,
+.ticket-story-points {
   display: grid;
   gap: 6px;
   border-top: 1px solid var(--border);
   padding-top: 8px;
 }
 
-.ticket-planning-controls select {
+.ticket-planning-controls select,
+.ticket-story-points-controls input {
   min-width: 0;
   flex: 1 1 130px;
   min-height: 30px;
