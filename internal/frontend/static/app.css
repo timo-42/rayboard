@@ -2946,6 +2946,40 @@ p {
   font-weight: 700;
 }
 
+.create-page-layout-group {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 12px;
+}
+
+.create-page-layout-heading {
+  margin: 0;
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.create-page-layout-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.create-page-layout-fields {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.create-page-layout-columns > .create-page-layout-fields {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
 .create-page-submit-actions {
   display: flex;
   flex-wrap: wrap;

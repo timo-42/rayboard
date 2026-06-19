@@ -7626,8 +7626,11 @@ function renderCreatePageView() {
     els.createPageSubmitForm.append(description);
   }
 
-  for (const field of createPageFields(schema)) {
-    els.createPageSubmitForm.append(createPageFieldNode(field, schema.defaults));
+  for (const item of createPageLayout(schema)) {
+    const node = createPageLayoutNode(item, schema.defaults);
+    if (node) {
+      els.createPageSubmitForm.append(node);
+    }
   }
 
   const actions = document.createElement("div");
@@ -7653,29 +7656,114 @@ function renderCreatePageView() {
   }
 }
 
-function createPageFields(schema) {
-  const fields = Array.isArray(schema.field_layout) && schema.field_layout.length
-    ? schema.field_layout.map(normalizeCreatePageField).filter((field) => field.key && !field.hidden)
+function createPageLayout(schema) {
+  const layout = Array.isArray(schema.field_layout) && schema.field_layout.length
+    ? schema.field_layout.map(normalizeCreatePageLayoutItem).filter(Boolean)
     : [];
-  if (!fields.some((field) => field.key === "title")) {
-    fields.unshift({ key: "title", label: "Title", type: "text", required: true, options: [] });
+  if (!createPageLayoutHasField(layout, "title")) {
+    layout.unshift(normalizeCreatePageLayoutItem({ key: "title", label: "Title", type: "text", required: true }));
   }
-  if (!fields.some((field) => field.key === "description")) {
-    fields.push({ key: "description", label: "Description", type: "textarea", required: false, options: [] });
+  if (!createPageLayoutHasField(layout, "description")) {
+    layout.push(normalizeCreatePageLayoutItem({ key: "description", label: "Description", type: "textarea", required: false }));
   }
-  return fields;
+  return layout;
 }
 
-function normalizeCreatePageField(field) {
-  const key = String(field.key || "").trim();
+function normalizeCreatePageLayoutItem(item) {
+  if (!item || typeof item !== "object" || item.html !== undefined || item.hidden) {
+    return null;
+  }
+  const key = String(item.key || "").trim();
+  const kind = String(item.widget || item.kind || item.layout || item.type || (key ? "field" : "section")).trim().toLowerCase();
+  const fields = Array.isArray(item.fields)
+    ? item.fields.map(normalizeCreatePageLayoutItem).filter(Boolean)
+    : [];
+  const title = String(item.title || item.heading || item.label || item.name || "").trim();
+  const text = String(item.text || item.help || item.description || item.body || "").trim();
+  if (!key && !fields.length && !title && !text) {
+    return null;
+  }
   return {
     key,
-    label: String(field.label || field.name || titleize(key)).trim(),
-    type: String(field.type || "text").trim().toLowerCase(),
-    required: Boolean(field.required),
-    hidden: Boolean(field.hidden),
-    options: Array.isArray(field.options) ? field.options.map(String) : []
+    label: String(item.label || item.name || title || titleize(key)).trim(),
+    title,
+    text,
+    kind,
+    type: String(item.type || "text").trim().toLowerCase(),
+    required: Boolean(item.required),
+    options: Array.isArray(item.options) ? item.options.map(String) : [],
+    fields
   };
+}
+
+function createPageLayoutHasField(items, key) {
+  for (const item of items) {
+    if (item.key === key || createPageLayoutHasField(item.fields || [], key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function createPageLayoutNode(item, defaults) {
+  if (!item) {
+    return null;
+  }
+  if (item.key) {
+    return createPageFieldNode(item, defaults);
+  }
+  if (createPageTextLayoutKinds().has(item.kind) && !item.fields.length) {
+    return createPageTextNode(item);
+  }
+  return createPageGroupNode(item, defaults);
+}
+
+function createPageTextLayoutKinds() {
+  return new Set(["heading", "header", "title", "help", "hint", "note", "paragraph", "text", "description", "copy"]);
+}
+
+function createPageTextNode(item) {
+  const node = document.createElement(item.kind === "heading" || item.kind === "header" || item.kind === "title" ? "h3" : "p");
+  node.className = item.kind === "heading" || item.kind === "header" || item.kind === "title"
+    ? "create-page-layout-heading"
+    : "create-page-layout-text";
+  node.textContent = item.text || item.title;
+  return node;
+}
+
+function createPageGroupNode(item, defaults) {
+  const section = document.createElement("section");
+  section.className = createPageColumnsLayoutKinds().has(item.kind)
+    ? "create-page-layout-group create-page-layout-columns"
+    : "create-page-layout-group";
+  if (item.title) {
+    const heading = document.createElement("h3");
+    heading.className = "create-page-layout-heading";
+    heading.textContent = item.title;
+    section.append(heading);
+  }
+  if (item.text) {
+    const body = document.createElement("p");
+    body.className = "create-page-layout-text";
+    body.textContent = item.text;
+    section.append(body);
+  }
+  const fields = document.createElement("div");
+  fields.className = "create-page-layout-fields";
+  for (const child of item.fields) {
+    const childNode = createPageLayoutNode(child, defaults);
+    if (childNode) {
+      fields.append(childNode);
+    }
+  }
+  if (fields.childElementCount) {
+    section.append(fields);
+  }
+  return section.childElementCount ? section : null;
+}
+
+function createPageColumnsLayoutKinds() {
+  return new Set(["columns", "column", "row", "grid"]);
 }
 
 function createPageFieldNode(field, defaults) {
@@ -7739,6 +7827,10 @@ function createPageDefaultValue(defaults, key) {
   if (defaults.custom_fields && typeof defaults.custom_fields === "object" && Object.prototype.hasOwnProperty.call(defaults.custom_fields, key)) {
     return defaults.custom_fields[key];
   }
+  const customFieldKey = createPageCustomFieldKey(key);
+  if (customFieldKey && defaults.custom_fields && typeof defaults.custom_fields === "object" && Object.prototype.hasOwnProperty.call(defaults.custom_fields, customFieldKey)) {
+    return defaults.custom_fields[customFieldKey];
+  }
   return "";
 }
 
@@ -7771,6 +7863,8 @@ function createPageTicketSpec(form, schema) {
       Object.assign(customFields, parseJSONField(value, "Custom fields JSON"));
     } else if (key === "story_points") {
       applyStoryPointsSpec(ticket, value);
+    } else if (createPageCustomFieldKey(key)) {
+      customFields[createPageCustomFieldKey(key)] = value;
     } else if (ticketFieldKeys().has(key)) {
       ticket[key] = value;
     } else {
@@ -7799,6 +7893,14 @@ function createPageControlValue(control, fieldType) {
     return parseJSONField(value, `${control.name} JSON`);
   }
   return value;
+}
+
+function createPageCustomFieldKey(key) {
+  const prefix = "custom_fields.";
+  if (typeof key === "string" && key.startsWith(prefix) && key.length > prefix.length) {
+    return key.slice(prefix.length);
+  }
+  return "";
 }
 
 function ticketFieldKeys() {

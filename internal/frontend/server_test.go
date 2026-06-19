@@ -175,6 +175,10 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"isDocumentLink",
 		"renderIssue",
 		"renderCreatePageView",
+		"createPageLayout",
+		"createPageLayoutNode",
+		"createPageGroupNode",
+		"createPageCustomFieldKey",
 		"renderRBAC",
 		"renderSettings",
 		"renderAuditLog",
@@ -323,6 +327,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".create-page-view",
 		".create-page-submit-form",
 		".create-page-result",
+		".create-page-layout-group",
+		".create-page-layout-columns",
 		".rbac-panel",
 		".admin-form",
 		".admin-actions",
@@ -370,6 +376,46 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".engine-result-summary",
 		".engine-result-badge",
 		".engine-action-preview",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
+func TestEmbeddedAppSupportsCreatePageLayoutWidgets(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"normalizeCreatePageLayoutItem",
+		"createPageLayoutHasField",
+		"createPageTextLayoutKinds",
+		"createPageColumnsLayoutKinds",
+		"item.fields.map(normalizeCreatePageLayoutItem)",
+		"item.html !== undefined",
+		"create-page-layout-heading",
+		"create-page-layout-text",
+		"custom_fields.",
+		"customFields[createPageCustomFieldKey(key)] = value",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".create-page-layout-group",
+		".create-page-layout-heading",
+		".create-page-layout-text",
+		".create-page-layout-fields",
+		".create-page-layout-columns > .create-page-layout-fields",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
