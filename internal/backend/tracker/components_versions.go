@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
 	sqlite3 "modernc.org/sqlite/lib"
@@ -15,6 +16,9 @@ const (
 	VersionStatusPlanned  = "planned"
 	VersionStatusReleased = "released"
 	VersionStatusArchived = "archived"
+
+	VersionReportScopeCurrent  = "current"
+	VersionReportScopeSnapshot = "released_snapshot"
 )
 
 func (s *Service) ListComponents(ctx context.Context, principal authz.Principal, projectID string) ([]Component, error) {
@@ -250,18 +254,36 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(version.ProjectID)); err != nil {
 		return VersionReport{}, err
 	}
-	tickets, err := s.listVersionReportTickets(ctx, version.ID)
-	if err != nil {
-		return VersionReport{}, err
+	scope := VersionReportScopeCurrent
+	var snapshotAt *time.Time
+	var tickets []Ticket
+	if version.Status == VersionStatusReleased {
+		var snapshotExists bool
+		tickets, snapshotAt, snapshotExists, err = s.listVersionSnapshotTickets(ctx, version.ID)
+		if err != nil {
+			return VersionReport{}, err
+		}
+		scope = VersionReportScopeSnapshot
+		if !snapshotExists {
+			tickets = nil
+		}
+	}
+	if tickets == nil {
+		tickets, err = s.listVersionReportTickets(ctx, version.ID)
+		if err != nil {
+			return VersionReport{}, err
+		}
 	}
 	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return VersionReport{}, err
 	}
 	return VersionReport{
-		Version:  version,
-		Progress: versionReportProgress(tickets),
-		Tickets:  tickets,
+		Version:    version,
+		Scope:      scope,
+		SnapshotAt: snapshotAt,
+		Progress:   versionReportProgress(tickets),
+		Tickets:    tickets,
 	}, nil
 }
 
@@ -293,15 +315,26 @@ func (s *Service) UpdateVersion(ctx context.Context, principal authz.Principal, 
 		return Version{}, validationFailed(fields)
 	}
 	updated.UpdatedAt = s.now().UTC()
-	if _, err := s.db.ExecContext(ctx, `
-		UPDATE project_versions
-		SET name = ?, description = ?, status = ?, target_date = ?, release_date = ?, updated_at = ?
-		WHERE id = ?
-	`, updated.Name, nullableString(updated.Description), updated.Status, nullableString(updated.TargetDate), nullableString(updated.ReleaseDate), formatTime(updated.UpdatedAt), updated.ID); err != nil {
-		if isUniqueConstraint(err) {
-			return Version{}, conflict("version", "name", updated.Name)
+	captureSnapshot := current.Status != VersionStatusReleased && updated.Status == VersionStatusReleased
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE project_versions
+			SET name = ?, description = ?, status = ?, target_date = ?, release_date = ?, updated_at = ?
+			WHERE id = ?
+		`, updated.Name, nullableString(updated.Description), updated.Status, nullableString(updated.TargetDate), nullableString(updated.ReleaseDate), formatTime(updated.UpdatedAt), updated.ID); err != nil {
+			if isUniqueConstraint(err) {
+				return conflict("version", "name", updated.Name)
+			}
+			return fmt.Errorf("update version: %w", err)
 		}
-		return Version{}, fmt.Errorf("update version: %w", err)
+		if captureSnapshot {
+			if err := s.snapshotVersionReportTickets(ctx, tx, updated.ID, updated.UpdatedAt); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return Version{}, err
 	}
 	return updated, nil
 }
@@ -515,19 +548,115 @@ func (s *Service) listVersionReportTickets(ctx context.Context, versionID string
 	return tickets, nil
 }
 
+func (s *Service) snapshotVersionReportTickets(ctx context.Context, tx *sql.Tx, versionID string, capturedAt time.Time) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM version_report_tickets WHERE version_id = ?", versionID); err != nil {
+		return fmt.Errorf("delete version report snapshot: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO version_report_snapshots (version_id, captured_at)
+		VALUES (?, ?)
+		ON CONFLICT(version_id) DO UPDATE SET captured_at = excluded.captured_at
+	`, versionID, formatTime(capturedAt)); err != nil {
+		return fmt.Errorf("upsert version report snapshot: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id
+		FROM tickets
+		WHERE version_id = ? AND deleted_at IS NULL
+		ORDER BY status ASC, created_at DESC, key DESC
+	`, versionID)
+	if err != nil {
+		return fmt.Errorf("list version report snapshot members: %w", err)
+	}
+	defer rows.Close()
+
+	position := 0
+	for rows.Next() {
+		var ticketID string
+		if err := rows.Scan(&ticketID); err != nil {
+			return fmt.Errorf("scan version report snapshot member: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO version_report_tickets (version_id, ticket_id, position)
+			VALUES (?, ?, ?)
+		`, versionID, ticketID, position); err != nil {
+			return fmt.Errorf("insert version report snapshot: %w", err)
+		}
+		position++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate version report snapshot members: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) listVersionSnapshotTickets(ctx context.Context, versionID string) ([]Ticket, *time.Time, bool, error) {
+	var capturedAt string
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT captured_at
+		FROM version_report_snapshots
+		WHERE version_id = ?
+	`, versionID).Scan(&capturedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, false, nil
+		}
+		return nil, nil, false, fmt.Errorf("get version report snapshot: %w", err)
+	}
+	snapshotAt, err := parseTime(capturedAt)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("parse version report snapshot captured_at: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT tickets.id, tickets.project_id, tickets.key, tickets.title, tickets.description, tickets.status, tickets.priority, tickets.type,
+			tickets.reporter_id, tickets.assignee_id, tickets.parent_ticket_id, tickets.sprint_id, tickets.component_id, tickets.version_id,
+			tickets.rank, tickets.start_date, tickets.due_date, tickets.story_points, tickets.created_at, tickets.updated_at, tickets.deleted_at
+		FROM version_report_tickets snapshot
+		JOIN tickets ON tickets.id = snapshot.ticket_id
+		WHERE snapshot.version_id = ? AND tickets.deleted_at IS NULL
+		ORDER BY snapshot.position ASC
+	`, versionID)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("list version report snapshot tickets: %w", err)
+	}
+	defer rows.Close()
+
+	tickets := []Ticket{}
+	for rows.Next() {
+		ticket, err := scanTicket(rows)
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("scan version report snapshot ticket: %w", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, false, fmt.Errorf("iterate version report snapshot tickets: %w", err)
+	}
+	return tickets, &snapshotAt, true, nil
+}
+
 func versionReportProgress(tickets []Ticket) VersionReportProgress {
 	progress := VersionReportProgress{ByStatus: map[string]int{}}
 	for _, ticket := range tickets {
 		progress.Total++
 		progress.ByStatus[ticket.Status]++
+		if ticket.StoryPoints == nil {
+			progress.StoryPointsUnestimated++
+		} else {
+			progress.StoryPointsTotal += *ticket.StoryPoints
+		}
 		if ticket.Status == "done" {
 			progress.Done++
+			if ticket.StoryPoints != nil {
+				progress.StoryPointsDone += *ticket.StoryPoints
+			}
 		}
 		if ticket.ComponentID == "" {
 			progress.UnassignedComponent++
 		}
 	}
 	progress.Open = progress.Total - progress.Done
+	progress.StoryPointsRemaining = progress.StoryPointsTotal - progress.StoryPointsDone
 	return progress
 }
 

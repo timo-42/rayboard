@@ -598,6 +598,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("decode version report: %v", err)
 	}
 	if versionReportBody.Spec.Version.Metadata.ID != version.ID ||
+		versionReportBody.Status.Scope != tracker.VersionReportScopeCurrent ||
+		versionReportBody.Status.SnapshotAt != "" ||
 		versionReportBody.Status.Progress.Total != 1 ||
 		versionReportBody.Status.Progress.Open != 1 ||
 		versionReportBody.Status.Progress.ByStatus["todo"] != 1 ||
@@ -605,6 +607,30 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		versionReportBody.Status.Tickets[0].Metadata.ID != second.ID ||
 		versionReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
 		t.Fatalf("unexpected version report: %#v", versionReportBody)
+	}
+
+	releaseVersionReq := httptest.NewRequest(http.MethodPatch, "/api/versions/"+version.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{"status": tracker.VersionStatusReleased},
+	}))
+	addSessionCSRF(releaseVersionReq, session, csrf)
+	releaseVersion := httptest.NewRecorder()
+	handler.ServeHTTP(releaseVersion, releaseVersionReq)
+	if releaseVersion.Code != http.StatusOK {
+		t.Fatalf("expected release version status 200, got %d: %s", releaseVersion.Code, releaseVersion.Body.String())
+	}
+	releasedVersionReportReq := httptest.NewRequest(http.MethodGet, "/api/versions/"+version.ID+"/report", nil)
+	releasedVersionReportReq.AddCookie(session)
+	releasedVersionReport := httptest.NewRecorder()
+	handler.ServeHTTP(releasedVersionReport, releasedVersionReportReq)
+	if releasedVersionReport.Code != http.StatusOK {
+		t.Fatalf("expected released version report status 200, got %d: %s", releasedVersionReport.Code, releasedVersionReport.Body.String())
+	}
+	var releasedVersionReportBody versionReportResourceBody
+	if err := json.Unmarshal(releasedVersionReport.Body.Bytes(), &releasedVersionReportBody); err != nil {
+		t.Fatalf("decode released version report: %v", err)
+	}
+	if releasedVersionReportBody.Status.Scope != tracker.VersionReportScopeSnapshot || releasedVersionReportBody.Status.SnapshotAt == "" || releasedVersionReportBody.Status.Progress.Total != 1 {
+		t.Fatalf("unexpected released version report: %#v", releasedVersionReportBody)
 	}
 
 	createSprintReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/sprints", mustJSON(t, map[string]any{
@@ -915,8 +941,10 @@ type versionReportResourceBody struct {
 		Version versionResourceBody `json:"version"`
 	} `json:"spec"`
 	Status struct {
-		Progress tracker.VersionReportProgress `json:"progress"`
-		Tickets  []ticketResourceBody          `json:"tickets"`
+		Scope      string                        `json:"scope"`
+		SnapshotAt string                        `json:"snapshot_at"`
+		Progress   tracker.VersionReportProgress `json:"progress"`
+		Tickets    []ticketResourceBody          `json:"tickets"`
 	} `json:"status"`
 }
 
