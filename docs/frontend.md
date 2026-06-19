@@ -34,7 +34,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - CSRF header handling from the `rayboard_csrf` cookie;
 - an unread notification badge in the persistent Dashboard nav item;
 - project listing and project creation;
-- ticket listing per selected project;
+- ticket listing per selected project, including label, component, and version filters backed by the project ticket API;
 - ticket creation;
 - ticket status changes between `todo`, `in_progress`, and `done`;
 - ticket label entry on create plus ticket-card label display, comma-separated label updates, and project label filtering with ticket counts;
@@ -57,9 +57,9 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 
 Token secrets are shown only when created and are not listed later.
 
-It does not currently expose all backend endpoints. Advanced search pagination and component/version filtering are API-only for now.
+It does not currently expose all backend endpoints. Advanced search pagination is API-only for now.
 
-Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries, release reports, richer roadmap timeline controls, component/version filtering and reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
+Drag/drop UI, richer board settings/editing beyond basic create/select/delete, richer backlog planning beyond basic up/down ordering, richer sprint reporting beyond compact selected-sprint summaries, release reports, richer roadmap timeline controls, richer component/version reporting, custom-field search/layout screens, richer create-page layout widgets, and advanced release planning are **Planned**.
 
 ## Design Variants
 

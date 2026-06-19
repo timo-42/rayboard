@@ -6,7 +6,7 @@ const state = {
   selectedCreatePageSchema: null,
   createPageSubmission: null,
   tickets: [],
-  ticketFilters: { label: "" },
+  ticketFilters: { label: "", component_id: "", version_id: "" },
   projectLabels: [],
   projectSummaries: [],
   recentTickets: [],
@@ -218,6 +218,8 @@ const els = {
   selectedProject: document.querySelector("#selected-project"),
   ticketFilterForm: document.querySelector("#ticket-filter-form"),
   ticketFilterLabel: document.querySelector("#ticket-filter-label"),
+  ticketFilterComponent: document.querySelector("#ticket-filter-component"),
+  ticketFilterVersion: document.querySelector("#ticket-filter-version"),
   ticketFilterClear: document.querySelector("#ticket-filter-clear"),
   ticketFilterSummary: document.querySelector("#ticket-filter-summary"),
   ticketColumns: document.querySelector("#ticket-columns"),
@@ -267,7 +269,7 @@ function bindEvents() {
       state.selectedCreatePageSchema = null;
       state.createPageSubmission = null;
       state.tickets = [];
-      state.ticketFilters = { label: "" };
+      state.ticketFilters = emptyTicketFilters();
       state.projectLabels = [];
       state.projectSummaries = [];
       state.recentTickets = [];
@@ -362,14 +364,14 @@ function bindEvents() {
   });
 
   els.ticketFilterForm.addEventListener("change", () => {
-    state.ticketFilters = { label: els.ticketFilterLabel.value };
-    renderTickets();
+    state.ticketFilters = ticketFiltersFromForm();
+    loadTickets();
   });
 
   els.ticketFilterClear.addEventListener("click", () => {
-    state.ticketFilters = { label: "" };
+    state.ticketFilters = emptyTicketFilters();
     renderTicketFilters();
-    renderTickets();
+    loadTickets();
   });
 
   els.engineType.addEventListener("change", () => {
@@ -2105,8 +2107,10 @@ async function loadBoardTickets(boardID, options = {}) {
 async function loadComponents(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.components = [];
+    pruneTicketFilters();
     renderComponents();
     renderTicketFormOptions();
+    renderTicketFilters();
     if (options.renderTickets !== false) {
       renderTickets();
     }
@@ -2114,8 +2118,10 @@ async function loadComponents(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/components`);
   state.components = listItems(data).map(normalizeComponent);
+  pruneTicketFilters();
   renderComponents();
   renderTicketFormOptions();
+  renderTicketFilters();
   if (options.renderTickets !== false) {
     renderTickets();
   }
@@ -2124,8 +2130,10 @@ async function loadComponents(options = {}) {
 async function loadVersions(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.versions = [];
+    pruneTicketFilters();
     renderVersions();
     renderTicketFormOptions();
+    renderTicketFilters();
     if (options.renderTickets !== false) {
       renderTickets();
     }
@@ -2133,8 +2141,10 @@ async function loadVersions(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/versions`);
   state.versions = listItems(data).map(normalizeVersion);
+  pruneTicketFilters();
   renderVersions();
   renderTicketFormOptions();
+  renderTicketFilters();
   if (options.renderTickets !== false) {
     renderTickets();
   }
@@ -2232,13 +2242,13 @@ async function loadProjects(selectedID = "") {
   if (route.projectID) {
     const nextProject = state.projects.find((project) => project.id === route.projectID) || null;
     if (!state.selectedProject || !nextProject || state.selectedProject.id !== nextProject.id) {
-      state.ticketFilters = { label: "" };
+      state.ticketFilters = emptyTicketFilters();
     }
     state.selectedProject = nextProject;
   } else if (selectedID) {
     const nextProject = state.projects.find((project) => project.id === selectedID) || null;
     if (!state.selectedProject || !nextProject || state.selectedProject.id !== nextProject.id) {
-      state.ticketFilters = { label: "" };
+      state.ticketFilters = emptyTicketFilters();
     }
     state.selectedProject = nextProject;
   } else if (!state.selectedProject && state.projects.length > 0) {
@@ -2256,7 +2266,7 @@ async function loadProjects(selectedID = "") {
     state.boards = [];
     state.selectedBoardID = "";
     state.boardTickets = null;
-    state.ticketFilters = { label: "" };
+    state.ticketFilters = emptyTicketFilters();
     state.sprints = [];
     state.selectedSprintReportID = "";
     state.sprintReport = null;
@@ -2312,7 +2322,9 @@ async function loadTickets() {
     render();
     return;
   }
-  const data = await api(`/api/projects/${state.selectedProject.id}/tickets`);
+  const params = ticketFilterParams();
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const data = await api(`/api/projects/${state.selectedProject.id}/tickets${suffix}`);
   state.tickets = listItems(data).map(normalizeTicket);
   state.attachments = {};
   state.comments = {};
@@ -3609,11 +3621,11 @@ function renderTicketFormOptions() {
   replaceSelectOptions(els.ticketVersionID, "Version", state.versions, (version) => `${version.name} (${version.state})`);
 }
 
-function replaceSelectOptions(select, emptyLabel, items, label) {
+function replaceSelectOptions(select, emptyLabel, items, label, selectedID) {
   if (!select) {
     return;
   }
-  const current = select.value;
+  const current = selectedID === undefined ? select.value : selectedID;
   select.replaceChildren();
   appendSelectOptions(select, emptyLabel, items, label, current);
 }
@@ -5672,20 +5684,34 @@ function filteredProjectTickets() {
 }
 
 function ticketMatchesFilters(ticket) {
-  if (!state.ticketFilters.label) {
-    return true;
+  if (state.ticketFilters.label && (!Array.isArray(ticket.labels) || !ticket.labels.includes(state.ticketFilters.label))) {
+    return false;
   }
-  return Array.isArray(ticket.labels) && ticket.labels.includes(state.ticketFilters.label);
+  if (state.ticketFilters.component_id && ticket.component_id !== state.ticketFilters.component_id) {
+    return false;
+  }
+  if (state.ticketFilters.version_id && ticket.version_id !== state.ticketFilters.version_id) {
+    return false;
+  }
+  return true;
 }
 
 function pruneTicketFilters() {
   if (state.ticketFilters.label && !state.projectLabels.some((label) => label.label === state.ticketFilters.label)) {
     state.ticketFilters.label = "";
   }
+  if (state.ticketFilters.component_id && !state.components.some((component) => component.id === state.ticketFilters.component_id)) {
+    state.ticketFilters.component_id = "";
+  }
+  if (state.ticketFilters.version_id && !state.versions.some((version) => version.id === state.ticketFilters.version_id)) {
+    state.ticketFilters.version_id = "";
+  }
 }
 
 function renderTicketFilters() {
   replaceSelectOptions(els.ticketFilterLabel, "All labels", state.projectLabels, (label) => `${label.label} (${label.ticket_count})`, state.ticketFilters.label);
+  replaceSelectOptions(els.ticketFilterComponent, "All components", state.components, (component) => component.name || component.id, state.ticketFilters.component_id);
+  replaceSelectOptions(els.ticketFilterVersion, "All versions", state.versions, (version) => version.name || version.id, state.ticketFilters.version_id);
   renderTicketFilterSummary(filteredProjectTickets().length, state.tickets.length);
 }
 
@@ -5693,16 +5719,43 @@ function renderTicketFilterSummary(shown, total) {
   if (!els.ticketFilterSummary) {
     return;
   }
-  const active = Boolean(state.ticketFilters.label);
+  const active = hasTicketFilters();
   if (!total) {
-    els.ticketFilterSummary.textContent = active ? "No tickets match this label" : "No tickets";
+    els.ticketFilterSummary.textContent = active ? "No tickets match these filters" : "No tickets";
     return;
   }
   if (!active) {
     els.ticketFilterSummary.textContent = `Showing all ${total} ticket${total === 1 ? "" : "s"}`;
     return;
   }
-  els.ticketFilterSummary.textContent = `Showing ${shown} of ${total} ticket${total === 1 ? "" : "s"}`;
+  els.ticketFilterSummary.textContent = `Showing ${shown} filtered ticket${shown === 1 ? "" : "s"}`;
+}
+
+function emptyTicketFilters() {
+  return { label: "", component_id: "", version_id: "" };
+}
+
+function ticketFiltersFromForm() {
+  return {
+    label: els.ticketFilterLabel ? els.ticketFilterLabel.value : "",
+    component_id: els.ticketFilterComponent ? els.ticketFilterComponent.value : "",
+    version_id: els.ticketFilterVersion ? els.ticketFilterVersion.value : ""
+  };
+}
+
+function ticketFilterParams() {
+  pruneTicketFilters();
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(state.ticketFilters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+  return params;
+}
+
+function hasTicketFilters() {
+  return Boolean(state.ticketFilters.label || state.ticketFilters.component_id || state.ticketFilters.version_id);
 }
 
 function ticketColumns() {

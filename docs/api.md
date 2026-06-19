@@ -112,7 +112,7 @@ Project ticket list/create responses, backlog ticket collection responses, and d
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
-Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. The project label list is a read-only index derived from current non-deleted tickets and returns label resources with `status.ticket_count`. The embedded browser UI accepts comma-separated labels on ticket create and ticket cards, and exposes project label filtering in the ticket filter strip. There are no separate label create/update/delete endpoints in this slice.
+Ticket `labels` is a string array on create, update, get, list, board/backlog, and search-related ticket payloads. Labels are normalized to lowercase slugs, deduplicated, and stored directly on the ticket. Updating `labels` replaces the ticket's label set. The project label list is a read-only index derived from current non-deleted tickets and returns label resources with `status.ticket_count`. The embedded browser UI accepts comma-separated labels on ticket create and ticket cards, and exposes project label, component, and version filtering in the ticket filter strip. There are no separate label create/update/delete endpoints in this slice.
 
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
@@ -173,7 +173,7 @@ Burndown, velocity, burnup, and other agile analytics are **Planned**.
 
 ## Components and Versions
 
-The components/versions API supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/update/delete, version release/archive state changes, and ticket component/version assignment. Release reports, roadmap timeline screens, component/version filtering, and advanced release planning UI are **Planned**.
+The components/versions API supports project component CRUD, project version/release CRUD, and assignment of tickets to a component or version through ticket create/update fields. The embedded browser UI exposes basic component/version list/create/update/delete, version release/archive state changes, ticket component/version assignment, and project ticket filtering by component or version. Release reports, roadmap timeline screens, richer component/version reporting, and advanced release planning UI are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
