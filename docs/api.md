@@ -223,7 +223,7 @@ Ticket assignment keeps all records in one project. Cross-project component or v
 
 ## Roadmap
 
-The roadmap API lists epics, direct child-ticket progress, and read-only dependency edges from existing ticket links. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a scheduled epic timeline, draggable timeline rescheduling that preserves epic duration, quick scheduling for unscheduled epics, inline epic schedule editing, child progress, ticket-form fields for epic creation, parent epic assignment, roadmap dates, and a dependency list. Roadmap dependency editing and capacity views are **Planned**.
+The roadmap API lists epics, direct child-ticket progress, and dependency edges from existing ticket links. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a scheduled epic timeline, draggable timeline rescheduling that preserves epic duration, quick scheduling for unscheduled epics, inline epic schedule editing, child progress, ticket-form fields for epic creation, parent epic assignment, roadmap dates, and dependency create/delete controls backed by ticket-link APIs. Roadmap capacity views are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -233,7 +233,7 @@ The roadmap API lists epics, direct child-ticket progress, and read-only depende
 
 Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. The schedule endpoint updates one epic in the addressed project, rejects non-epic or cross-project ticket IDs, and returns the refreshed roadmap list. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
-Roadmap dependency list items use `metadata` for the ticket link identity, `spec.link` for the embedded ticket link resource, and `spec.source_epic_id` / `spec.target_epic_id` for grouping dependencies by roadmap epic. The endpoint includes links only when both endpoints are roadmap epics or direct child tickets under roadmap epics in the selected project. Link creation and deletion remain on the ticket link endpoints.
+Roadmap dependency list items use `metadata` for the ticket link identity, `spec.link` for the embedded ticket link resource, and `spec.source_epic_id` / `spec.target_epic_id` for grouping dependencies by roadmap epic. The endpoint includes links only when both endpoints are roadmap epics or direct child tickets under roadmap epics in the selected project. Link creation and deletion remain on the ticket link endpoints, and the embedded roadmap panel uses those endpoints for dependency editing.
 
 ## Custom Fields
 

@@ -2697,10 +2697,20 @@ p {
   gap: 8px;
 }
 
+.roadmap-dependency-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .roadmap-dependency {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  align-items: center;
   border: 1px solid var(--border);
   border-left: 4px solid var(--accent);
   border-radius: 6px;
@@ -2716,11 +2726,18 @@ p {
 }
 
 .roadmap-dependency span {
+  grid-column: 1;
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
+.roadmap-dependency button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.roadmap-dependency-form button,
 .roadmap-quick-actions button,
 .roadmap-schedule-form button {
   min-height: 30px;
@@ -2730,6 +2747,7 @@ p {
   padding: 0 9px;
 }
 
+.roadmap-dependency-form button:hover,
 .roadmap-quick-actions button:hover,
 .roadmap-schedule-form button:hover {
   border-color: var(--primary);
@@ -3490,6 +3508,8 @@ p {
   .board-form,
   .board-item,
   .board-edit-form,
+  .roadmap-dependency-form,
+  .roadmap-dependency,
   .roadmap-schedule-form,
   .release-grid,
   .component-form,
@@ -3517,6 +3537,12 @@ p {
   .attachment-form,
   .ticket-custom-field-controls {
     grid-template-columns: 1fr;
+  }
+
+  .roadmap-dependency button,
+  .roadmap-dependency span {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .inbox-header {
