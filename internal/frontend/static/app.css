@@ -1772,6 +1772,47 @@ p {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.version-report-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+}
+
+.version-report-progress {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.version-report-progress span,
+.version-report-progress small,
+.version-report-component small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.version-report-progress strong {
+  color: var(--heading);
+  font-size: 24px;
+}
+
+.version-report-progress-bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--workspace-bg);
+}
+
+.version-report-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
 .sprint-report-metric {
   display: grid;
   gap: 2px;
@@ -1836,6 +1877,49 @@ p {
 .sprint-report-chart small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.version-report-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.version-report-section {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.version-report-section h4 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.version-report-components {
+  display: grid;
+  gap: 6px;
+}
+
+.version-report-component {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.version-report-component strong {
+  color: var(--heading);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.version-report-component.is-unassigned,
+.version-report-ticket.is-unassigned {
+  border-left: 4px solid var(--accent);
 }
 
 .sprint-report-tickets,
