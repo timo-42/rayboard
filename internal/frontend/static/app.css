@@ -1620,7 +1620,7 @@ p {
 
 .sprint-form {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.2fr) 150px 150px auto;
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.2fr) 150px 150px 150px auto;
   gap: 10px;
   align-items: end;
 }
@@ -1633,7 +1633,7 @@ p {
 .sprint-item {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.3fr) auto;
   gap: 10px;
   align-items: center;
   border: 1px solid var(--border);
@@ -1659,6 +1659,14 @@ p {
   gap: 5px;
 }
 
+.sprint-edit-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .sprint-item p,
 .sprint-heading {
   color: var(--text);
@@ -1680,6 +1688,7 @@ p {
   gap: 6px;
 }
 
+.sprint-edit-form button,
 .sprint-actions button,
 .ticket-sprint-controls button {
   min-height: 30px;
@@ -1689,6 +1698,7 @@ p {
   padding: 0 9px;
 }
 
+.sprint-edit-form button:hover:not(:disabled),
 .sprint-actions button:hover:not(:disabled),
 .ticket-sprint-controls button:hover:not(:disabled) {
   border-color: var(--primary);
@@ -3396,6 +3406,8 @@ p {
   .saved-view-form,
   .search-grid,
   .sprint-form,
+  .sprint-item,
+  .sprint-edit-form,
   .backlog-item,
   .workflow-grid,
   .board-form,

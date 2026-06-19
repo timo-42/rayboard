@@ -18,7 +18,7 @@ Implemented browser workflows:
 - ticket comment list, creation, deletion, and `@username` mention notifications from each ticket card;
 - ticket attachment list, upload, download, and delete from each ticket card;
 - notification inbox listing with a persistent unread badge, unread filter, mention notification labels, read/unread toggle, refresh, and mark-all-read;
-- sprint list, create, start, complete, delete, and ticket sprint assignment/removal for the selected project;
+- sprint list, create, edit, state filtering, start, complete, delete, and ticket sprint assignment/removal for the selected project;
 - component and version list/create/edit/delete, version release/archive state changes, ticket component/version assignment, project ticket filtering by component/version, and compact release reports with live-versus-released snapshot scope labels;
 - roadmap scheduled epic timeline, unscheduled epic list, inline schedule edits, child-ticket progress, and dependency list, plus ticket form fields for epics, parent epics, and roadmap dates;
 - custom field list/create/update/delete for the selected project, plus field-aware custom-field controls on ticket create and ticket cards;
@@ -38,7 +38,6 @@ API token secrets are shown once when created and are not listed later.
 
 Implemented API-only user workflows:
 
-- detailed sprint editing and sprint-state filtering;
 - incoming webhook execution APIs and advanced outgoing delivery retry workflows;
 - custom ticket create-page schema resolution and submission APIs.
 

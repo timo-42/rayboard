@@ -746,6 +746,46 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected sprint: %#v", sprint)
 	}
 
+	listPlannedSprintsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/sprints?state=planned", nil)
+	listPlannedSprintsReq.AddCookie(session)
+	listPlannedSprints := httptest.NewRecorder()
+	handler.ServeHTTP(listPlannedSprints, listPlannedSprintsReq)
+	if listPlannedSprints.Code != http.StatusOK {
+		t.Fatalf("expected planned sprint list status 200, got %d: %s", listPlannedSprints.Code, listPlannedSprints.Body.String())
+	}
+	var plannedSprintList struct {
+		Status struct {
+			Items []sprintResourceBody `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listPlannedSprints.Body.Bytes(), &plannedSprintList); err != nil {
+		t.Fatalf("decode planned sprint list: %v", err)
+	}
+	if len(plannedSprintList.Status.Items) != 1 || plannedSprintList.Status.Items[0].Metadata.ID != sprint.Metadata.ID {
+		t.Fatalf("unexpected planned sprint list: %#v", plannedSprintList)
+	}
+
+	updateSprintReq := httptest.NewRequest(http.MethodPatch, "/api/sprints/"+sprint.Metadata.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"name":       "Sprint 1 Updated",
+			"goal":       "Exercise sprint edit API",
+			"start_date": "2026-06-17",
+			"end_date":   "2026-07-01",
+		},
+	}))
+	addSessionCSRF(updateSprintReq, session, csrf)
+	updateSprint := httptest.NewRecorder()
+	handler.ServeHTTP(updateSprint, updateSprintReq)
+	if updateSprint.Code != http.StatusOK {
+		t.Fatalf("expected update sprint status 200, got %d: %s", updateSprint.Code, updateSprint.Body.String())
+	}
+	if err := json.Unmarshal(updateSprint.Body.Bytes(), &sprint); err != nil {
+		t.Fatalf("decode updated sprint: %v", err)
+	}
+	if sprint.Spec.Name != "Sprint 1 Updated" || sprint.Spec.Goal != "Exercise sprint edit API" || sprint.Spec.StartDate != "2026-06-17" || sprint.Spec.EndDate != "2026-07-01" {
+		t.Fatalf("unexpected updated sprint: %#v", sprint)
+	}
+
 	assignSprintReq := httptest.NewRequest(http.MethodPut, "/api/tickets/"+ticket.ID+"/sprint", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"sprint_id": sprint.Metadata.ID,
@@ -768,6 +808,25 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	handler.ServeHTTP(startSprint, startSprintReq)
 	if startSprint.Code != http.StatusOK {
 		t.Fatalf("expected start sprint status 200, got %d: %s", startSprint.Code, startSprint.Body.String())
+	}
+
+	listActiveSprintsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/sprints?state=active", nil)
+	listActiveSprintsReq.AddCookie(session)
+	listActiveSprints := httptest.NewRecorder()
+	handler.ServeHTTP(listActiveSprints, listActiveSprintsReq)
+	if listActiveSprints.Code != http.StatusOK {
+		t.Fatalf("expected active sprint list status 200, got %d: %s", listActiveSprints.Code, listActiveSprints.Body.String())
+	}
+	var activeSprintList struct {
+		Status struct {
+			Items []sprintResourceBody `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listActiveSprints.Body.Bytes(), &activeSprintList); err != nil {
+		t.Fatalf("decode active sprint list: %v", err)
+	}
+	if len(activeSprintList.Status.Items) != 1 || activeSprintList.Status.Items[0].Metadata.ID != sprint.Metadata.ID || activeSprintList.Status.Items[0].Status.State != tracker.SprintStateActive {
+		t.Fatalf("unexpected active sprint list: %#v", activeSprintList)
 	}
 
 	activeReportReq := httptest.NewRequest(http.MethodGet, "/api/sprints/"+sprint.Metadata.ID+"/report", nil)
@@ -797,6 +856,18 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	handler.ServeHTTP(completeSprint, completeSprintReq)
 	if completeSprint.Code != http.StatusOK {
 		t.Fatalf("expected complete sprint status 200, got %d: %s", completeSprint.Code, completeSprint.Body.String())
+	}
+
+	updateCompletedSprintReq := httptest.NewRequest(http.MethodPatch, "/api/sprints/"+sprint.Metadata.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"name": "Should not update",
+		},
+	}))
+	addSessionCSRF(updateCompletedSprintReq, session, csrf)
+	updateCompletedSprint := httptest.NewRecorder()
+	handler.ServeHTTP(updateCompletedSprint, updateCompletedSprintReq)
+	if updateCompletedSprint.Code != http.StatusConflict {
+		t.Fatalf("expected completed sprint update conflict, got %d: %s", updateCompletedSprint.Code, updateCompletedSprint.Body.String())
 	}
 
 	completedReportReq := httptest.NewRequest(http.MethodGet, "/api/sprints/"+sprint.Metadata.ID+"/report", nil)
@@ -1009,6 +1080,12 @@ type sprintResourceBody struct {
 	Metadata struct {
 		ID string `json:"id"`
 	} `json:"metadata"`
+	Spec struct {
+		Name      string `json:"name"`
+		Goal      string `json:"goal"`
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+	} `json:"spec"`
 	Status struct {
 		State string `json:"state"`
 	} `json:"status"`
