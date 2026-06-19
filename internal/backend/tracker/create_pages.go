@@ -428,6 +428,9 @@ func (s *CreatePageService) validate(ctx context.Context, page CreatePage) error
 	if _, _, err := createPageJSON(page); err != nil {
 		fields["schema"] = err.Error()
 	}
+	if err := validateCreatePageLayout(page.FieldLayout); err != nil {
+		fields["field_layout"] = err.Error()
+	}
 	if len(page.FormLuaScript) > 64*1024 {
 		fields["form_lua_script"] = "Must be at most 65536 bytes"
 	}
@@ -803,9 +806,23 @@ func createPageLayoutFromAny(value any) ([]map[string]any, error) {
 		if _, hasHTML := object["html"]; hasHTML {
 			return nil, errors.New("Raw HTML fields are not allowed")
 		}
+		if nested, ok := object["fields"]; ok {
+			if _, err := createPageLayoutFromAny(nested); err != nil {
+				return nil, err
+			}
+		}
 		layout = append(layout, object)
 	}
 	return normalizeCreatePageLayout(layout), nil
+}
+
+func validateCreatePageLayout(layout []map[string]any) error {
+	items := make([]any, 0, len(layout))
+	for _, item := range layout {
+		items = append(items, item)
+	}
+	_, err := createPageLayoutFromAny(items)
+	return err
 }
 
 func createTicketInputFromDefaults(projectID string, defaults map[string]any) CreateTicketInput {
