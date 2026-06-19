@@ -531,6 +531,46 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected links body: %#v", linksBody.Status.Items)
 	}
 
+	roadmapDependenciesReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/roadmap/dependencies", nil)
+	roadmapDependenciesReq.AddCookie(session)
+	roadmapDependencies := httptest.NewRecorder()
+	handler.ServeHTTP(roadmapDependencies, roadmapDependenciesReq)
+	if roadmapDependencies.Code != http.StatusOK {
+		t.Fatalf("expected roadmap dependencies status 200, got %d: %s", roadmapDependencies.Code, roadmapDependencies.Body.String())
+	}
+	var roadmapDependenciesBody struct {
+		Status struct {
+			Items []struct {
+				Metadata struct {
+					ID string `json:"id"`
+				} `json:"metadata"`
+				Spec struct {
+					SourceEpicID string `json:"source_epic_id"`
+					TargetEpicID string `json:"target_epic_id"`
+					Link         struct {
+						Spec struct {
+							LinkType string             `json:"link_type"`
+							Source   ticketResourceBody `json:"source"`
+							Target   ticketResourceBody `json:"target"`
+						} `json:"spec"`
+					} `json:"link"`
+				} `json:"spec"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(roadmapDependencies.Body.Bytes(), &roadmapDependenciesBody); err != nil {
+		t.Fatalf("decode roadmap dependencies: %v", err)
+	}
+	if len(roadmapDependenciesBody.Status.Items) != 1 ||
+		roadmapDependenciesBody.Status.Items[0].Metadata.ID != linkBody.Metadata.ID ||
+		roadmapDependenciesBody.Status.Items[0].Spec.SourceEpicID != epic.ID ||
+		roadmapDependenciesBody.Status.Items[0].Spec.TargetEpicID != epic.ID ||
+		roadmapDependenciesBody.Status.Items[0].Spec.Link.Spec.LinkType != "blocks" ||
+		roadmapDependenciesBody.Status.Items[0].Spec.Link.Spec.Source.Metadata.ID != epic.ID ||
+		roadmapDependenciesBody.Status.Items[0].Spec.Link.Spec.Target.Metadata.ID != roadmapChildTicket.ID {
+		t.Fatalf("unexpected roadmap dependencies body: %#v", roadmapDependenciesBody.Status.Items)
+	}
+
 	badLinkReq := httptest.NewRequest(http.MethodPost, "/api/tickets/"+epic.ID+"/links", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"target_ticket_id": epic.ID,

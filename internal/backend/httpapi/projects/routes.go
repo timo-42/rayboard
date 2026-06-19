@@ -38,6 +38,7 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/labels/{label}", "Labels", "Update project label"), provider.updateLabel)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/projects/{project_id}/labels/{label}", "Labels", "Delete project label", http.StatusNoContent), provider.deleteLabel)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap", "Roadmap", "List project roadmap"), provider.listRoadmap)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap/dependencies", "Roadmap", "List roadmap dependencies"), provider.listRoadmapDependencies)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/roadmap/schedule", "Roadmap", "Schedule roadmap epics"), provider.scheduleRoadmap)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/sprints", "Sprints", "List project sprints"), provider.listSprints)
 	huma.Register(api, shared.OperationWithStatus(http.MethodPost, "/api/projects/{project_id}/sprints", "Sprints", "Create project sprint", http.StatusCreated), provider.createSprint)
@@ -318,6 +319,18 @@ func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput)
 		return nil, shared.TrackerError(err)
 	}
 	return &ListRoadmapOutput{Body: shared.NewListResource[RoadmapItemResource](roadmapItemResources(items))}, nil
+}
+
+func (provider Provider) listRoadmapDependencies(ctx context.Context, input *ProjectIDInput) (*ListRoadmapDependenciesOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	items, err := provider.Tracker.ListRoadmapDependencies(ctx, principal, input.ProjectID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListRoadmapDependenciesOutput{Body: shared.NewListResource[RoadmapDependencyResource](roadmapDependencyResources(items))}, nil
 }
 
 func (provider Provider) scheduleRoadmap(ctx context.Context, input *ScheduleRoadmapInput) (*ListRoadmapOutput, error) {

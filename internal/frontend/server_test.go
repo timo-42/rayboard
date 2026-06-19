@@ -84,6 +84,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="release-panel"`) ||
 		!strings.Contains(body, `id="version-report"`) ||
 		!strings.Contains(body, `id="roadmap-panel"`) ||
+		!strings.Contains(body, `id="roadmap-dependencies"`) ||
 		!strings.Contains(body, `id="field-panel"`) ||
 		!strings.Contains(body, `id="search-panel"`) ||
 		!strings.Contains(body, `id="saved-view-cancel-edit"`) ||
@@ -719,9 +720,13 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"renderRoadmap",
 		"roadmapTimelineNode",
 		"roadmapScheduleFormNode",
+		"renderRoadmapDependencies",
+		"normalizeRoadmapDependency",
+		"roadmapDependencyNode",
 		"normalizeRoadmapItem",
 		"roadmapEpics",
 		"/api/projects/${state.selectedProject.id}/roadmap",
+		"/api/projects/${state.selectedProject.id}/roadmap/dependencies",
 		"/api/projects/${state.selectedProject.id}/roadmap/schedule",
 		"ticket-parent-id",
 		"data-roadmap-schedule-form",
@@ -737,6 +742,8 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		".roadmap-list",
 		".roadmap-timeline",
 		".roadmap-unscheduled",
+		".roadmap-dependencies",
+		".roadmap-dependency",
 		".roadmap-item",
 		".roadmap-schedule-form",
 		".roadmap-progress",

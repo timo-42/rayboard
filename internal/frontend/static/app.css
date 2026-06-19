@@ -2423,13 +2423,15 @@ p {
 }
 
 .roadmap-timeline,
-.roadmap-unscheduled {
+.roadmap-unscheduled,
+.roadmap-dependencies {
   display: grid;
   gap: 8px;
 }
 
 .roadmap-timeline h3,
-.roadmap-unscheduled h3 {
+.roadmap-unscheduled h3,
+.roadmap-dependencies h3 {
   color: var(--heading);
   font-size: 13px;
   text-transform: uppercase;
@@ -2494,6 +2496,35 @@ p {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.roadmap-dependency-list {
+  display: grid;
+  gap: 8px;
+}
+
+.roadmap-dependency {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.roadmap-dependency p {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-dependency span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .roadmap-schedule-form button {
