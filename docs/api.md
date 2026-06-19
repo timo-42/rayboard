@@ -147,22 +147,22 @@ Backlog responses use the same persisted ticket shape as project ticket lists, o
 
 ## Boards and Workflows
 
-The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. The embedded project page exposes status replacement, board creation/selection/edit/delete, board-backed ticket columns, and browser drag/drop movement between board columns. Richer board planning is **Planned**.
+The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. Board definitions can include optional per-column WIP limits keyed by status slug. The embedded project page exposes status replacement, board creation/selection/edit/delete, board-backed ticket columns, per-column count/limit warnings, and browser drag/drop movement between board columns. Richer board planning beyond advisory WIP warnings is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/statuses` | none |
 | `PUT` | `/api/projects/{project_id}/statuses` | `{"spec":{"statuses":[{"slug":"todo","name":"To Do"},{"slug":"in_progress","name":"In Progress"},{"slug":"done","name":"Done"}]}}` |
 | `GET` | `/api/projects/{project_id}/boards` | none |
-| `POST` | `/api/projects/{project_id}/boards` | `{"spec":{"name":"Development","description":"Team delivery board","status_slugs":["todo","in_progress","done"]}}` |
+| `POST` | `/api/projects/{project_id}/boards` | `{"spec":{"name":"Development","description":"Team delivery board","status_slugs":["todo","in_progress","done"],"wip_limits":{"in_progress":3}}}` |
 | `GET` | `/api/boards/{board_id}` | none |
-| `PATCH` | `/api/boards/{board_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `status_slugs`. |
+| `PATCH` | `/api/boards/{board_id}` | `{"spec":{...}}` with any subset of `name`, `description`, `status_slugs`, `wip_limits`. |
 | `DELETE` | `/api/boards/{board_id}` | none |
 | `GET` | `/api/boards/{board_id}/tickets` | none |
 
-Status and board responses use `metadata`, `spec`, and `status`. Status slugs/names are returned in `spec`; board columns are returned in `status.columns`. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid.
+Status and board responses use `metadata`, `spec`, and `status`. Status slugs/names are returned in `spec`; board columns are returned in `status.columns`, including optional `wip_limit` values. Replacing a project's statuses validates slug uniqueness and preserves project ownership. Board columns are derived from the ordered `status_slugs` in the board's project; cross-project status mappings are invalid. WIP limits must be zero or greater and reference statuses included by the board.
 
-Board ticket responses use `metadata` for the board view identity, `spec.board` for the board definition resource, and `status.columns` for computed columns with ticket resources. Moving tickets between columns continues to use ticket status updates, including the embedded browser drag/drop flow.
+Board ticket responses use `metadata` for the board view identity, `spec.board` for the board definition resource, and `status.columns` for computed columns with ticket resources, `ticket_count`, and `over_wip_limit`. Moving tickets between columns continues to use ticket status updates, including the embedded browser drag/drop flow.
 
 ## Sprints
 

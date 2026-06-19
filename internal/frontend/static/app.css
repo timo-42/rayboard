@@ -1051,10 +1051,40 @@ p {
   gap: 10px;
 }
 
+.column-header {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .column h3 {
   color: var(--heading);
   font-size: 13px;
   text-transform: uppercase;
+}
+
+.column-capacity {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 8px;
+}
+
+.column.is-over-wip .column-capacity {
+  border-color: var(--danger, #b42318);
+  background: var(--danger-soft, #fee4e2);
+  color: var(--danger, #b42318);
+  font-weight: 700;
+}
+
+.column.is-over-wip .ticket-list {
+  border-color: var(--danger, #b42318);
 }
 
 .ticket-list {
@@ -1955,7 +1985,7 @@ p {
 .board-edit-form {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   gap: 8px;
   align-items: center;
 }

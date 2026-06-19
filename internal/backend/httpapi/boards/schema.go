@@ -32,15 +32,17 @@ type BoardMetadata struct {
 }
 
 type BoardSpec struct {
-	Name        string   `json:"name,omitempty"`
-	Description string   `json:"description,omitempty"`
-	StatusSlugs []string `json:"status_slugs,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	Description string         `json:"description,omitempty"`
+	StatusSlugs []string       `json:"status_slugs,omitempty"`
+	WIPLimits   map[string]int `json:"wip_limits,omitempty"`
 }
 
 type UpdateBoardSpec struct {
-	Name        *string   `json:"name,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	StatusSlugs *[]string `json:"status_slugs,omitempty"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	StatusSlugs *[]string       `json:"status_slugs,omitempty"`
+	WIPLimits   *map[string]int `json:"wip_limits,omitempty"`
 }
 
 type BoardStatus struct {
@@ -69,16 +71,20 @@ type BoardTicketsStatus struct {
 type BoardTicketsResource = shared.Resource[BoardTicketsMetadata, BoardTicketsSpec, BoardTicketsStatus]
 
 type BoardTicketsColumnResource struct {
-	Column  tracker.BoardColumn        `json:"column"`
-	Tickets []ticketapi.TicketResource `json:"tickets"`
+	Column       tracker.BoardColumn        `json:"column"`
+	Tickets      []ticketapi.TicketResource `json:"tickets"`
+	TicketCount  int                        `json:"ticket_count"`
+	OverWIPLimit bool                       `json:"over_wip_limit"`
 }
 
 func BoardTicketsResourceFromTracker(boardTickets tracker.BoardTickets) BoardTicketsResource {
 	columns := make([]BoardTicketsColumnResource, 0, len(boardTickets.Columns))
 	for _, column := range boardTickets.Columns {
 		columns = append(columns, BoardTicketsColumnResource{
-			Column:  column.Column,
-			Tickets: ticketapi.ResourcesFromTracker(column.Tickets),
+			Column:       column.Column,
+			Tickets:      ticketapi.ResourcesFromTracker(column.Tickets),
+			TicketCount:  column.TicketCount,
+			OverWIPLimit: column.OverWIPLimit,
 		})
 	}
 	return BoardTicketsResource{
@@ -101,6 +107,7 @@ func (spec BoardSpec) ToCreateInput(projectID string) tracker.CreateBoardInput {
 		Name:        spec.Name,
 		Description: spec.Description,
 		StatusSlugs: spec.StatusSlugs,
+		WIPLimits:   spec.WIPLimits,
 	}
 }
 
@@ -109,13 +116,21 @@ func (spec UpdateBoardSpec) ToUpdateInput() tracker.UpdateBoardInput {
 		Name:        spec.Name,
 		Description: spec.Description,
 		StatusSlugs: spec.StatusSlugs,
+		WIPLimits:   spec.WIPLimits,
 	}
 }
 
 func ResourceFromTracker(board tracker.Board) BoardResource {
 	statusSlugs := make([]string, 0, len(board.Columns))
+	wipLimits := map[string]int{}
 	for _, column := range board.Columns {
 		statusSlugs = append(statusSlugs, column.StatusSlug)
+		if column.WIPLimit != nil {
+			wipLimits[column.StatusSlug] = *column.WIPLimit
+		}
+	}
+	if len(wipLimits) == 0 {
+		wipLimits = nil
 	}
 	return BoardResource{
 		Metadata: BoardMetadata{
@@ -129,6 +144,7 @@ func ResourceFromTracker(board tracker.Board) BoardResource {
 			Name:        board.Name,
 			Description: board.Description,
 			StatusSlugs: statusSlugs,
+			WIPLimits:   wipLimits,
 		},
 		Status: BoardStatus{
 			Columns: board.Columns,

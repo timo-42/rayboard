@@ -1758,20 +1758,46 @@ func TestProjectStatusesAndBoards(t *testing.T) {
 		Name:        "Triage",
 		Description: "Triage board",
 		StatusSlugs: []string{"todo", "blocked", "done"},
+		WIPLimits:   map[string]int{"blocked": 0},
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
 	}
-	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "blocked" {
+	if board.ID == "" || len(board.Columns) != 3 || board.Columns[1].StatusSlug != "blocked" || board.Columns[1].WIPLimit == nil || *board.Columns[1].WIPLimit != 0 {
 		t.Fatalf("unexpected board: %#v", board)
+	}
+	if _, err := service.CreateBoard(ctx, admin, tracker.CreateBoardInput{
+		ProjectID:   project.ID,
+		Name:        "Invalid limit",
+		StatusSlugs: []string{"todo", "blocked"},
+		WIPLimits:   map[string]int{"done": -1},
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected validation for negative WIP limit, got %v", err)
+	}
+	if _, err := service.CreateBoard(ctx, admin, tracker.CreateBoardInput{
+		ProjectID:   project.ID,
+		Name:        "Unknown limit",
+		StatusSlugs: []string{"todo", "blocked"},
+		WIPLimits:   map[string]int{"done": 1},
+	}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected validation for unknown WIP limit status, got %v", err)
 	}
 
 	boardTickets, err := service.ListBoardTickets(ctx, admin, board.ID)
 	if err != nil {
 		t.Fatalf("list board tickets: %v", err)
 	}
-	if len(boardTickets.Columns) != 3 || len(boardTickets.Columns[1].Tickets) != 1 || boardTickets.Columns[1].Tickets[0].Status != "blocked" {
+	if len(boardTickets.Columns) != 3 || len(boardTickets.Columns[1].Tickets) != 1 || boardTickets.Columns[1].Tickets[0].Status != "blocked" || boardTickets.Columns[1].TicketCount != 1 || !boardTickets.Columns[1].OverWIPLimit {
 		t.Fatalf("unexpected board tickets: %#v", boardTickets)
+	}
+
+	updatedLimits := map[string]int{"blocked": 2}
+	limitOnly, err := service.UpdateBoard(ctx, admin, board.ID, tracker.UpdateBoardInput{WIPLimits: &updatedLimits})
+	if err != nil {
+		t.Fatalf("update board limits: %v", err)
+	}
+	if limitOnly.Columns[1].WIPLimit == nil || *limitOnly.Columns[1].WIPLimit != 2 {
+		t.Fatalf("unexpected limit-only board update: %#v", limitOnly)
 	}
 
 	name := "Triage Updated"
@@ -1780,7 +1806,7 @@ func TestProjectStatusesAndBoards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update board: %v", err)
 	}
-	if updated.Name != name || len(updated.Columns) != 2 || updated.Columns[0].StatusSlug != "blocked" {
+	if updated.Name != name || len(updated.Columns) != 2 || updated.Columns[0].StatusSlug != "blocked" || updated.Columns[0].WIPLimit == nil || *updated.Columns[0].WIPLimit != 2 {
 		t.Fatalf("unexpected updated board: %#v", updated)
 	}
 
