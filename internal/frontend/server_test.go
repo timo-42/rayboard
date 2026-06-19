@@ -684,6 +684,46 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 	}
 }
 
+func TestEmbeddedAppSupportsTicketLinks(t *testing.T) {
+	app, err := assets.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	css, err := assets.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatalf("read app.css: %v", err)
+	}
+	appText := string(app)
+	for _, expected := range []string{
+		"ticketLinks",
+		"loadTicketLinks",
+		"ticketLinksNode",
+		"ticketLinkItemNode",
+		"normalizeTicketLink",
+		"dataset.ticketLinkForm",
+		"deleteTicketLinkId",
+		"/api/tickets/${ticketID}/links",
+		"/api/tickets/${deleteLink.dataset.ticketId}/links/${deleteLink.dataset.deleteTicketLinkId}",
+		"ticket.link_created",
+		"ticket.link_deleted",
+	} {
+		if !strings.Contains(appText, expected) {
+			t.Fatalf("expected app.js to contain %q", expected)
+		}
+	}
+	cssText := string(css)
+	for _, expected := range []string{
+		".ticket-links",
+		".ticket-link-list",
+		".ticket-link-item",
+		".ticket-link-form",
+	} {
+		if !strings.Contains(cssText, expected) {
+			t.Fatalf("expected app.css to contain %q", expected)
+		}
+	}
+}
+
 func TestEmbeddedAppSupportsTicketLabels(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {

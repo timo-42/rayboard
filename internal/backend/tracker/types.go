@@ -191,6 +191,21 @@ type TicketActivity struct {
 	CreatedAt    time.Time      `json:"created_at"`
 }
 
+type TicketLink struct {
+	ID        string    `json:"id"`
+	ProjectID string    `json:"project_id"`
+	Source    Ticket    `json:"source"`
+	Target    Ticket    `json:"target"`
+	LinkType  string    `json:"link_type"`
+	CreatedBy string    `json:"created_by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CreateTicketLinkInput struct {
+	TargetTicketID string `json:"target_ticket_id,omitempty"`
+	LinkType       string `json:"link_type,omitempty"`
+}
+
 type Sprint struct {
 	ID          string     `json:"id"`
 	ProjectID   string     `json:"project_id"`

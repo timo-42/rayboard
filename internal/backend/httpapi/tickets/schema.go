@@ -24,8 +24,25 @@ type AssignSprintInput struct {
 	Body     shared.ResourceInput[AssignSprintSpec]
 }
 
+type CreateTicketLinkInput struct {
+	shared.AuthInput
+	TicketID string `path:"ticket_id"`
+	Body     shared.ResourceInput[TicketLinkCreateSpec]
+}
+
+type DeleteTicketLinkInput struct {
+	shared.AuthInput
+	TicketID string `path:"ticket_id"`
+	LinkID   string `path:"link_id"`
+}
+
 type AssignSprintSpec struct {
 	SprintID string `json:"sprint_id,omitempty"`
+}
+
+type TicketLinkCreateSpec struct {
+	TargetTicketID string `json:"target_ticket_id,omitempty"`
+	LinkType       string `json:"link_type,omitempty"`
 }
 
 type TicketOutput struct {
@@ -33,6 +50,8 @@ type TicketOutput struct {
 }
 
 type ActivityOutput = shared.ListOutput[ActivityResource]
+type TicketLinksOutput = shared.ListOutput[TicketLinkResource]
+type CreateTicketLinkOutput = shared.CreatedOutput[TicketLinkResource]
 
 type TicketMetadata struct {
 	ID        string    `json:"id"`
@@ -102,6 +121,24 @@ type ActivityStatus struct {
 
 type ActivityResource = shared.Resource[ActivityMetadata, ActivitySpec, ActivityStatus]
 
+type TicketLinkMetadata struct {
+	ID        string    `json:"id"`
+	ProjectID string    `json:"project_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TicketLinkSpec struct {
+	LinkType string         `json:"link_type"`
+	Source   TicketResource `json:"source"`
+	Target   TicketResource `json:"target"`
+}
+
+type TicketLinkStatus struct {
+	CreatedBy string `json:"created_by,omitempty"`
+}
+
+type TicketLinkResource = shared.Resource[TicketLinkMetadata, TicketLinkSpec, TicketLinkStatus]
+
 func (spec TicketSpec) ToCreateInput(projectID string) tracker.CreateTicketInput {
 	return tracker.CreateTicketInput{
 		ProjectID:      projectID,
@@ -143,6 +180,13 @@ func (spec TicketUpdateSpec) ToUpdateInput() tracker.UpdateTicketInput {
 	}
 }
 
+func (spec TicketLinkCreateSpec) ToCreateInput() tracker.CreateTicketLinkInput {
+	return tracker.CreateTicketLinkInput{
+		TargetTicketID: spec.TargetTicketID,
+		LinkType:       spec.LinkType,
+	}
+}
+
 func ResourceFromTracker(ticket tracker.Ticket) TicketResource {
 	return TicketResource{
 		Metadata: TicketMetadata{
@@ -180,6 +224,32 @@ func ResourcesFromTracker(tickets []tracker.Ticket) []TicketResource {
 	resources := make([]TicketResource, 0, len(tickets))
 	for _, ticket := range tickets {
 		resources = append(resources, ResourceFromTracker(ticket))
+	}
+	return resources
+}
+
+func LinkResourceFromTracker(link tracker.TicketLink) TicketLinkResource {
+	return TicketLinkResource{
+		Metadata: TicketLinkMetadata{
+			ID:        link.ID,
+			ProjectID: link.ProjectID,
+			CreatedAt: link.CreatedAt,
+		},
+		Spec: TicketLinkSpec{
+			LinkType: link.LinkType,
+			Source:   ResourceFromTracker(link.Source),
+			Target:   ResourceFromTracker(link.Target),
+		},
+		Status: TicketLinkStatus{
+			CreatedBy: link.CreatedBy,
+		},
+	}
+}
+
+func LinkResourcesFromTracker(links []tracker.TicketLink) []TicketLinkResource {
+	resources := make([]TicketLinkResource, 0, len(links))
+	for _, link := range links {
+		resources = append(resources, LinkResourceFromTracker(link))
 	}
 	return resources
 }

@@ -339,6 +339,112 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	}
 }
 
+func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedUser(t, ctx, db.SQL, "user-viewer")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	otherProject, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "OPS", Name: "Ops"})
+	if err != nil {
+		t.Fatalf("create other project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	evaluator.BindRole(authz.UserBinding("user-viewer", authz.RoleProjectViewer, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+	viewer := principal("user-viewer")
+
+	source, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Implement checkout"})
+	if err != nil {
+		t.Fatalf("create source ticket: %v", err)
+	}
+	target, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Fix payment gateway"})
+	if err != nil {
+		t.Fatalf("create target ticket: %v", err)
+	}
+	other, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: otherProject.ID, Title: "Other project ticket"})
+	if err != nil {
+		t.Fatalf("create other ticket: %v", err)
+	}
+
+	link, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{
+		TargetTicketID: target.ID,
+		LinkType:       "Blocks",
+	})
+	if err != nil {
+		t.Fatalf("create ticket link: %v", err)
+	}
+	if link.ID == "" || link.LinkType != "blocks" || link.Source.ID != source.ID || link.Target.ID != target.ID || link.CreatedBy != "user-member" {
+		t.Fatalf("unexpected link: %#v", link)
+	}
+
+	links, err := service.ListTicketLinks(ctx, member, source.ID)
+	if err != nil {
+		t.Fatalf("list ticket links: %v", err)
+	}
+	if len(links) != 1 || links[0].ID != link.ID || links[0].Target.Key != target.Key {
+		t.Fatalf("unexpected links: %#v", links)
+	}
+
+	if _, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: target.ID, LinkType: "blocks"}); !errors.Is(err, tracker.ErrConflict) {
+		t.Fatalf("expected duplicate conflict, got %v", err)
+	}
+	if _, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: source.ID, LinkType: "blocks"}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected self-link validation, got %v", err)
+	}
+	if _, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: target.ID, LinkType: "depends"}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected link type validation, got %v", err)
+	}
+	if _, err := service.CreateTicketLink(ctx, viewer, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: target.ID, LinkType: "relates_to"}); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected source write permission failure, got %v", err)
+	}
+	if _, err := service.CreateTicketLink(ctx, member, source.ID, tracker.CreateTicketLinkInput{TargetTicketID: other.ID, LinkType: "relates_to"}); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected target read permission failure, got %v", err)
+	}
+
+	activities, err := service.ListTicketActivity(ctx, member, source.ID)
+	if err != nil {
+		t.Fatalf("list link activity: %v", err)
+	}
+	createdActivity := ticketActivityByType(activities, "ticket.link_created")
+	if len(activities) != 2 || createdActivity == nil || createdActivity.Data["target_key"] != target.Key {
+		t.Fatalf("unexpected link-created activity: %#v", activities)
+	}
+
+	if err := service.DeleteTicketLink(ctx, member, source.ID, link.ID); err != nil {
+		t.Fatalf("delete ticket link: %v", err)
+	}
+	links, err = service.ListTicketLinks(ctx, member, source.ID)
+	if err != nil {
+		t.Fatalf("list links after delete: %v", err)
+	}
+	if len(links) != 0 {
+		t.Fatalf("expected deleted link to be omitted, got %#v", links)
+	}
+	activities, err = service.ListTicketActivity(ctx, member, source.ID)
+	if err != nil {
+		t.Fatalf("list delete activity: %v", err)
+	}
+	deletedActivity := ticketActivityByType(activities, "ticket.link_deleted")
+	if len(activities) != 3 || deletedActivity == nil || deletedActivity.Data["link_id"] != link.ID {
+		t.Fatalf("unexpected link-deleted activity: %#v", activities)
+	}
+	if err := service.DeleteTicketLink(ctx, member, source.ID, link.ID); !errors.Is(err, tracker.ErrNotFound) {
+		t.Fatalf("expected deleted link not found, got %v", err)
+	}
+}
+
 func TestTicketMutationsAppendDomainEvents(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

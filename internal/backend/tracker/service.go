@@ -20,12 +20,20 @@ const (
 
 	activityTicketCreated = "ticket.created"
 	activityTicketUpdated = "ticket.updated"
+	activityLinkCreated   = "ticket.link_created"
+	activityLinkDeleted   = "ticket.link_deleted"
 )
 
 var (
 	projectKeyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,15}$`)
 	slugPattern       = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 )
+
+var ticketLinkTypes = map[string]struct{}{
+	"blocks":        {},
+	"is_blocked_by": {},
+	"relates_to":    {},
+}
 
 type Service struct {
 	db         *sql.DB
@@ -279,6 +287,241 @@ func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, tick
 		return Ticket{}, err
 	}
 	return s.attachTicketDetails(ctx, ticket)
+}
+
+func (s *Service) ListTicketLinks(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketLink, error) {
+	ticketID = strings.TrimSpace(ticketID)
+	if ticketID == "" {
+		return nil, validationFailed(map[string]string{"ticket_id": "Required"})
+	}
+
+	ticket, err := s.repo.GetTicket(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(ticket.ProjectID)); err != nil {
+		return nil, err
+	}
+	links, err := s.repo.listTicketLinks(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	for index := range links {
+		if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(links[index].Target.ProjectID)); err != nil {
+			return nil, err
+		}
+		source, err := s.attachTicketDetails(ctx, links[index].Source)
+		if err != nil {
+			return nil, err
+		}
+		target, err := s.attachTicketDetails(ctx, links[index].Target)
+		if err != nil {
+			return nil, err
+		}
+		links[index].Source = source
+		links[index].Target = target
+	}
+	return links, nil
+}
+
+func (s *Service) CreateTicketLink(ctx context.Context, principal authz.Principal, sourceTicketID string, input CreateTicketLinkInput) (TicketLink, error) {
+	sourceTicketID = strings.TrimSpace(sourceTicketID)
+	targetTicketID := strings.TrimSpace(input.TargetTicketID)
+	linkType := normalizeSlug(input.LinkType)
+	fields := map[string]string{}
+	if sourceTicketID == "" {
+		fields["ticket_id"] = "Required"
+	}
+	if targetTicketID == "" {
+		fields["target_ticket_id"] = "Required"
+	}
+	if linkType == "" {
+		fields["link_type"] = "Required"
+	} else if _, ok := ticketLinkTypes[linkType]; !ok {
+		fields["link_type"] = "Must be blocks, is_blocked_by, or relates_to"
+	}
+	if sourceTicketID != "" && targetTicketID != "" && sourceTicketID == targetTicketID {
+		fields["target_ticket_id"] = "Ticket cannot link to itself"
+	}
+	if len(fields) > 0 {
+		return TicketLink{}, validationFailed(fields)
+	}
+
+	source, err := s.repo.GetTicket(ctx, sourceTicketID)
+	if err != nil {
+		return TicketLink{}, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(source.ProjectID)); err != nil {
+		return TicketLink{}, err
+	}
+	target, err := s.repo.GetTicket(ctx, targetTicketID)
+	if err != nil {
+		return TicketLink{}, err
+	}
+	if err := s.require(principal, authz.PermissionTicketsRead, authz.ProjectScope(target.ProjectID)); err != nil {
+		return TicketLink{}, err
+	}
+
+	id, err := newID("link")
+	if err != nil {
+		return TicketLink{}, err
+	}
+	now := s.now().UTC()
+	link := TicketLink{
+		ID:        id,
+		ProjectID: source.ProjectID,
+		Source:    source,
+		Target:    target,
+		LinkType:  linkType,
+		CreatedBy: actorID(principal),
+		CreatedAt: now,
+	}
+	eventData := ticketLinkActivityData(link)
+
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		project, err := s.repo.getProject(ctx, tx, source.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.ArchivedAt != nil {
+			return &ConflictError{Resource: "project", Field: "archived_at", Value: project.ID, Message: "project is archived"}
+		}
+		if err := s.repo.insertTicketLink(ctx, tx, link); err != nil {
+			return err
+		}
+		activityID, err := newID("activity")
+		if err != nil {
+			return err
+		}
+		if err := s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+			ID:           activityID,
+			TicketID:     source.ID,
+			ActorID:      actorID(principal),
+			ActivityType: activityLinkCreated,
+			Data:         eventData,
+			CreatedAt:    now,
+		}); err != nil {
+			return err
+		}
+		return s.appendDomainEvent(ctx, tx, events.Event{
+			Type:        activityLinkCreated,
+			ActorID:     actorID(principal),
+			ProjectID:   source.ProjectID,
+			ObjectID:    source.ID,
+			SubjectType: "ticket",
+			SubjectID:   source.ID,
+			At:          now,
+			Data:        eventData,
+		})
+	}); err != nil {
+		return TicketLink{}, err
+	}
+
+	s.publish(ctx, events.Event{
+		Type:      activityLinkCreated,
+		ActorID:   actorID(principal),
+		ProjectID: source.ProjectID,
+		ObjectID:  source.ID,
+		At:        now,
+		Data:      eventData,
+	})
+	link.Source, err = s.attachTicketDetails(ctx, link.Source)
+	if err != nil {
+		return TicketLink{}, err
+	}
+	link.Target, err = s.attachTicketDetails(ctx, link.Target)
+	if err != nil {
+		return TicketLink{}, err
+	}
+	return link, nil
+}
+
+func (s *Service) DeleteTicketLink(ctx context.Context, principal authz.Principal, sourceTicketID string, linkID string) error {
+	sourceTicketID = strings.TrimSpace(sourceTicketID)
+	linkID = strings.TrimSpace(linkID)
+	fields := map[string]string{}
+	if sourceTicketID == "" {
+		fields["ticket_id"] = "Required"
+	}
+	if linkID == "" {
+		fields["link_id"] = "Required"
+	}
+	if len(fields) > 0 {
+		return validationFailed(fields)
+	}
+
+	link, err := s.repo.getTicketLink(ctx, linkID)
+	if err != nil {
+		return err
+	}
+	if link.Source.ID != sourceTicketID {
+		return notFound("ticket_link", linkID)
+	}
+	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(link.Source.ProjectID)); err != nil {
+		return err
+	}
+	eventData := ticketLinkActivityData(link)
+	now := s.now().UTC()
+
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		project, err := s.repo.getProject(ctx, tx, link.Source.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.ArchivedAt != nil {
+			return &ConflictError{Resource: "project", Field: "archived_at", Value: project.ID, Message: "project is archived"}
+		}
+		if err := s.repo.deleteTicketLink(ctx, tx, linkID, now); err != nil {
+			return err
+		}
+		activityID, err := newID("activity")
+		if err != nil {
+			return err
+		}
+		if err := s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+			ID:           activityID,
+			TicketID:     link.Source.ID,
+			ActorID:      actorID(principal),
+			ActivityType: activityLinkDeleted,
+			Data:         eventData,
+			CreatedAt:    now,
+		}); err != nil {
+			return err
+		}
+		return s.appendDomainEvent(ctx, tx, events.Event{
+			Type:        activityLinkDeleted,
+			ActorID:     actorID(principal),
+			ProjectID:   link.Source.ProjectID,
+			ObjectID:    link.Source.ID,
+			SubjectType: "ticket",
+			SubjectID:   link.Source.ID,
+			At:          now,
+			Data:        eventData,
+		})
+	}); err != nil {
+		return err
+	}
+
+	s.publish(ctx, events.Event{
+		Type:      activityLinkDeleted,
+		ActorID:   actorID(principal),
+		ProjectID: link.Source.ProjectID,
+		ObjectID:  link.Source.ID,
+		At:        now,
+		Data:      eventData,
+	})
+	return nil
+}
+
+func ticketLinkActivityData(link TicketLink) map[string]any {
+	return map[string]any{
+		"link_id":          link.ID,
+		"link_type":        link.LinkType,
+		"source_ticket_id": link.Source.ID,
+		"source_key":       link.Source.Key,
+		"target_ticket_id": link.Target.ID,
+		"target_key":       link.Target.Key,
+	}
 }
 
 func (s *Service) UpdateTicket(ctx context.Context, principal authz.Principal, ticketID string, input UpdateTicketInput) (Ticket, error) {

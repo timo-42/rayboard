@@ -356,6 +356,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if roadmapChild.Code != http.StatusCreated {
 		t.Fatalf("expected create roadmap child status 201, got %d: %s", roadmapChild.Code, roadmapChild.Body.String())
 	}
+	roadmapChildTicket := decodeTicketResourceAsTracker(t, roadmapChild.Body.Bytes())
 
 	roadmapReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/roadmap", nil)
 	roadmapReq.AddCookie(session)
@@ -426,6 +427,84 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	handler.ServeHTTP(badSchedule, badScheduleReq)
 	if badSchedule.Code != http.StatusBadRequest {
 		t.Fatalf("expected bad roadmap schedule status 400, got %d: %s", badSchedule.Code, badSchedule.Body.String())
+	}
+
+	createLinkReq := httptest.NewRequest(http.MethodPost, "/api/tickets/"+epic.ID+"/links", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"target_ticket_id": roadmapChildTicket.ID,
+			"link_type":        "blocks",
+		},
+	}))
+	addSessionCSRF(createLinkReq, session, csrf)
+	createLink := httptest.NewRecorder()
+	handler.ServeHTTP(createLink, createLinkReq)
+	if createLink.Code != http.StatusCreated {
+		t.Fatalf("expected create link status 201, got %d: %s", createLink.Code, createLink.Body.String())
+	}
+	var linkBody struct {
+		Metadata struct {
+			ID        string `json:"id"`
+			ProjectID string `json:"project_id"`
+		} `json:"metadata"`
+		Spec struct {
+			LinkType string             `json:"link_type"`
+			Source   ticketResourceBody `json:"source"`
+			Target   ticketResourceBody `json:"target"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(createLink.Body.Bytes(), &linkBody); err != nil {
+		t.Fatalf("decode link: %v", err)
+	}
+	if linkBody.Metadata.ID == "" || linkBody.Metadata.ProjectID != project.ID || linkBody.Spec.LinkType != "blocks" || linkBody.Spec.Source.Metadata.ID != epic.ID || linkBody.Spec.Target.Metadata.ID != roadmapChildTicket.ID {
+		t.Fatalf("unexpected link body: %#v", linkBody)
+	}
+
+	listLinksReq := httptest.NewRequest(http.MethodGet, "/api/tickets/"+epic.ID+"/links", nil)
+	listLinksReq.AddCookie(session)
+	listLinks := httptest.NewRecorder()
+	handler.ServeHTTP(listLinks, listLinksReq)
+	if listLinks.Code != http.StatusOK {
+		t.Fatalf("expected list links status 200, got %d: %s", listLinks.Code, listLinks.Body.String())
+	}
+	var linksBody struct {
+		Status struct {
+			Items []struct {
+				Metadata struct {
+					ID string `json:"id"`
+				} `json:"metadata"`
+				Spec struct {
+					LinkType string             `json:"link_type"`
+					Target   ticketResourceBody `json:"target"`
+				} `json:"spec"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listLinks.Body.Bytes(), &linksBody); err != nil {
+		t.Fatalf("decode links: %v", err)
+	}
+	if len(linksBody.Status.Items) != 1 || linksBody.Status.Items[0].Metadata.ID != linkBody.Metadata.ID || linksBody.Status.Items[0].Spec.Target.Metadata.ID != roadmapChildTicket.ID {
+		t.Fatalf("unexpected links body: %#v", linksBody.Status.Items)
+	}
+
+	badLinkReq := httptest.NewRequest(http.MethodPost, "/api/tickets/"+epic.ID+"/links", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"target_ticket_id": epic.ID,
+			"link_type":        "blocks",
+		},
+	}))
+	addSessionCSRF(badLinkReq, session, csrf)
+	badLink := httptest.NewRecorder()
+	handler.ServeHTTP(badLink, badLinkReq)
+	if badLink.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad link status 400, got %d: %s", badLink.Code, badLink.Body.String())
+	}
+
+	deleteLinkReq := httptest.NewRequest(http.MethodDelete, "/api/tickets/"+epic.ID+"/links/"+linkBody.Metadata.ID, nil)
+	addSessionCSRF(deleteLinkReq, session, csrf)
+	deleteLink := httptest.NewRecorder()
+	handler.ServeHTTP(deleteLink, deleteLinkReq)
+	if deleteLink.Code != http.StatusNoContent {
+		t.Fatalf("expected delete link status 204, got %d: %s", deleteLink.Code, deleteLink.Body.String())
 	}
 
 	createComponentReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/components", mustJSON(t, map[string]any{

@@ -27,6 +27,7 @@ const state = {
   roadmap: [],
   attachments: {},
   comments: {},
+  ticketLinks: {},
   activities: {},
   notifications: [],
   unreadNotificationsOnly: false,
@@ -291,6 +292,7 @@ function bindEvents() {
       state.roadmap = [];
       state.attachments = {};
       state.comments = {};
+      state.ticketLinks = {};
       state.activities = {};
       state.notifications = [];
       state.unreadNotificationsOnly = false;
@@ -1906,6 +1908,16 @@ function bindEvents() {
       return;
     }
 
+    const deleteLink = event.target.closest("[data-delete-ticket-link-id]");
+    if (deleteLink) {
+      await runAction(async () => {
+        await api(`/api/tickets/${deleteLink.dataset.ticketId}/links/${deleteLink.dataset.deleteTicketLinkId}`, { method: "DELETE" });
+        await loadTicketLinks(deleteLink.dataset.ticketId);
+        await loadActivity(deleteLink.dataset.ticketId);
+      }, "Ticket link removed");
+      return;
+    }
+
     const button = event.target.closest("[data-ticket-status]");
     if (!button) {
       return;
@@ -1964,6 +1976,32 @@ function bindEvents() {
         await loadComments(ticketID);
         await loadActivity(ticketID);
       }, "Comment added");
+      return;
+    }
+
+    const linkForm = event.target.closest("[data-ticket-link-form]");
+    if (linkForm) {
+      event.preventDefault();
+      const ticketID = linkForm.dataset.ticketId;
+      const data = formData(linkForm);
+      if (!ticketID || !data.target_ticket_id) {
+        setNotice("Choose a linked issue first");
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${ticketID}/links`, {
+          method: "POST",
+          body: {
+            spec: {
+              target_ticket_id: data.target_ticket_id || "",
+              link_type: data.link_type || "relates_to"
+            }
+          }
+        });
+        linkForm.reset();
+        await loadTicketLinks(ticketID);
+        await loadActivity(ticketID);
+      }, "Ticket link added");
       return;
     }
 
@@ -2489,6 +2527,7 @@ async function loadProjects(selectedID = "") {
     state.roadmap = [];
     state.attachments = {};
     state.comments = {};
+    state.ticketLinks = {};
     state.activities = {};
     state.searchResults = [];
     state.savedViews = [];
@@ -2540,10 +2579,12 @@ async function loadTickets() {
   state.tickets = listItems(data).map(normalizeTicket);
   state.attachments = {};
   state.comments = {};
+  state.ticketLinks = {};
   state.activities = {};
   await Promise.all(state.tickets.flatMap((ticket) => [
     loadAttachments(ticket.id, { renderAfter: false }),
-    loadComments(ticket.id, { renderAfter: false })
+    loadComments(ticket.id, { renderAfter: false }),
+    loadTicketLinks(ticket.id, { renderAfter: false })
   ]));
   render();
 }
@@ -2559,10 +2600,15 @@ async function loadSelectedIssue(ticketID) {
       loadVersions({ renderTickets: false }),
       loadCustomFields({ renderTickets: false })
     ]);
+    if (!state.tickets.length || state.tickets.some((item) => item.project_id !== ticket.project_id)) {
+      const ticketsData = await api(`/api/projects/${state.selectedProject.id}/tickets`);
+      state.tickets = listItems(ticketsData).map(normalizeTicket).filter(Boolean);
+    }
   }
   await Promise.all([
     loadAttachments(ticket.id, { renderAfter: false }),
     loadComments(ticket.id, { renderAfter: false }),
+    loadTicketLinks(ticket.id, { renderAfter: false }),
     loadActivity(ticket.id, { renderAfter: false })
   ]);
 }
@@ -2595,6 +2641,17 @@ async function loadComments(ticketID, options = {}) {
   state.comments[ticketID] = listItems(data).map(normalizeComment);
   if (options.renderAfter !== false) {
     renderTickets();
+  }
+}
+
+async function loadTicketLinks(ticketID, options = {}) {
+  const data = await api(`/api/tickets/${ticketID}/links`);
+  state.ticketLinks[ticketID] = listItems(data).map(normalizeTicketLink).filter(Boolean);
+  if (options.renderAfter !== false) {
+    renderTickets();
+    if (state.selectedIssue && state.selectedIssue.id === ticketID) {
+      renderIssue();
+    }
   }
 }
 
@@ -6267,6 +6324,7 @@ function renderIssue() {
     labelControlNode(ticket),
     customFieldControlNode(ticket),
     planningControlNode(ticket),
+    ticketLinksNode(ticket),
     sprintControlNode(ticket),
     commentNode(ticket),
     attachmentNode(ticket),
@@ -6530,7 +6588,7 @@ function ticketNode(ticket) {
     actions.append(button);
   }
 
-  article.append(key, title, meta, labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
 }
 
@@ -6700,6 +6758,110 @@ function sprintControlNode(ticket) {
   controls.append(select, assign, remove);
   section.append(heading, controls);
   return section;
+}
+
+function ticketLinksNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-links";
+  section.setAttribute("aria-label", `${ticket.key} linked issues`);
+
+  const links = state.ticketLinks[ticket.id] || [];
+  const heading = document.createElement("p");
+  heading.className = "ticket-link-heading";
+  heading.textContent = `Links (${links.length})`;
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "ticket-link-list";
+  if (!links.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No linked issues";
+    list.append(empty);
+  } else {
+    for (const link of links) {
+      list.append(ticketLinkItemNode(link, ticket.id));
+    }
+  }
+  section.append(list);
+
+  const form = document.createElement("form");
+  form.className = "ticket-link-form";
+  form.dataset.ticketLinkForm = "true";
+  form.dataset.ticketId = ticket.id;
+
+  const type = document.createElement("select");
+  type.name = "link_type";
+  type.setAttribute("aria-label", "Link type");
+  for (const [value, label] of [["blocks", "Blocks"], ["is_blocked_by", "Is blocked by"], ["relates_to", "Relates to"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    type.append(option);
+  }
+
+  const target = document.createElement("select");
+  target.name = "target_ticket_id";
+  target.required = true;
+  target.setAttribute("aria-label", "Linked issue");
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Issue";
+  target.append(empty);
+  const candidates = linkableTickets(ticket.id);
+  for (const candidate of candidates) {
+    const option = document.createElement("option");
+    option.value = candidate.id;
+    option.textContent = `${candidate.key} ${candidate.title}`;
+    target.append(option);
+  }
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Link";
+  submit.disabled = !candidates.length;
+
+  form.append(type, target, submit);
+  section.append(form);
+  return section;
+}
+
+function ticketLinkItemNode(link, ticketID) {
+  const row = document.createElement("article");
+  row.className = "ticket-link-item";
+
+  const label = document.createElement("span");
+  label.textContent = ticketLinkTypeLabel(link.link_type);
+
+  const target = document.createElement("a");
+  target.href = `/issues/${encodeURIComponent(link.target.id)}`;
+  target.textContent = `${link.target.key} ${link.target.title}`;
+
+  const meta = document.createElement("span");
+  meta.textContent = [link.target.status, link.target.type].filter(Boolean).join(" / ") || "issue";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.deleteTicketLinkId = link.id;
+  remove.dataset.ticketId = ticketID;
+  remove.setAttribute("aria-label", `Remove link to ${link.target.key}`);
+  remove.textContent = "Remove";
+
+  row.append(label, target, meta, remove);
+  return row;
+}
+
+function linkableTickets(ticketID) {
+  return state.tickets.filter((ticket) => ticket.id !== ticketID);
+}
+
+function ticketLinkTypeLabel(value) {
+  const labels = {
+    blocks: "blocks",
+    is_blocked_by: "is blocked by",
+    relates_to: "relates to"
+  };
+  return labels[value] || value || "links";
 }
 
 function commentNode(ticket) {
@@ -6880,6 +7042,8 @@ function activityLabel(activity) {
   const labels = {
     "ticket.created": "Ticket created",
     "ticket.updated": "Ticket updated",
+    "ticket.link_created": "Issue link added",
+    "ticket.link_deleted": "Issue link removed",
     "comment.created": "Comment added",
     "comment.deleted": "Comment deleted",
     "attachment.uploaded": "Attachment uploaded",
@@ -7341,6 +7505,24 @@ function normalizeTicket(ticket) {
     };
   }
   return ticket;
+}
+
+function normalizeTicketLink(link) {
+  if (!link) {
+    return null;
+  }
+  if (link.metadata && link.spec && link.status) {
+    return {
+      id: link.metadata.id,
+      project_id: link.metadata.project_id,
+      created_at: link.metadata.created_at,
+      link_type: link.spec.link_type || "",
+      source: normalizeTicket(link.spec.source),
+      target: normalizeTicket(link.spec.target),
+      created_by: link.status.created_by || ""
+    };
+  }
+  return link;
 }
 
 function normalizeWorkflowStatus(status) {
