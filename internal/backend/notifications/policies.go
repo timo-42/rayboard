@@ -19,6 +19,7 @@ const (
 var allowedPolicyEvents = []string{
 	"automation_failed",
 	"comment_added",
+	"comment_mentioned",
 	"release_changed",
 	"sprint_changed",
 	"ticket_assigned",

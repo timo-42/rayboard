@@ -103,6 +103,7 @@ func (s *Service) RegisterEventHandlers(bus *events.Bus) {
 		return
 	}
 	bus.Subscribe("comment.created", s.handleCommentCreated)
+	bus.Subscribe("comment.mentioned", s.handleCommentMentioned)
 	bus.Subscribe("ticket.updated", s.handleTicketUpdated)
 }
 
@@ -241,7 +242,7 @@ func (s *Service) ProcessPendingDomainEvents(ctx context.Context, limit int) (in
 	if s == nil || s.eventStore == nil {
 		return 0, nil
 	}
-	pending, err := s.eventStore.ListPending(ctx, limit, "comment.created", "ticket.updated")
+	pending, err := s.eventStore.ListPending(ctx, limit, "comment.created", "comment.mentioned", "ticket.updated")
 	if err != nil {
 		return 0, err
 	}
@@ -291,6 +292,8 @@ func (s *Service) handleDomainEvent(ctx context.Context, event events.Event) err
 	switch event.Type {
 	case "comment.created":
 		return s.handleCommentCreated(ctx, event)
+	case "comment.mentioned":
+		return s.handleCommentMentioned(ctx, event)
 	case "ticket.updated":
 		return s.handleTicketUpdated(ctx, event)
 	default:
@@ -372,6 +375,32 @@ func (s *Service) externalNotificationPlans(ctx context.Context, event events.Ev
 				"ticket_id":  ticket.ID,
 				"ticket_key": ticket.Key,
 				"comment_id": event.ObjectID,
+			},
+		}}, nil
+	case "comment.mentioned":
+		ticketID, _ := event.Data["ticket_id"].(string)
+		if ticketID == "" {
+			return nil, nil
+		}
+		ticket, err := s.ticket(ctx, ticketID)
+		if err != nil {
+			return nil, err
+		}
+		mentionedUserID, _ := event.Data["mentioned_user_id"].(string)
+		mentionedUsername, _ := event.Data["mentioned_username"].(string)
+		return []externalNotificationPlan{{
+			EventType:   "comment_mentioned",
+			ProjectID:   eventProjectID(event, ticket.ProjectID),
+			SubjectType: "ticket",
+			SubjectID:   ticket.ID,
+			Message:     fmt.Sprintf("%s mentioned %s on %s", displayActor(event.ActorID), displayMention(mentionedUsername, mentionedUserID), ticket.Key),
+			Payload: map[string]any{
+				"ticket_id":          ticket.ID,
+				"ticket_key":         ticket.Key,
+				"comment_id":         eventCommentID(event),
+				"mentioned_user_id":  mentionedUserID,
+				"mentioned_username": mentionedUsername,
+				"actor_user_id":      event.ActorID,
 			},
 		}}, nil
 	case "ticket.updated":
@@ -488,6 +517,13 @@ func (s *Service) handleCommentCreated(ctx context.Context, event events.Event) 
 	}
 	recipients := recipientSet(event.ActorID, append([]string{ticket.ReporterID, ticket.AssigneeID}, watchers...)...)
 	for userID := range recipients {
+		allowed, err := s.inAppNotificationAllowed(ctx, userID, ticket.ProjectID, "comment_added")
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			continue
+		}
 		if _, err := s.Create(ctx, CreateInput{
 			UserID:      userID,
 			Type:        "comment_added",
@@ -506,24 +542,71 @@ func (s *Service) handleCommentCreated(ctx context.Context, event events.Event) 
 	return nil
 }
 
+func (s *Service) handleCommentMentioned(ctx context.Context, event events.Event) error {
+	ticketID, _ := event.Data["ticket_id"].(string)
+	mentionedUserID, _ := event.Data["mentioned_user_id"].(string)
+	if ticketID == "" || mentionedUserID == "" || mentionedUserID == event.ActorID {
+		return nil
+	}
+	ticket, err := s.ticket(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+	if ok, err := s.activeUser(ctx, mentionedUserID); err != nil {
+		return err
+	} else if !ok {
+		return nil
+	}
+	allowed, err := s.inAppNotificationAllowed(ctx, mentionedUserID, ticket.ProjectID, "comment_mentioned")
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return nil
+	}
+	if _, err := s.Create(ctx, CreateInput{
+		UserID:      mentionedUserID,
+		Type:        "comment_mentioned",
+		SubjectType: "ticket",
+		SubjectID:   ticket.ID,
+		Body:        fmt.Sprintf("You were mentioned on %s", ticket.Key),
+		Data: map[string]any{
+			"ticket_id":           ticket.ID,
+			"ticket_key":          ticket.Key,
+			"comment_id":          eventCommentID(event),
+			"mentioned_username":  event.Data["mentioned_username"],
+			"mentioned_user_name": event.Data["mentioned_user_name"],
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Service) handleTicketUpdated(ctx context.Context, event events.Event) error {
 	ticket, err := s.ticket(ctx, event.ObjectID)
 	if err != nil {
 		return err
 	}
 	if newAssignee := changeNew(event.Data, "assignee_id"); newAssignee != "" && newAssignee != event.ActorID {
-		if _, err := s.Create(ctx, CreateInput{
-			UserID:      newAssignee,
-			Type:        "ticket_assigned",
-			SubjectType: "ticket",
-			SubjectID:   ticket.ID,
-			Body:        fmt.Sprintf("Assigned to %s", ticket.Key),
-			Data: map[string]any{
-				"ticket_id":  ticket.ID,
-				"ticket_key": ticket.Key,
-			},
-		}); err != nil {
+		allowed, err := s.inAppNotificationAllowed(ctx, newAssignee, ticket.ProjectID, "ticket_assigned")
+		if err != nil {
 			return err
+		}
+		if allowed {
+			if _, err := s.Create(ctx, CreateInput{
+				UserID:      newAssignee,
+				Type:        "ticket_assigned",
+				SubjectType: "ticket",
+				SubjectID:   ticket.ID,
+				Body:        fmt.Sprintf("Assigned to %s", ticket.Key),
+				Data: map[string]any{
+					"ticket_id":  ticket.ID,
+					"ticket_key": ticket.Key,
+				},
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	if status := changeNew(event.Data, "status"); status != "" {
@@ -551,6 +634,13 @@ func (s *Service) createTicketChangeNotifications(ctx context.Context, actorID s
 	}
 	recipients := recipientSet(actorID, append([]string{ticket.ReporterID, ticket.AssigneeID}, watchers...)...)
 	for userID := range recipients {
+		allowed, err := s.inAppNotificationAllowed(ctx, userID, ticket.ProjectID, notificationType)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			continue
+		}
 		payload := map[string]any{
 			"ticket_id":  ticket.ID,
 			"ticket_key": ticket.Key,
@@ -570,6 +660,43 @@ func (s *Service) createTicketChangeNotifications(ctx context.Context, actorID s
 		}
 	}
 	return nil
+}
+
+func (s *Service) inAppNotificationAllowed(ctx context.Context, userID string, projectID string, notificationType string) (bool, error) {
+	userPreferences, err := s.GetUserPreferences(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if !preferencesAllowInApp(userPreferences, notificationType) {
+		return false, nil
+	}
+	projectPreferences, err := s.GetProjectPreferences(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	return preferencesAllowInApp(projectPreferences, notificationType), nil
+}
+
+func preferencesAllowInApp(preferences Preferences, notificationType string) bool {
+	if !preferences.InAppEnabled {
+		return false
+	}
+	switch notificationType {
+	case "ticket_assigned":
+		return preferences.AssignmentEnabled
+	case "comment_added", "comment_mentioned":
+		return preferences.CommentEnabled
+	case "ticket_status_changed":
+		return preferences.StatusChangeEnabled
+	case "sprint_changed":
+		return preferences.SprintChangeEnabled
+	case "release_changed":
+		return preferences.ReleaseChangeEnabled
+	case "automation_failed":
+		return preferences.AutomationFailureEnabled
+	default:
+		return true
+	}
 }
 
 type eventTicket struct {
@@ -619,6 +746,49 @@ func (s *Service) ticketWatcherUserIDs(ctx context.Context, ticketID string) ([]
 		return nil, fmt.Errorf("iterate notification ticket watchers: %w", err)
 	}
 	return userIDs, nil
+}
+
+func (s *Service) activeUser(ctx context.Context, userID string) (bool, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return false, nil
+	}
+	var exists int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM users
+		WHERE id = ? AND deleted_at IS NULL AND is_disabled = 0
+	`, userID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check notification user: %w", err)
+	}
+	return exists == 1, nil
+}
+
+func displayActor(actorID string) string {
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return "Someone"
+	}
+	return actorID
+}
+
+func displayMention(username string, userID string) string {
+	username = strings.TrimSpace(username)
+	if username != "" {
+		return "@" + username
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return "someone"
+	}
+	return userID
+}
+
+func eventCommentID(event events.Event) string {
+	if commentID, _ := event.Data["comment_id"].(string); strings.TrimSpace(commentID) != "" {
+		return strings.TrimSpace(commentID)
+	}
+	return strings.TrimSpace(event.ObjectID)
 }
 
 func eventProjectID(event events.Event, fallback string) string {

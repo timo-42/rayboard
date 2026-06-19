@@ -3,12 +3,14 @@ package comments
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/authz"
+	"github.com/timo-42/rayboard/internal/backend/events"
 	"github.com/timo-42/rayboard/internal/backend/store"
 )
 
@@ -62,6 +64,70 @@ func TestCommentLifecycle(t *testing.T) {
 	}
 	if activities != 2 {
 		t.Fatalf("expected two activity rows, got %d", activities)
+	}
+}
+
+func TestCommentCreateAppendsMentionEvents(t *testing.T) {
+	ctx := context.Background()
+	db := openCommentTestDB(t, ctx)
+	seedCommentProject(t, ctx, db.SQL)
+	if _, err := db.SQL.ExecContext(ctx, `
+		INSERT INTO users (id, username, display_name, is_disabled)
+		VALUES
+			('disabled', 'disabled', 'Disabled User', 1),
+			('outsider', 'outsider', 'Outsider', 0)
+	`); err != nil {
+		t.Fatalf("seed mention users: %v", err)
+	}
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-1", authz.RoleProjectMember, authz.ProjectScope("project-1")),
+		authz.UserBinding("member", authz.RoleProjectMember, authz.ProjectScope("project-1")),
+		authz.UserBinding("viewer", authz.RoleProjectViewer, authz.ProjectScope("project-1")),
+	))
+	service := NewService(db.SQL, evaluator, WithEventStore(events.NewStore(db.SQL)), WithNow(func() time.Time {
+		return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	}))
+	principal := authz.Principal{UserID: "user-1", ActorUserID: "user-1", AuthKind: authz.AuthKindSession}
+
+	comment, err := service.Create(ctx, principal, CreateInput{
+		TicketID: "ticket-1",
+		Body:     "Please check this @member and @viewer. Duplicate @Member, missing @ghost, disabled @disabled, inaccessible @outsider, self @user-1.",
+	})
+	if err != nil {
+		t.Fatalf("create comment: %v", err)
+	}
+
+	rows, err := db.SQL.QueryContext(ctx, `
+		SELECT payload_json
+		FROM domain_events
+		WHERE event_type = 'comment.mentioned'
+		ORDER BY payload_json ASC
+	`)
+	if err != nil {
+		t.Fatalf("query mention events: %v", err)
+	}
+	defer rows.Close()
+	var mentioned []string
+	for rows.Next() {
+		var payloadJSON string
+		if err := rows.Scan(&payloadJSON); err != nil {
+			t.Fatalf("scan mention payload: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			t.Fatalf("decode mention payload: %v", err)
+		}
+		if payload["ticket_id"] != "ticket-1" || payload["comment_id"] != comment.ID {
+			t.Fatalf("unexpected mention payload: %#v", payload)
+		}
+		mentioned = append(mentioned, payload["mentioned_username"].(string))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate mention events: %v", err)
+	}
+	if len(mentioned) != 2 || mentioned[0] != "member" || mentioned[1] != "viewer" {
+		t.Fatalf("unexpected mentioned users: %#v", mentioned)
 	}
 }
 

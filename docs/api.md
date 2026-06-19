@@ -287,7 +287,7 @@ When `spec.form_ai_prompt` is set, `spec.form_ai_provider_id` must reference an 
 | `GET` | `/api/attachments/{attachment_id}/download` | binary download. |
 | `DELETE` | `/api/attachments/{attachment_id}` | none |
 
-Comment responses and attachment metadata responses use `metadata`, `spec`, and `status`. Comment body is returned in `spec.body`; author is returned in `status.author_id`. Attachment filename and content type are returned in `spec`; upload size and uploader are returned in `status`. Attachment bytes are stored in SQLite. The current maximum upload size is 10 MiB. Downloads set `Content-Type` from stored metadata and `Content-Disposition: attachment`.
+Comment responses and attachment metadata responses use `metadata`, `spec`, and `status`. Comment body is returned in `spec.body`; author is returned in `status.author_id`. Mention active users in comments with `@username`; unknown, disabled, deleted, duplicate, self, and users without ticket read access are ignored. Comment creation appends one `comment.mentioned` domain event for each active mentioned user who can read the ticket's project. Attachment filename and content type are returned in `spec`; upload size and uploader are returned in `status`. Attachment bytes are stored in SQLite. The current maximum upload size is 10 MiB. Downloads set `Content-Type` from stored metadata and `Content-Disposition: attachment`.
 
 ## Search and Saved Views
 
@@ -419,7 +419,7 @@ Read state is owned by the notification row. `read_at: null` means unread; marki
 
 ## Notification Preferences
 
-Authenticated users can manage their own notification preferences. Project notification managers can manage project notification defaults. Preferences are stored as reusable resource objects; missing rows use enabled defaults and return `status.customized: false`.
+Authenticated users can manage their own notification preferences. Project notification managers can manage project notification defaults. Preferences are stored as reusable resource objects; missing rows use enabled defaults and return `status.customized: false`. Event-generated in-app notifications for comments, mentions, and ticket updates are created only when both the recipient's user preferences and the ticket project's defaults allow the in-app channel and event type.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -461,7 +461,7 @@ Notification policies define which event types should route to named destination
 | `PATCH` | `/api/notification-policies/{policy_id}` | `{"spec":{"enabled":false}}` or any subset of name, event types, destination IDs, and enabled state. |
 | `DELETE` | `/api/notification-policies/{policy_id}` | soft-deletes and disables the policy. |
 
-Generated policy event types currently include `ticket_assigned`, `comment_added`, `ticket_status_changed`, `sprint_changed`, and `release_changed`. Watchers are in-app recipients for comment and ticket-change notifications; external policies still route by generated event type. `automation_failed` is accepted for policy configuration and reserved for automation failure events as that surface grows. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
+Generated policy event types currently include `ticket_assigned`, `comment_added`, `comment_mentioned`, `ticket_status_changed`, `sprint_changed`, and `release_changed`. Watchers are in-app recipients for comment and ticket-change notifications; external policies still route by generated event type. Comment mentions produce `comment_mentioned` in-app notifications for the mentioned user and use the same comment preference switches as ordinary comment notifications. `automation_failed` is accepted for policy configuration and reserved for automation failure events as that surface grows. Global policies may use global destinations. Project policies may use global destinations and destinations from the same project. Policy responses use `metadata`, `spec`, and `status`; destination details and Shoutrrr URLs are not embedded in policy responses.
 
 ## Notification Deliveries
 
