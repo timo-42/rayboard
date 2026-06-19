@@ -2862,6 +2862,7 @@ async function loadSelectedIssue(ticketID) {
       loadVersions({ renderTickets: false }),
       loadCustomFields({ renderTickets: false })
     ]);
+    await loadRoadmapDependencies();
     if (!state.tickets.length || state.tickets.some((item) => item.project_id !== ticket.project_id)) {
       const ticketsData = await api(`/api/projects/${state.selectedProject.id}/tickets`);
       state.tickets = listItems(ticketsData).map(normalizeTicket).filter(Boolean);
@@ -2879,6 +2880,7 @@ async function loadSelectedIssue(ticketID) {
 async function refreshTicketViews(ticketID, options = {}) {
   if (options.roadmap !== false) {
     await loadRoadmap({ renderTickets: false });
+    await loadRoadmapDependencies();
   }
   await loadBacklog();
   if (state.selectedBoardID) {
