@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/timo-42/rayboard/internal/backend/auth"
@@ -102,9 +103,14 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	}
 
 	enabled := false
+	updatedName := "updated incoming"
+	eventTypes := []string{"ticket.created"}
 	updateReq := httptest.NewRequest(http.MethodPatch, "/api/webhook-definitions/"+created.Metadata.ID, mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"enabled": enabled,
+			"name":        updatedName,
+			"direction":   webhooks.DirectionOutgoing,
+			"enabled":     enabled,
+			"event_types": eventTypes,
 		},
 	}))
 	addSessionCSRF(updateReq, session, csrf)
@@ -117,11 +123,18 @@ func TestWebhookEndpointsLifecycle(t *testing.T) {
 	if updated.Spec.Enabled {
 		t.Fatalf("expected disabled webhook, got %#v", updated)
 	}
+	if updated.Spec.Name != updatedName || updated.Spec.Direction != webhooks.DirectionOutgoing {
+		t.Fatalf("expected updated webhook name and direction, got %#v", updated.Spec)
+	}
+	if !slices.Equal(eventTypes, updated.Spec.EventTypes) {
+		t.Fatalf("expected updated event types %#v, got %#v", eventTypes, updated.Spec.EventTypes)
+	}
 
 	enabled = true
 	reenableReq := httptest.NewRequest(http.MethodPatch, "/api/webhook-definitions/"+created.Metadata.ID, mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"enabled": enabled,
+			"direction": webhooks.DirectionIncoming,
+			"enabled":   enabled,
 		},
 	}))
 	addSessionCSRF(reenableReq, session, csrf)

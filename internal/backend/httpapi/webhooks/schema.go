@@ -103,6 +103,7 @@ type CreateWebhookSpec = WebhookSpec
 
 type UpdateWebhookSpec struct {
 	Name        *string     `json:"name,omitempty"`
+	Direction   *string     `json:"direction,omitempty"`
 	Enabled     *bool       `json:"enabled,omitempty"`
 	ActorUserID *string     `json:"actor_user_id,omitempty"`
 	EventTypes  *[]string   `json:"event_types,omitempty"`
@@ -222,6 +223,7 @@ func (spec UpdateWebhookSpec) updateInput() webhooks.UpdateInput {
 	}
 	return webhooks.UpdateInput{
 		Name:        spec.Name,
+		Direction:   spec.Direction,
 		Enabled:     spec.Enabled,
 		ActorUserID: spec.ActorUserID,
 		EventTypes:  spec.EventTypes,

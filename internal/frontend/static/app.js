@@ -598,6 +598,31 @@ function bindEvents() {
     }
   });
 
+  els.webhooks.addEventListener("change", (event) => {
+    if (!event.target.matches("select[name='engine_type']")) {
+      return;
+    }
+    const form = event.target.closest("[data-webhook-form]");
+    if (form) {
+      renderWebhookEditEngineFields(form);
+    }
+  });
+
+  els.webhooks.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-webhook-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/webhook-definitions/${form.dataset.webhookForm}`, {
+        method: "PATCH",
+        body: { spec: webhookSpec(form) }
+      });
+      await loadWebhooks();
+    }, "Webhook saved");
+  });
+
   els.ticketHookProject.addEventListener("change", async () => {
     const projectID = els.ticketHookProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
@@ -7251,6 +7276,13 @@ function renderWebhookEngineFields() {
   });
 }
 
+function renderWebhookEditEngineFields(form) {
+  const type = form && form.elements.engine_type ? form.elements.engine_type.value : "lua";
+  form.querySelectorAll("[data-webhook-edit-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.webhookEditEngineField !== type;
+  });
+}
+
 function webhookNode(webhook) {
   const article = document.createElement("article");
   article.className = "webhook-item";
@@ -7323,6 +7355,8 @@ function webhookNode(webhook) {
   actions.append(toggle, remove);
   article.append(actions);
 
+  article.append(webhookEditForm(webhook));
+
   const runsList = state.webhookRuns[webhook.id] || [];
   if (runsList.length) {
     article.append(webhookRunListNode(runsList));
@@ -7332,6 +7366,76 @@ function webhookNode(webhook) {
     article.append(webhookDeliveryListNode(webhook.id, deliveriesList));
   }
   return article;
+}
+
+function webhookEditForm(webhook) {
+  const form = document.createElement("form");
+  form.className = "webhook-edit-form";
+  form.dataset.webhookForm = webhook.id;
+
+  form.append(
+    inputNode("name", webhook.name || "", "name"),
+    webhookSelect("direction", [
+      ["incoming", "Incoming"],
+      ["outgoing", "Outgoing"]
+    ], webhook.direction || "incoming"),
+    inputNode("actor_user_id", webhook.actor_user_id || "", "actor user id"),
+    inputNode("event_types", (webhook.event_types || []).join(", "), "event types"),
+    webhookSelect("engine_type", [
+      ["lua", "Lua"],
+      ["ai", "OpenRouter AI"]
+    ], webhook.engine.type || "lua")
+  );
+
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = webhook.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const lua = document.createElement("label");
+  lua.dataset.webhookEditEngineField = "lua";
+  lua.append("Lua Script", webhookTextarea("script", webhook.engine.script || "", 4));
+
+  const ai = document.createElement("div");
+  ai.dataset.webhookEditEngineField = "ai";
+  const prompt = document.createElement("label");
+  prompt.append("AI Prompt", webhookTextarea("prompt", webhook.engine.prompt || "", 4));
+  const provider = document.createElement("label");
+  provider.append("Provider ID", inputNode("provider_id", webhook.engine.provider_id || "", "openrouter_provider_..."));
+  ai.append(prompt, provider);
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save webhook";
+
+  form.append(enabled, lua, ai, save);
+  renderWebhookEditEngineFields(form);
+  return form;
+}
+
+function webhookSelect(name, options, selectedValue) {
+  const select = document.createElement("select");
+  select.name = name;
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedValue;
+    select.append(option);
+  }
+  return select;
+}
+
+function webhookTextarea(name, value, rows) {
+  const textarea = document.createElement("textarea");
+  textarea.name = name;
+  textarea.rows = rows;
+  textarea.spellcheck = false;
+  textarea.value = value || "";
+  return textarea;
 }
 
 function webhookRunListNode(runs) {
