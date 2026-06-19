@@ -205,13 +205,14 @@ Ticket assignment keeps all records in one project. Cross-project component or v
 
 ## Roadmap
 
-The roadmap API lists epics and direct child-ticket progress. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a basic roadmap panel with epic schedule dates and child progress, plus ticket-form fields for epic creation, parent epic assignment, and roadmap dates. Rich browser roadmap timeline screens and drag/drop planning are **Planned**.
+The roadmap API lists epics and direct child-ticket progress. Epics are regular tickets with `type: "epic"`, optional `start_date` and `due_date`, and direct child tickets linked by `parent_ticket_id`. The embedded browser UI exposes a scheduled epic timeline, unscheduled epic list, inline epic schedule editing, child progress, ticket-form fields for epic creation, parent epic assignment, and roadmap dates. Roadmap drag/drop planning, dependencies, and capacity views are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/roadmap` | none |
+| `PATCH` | `/api/projects/{project_id}/roadmap/schedule` | `{"spec":{"items":[{"ticket_id":"ticket_...","start_date":"2026-08-01","due_date":"2026-08-31"}]}}` |
 
-Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
+Ticket roadmap dates use `YYYY-MM-DD` date strings or empty strings. Roadmap list items use `metadata` for the epic/project identity, `spec.epic` for the epic ticket resource, and `status.progress` for direct-child progress totals by status, with `done` counting children whose status is `done`. The schedule endpoint updates one or more epics in the addressed project, rejects non-epic or cross-project ticket IDs, and returns the refreshed roadmap list. Search and saved views can filter, sort, and display `start_date` and `due_date` where the existing search API supports filters, sort specs, and saved-view columns.
 
 ## Custom Fields
 

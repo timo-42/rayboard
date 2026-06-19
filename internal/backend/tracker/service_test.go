@@ -925,6 +925,43 @@ func TestRoadmapEpicsDatesAndProgress(t *testing.T) {
 	if updated.DueDate != newDueDate {
 		t.Fatalf("expected updated due date, got %#v", updated)
 	}
+
+	scheduled, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+		TicketID:  epic.ID,
+		StartDate: "2026-08-01",
+		DueDate:   "2026-08-31",
+	}}})
+	if err != nil {
+		t.Fatalf("schedule roadmap: %v", err)
+	}
+	if len(scheduled) != 1 || scheduled[0].Epic.StartDate != "2026-08-01" || scheduled[0].Epic.DueDate != "2026-08-31" {
+		t.Fatalf("unexpected scheduled roadmap: %#v", scheduled)
+	}
+	cleared, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+		TicketID: epic.ID,
+	}}})
+	if err != nil {
+		t.Fatalf("clear roadmap schedule: %v", err)
+	}
+	if len(cleared) != 1 || cleared[0].Epic.StartDate != "" || cleared[0].Epic.DueDate != "" {
+		t.Fatalf("expected cleared schedule, got %#v", cleared)
+	}
+	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected empty schedule validation, got %v", err)
+	}
+	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+		TicketID:  childTodo.ID,
+		StartDate: "2026-08-01",
+	}}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected non-epic schedule validation, got %v", err)
+	}
+	if _, err := service.ScheduleRoadmap(ctx, admin, project.ID, tracker.RoadmapScheduleInput{Items: []tracker.RoadmapScheduleItem{{
+		TicketID:  epic.ID,
+		StartDate: "2026-09-01",
+		DueDate:   "2026-08-01",
+	}}}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected schedule date range validation, got %v", err)
+	}
 }
 
 func TestSprintLifecycleAndTicketAssignment(t *testing.T) {

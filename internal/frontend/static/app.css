@@ -2284,6 +2284,28 @@ p {
   gap: 8px;
 }
 
+.roadmap-timeline,
+.roadmap-unscheduled {
+  display: grid;
+  gap: 8px;
+}
+
+.roadmap-timeline h3,
+.roadmap-unscheduled h3 {
+  color: var(--heading);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.roadmap-timeline-track {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
 .roadmap-item {
   min-width: 0;
   display: grid;
@@ -2293,6 +2315,11 @@ p {
   border-radius: 6px;
   background: var(--panel-bg);
   padding: 10px;
+}
+
+.roadmap-timeline-item {
+  margin-left: var(--roadmap-offset, 0);
+  width: min(100%, max(var(--roadmap-width, 100%), 160px));
 }
 
 .roadmap-item p {
@@ -2321,6 +2348,27 @@ p {
   height: 100%;
   border-radius: inherit;
   background: var(--primary);
+}
+
+.roadmap-schedule-form {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.roadmap-schedule-form button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.roadmap-schedule-form button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .search-panel {
@@ -3050,6 +3098,7 @@ p {
   .board-form,
   .board-item,
   .board-edit-form,
+  .roadmap-schedule-form,
   .release-grid,
   .component-form,
   .version-form,

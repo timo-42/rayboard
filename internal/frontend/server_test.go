@@ -652,11 +652,16 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 	appText := string(app)
 	for _, expected := range []string{
 		"loadRoadmap",
+		"scheduleRoadmapItem",
 		"renderRoadmap",
+		"roadmapTimelineNode",
+		"roadmapScheduleFormNode",
 		"normalizeRoadmapItem",
 		"roadmapEpics",
 		"/api/projects/${state.selectedProject.id}/roadmap",
+		"/api/projects/${state.selectedProject.id}/roadmap/schedule",
 		"ticket-parent-id",
+		"data-roadmap-schedule-form",
 		"roadmap-progress",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -667,7 +672,10 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 	for _, expected := range []string{
 		".roadmap-panel",
 		".roadmap-list",
+		".roadmap-timeline",
+		".roadmap-unscheduled",
 		".roadmap-item",
+		".roadmap-schedule-form",
 		".roadmap-progress",
 	} {
 		if !strings.Contains(cssText, expected) {

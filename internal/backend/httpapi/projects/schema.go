@@ -36,6 +36,12 @@ type ReorderBacklogInput struct {
 	Body      shared.ResourceInput[BacklogOrderSpec]
 }
 
+type ScheduleRoadmapInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Body      shared.ResourceInput[RoadmapScheduleSpec]
+}
+
 type ReplaceStatusesInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
@@ -130,6 +136,28 @@ type BacklogOrderSpec struct {
 
 func (spec BacklogOrderSpec) ToReorderInput() tracker.ReorderBacklogInput {
 	return tracker.ReorderBacklogInput{TicketIDs: spec.TicketIDs}
+}
+
+type RoadmapScheduleSpec struct {
+	Items []RoadmapScheduleItemSpec `json:"items,omitempty"`
+}
+
+type RoadmapScheduleItemSpec struct {
+	TicketID  string `json:"ticket_id,omitempty"`
+	StartDate string `json:"start_date,omitempty"`
+	DueDate   string `json:"due_date,omitempty"`
+}
+
+func (spec RoadmapScheduleSpec) ToScheduleInput() tracker.RoadmapScheduleInput {
+	items := make([]tracker.RoadmapScheduleItem, 0, len(spec.Items))
+	for _, item := range spec.Items {
+		items = append(items, tracker.RoadmapScheduleItem{
+			TicketID:  item.TicketID,
+			StartDate: item.StartDate,
+			DueDate:   item.DueDate,
+		})
+	}
+	return tracker.RoadmapScheduleInput{Items: items}
 }
 
 type ProjectStatusMetadata struct {
