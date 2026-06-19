@@ -171,10 +171,6 @@ type RoadmapItem struct {
 }
 
 type RoadmapScheduleInput struct {
-	Items []RoadmapScheduleItem `json:"items"`
-}
-
-type RoadmapScheduleItem struct {
 	TicketID  string `json:"ticket_id"`
 	StartDate string `json:"start_date,omitempty"`
 	DueDate   string `json:"due_date,omitempty"`

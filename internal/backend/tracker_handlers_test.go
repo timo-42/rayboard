@@ -388,13 +388,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 
 	scheduleRoadmapReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/roadmap/schedule", mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"items": []map[string]any{
-				{
-					"ticket_id":  epic.ID,
-					"start_date": "2026-08-01",
-					"due_date":   "2026-08-31",
-				},
-			},
+			"ticket_id":  epic.ID,
+			"start_date": "2026-08-01",
+			"due_date":   "2026-08-31",
 		},
 	}))
 	addSessionCSRF(scheduleRoadmapReq, session, csrf)
@@ -421,12 +417,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 
 	badScheduleReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/roadmap/schedule", mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"items": []map[string]any{
-				{
-					"ticket_id":  second.ID,
-					"start_date": "2026-08-01",
-				},
-			},
+			"ticket_id":  second.ID,
+			"start_date": "2026-08-01",
 		},
 	}))
 	addSessionCSRF(badScheduleReq, session, csrf)
