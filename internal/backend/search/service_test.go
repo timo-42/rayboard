@@ -191,10 +191,13 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 	})
 	seedCustomField(t, ctx, db.SQL, "field-severity", "project-core", "severity", "single_select")
 	seedCustomField(t, ctx, db.SQL, "field-impact", "project-core", "impact", "number")
+	seedCustomField(t, ctx, db.SQL, "field-tags", "project-core", "tags", "multi_select")
 	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-1", "field-severity", `"critical"`)
 	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-1", "field-impact", `8`)
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-1", "field-tags", `["customer","backend"]`)
 	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-2", "field-severity", `"low"`)
 	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-2", "field-impact", `3`)
+	seedCustomFieldValue(t, ctx, db.SQL, "ticket-core-2", "field-tags", `["docs"]`)
 	seedComment(t, ctx, db.SQL, "comment-core-2", "ticket-core-2", "panic also appears in a comment")
 	seedAttachment(t, ctx, db.SQL, "attachment-core-2", "ticket-core-2", "runbook-panic-notes.txt", "text/plain")
 	seedAttachment(t, ctx, db.SQL, "attachment-ops-1", "ticket-ops-1", "secret-ops-runbook.pdf", "application/pdf")
@@ -319,6 +322,24 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		t.Fatalf("search custom fields: %v", err)
 	}
 	assertTicketIDs(t, customFiltered.Tickets, "ticket-core-1")
+
+	customMultiSelectFiltered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `"backend" in custom.tags`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search custom multi-select field: %v", err)
+	}
+	assertTicketIDs(t, customMultiSelectFiltered.Tickets, "ticket-core-1")
+
+	customMultiSelectNegated, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `!("backend" in custom.tags)`,
+		Sort:   []search.SortSpec{{Field: "key", Direction: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("search negated custom multi-select field: %v", err)
+	}
+	assertTicketIDs(t, customMultiSelectNegated.Tickets, "ticket-core-2")
 
 	pointFiltered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
 		Filter: `story_points >= 3`,
