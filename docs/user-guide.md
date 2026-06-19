@@ -26,7 +26,7 @@ Implemented browser workflows:
 - Profile/API Tokens page for viewing user metadata, token metadata, creating tokens, and revoking your own tokens;
 - RBAC page for users, groups, roles, role-binding summaries, and effective-permission inspection when permitted;
 - Settings page for global settings, OpenRouter provider management, Shoutrrr notification destination management and test-send, notification policy CRUD, notification hook CRUD/preview/run inspection, and security audit-log inspection when permitted, plus personal notification preferences for every signed-in user;
-- text/CEL search with result pagination plus saved-view list pagination, create, edit, apply, and delete, including query, sort, columns, display mode, grouping, and pin state, plus pinned project saved views in project navigation and saved-view filters in project boards;
+- text/CEL search with field-aware custom-field filter building, result pagination plus saved-view list pagination, create, edit, apply, and delete, including query, sort, columns, display mode, grouping, and pin state, plus pinned project saved views in project navigation and saved-view filters in project boards;
 - engine workbench tests for Lua, OpenRouter AI, and WASM automation engines;
 - basic cron job list, create, delete, enable/disable, manual run, and run-output inspection for the selected project;
 - basic project webhook list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
@@ -45,7 +45,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Rich backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer board settings beyond inline edits, saved-view filters, and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout/search integration beyond ticket controls, advanced release planning beyond version drilldowns, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list, pinned project navigation, and board filters are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Rich backlog planning beyond sprint assignment, reorder controls, and drag/drop, richer board settings beyond inline edits, saved-view filters, and advisory WIP warnings, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap capacity planning beyond read-only monthly summary buckets, richer custom-field layout integration beyond ticket controls and search filter building, advanced release planning beyond version drilldowns, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list, pinned project navigation, and board filters are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
@@ -55,7 +55,7 @@ Richer hook routing controls are **Planned**.
 
 ## Search
 
-Current search supports full-text search over ticket title, description, comments, and attachment metadata such as filename and content type with SQLite FTS5, plus CEL-backed ticket filters. Roadmap date fields `start_date` and `due_date`, and estimate field `story_points`, are available for search filters, sort specs, and saved-view columns. Filters support boolean operators, comparisons, label membership, selected string helpers, `currentUser()`, `today()`, `now()`, and `custom.<field_key>` access for typed custom fields. See:
+Current search supports full-text search over ticket title, description, comments, and attachment metadata such as filename and content type with SQLite FTS5, plus CEL-backed ticket filters. Roadmap date fields `start_date` and `due_date`, and estimate field `story_points`, are available for search filters, sort specs, and saved-view columns. Filters support boolean operators, comparisons, label membership, selected string helpers, `currentUser()`, `today()`, `now()`, and `custom.<field_key>` access for typed custom fields. When a project is selected, `/search` includes a custom-field builder that appends safe `custom.<field_key>` CEL clauses to the raw filter before saving or running a search. See:
 
 - CEL: https://cel.dev/
 - cel-go: https://github.com/google/cel-go

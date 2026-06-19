@@ -616,6 +616,11 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 	for _, expected := range []string{
 		"loadSavedViews",
 		"runSearch",
+		"loadCustomFields({ renderTickets: false })",
+		"renderCustomFieldSearchControls",
+		"customFieldSearchExpression",
+		"appendSearchFilter",
+		"`custom.${field.key}`",
 		"normalizeSavedView",
 		"savedViewSpecFromForm",
 		"savedViewUpdateSpec",
@@ -647,6 +652,9 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 	cssText := string(css)
 	for _, expected := range []string{
 		".search-panel",
+		".custom-field-search-controls",
+		".custom-field-search-form",
+		".custom-field-search-value",
 		".search-results",
 		".search-pagination",
 		".saved-view-list",
