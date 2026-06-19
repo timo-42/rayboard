@@ -2088,6 +2088,27 @@ p {
   align-items: center;
 }
 
+.board-saved-view-filter {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.board-saved-view-filter label {
+  display: grid;
+  gap: 5px;
+  color: var(--heading);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.board-saved-view-filter select {
+  min-height: 34px;
+}
+
 .status-item p,
 .board-item p {
   color: var(--text);

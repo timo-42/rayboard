@@ -19,6 +19,9 @@ const state = {
   boards: [],
   selectedBoardID: "",
   boardTickets: null,
+  boardSavedViews: [],
+  selectedBoardSavedViewID: "",
+  boardSavedViewsError: "",
   sprints: [],
   sprintFilterState: "",
   selectedSprintReportID: "",
@@ -203,6 +206,8 @@ const els = {
   statusForm: document.querySelector("#status-form"),
   workflowStatuses: document.querySelector("#workflow-statuses"),
   boardForm: document.querySelector("#board-form"),
+  boardSavedViewFilter: document.querySelector("#board-saved-view-filter"),
+  boardSavedViewStatus: document.querySelector("#board-saved-view-status"),
   boards: document.querySelector("#boards"),
   releasePanel: document.querySelector("#release-panel"),
   componentForm: document.querySelector("#component-form"),
@@ -1051,6 +1056,13 @@ function bindEvents() {
     }, "Board created");
   });
 
+  els.boardSavedViewFilter.addEventListener("change", async (event) => {
+    state.selectedBoardSavedViewID = event.currentTarget.value || "";
+    await loadBoardTickets(state.selectedBoardID);
+    renderWorkflowPanel();
+    renderTickets();
+  });
+
   els.boards.addEventListener("click", async (event) => {
     const select = event.target.closest("[data-select-board-id]");
     if (select) {
@@ -1408,6 +1420,7 @@ function bindEvents() {
       resetSavedViewForm();
       resetSavedViewPagination();
       await loadSavedViews();
+      await loadBoardSavedViews();
     }, form.dataset.savedViewEditId ? "Saved view updated" : "Saved view created");
   });
 
@@ -1442,6 +1455,7 @@ function bindEvents() {
       await runAction(async () => {
         await api(`/api/saved-views/${remove.dataset.deleteSavedViewId}`, { method: "DELETE" });
         await loadSavedViews();
+        await loadBoardSavedViews();
       }, "Saved view deleted");
     }
   });
@@ -2484,6 +2498,33 @@ async function loadSavedViews() {
   renderSavedViews();
 }
 
+async function loadBoardSavedViews() {
+  if (!state.user || !state.selectedProject) {
+    state.boardSavedViews = [];
+    state.selectedBoardSavedViewID = "";
+    state.boardSavedViewsError = "";
+    renderBoardSavedViewFilter();
+    return;
+  }
+  try {
+    const projectID = encodeURIComponent(state.selectedProject.id);
+    const data = await api(`/api/saved-views?project_id=${projectID}&limit=200&offset=0`);
+    state.boardSavedViews = listItems(data)
+      .map(normalizeSavedView)
+      .filter(isApplicableBoardSavedView)
+      .sort(compareBoardSavedViews);
+    if (state.selectedBoardSavedViewID && !state.boardSavedViews.some((view) => view.id === state.selectedBoardSavedViewID)) {
+      state.selectedBoardSavedViewID = "";
+    }
+    state.boardSavedViewsError = "";
+  } catch (error) {
+    state.boardSavedViews = [];
+    state.selectedBoardSavedViewID = "";
+    state.boardSavedViewsError = error.message || "Unable to load board filters";
+  }
+  renderBoardSavedViewFilter();
+}
+
 async function loadPinnedProjectSavedViews() {
   if (!state.user || !state.selectedProject) {
     state.pinnedProjectSavedViews = [];
@@ -2606,6 +2647,7 @@ async function loadBoards() {
     state.boards = [];
     state.selectedBoardID = "";
     state.boardTickets = null;
+    state.selectedBoardSavedViewID = "";
     renderWorkflowPanel();
     renderTickets();
     return;
@@ -2634,9 +2676,35 @@ async function loadBoardTickets(boardID, options = {}) {
   }
   const data = await api(`/api/boards/${boardID}/tickets`);
   state.boardTickets = normalizeBoardTickets(data);
+  if (state.selectedBoardSavedViewID) {
+    await applyBoardSavedViewFilter();
+  }
   if (options.renderAfter !== false) {
     renderTickets();
   }
+}
+
+async function applyBoardSavedViewFilter() {
+  if (!state.selectedProject || !state.boardTickets) {
+    return;
+  }
+  const view = selectedBoardSavedView();
+  if (!view) {
+    state.selectedBoardSavedViewID = "";
+    return;
+  }
+  const query = view.query || {};
+  const spec = {
+    project_id: state.selectedProject.id,
+    text: query.text || "",
+    filter: query.filter || "",
+    sort: view.sort && view.sort.length ? view.sort : [{ field: "updated_at", direction: "desc" }],
+    limit: 200,
+    cursor: ""
+  };
+  const data = await api("/api/search", { method: "POST", body: { spec } });
+  const matches = listItems(data).map(normalizeTicket).filter(Boolean);
+  state.boardTickets = boardTicketsFromSavedViewMatches(state.boardTickets, matches);
 }
 
 async function loadComponents(options = {}) {
@@ -2803,6 +2871,7 @@ async function loadProjectDetails() {
     return;
   }
   await loadWorkflowStatuses();
+  await loadBoardSavedViews();
   await loadBoards();
   await loadBacklog();
   await loadSprints({ renderTickets: false });
@@ -2869,6 +2938,7 @@ async function loadProjects(selectedID = "") {
   const nextProjectID = state.selectedProject ? state.selectedProject.id : "";
   if (previousProjectID !== nextProjectID) {
     resetSavedViewPagination();
+    state.selectedBoardSavedViewID = "";
   }
   await loadDashboardSummaries();
   if (state.selectedProject && route.page === "projects") {
@@ -2880,6 +2950,9 @@ async function loadProjects(selectedID = "") {
     state.boards = [];
     state.selectedBoardID = "";
     state.boardTickets = null;
+    state.boardSavedViews = [];
+    state.selectedBoardSavedViewID = "";
+    state.boardSavedViewsError = "";
     state.ticketFilters = emptyTicketFilters();
     state.sprints = [];
     state.sprintFilterState = "";
@@ -3780,12 +3853,99 @@ function backlogSprintControlNode(ticket) {
   return section;
 }
 
+function selectedBoardSavedView() {
+  if (!state.selectedBoardSavedViewID) {
+    return null;
+  }
+  return state.boardSavedViews.find((view) => view.id === state.selectedBoardSavedViewID) || null;
+}
+
+function isApplicableBoardSavedView(view) {
+  if (!view) {
+    return false;
+  }
+  return !view.project_id || !state.selectedProject || view.project_id === state.selectedProject.id;
+}
+
+function compareBoardSavedViews(left, right) {
+  const leftBoard = left.display_mode === "board" ? 0 : 1;
+  const rightBoard = right.display_mode === "board" ? 0 : 1;
+  if (leftBoard !== rightBoard) {
+    return leftBoard - rightBoard;
+  }
+  const leftPinned = left.pinned ? 0 : 1;
+  const rightPinned = right.pinned ? 0 : 1;
+  if (leftPinned !== rightPinned) {
+    return leftPinned - rightPinned;
+  }
+  return (left.name || "").localeCompare(right.name || "") || (left.id || "").localeCompare(right.id || "");
+}
+
+function boardTicketsFromSavedViewMatches(boardTickets, matches) {
+  const ticketsByStatus = new Map();
+  for (const ticket of matches) {
+    const list = ticketsByStatus.get(ticket.status) || [];
+    list.push(ticket);
+    ticketsByStatus.set(ticket.status, list);
+  }
+  return {
+    ...boardTickets,
+    filtered_by_saved_view: true,
+    columns: (boardTickets.columns || []).map((column) => {
+      const tickets = ticketsByStatus.get(column.slug) || [];
+      return {
+        ...column,
+        tickets,
+        ticket_count: tickets.length,
+        over_wip_limit: Number.isFinite(column.wip_limit) && column.wip_limit > 0 && tickets.length > column.wip_limit
+      };
+    })
+  };
+}
+
+function renderBoardSavedViewFilter() {
+  if (!els.boardSavedViewFilter || !els.boardSavedViewStatus) {
+    return;
+  }
+  els.boardSavedViewFilter.replaceChildren();
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "No saved-view filter";
+  els.boardSavedViewFilter.append(empty);
+  for (const view of state.boardSavedViews) {
+    const option = document.createElement("option");
+    option.value = view.id;
+    option.textContent = [
+      view.name || "Saved view",
+      view.display_mode === "board" ? "board" : view.display_mode || "list",
+      view.scope_type || ""
+    ].filter(Boolean).join(" / ");
+    option.selected = view.id === state.selectedBoardSavedViewID;
+    els.boardSavedViewFilter.append(option);
+  }
+  els.boardSavedViewFilter.value = state.selectedBoardSavedViewID || "";
+  els.boardSavedViewFilter.disabled = !state.selectedProject || !state.boards.length || !state.boardSavedViews.length;
+  if (state.boardSavedViewsError) {
+    els.boardSavedViewStatus.textContent = state.boardSavedViewsError;
+  } else if (!state.selectedProject) {
+    els.boardSavedViewStatus.textContent = "Select a project to use board filters.";
+  } else if (!state.boardSavedViews.length) {
+    els.boardSavedViewStatus.textContent = "No saved views available for this project.";
+  } else if (selectedBoardSavedView()) {
+    const view = selectedBoardSavedView();
+    els.boardSavedViewStatus.textContent = `Filtering board with ${view.name || "saved view"}.`;
+  } else {
+    els.boardSavedViewStatus.textContent = "Use a board saved view to filter cards.";
+  }
+}
+
 function renderWorkflowPanel() {
   if (!els.workflowStatuses || !els.boards) {
     return;
   }
   renderStatusForm();
   renderWorkflowStatuses();
+  renderBoardSavedViewFilter();
   renderBoards();
 }
 
@@ -6928,6 +7088,10 @@ function renderTickets() {
         list.append(ticketNode(fullTicket));
         rendered.add(fullTicket.id);
       }
+    }
+    if (state.boardTickets.filtered_by_saved_view) {
+      renderTicketFilterSummary(rendered.size, state.tickets.length);
+      return;
     }
   }
   for (const ticket of filteredTickets) {
