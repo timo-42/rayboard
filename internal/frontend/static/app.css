@@ -3369,6 +3369,7 @@ p {
 }
 
 .cron-job-form,
+.cron-job-edit-form,
 .webhook-form,
 .webhook-edit-form,
 .ticket-hook-form,
@@ -3389,6 +3390,7 @@ p {
 }
 
 .cron-job-form textarea,
+.cron-job-edit-form textarea,
 .webhook-form textarea,
 .webhook-edit-form textarea,
 .ticket-hook-form textarea,
@@ -3492,6 +3494,27 @@ p {
 .ticket-hook-actions button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.cron-job-edit-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  align-items: end;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.cron-job-edit-form [data-cron-job-edit-engine-field] {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.cron-job-edit-form [data-cron-job-edit-engine-field][hidden] {
+  display: none;
+}
+
+.cron-job-edit-form button {
+  min-height: 34px;
 }
 
 .ticket-hook-edit-form {

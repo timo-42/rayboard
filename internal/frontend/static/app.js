@@ -500,6 +500,31 @@ function bindEvents() {
     }
   });
 
+  els.cronJobs.addEventListener("change", (event) => {
+    if (!event.target.matches("select[name='engine_type']")) {
+      return;
+    }
+    const form = event.target.closest("[data-cron-job-form]");
+    if (form) {
+      renderCronJobEditEngineFields(form);
+    }
+  });
+
+  els.cronJobs.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-cron-job-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    await runAction(async () => {
+      await api(`/api/cron-jobs/${form.dataset.cronJobForm}`, {
+        method: "PATCH",
+        body: { spec: cronJobSpec(form) }
+      });
+      await loadCronJobs();
+    }, "Cron job saved");
+  });
+
   els.webhookEngineType.addEventListener("change", () => {
     renderWebhookEngineFields();
   });
@@ -7159,6 +7184,13 @@ function renderCronJobEngineFields() {
   });
 }
 
+function renderCronJobEditEngineFields(form) {
+  const type = form && form.elements.engine_type ? form.elements.engine_type.value : "lua";
+  form.querySelectorAll("[data-cron-job-edit-engine-field]").forEach((field) => {
+    field.hidden = field.dataset.cronJobEditEngineField !== type;
+  });
+}
+
 function cronJobNode(job) {
   const article = document.createElement("article");
   article.className = "cron-job-item";
@@ -7209,12 +7241,80 @@ function cronJobNode(job) {
 
   actions.append(runs, run, toggle, remove);
   article.append(header, meta, actions);
+  article.append(cronJobEditForm(job));
 
   const jobRuns = state.cronRuns[job.id] || [];
   if (jobRuns.length) {
     article.append(cronRunListNode(jobRuns));
   }
   return article;
+}
+
+function cronJobEditForm(job) {
+  const form = document.createElement("form");
+  form.className = "cron-job-edit-form";
+  form.dataset.cronJobForm = job.id;
+
+  form.append(
+    inputNode("name", job.name || "", "name"),
+    inputNode("schedule", job.schedule || "", "cron schedule"),
+    inputNode("timezone", job.timezone || "UTC", "timezone"),
+    inputNode("owner_user_id", job.owner_user_id || "", "owner user id"),
+    automationEngineSelect("engine_type", [
+      ["lua", "Lua"],
+      ["ai", "OpenRouter AI"]
+    ], job.engine.type || "lua")
+  );
+
+  const enabled = document.createElement("label");
+  enabled.className = "inline-toggle";
+  const enabledInput = document.createElement("input");
+  enabledInput.name = "enabled";
+  enabledInput.type = "checkbox";
+  enabledInput.checked = job.enabled;
+  enabled.append(enabledInput, " Enabled");
+
+  const lua = document.createElement("label");
+  lua.dataset.cronJobEditEngineField = "lua";
+  lua.append("Lua Script", automationTextarea("script", job.engine.script || "", 4));
+
+  const ai = document.createElement("div");
+  ai.dataset.cronJobEditEngineField = "ai";
+  const prompt = document.createElement("label");
+  prompt.append("AI Prompt", automationTextarea("prompt", job.engine.prompt || "", 4));
+  const provider = document.createElement("label");
+  provider.append("Provider ID", inputNode("provider_id", job.engine.provider_id || "", "openrouter_provider_..."));
+  ai.append(prompt, provider);
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save cron job";
+
+  form.append(enabled, lua, ai, save);
+  renderCronJobEditEngineFields(form);
+  return form;
+}
+
+function automationEngineSelect(name, options, selectedValue) {
+  const select = document.createElement("select");
+  select.name = name;
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedValue;
+    select.append(option);
+  }
+  return select;
+}
+
+function automationTextarea(name, value, rows) {
+  const textarea = document.createElement("textarea");
+  textarea.name = name;
+  textarea.rows = rows;
+  textarea.spellcheck = false;
+  textarea.value = value || "";
+  return textarea;
 }
 
 function cronRunListNode(runs) {
