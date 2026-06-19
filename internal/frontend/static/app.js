@@ -189,6 +189,7 @@ const els = {
   projectPreferenceStatus: document.querySelector("#project-preference-status"),
   notificationDeliveryForm: document.querySelector("#notification-delivery-form"),
   notificationDeliveryProject: document.querySelector("#notification-delivery-project"),
+  notificationDeliverySummary: document.querySelector("#notification-delivery-summary"),
   notificationDeliveries: document.querySelector("#notification-deliveries"),
   notificationInbox: document.querySelector("#notification-inbox"),
   notificationCount: document.querySelector("#notification-count"),
@@ -6362,6 +6363,7 @@ function renderNotificationDeliveries() {
   if (state.selectedProject && state.projects.some((project) => project.id === state.selectedProject.id)) {
     els.notificationDeliveryProject.value = state.selectedProject.id;
   }
+  renderNotificationDeliverySummary();
   els.notificationDeliveries.replaceChildren();
   if (state.notificationDeliveriesError) {
     const error = document.createElement("p");
@@ -6380,6 +6382,84 @@ function renderNotificationDeliveries() {
   for (const delivery of state.notificationDeliveries) {
     els.notificationDeliveries.append(notificationDeliveryNode(delivery));
   }
+}
+
+function renderNotificationDeliverySummary() {
+  if (!els.notificationDeliverySummary) {
+    return;
+  }
+  els.notificationDeliverySummary.replaceChildren();
+  if (state.notificationDeliveriesError) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Delivery health summary unavailable";
+    els.notificationDeliverySummary.append(empty);
+    return;
+  }
+  if (!state.notificationDeliveries.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No loaded deliveries to summarize";
+    els.notificationDeliverySummary.append(empty);
+    return;
+  }
+
+  const summary = notificationDeliverySummary();
+  const metrics = document.createElement("div");
+  metrics.className = "notification-delivery-metrics";
+  for (const metric of [
+    ["Loaded", summary.total],
+    ["Queued", summary.counts.queued],
+    ["Sending", summary.counts.sending],
+    ["Delivered", summary.counts.delivered],
+    ["Failed", summary.counts.failed],
+    ["Canceled", summary.counts.canceled],
+    ["Retryable", summary.retryable],
+    ["Delivered %", `${summary.deliveredPercent}%`]
+  ]) {
+    const item = document.createElement("span");
+    item.textContent = `${metric[0]}: ${metric[1]}`;
+    metrics.append(item);
+  }
+  els.notificationDeliverySummary.append(metrics);
+
+  if (summary.latestFailure) {
+    const failure = document.createElement("p");
+    failure.className = "notification-delivery-latest-failure";
+    failure.textContent = [
+      "Latest failure",
+      summary.latestFailure.updated_at ? formatDateTime(summary.latestFailure.updated_at) : "",
+      summary.latestFailure.destination_name || summary.latestFailure.destination_id || "",
+      summary.latestFailure.last_error || summary.latestFailure.state
+    ].filter(Boolean).join(" / ");
+    els.notificationDeliverySummary.append(failure);
+  }
+}
+
+function notificationDeliverySummary() {
+  const counts = { queued: 0, sending: 0, delivered: 0, failed: 0, canceled: 0 };
+  let latestFailure = null;
+  for (const delivery of state.notificationDeliveries) {
+    if (Object.prototype.hasOwnProperty.call(counts, delivery.state)) {
+      counts[delivery.state] += 1;
+    }
+    if ((delivery.state === "failed" || delivery.state === "canceled") && (!latestFailure || deliveryUpdatedAt(delivery) > deliveryUpdatedAt(latestFailure))) {
+      latestFailure = delivery;
+    }
+  }
+  const total = state.notificationDeliveries.length;
+  return {
+    total,
+    counts,
+    retryable: counts.failed + counts.canceled,
+    deliveredPercent: total ? Math.round((counts.delivered / total) * 100) : 0,
+    latestFailure
+  };
+}
+
+function deliveryUpdatedAt(delivery) {
+  const value = Date.parse(delivery.updated_at || delivery.last_attempt_at || delivery.created_at || "");
+  return Number.isFinite(value) ? value : 0;
 }
 
 function notificationDeliveryNode(delivery) {

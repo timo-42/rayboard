@@ -682,8 +682,8 @@
               <select id="notification-delivery-project" name="project_id"></select>
               <select name="status">
                 <option value="">Any status</option>
-                <option value="pending">Pending</option>
-                <option value="claimed">Claimed</option>
+                <option value="queued">Queued</option>
+                <option value="sending">Sending</option>
                 <option value="delivered">Delivered</option>
                 <option value="failed">Failed</option>
                 <option value="canceled">Canceled</option>
@@ -693,6 +693,7 @@
               <button type="submit">Load deliveries</button>
             </form>
             <div id="project-preference-status" class="settings-status"></div>
+            <div id="notification-delivery-summary" class="notification-delivery-summary"></div>
             <div id="notification-deliveries" class="notification-delivery-list"></div>
           </section>
 

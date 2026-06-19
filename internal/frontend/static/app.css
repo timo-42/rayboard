@@ -825,6 +825,36 @@ p {
   opacity: 0.65;
 }
 
+.notification-delivery-summary {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 10px;
+}
+
+.notification-delivery-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notification-delivery-metrics span {
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notification-delivery-latest-failure {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .notification-delivery-payload {
   max-height: 180px;
   overflow: auto;
