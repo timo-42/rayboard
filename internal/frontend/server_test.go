@@ -773,6 +773,9 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"data-roadmap-quick-schedule-id",
 		"data-roadmap-dependency-form",
 		"data-delete-roadmap-dependency-id",
+		"els.roadmapDependencies.addEventListener(\"submit\"",
+		"els.roadmapDependencies.addEventListener(\"click\"",
+		"els.roadmapDependencies.addEventListener(\"change\"",
 		"application/rayboard-roadmap-epic",
 		"roadmap-progress",
 	} {
