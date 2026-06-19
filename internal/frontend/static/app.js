@@ -7512,15 +7512,18 @@ function renderCustomFieldInputs(container, values = {}) {
     return;
   }
   for (const field of state.customFields) {
-    container.append(customFieldInputNode(field, values[field.key]));
+    const hasValue = values && Object.prototype.hasOwnProperty.call(values, field.key);
+    container.append(customFieldInputNode(field, hasValue ? values[field.key] : undefined, hasValue));
   }
 }
 
-function customFieldInputNode(field, value) {
+function customFieldInputNode(field, value, hasValue = false) {
   const label = document.createElement("label");
   label.className = "custom-field-input";
   label.dataset.customFieldKey = field.key;
   label.dataset.customFieldType = field.field_type || "text";
+  label.dataset.customFieldRequired = field.required ? "true" : "false";
+  label.dataset.customFieldValueSet = hasValue ? "true" : "false";
 
   const text = document.createElement("span");
   text.textContent = field.required ? `${field.name || field.key} *` : field.name || field.key;
@@ -8100,7 +8103,9 @@ function customFieldsFromControls(container) {
       continue;
     }
     if (type === "boolean") {
-      fields[key] = Boolean(input.checked);
+      if (input.checked || wrapper.dataset.customFieldRequired === "true" || wrapper.dataset.customFieldValueSet === "true") {
+        fields[key] = Boolean(input.checked);
+      }
       continue;
     }
     if (type === "multi_select") {
