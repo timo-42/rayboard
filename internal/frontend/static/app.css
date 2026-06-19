@@ -1794,6 +1794,60 @@ p {
   overflow-wrap: anywhere;
 }
 
+.version-report-health {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.4fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 8px;
+}
+
+.version-report-health.is-overdue {
+  border-left-color: #b6403a;
+}
+
+.version-report-health.is-due-soon {
+  border-left-color: var(--accent);
+}
+
+.version-report-health.is-released {
+  border-left-color: var(--primary);
+}
+
+.version-report-health.is-archived,
+.version-report-health.is-unscheduled {
+  border-left-color: var(--border-strong);
+}
+
+.version-report-health strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.version-report-health span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.version-report-health-dates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 6px;
+}
+
+.version-report-health-dates span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  padding: 3px 8px;
+}
+
 .sprint-report-metrics,
 .version-report-metrics {
   display: grid;
@@ -3892,6 +3946,7 @@ p {
   .release-grid,
   .component-form,
   .version-form,
+  .version-report-health,
   .component-item,
   .version-item,
   .component-edit-form,
