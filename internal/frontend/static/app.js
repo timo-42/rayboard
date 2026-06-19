@@ -216,6 +216,7 @@ const els = {
   roadmap: document.querySelector("#roadmap"),
   roadmapDependencies: document.querySelector("#roadmap-dependencies"),
   ticketParentID: document.querySelector("#ticket-parent-id"),
+  ticketCustomFields: document.querySelector("#ticket-custom-fields"),
   ticketComponentID: document.querySelector("#ticket-component-id"),
   ticketVersionID: document.querySelector("#ticket-version-id"),
   searchPanel: document.querySelector("#search-panel"),
@@ -384,11 +385,12 @@ function bindEvents() {
     const form = event.currentTarget;
     const data = formData(form);
     data.labels = parseLabels(data.labels);
-    data.custom_fields = parseCustomFields(data.custom_fields);
+    data.custom_fields = customFieldsFromControls(els.ticketCustomFields);
     applyStoryPointsSpec(data, data.story_points);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       form.reset();
+      renderTicketCreateCustomFields();
       await loadRoadmap({ renderTickets: false });
       await loadProjectLabels({ renderTickets: false });
       await loadTickets();
@@ -1981,11 +1983,10 @@ function bindEvents() {
     const updateCustomFields = event.target.closest("[data-update-custom-fields-id]");
     if (updateCustomFields) {
       const control = updateCustomFields.closest("[data-ticket-custom-field-control]");
-      const input = control ? control.querySelector("textarea[name='custom_fields']") : null;
       await runAction(async () => {
         await api(`/api/tickets/${updateCustomFields.dataset.updateCustomFieldsId}`, {
           method: "PATCH",
-          body: { spec: { custom_fields: parseCustomFields(input ? input.value : "") } }
+          body: { spec: { custom_fields: customFieldsFromControls(control) } }
         });
         await refreshTicketViews(updateCustomFields.dataset.updateCustomFieldsId);
       }, "Ticket custom fields updated");
@@ -2659,6 +2660,7 @@ async function loadCustomFields(options = {}) {
   const data = await api(`/api/projects/${state.selectedProject.id}/custom-fields`);
   state.customFields = listItems(data).map(normalizeCustomField);
   renderCustomFields();
+  renderTicketCreateCustomFields();
   if (options.renderTickets !== false) {
     renderTickets();
   }
@@ -3402,6 +3404,7 @@ function render() {
   renderRoadmap();
   renderRoadmapDependencies();
   renderTicketFormOptions();
+  renderTicketCreateCustomFields();
   renderTicketFilters();
   renderSearchResults();
   renderSavedViews();
@@ -7468,22 +7471,117 @@ function customFieldControlNode(ticket) {
 
   const controls = document.createElement("div");
   controls.className = "ticket-custom-field-controls";
-
-  const input = document.createElement("textarea");
-  input.name = "custom_fields";
-  input.rows = 3;
-  input.value = formatCustomFields(ticket.custom_fields);
-  input.placeholder = customFieldPlaceholder();
-  input.setAttribute("aria-label", "Custom fields JSON");
+  renderCustomFieldInputs(controls, ticket.custom_fields || {});
 
   const update = document.createElement("button");
   update.type = "button";
   update.dataset.updateCustomFieldsId = ticket.id;
   update.textContent = "Fields";
 
-  controls.append(input, update);
+  controls.append(update);
   section.append(heading, summary, controls);
   return section;
+}
+
+function renderTicketCreateCustomFields() {
+  if (!els.ticketCustomFields) {
+    return;
+  }
+  let current = {};
+  try {
+    current = customFieldsFromControls(els.ticketCustomFields);
+  } catch (_) {
+    current = {};
+  }
+  renderCustomFieldInputs(els.ticketCustomFields, current);
+}
+
+function renderCustomFieldInputs(container, values = {}) {
+  if (!container) {
+    return;
+  }
+  container.replaceChildren();
+  if (!state.customFields.length) {
+    const input = document.createElement("textarea");
+    input.name = "custom_fields";
+    input.rows = 3;
+    input.value = formatCustomFields(values);
+    input.placeholder = customFieldPlaceholder();
+    input.setAttribute("aria-label", "Custom fields JSON");
+    container.append(input);
+    return;
+  }
+  for (const field of state.customFields) {
+    container.append(customFieldInputNode(field, values[field.key]));
+  }
+}
+
+function customFieldInputNode(field, value) {
+  const label = document.createElement("label");
+  label.className = "custom-field-input";
+  label.dataset.customFieldKey = field.key;
+  label.dataset.customFieldType = field.field_type || "text";
+
+  const text = document.createElement("span");
+  text.textContent = field.required ? `${field.name || field.key} *` : field.name || field.key;
+  label.append(text);
+
+  let control;
+  switch (field.field_type) {
+    case "number":
+      control = document.createElement("input");
+      control.type = "number";
+      control.step = "any";
+      control.value = value === undefined || value === null ? "" : String(value);
+      break;
+    case "boolean":
+      control = document.createElement("input");
+      control.type = "checkbox";
+      control.checked = Boolean(value);
+      break;
+    case "date":
+      control = document.createElement("input");
+      control.type = "date";
+      control.value = value ? String(value) : "";
+      break;
+    case "single_select":
+      control = document.createElement("select");
+      appendCustomFieldOption(control, "", "Choose");
+      for (const option of field.options || []) {
+        appendCustomFieldOption(control, option, option, value === option);
+      }
+      break;
+    case "multi_select":
+      control = document.createElement("select");
+      control.multiple = true;
+      control.size = Math.min(Math.max((field.options || []).length, 2), 5);
+      for (const option of field.options || []) {
+        appendCustomFieldOption(control, option, option, Array.isArray(value) && value.includes(option));
+      }
+      break;
+    case "user":
+      control = document.createElement("input");
+      control.type = "text";
+      control.placeholder = "User ID";
+      control.value = value ? String(value) : "";
+      break;
+    default:
+      control = document.createElement("input");
+      control.type = "text";
+      control.value = value === undefined || value === null ? "" : String(value);
+  }
+  control.dataset.customFieldInput = "true";
+  control.setAttribute("aria-label", field.name || field.key);
+  label.append(control);
+  return label;
+}
+
+function appendCustomFieldOption(select, value, label, selected = false) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  option.selected = Boolean(selected);
+  select.append(option);
 }
 
 function sprintControlNode(ticket) {
@@ -7983,6 +8081,50 @@ function parseCustomFields(value) {
     }
     throw new Error("Custom fields JSON is not valid");
   }
+}
+
+function customFieldsFromControls(container) {
+  if (!container) {
+    return {};
+  }
+  const fallback = container.querySelector("textarea[name='custom_fields']");
+  if (fallback) {
+    return parseCustomFields(fallback.value);
+  }
+  const fields = {};
+  for (const wrapper of container.querySelectorAll("[data-custom-field-key]")) {
+    const key = wrapper.dataset.customFieldKey;
+    const type = wrapper.dataset.customFieldType || "text";
+    const input = wrapper.querySelector("[data-custom-field-input]");
+    if (!key || !input) {
+      continue;
+    }
+    if (type === "boolean") {
+      fields[key] = Boolean(input.checked);
+      continue;
+    }
+    if (type === "multi_select") {
+      const selected = Array.from(input.selectedOptions).map((option) => option.value).filter(Boolean);
+      if (selected.length) {
+        fields[key] = selected;
+      }
+      continue;
+    }
+    const value = String(input.value || "").trim();
+    if (!value) {
+      continue;
+    }
+    if (type === "number") {
+      const number = Number(value);
+      if (!Number.isFinite(number)) {
+        throw new Error(`${key} must be a number`);
+      }
+      fields[key] = number;
+      continue;
+    }
+    fields[key] = value;
+  }
+  return fields;
 }
 
 function formatCustomFields(value) {
