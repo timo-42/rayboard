@@ -1126,6 +1126,35 @@ p {
   gap: 14px;
 }
 
+.board-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.board-summary-metric {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
+.board-summary-metric strong {
+  color: var(--heading);
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.board-summary-metric span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .column {
   min-width: 0;
   display: grid;
@@ -3942,6 +3971,7 @@ p {
 
   .ticket-form,
   .ticket-filter-form,
+  .board-summary,
   .columns,
   .search-form,
   .custom-field-search-form,
