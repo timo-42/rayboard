@@ -109,6 +109,34 @@ func TestRuntimeHelpUsesDoubleDashLongFlags(t *testing.T) {
 	}
 }
 
+func TestRuntimeRejectsSingleDashLongFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"frontend", "-frontend-addr", "127.0.0.1:8090"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), `invalid flag "-frontend-addr": use --frontend-addr`) {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
+func TestRuntimeRejectsSingleDashHelp(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{"frontend", "-h"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), `invalid flag "-h": use --help`) {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
 func TestDemoSeedHelpUsesDoubleDashLongFlags(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -132,6 +160,26 @@ func TestDemoSeedHelpUsesDoubleDashLongFlags(t *testing.T) {
 	}
 	if strings.Contains(output, "\n  -backend-url") || strings.Contains(output, "\n  -fresh-reset") {
 		t.Fatalf("expected demo help long flags to use double dash, got: %s", output)
+	}
+}
+
+func TestDemoSeedRejectsSingleDashLongFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main(context.Background(), []string{
+		"demo", "seed",
+		"-backend-url", "http://127.0.0.1:8081",
+		"--admin-user", "admin",
+		"--admin-password", "secret",
+		"--fresh-reset",
+	}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), `invalid flag "-backend-url": use --backend-url`) {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
 	}
 }
 

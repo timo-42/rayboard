@@ -36,7 +36,7 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runDemo(ctx, args[1:], stdout, stderr)
 	case "verify":
 		return runVerify(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
+	case "--help", "help":
 		printUsage(stdout)
 		return 0
 	default:
@@ -53,6 +53,10 @@ func runRuntime(ctx context.Context, mode runtime.Mode, args []string, stdout, s
 	cfg := config.FromEnv()
 	cfg.BindRuntimeFlags(flags)
 	configureLongFlagUsage(flags, stderr, fmt.Sprintf("usage: rayboard %s [flags]", mode))
+	if err := rejectSingleDashFlags(args); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	if flagHelpRequested(args) {
 		configureLongFlagUsage(flags, stdout, fmt.Sprintf("usage: rayboard %s [flags]", mode))
 		flags.Usage()
