@@ -184,13 +184,15 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
 	member := principal("user-member")
 
+	initialStoryPoints := 3.5
 	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{
-		ProjectID:  project.ID,
-		Title:      "First ticket",
-		Priority:   "High",
-		Type:       "Bug",
-		AssigneeID: "user-assignee",
-		Labels:     []string{"Backend", "backend", "API"},
+		ProjectID:   project.ID,
+		Title:       "First ticket",
+		Priority:    "High",
+		Type:        "Bug",
+		AssigneeID:  "user-assignee",
+		Labels:      []string{"Backend", "backend", "API"},
+		StoryPoints: &initialStoryPoints,
 	})
 	if err != nil {
 		t.Fatalf("create ticket: %v", err)
@@ -200,6 +202,9 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	}
 	if !slices.Equal(ticket.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected created labels: %#v", ticket.Labels)
+	}
+	if ticket.StoryPoints == nil || *ticket.StoryPoints != 3.5 {
+		t.Fatalf("unexpected created story points: %#v", ticket.StoryPoints)
 	}
 
 	second, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Second ticket", Labels: []string{"backend", "docs"}})
@@ -235,15 +240,18 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	title := "First ticket updated"
 	status := "In_Progress"
 	emptyAssignee := ""
+	updatedStoryPoints := 5.0
 	updated, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{
-		Title:      &title,
-		Status:     &status,
-		AssigneeID: &emptyAssignee,
+		Title:          &title,
+		Status:         &status,
+		AssigneeID:     &emptyAssignee,
+		StoryPoints:    &updatedStoryPoints,
+		StoryPointsSet: true,
 	})
 	if err != nil {
 		t.Fatalf("update ticket: %v", err)
 	}
-	if updated.Title != title || updated.Status != "in_progress" || updated.AssigneeID != "" {
+	if updated.Title != title || updated.Status != "in_progress" || updated.AssigneeID != "" || updated.StoryPoints == nil || *updated.StoryPoints != 5 {
 		t.Fatalf("unexpected updated ticket: %#v", updated)
 	}
 
@@ -251,8 +259,19 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get ticket: %v", err)
 	}
-	if got.Title != title || got.Status != "in_progress" {
+	if got.Title != title || got.Status != "in_progress" || got.StoryPoints == nil || *got.StoryPoints != 5 {
 		t.Fatalf("unexpected fetched ticket: %#v", got)
+	}
+	clearedPoints, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{StoryPointsSet: true})
+	if err != nil {
+		t.Fatalf("clear story points: %v", err)
+	}
+	if clearedPoints.StoryPoints != nil {
+		t.Fatalf("expected cleared story points, got %#v", clearedPoints.StoryPoints)
+	}
+	negativeStoryPoints := -1.0
+	if _, err := service.UpdateTicket(ctx, member, ticket.ID, tracker.UpdateTicketInput{StoryPoints: &negativeStoryPoints, StoryPointsSet: true}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected invalid story points validation, got %v", err)
 	}
 	if !slices.Equal(got.Labels, []string{"api", "backend"}) {
 		t.Fatalf("expected fetched labels to be preserved, got %#v", got.Labels)
@@ -330,7 +349,7 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 		t.Fatalf("list updated activity: %v", err)
 	}
 	updatedActivity := ticketActivityWithChanges(activities, "status", "assignee_id")
-	if len(activities) != 5 || updatedActivity == nil {
+	if len(activities) != 6 || updatedActivity == nil {
 		t.Fatalf("unexpected activity after update: %#v", activities)
 	}
 	changes, ok := updatedActivity.Data["changes"].(map[string]any)
@@ -1470,15 +1489,18 @@ func TestSprintReportAnalytics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sprint: %v", err)
 	}
-	todo, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Todo report ticket"})
+	todoPoints := 2.0
+	todo, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Todo report ticket", StoryPoints: &todoPoints})
 	if err != nil {
 		t.Fatalf("create todo ticket: %v", err)
 	}
-	done, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Done report ticket", Status: "done"})
+	donePoints := 3.0
+	done, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Done report ticket", Status: "done", StoryPoints: &donePoints})
 	if err != nil {
 		t.Fatalf("create done ticket: %v", err)
 	}
-	postWindow, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Late done report ticket"})
+	postWindowPoints := 5.0
+	postWindow, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Late done report ticket", StoryPoints: &postWindowPoints})
 	if err != nil {
 		t.Fatalf("create late done ticket: %v", err)
 	}
@@ -1501,13 +1523,16 @@ func TestSprintReportAnalytics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get sprint report: %v", err)
 	}
-	if report.Analytics.Velocity.Completed != 1 || report.Analytics.Velocity.Unit != "tickets" {
+	if report.Progress.StoryPointsTotal != 10 || report.Progress.StoryPointsDone != 8 || report.Progress.StoryPointsRemaining != 2 || report.Progress.StoryPointsUnestimated != 0 {
+		t.Fatalf("unexpected sprint story point progress: %#v", report.Progress)
+	}
+	if report.Analytics.Velocity.Completed != 3 || report.Analytics.Velocity.Unit != "points" {
 		t.Fatalf("unexpected sprint velocity: %#v", report.Analytics.Velocity)
 	}
-	if len(report.Analytics.Burndown) != 1 || report.Analytics.Burndown[0].Date != "2026-06-16" || report.Analytics.Burndown[0].Remaining != 2 {
+	if len(report.Analytics.Burndown) != 1 || report.Analytics.Burndown[0].Date != "2026-06-16" || report.Analytics.Burndown[0].Remaining != 7 {
 		t.Fatalf("unexpected sprint burndown: %#v", report.Analytics.Burndown)
 	}
-	if len(report.Analytics.Burnup) != 1 || report.Analytics.Burnup[0].Date != "2026-06-16" || report.Analytics.Burnup[0].Total != 3 || report.Analytics.Burnup[0].Done != 1 {
+	if len(report.Analytics.Burnup) != 1 || report.Analytics.Burnup[0].Date != "2026-06-16" || report.Analytics.Burnup[0].Total != 10 || report.Analytics.Burnup[0].Done != 3 {
 		t.Fatalf("unexpected sprint burnup: %#v", report.Analytics.Burnup)
 	}
 }

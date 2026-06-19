@@ -781,6 +781,7 @@ func createTicketInputMap(input CreateTicketInput) map[string]any {
 		"rank":             input.Rank,
 		"start_date":       input.StartDate,
 		"due_date":         input.DueDate,
+		"story_points":     floatValue(input.StoryPoints),
 		"labels":           anyStringSlice(input.Labels),
 		"custom_fields":    input.CustomFields,
 	}
@@ -801,6 +802,9 @@ func updateTicketInputMap(input UpdateTicketInput) map[string]any {
 	setOptionalString(result, "rank", input.Rank)
 	setOptionalString(result, "start_date", input.StartDate)
 	setOptionalString(result, "due_date", input.DueDate)
+	if input.StoryPointsSet {
+		result["story_points"] = floatValue(input.StoryPoints)
+	}
 	if input.Labels != nil {
 		result["labels"] = anyStringSlice(*input.Labels)
 	}
@@ -853,6 +857,7 @@ func createTicketInputFromMap(input map[string]any, fallback CreateTicketInput) 
 		Rank:           stringFromMap(input, "rank", fallback.Rank),
 		StartDate:      stringFromMap(input, "start_date", fallback.StartDate),
 		DueDate:        stringFromMap(input, "due_date", fallback.DueDate),
+		StoryPoints:    floatFromMap(input, "story_points", fallback.StoryPoints),
 		Labels:         stringSliceFromMap(input, "labels", fallback.Labels),
 		CustomFields:   objectFromMap(input, "custom_fields", fallback.CustomFields),
 	}
@@ -873,6 +878,10 @@ func updateTicketInputFromMap(input map[string]any, fallback UpdateTicketInput) 
 	updateOptionalString(input, "rank", &result.Rank)
 	updateOptionalString(input, "start_date", &result.StartDate)
 	updateOptionalString(input, "due_date", &result.DueDate)
+	if _, ok := input["story_points"]; ok {
+		result.StoryPoints = floatFromMap(input, "story_points", nil)
+		result.StoryPointsSet = true
+	}
 	if _, ok := input["labels"]; ok {
 		labels := stringSliceFromMap(input, "labels", nil)
 		result.Labels = &labels
@@ -937,6 +946,32 @@ func stringSliceFromMap(input map[string]any, key string, fallback []string) []s
 		result = append(result, text)
 	}
 	return result
+}
+
+func floatFromMap(input map[string]any, key string, fallback *float64) *float64 {
+	value, ok := input[key]
+	if !ok || value == nil {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case float64:
+		return &typed
+	case int:
+		result := float64(typed)
+		return &result
+	case int64:
+		result := float64(typed)
+		return &result
+	default:
+		return fallback
+	}
+}
+
+func floatValue(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func objectFromMap(input map[string]any, key string, fallback map[string]any) map[string]any {

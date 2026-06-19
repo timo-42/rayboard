@@ -373,6 +373,7 @@ function bindEvents() {
     const data = formData(form);
     data.labels = parseLabels(data.labels);
     data.custom_fields = parseCustomFields(data.custom_fields);
+    applyStoryPointsSpec(data, data.story_points);
     await runAction(async () => {
       await api(`/api/projects/${state.selectedProject.id}/tickets`, { method: "POST", body: { spec: data } });
       form.reset();
@@ -1917,6 +1918,23 @@ function bindEvents() {
         await refreshTicketViews(assignPlanning.dataset.assignPlanningId);
         await refreshSelectedVersionReport();
       }, "Ticket planning fields updated");
+      return;
+    }
+
+    const updateStoryPoints = event.target.closest("[data-update-story-points-id]");
+    if (updateStoryPoints) {
+      const control = updateStoryPoints.closest("[data-ticket-story-points-control]");
+      const input = control ? control.querySelector("input[name='story_points']") : null;
+      const spec = {};
+      applyStoryPointsSpec(spec, input ? input.value : "");
+      await runAction(async () => {
+        await api(`/api/tickets/${updateStoryPoints.dataset.updateStoryPointsId}`, {
+          method: "PATCH",
+          body: { spec }
+        });
+        await refreshTicketViews(updateStoryPoints.dataset.updateStoryPointsId, { roadmap: false });
+        await refreshSelectedSprintReport();
+      }, "Ticket story points updated");
       return;
     }
 
@@ -3671,6 +3689,7 @@ function renderSprintReport() {
   header.append(title, scope);
 
   const progress = report ? report.progress : { total: 0, done: 0, by_status: {} };
+  const hasPointMetrics = Number(progress.story_points_total || 0) > 0 || Number(progress.story_points_unestimated || 0) > 0;
   const metrics = document.createElement("div");
   metrics.className = "sprint-report-metrics";
   metrics.append(
@@ -3678,6 +3697,14 @@ function renderSprintReport() {
     sprintMetricNode("Done", progress.done || 0),
     sprintMetricNode("Open", Math.max((progress.total || 0) - (progress.done || 0), 0))
   );
+  if (hasPointMetrics) {
+    metrics.append(
+      sprintMetricNode("Points", formatStoryPoints(progress.story_points_total || 0)),
+      sprintMetricNode("Done points", formatStoryPoints(progress.story_points_done || 0)),
+      sprintMetricNode("Remaining points", formatStoryPoints(progress.story_points_remaining || 0)),
+      sprintMetricNode("Unestimated", progress.story_points_unestimated || 0)
+    );
+  }
 
   const statuses = document.createElement("div");
   statuses.className = "sprint-report-statuses";
@@ -3771,7 +3798,7 @@ function sprintReportTicketNode(ticket) {
   const title = document.createElement("span");
   title.textContent = `${ticket.key || ticket.id} ${ticket.title || "Untitled"}`;
   const meta = document.createElement("small");
-  meta.textContent = [ticket.status || "todo", ticket.priority || ""].filter(Boolean).join(" / ");
+  meta.textContent = [ticket.status || "todo", ticket.priority || "", storyPointLabel(ticket.story_points)].filter(Boolean).join(" / ");
   row.append(title, meta);
   return row;
 }
@@ -4383,7 +4410,7 @@ function renderSearchResults() {
     title.textContent = `${ticket.key} ${ticket.title}`;
 
     const meta = document.createElement("span");
-    meta.textContent = [ticket.status, ticket.type, ticket.priority].filter(Boolean).join(" / ") || "Ticket";
+    meta.textContent = [ticket.status, ticket.type, ticket.priority, storyPointLabel(ticket.story_points)].filter(Boolean).join(" / ") || "Ticket";
 
     row.append(title, meta);
     els.searchResults.append(row);
@@ -6520,6 +6547,7 @@ function renderIssue() {
     ["Status", ticket.status],
     ["Priority", ticket.priority || "None"],
     ["Type", ticket.type || "None"],
+    ["Story points", storyPointLabel(ticket.story_points) || "Unestimated"],
     ["Project", projectName(ticket.project_id)],
     ["Sprint", ticket.sprint_id ? sprintName(ticket.sprint_id) : "None"],
     ["Component", ticket.component_id ? componentName(ticket.component_id) : "None"],
@@ -6549,6 +6577,7 @@ function renderIssue() {
     description,
     ticketDeleteNode(ticket),
     labelControlNode(ticket),
+    storyPointControlNode(ticket),
     customFieldControlNode(ticket),
     planningControlNode(ticket),
     watcherNode(ticket),
@@ -6731,6 +6760,8 @@ function createPageTicketSpec(form, schema) {
       ticket.labels = Array.isArray(value) ? value : parseLabels(value);
     } else if (key === "custom_fields") {
       Object.assign(customFields, parseJSONField(value, "Custom fields JSON"));
+    } else if (key === "story_points") {
+      applyStoryPointsSpec(ticket, value);
     } else if (ticketFieldKeys().has(key)) {
       ticket[key] = value;
     } else {
@@ -6775,8 +6806,34 @@ function ticketFieldKeys() {
     "version_id",
     "rank",
     "start_date",
-    "due_date"
+    "due_date",
+    "story_points"
   ]);
+}
+
+function applyStoryPointsSpec(spec, rawValue) {
+  const value = rawValue === undefined || rawValue === null ? "" : String(rawValue).trim();
+  if (value === "") {
+    spec.story_points = null;
+    return;
+  }
+  const parsed = Number(value);
+  spec.story_points = Number.isFinite(parsed) ? parsed : value;
+}
+
+function storyPointLabel(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  return `${formatStoryPoints(value)} pt`;
+}
+
+function formatStoryPoints(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return String(value);
+  }
+  return Number.isInteger(number) ? String(number) : String(Number(number.toFixed(2)));
 }
 
 function titleize(value) {
@@ -6803,7 +6860,7 @@ function ticketNode(ticket) {
 
   const meta = document.createElement("p");
   meta.className = "ticket-meta";
-  meta.textContent = [ticket.type, ticket.priority].filter(Boolean).join(" / ") || "Unclassified";
+  meta.textContent = [ticket.type, ticket.priority, storyPointLabel(ticket.story_points)].filter(Boolean).join(" / ") || "Unclassified";
 
   const actions = document.createElement("div");
   actions.className = "ticket-actions";
@@ -6817,7 +6874,7 @@ function ticketNode(ticket) {
   }
   actions.append(ticketDeleteButton(ticket));
 
-  article.append(key, title, meta, watcherNode(ticket), labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
+  article.append(key, title, meta, watcherNode(ticket), labelControlNode(ticket), storyPointControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
 }
 
@@ -6915,6 +6972,38 @@ function labelControlNode(ticket) {
 
   controls.append(input, update);
   section.append(chips, controls);
+  return section;
+}
+
+function storyPointControlNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-story-points";
+  section.setAttribute("data-ticket-story-points-control", "true");
+  section.setAttribute("aria-label", `${ticket.key} story points`);
+
+  const heading = document.createElement("p");
+  heading.className = "story-points-heading";
+  heading.textContent = storyPointLabel(ticket.story_points) || "Unestimated";
+
+  const controls = document.createElement("div");
+  controls.className = "ticket-story-points-controls";
+
+  const input = document.createElement("input");
+  input.name = "story_points";
+  input.type = "number";
+  input.min = "0";
+  input.step = "0.5";
+  input.value = ticket.story_points === null || ticket.story_points === undefined ? "" : String(ticket.story_points);
+  input.placeholder = "Story points";
+  input.setAttribute("aria-label", "Story points");
+
+  const update = document.createElement("button");
+  update.type = "button";
+  update.dataset.updateStoryPointsId = ticket.id;
+  update.textContent = "Points";
+
+  controls.append(input, update);
+  section.append(heading, controls);
   return section;
 }
 
@@ -7800,6 +7889,7 @@ function normalizeTicket(ticket) {
       rank: ticket.spec.rank || "",
       start_date: ticket.spec.start_date || "",
       due_date: ticket.spec.due_date || "",
+      story_points: ticket.spec.story_points === undefined ? null : ticket.spec.story_points,
       labels: ticket.spec.labels || [],
       custom_fields: ticket.spec.custom_fields || {},
       watcher_count: Number(ticket.status.watcher_count || 0),
@@ -7991,6 +8081,10 @@ function normalizeSprintReport(report) {
       progress: {
         total: Number(report.status.progress && report.status.progress.total) || 0,
         done: Number(report.status.progress && report.status.progress.done) || 0,
+        story_points_total: Number(report.status.progress && report.status.progress.story_points_total) || 0,
+        story_points_done: Number(report.status.progress && report.status.progress.story_points_done) || 0,
+        story_points_remaining: Number(report.status.progress && report.status.progress.story_points_remaining) || 0,
+        story_points_unestimated: Number(report.status.progress && report.status.progress.story_points_unestimated) || 0,
         by_status: (report.status.progress && report.status.progress.by_status) || {}
       },
       analytics: normalizeSprintAnalytics(report.status.analytics),

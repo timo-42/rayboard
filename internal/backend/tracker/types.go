@@ -108,6 +108,7 @@ type Ticket struct {
 	Rank           string         `json:"rank,omitempty"`
 	StartDate      string         `json:"start_date,omitempty"`
 	DueDate        string         `json:"due_date,omitempty"`
+	StoryPoints    *float64       `json:"story_points,omitempty"`
 	Labels         []string       `json:"labels,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 	WatcherCount   int            `json:"watcher_count"`
@@ -133,6 +134,7 @@ type CreateTicketInput struct {
 	Rank           string         `json:"rank,omitempty"`
 	StartDate      string         `json:"start_date,omitempty"`
 	DueDate        string         `json:"due_date,omitempty"`
+	StoryPoints    *float64       `json:"story_points,omitempty"`
 	Labels         []string       `json:"labels,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 }
@@ -163,6 +165,8 @@ type UpdateTicketInput struct {
 	Rank           *string         `json:"rank,omitempty"`
 	StartDate      *string         `json:"start_date,omitempty"`
 	DueDate        *string         `json:"due_date,omitempty"`
+	StoryPoints    *float64        `json:"story_points,omitempty"`
+	StoryPointsSet bool            `json:"-"`
 	Labels         *[]string       `json:"labels,omitempty"`
 	CustomFields   *map[string]any `json:"custom_fields,omitempty"`
 }
@@ -240,9 +244,13 @@ type SprintReport struct {
 }
 
 type SprintReportProgress struct {
-	Total    int            `json:"total"`
-	Done     int            `json:"done"`
-	ByStatus map[string]int `json:"by_status"`
+	Total                  int            `json:"total"`
+	Done                   int            `json:"done"`
+	ByStatus               map[string]int `json:"by_status"`
+	StoryPointsTotal       float64        `json:"story_points_total"`
+	StoryPointsDone        float64        `json:"story_points_done"`
+	StoryPointsRemaining   float64        `json:"story_points_remaining"`
+	StoryPointsUnestimated int            `json:"story_points_unestimated"`
 }
 
 type VersionReport struct {
@@ -266,19 +274,19 @@ type SprintAnalytics struct {
 }
 
 type SprintBurndownPoint struct {
-	Date      string `json:"date"`
-	Remaining int    `json:"remaining"`
+	Date      string  `json:"date"`
+	Remaining float64 `json:"remaining"`
 }
 
 type SprintBurnupPoint struct {
-	Date  string `json:"date"`
-	Total int    `json:"total"`
-	Done  int    `json:"done"`
+	Date  string  `json:"date"`
+	Total float64 `json:"total"`
+	Done  float64 `json:"done"`
 }
 
 type SprintVelocity struct {
-	Completed int    `json:"completed"`
-	Unit      string `json:"unit"`
+	Completed float64 `json:"completed"`
+	Unit      string  `json:"unit"`
 }
 
 type ProjectLabel struct {

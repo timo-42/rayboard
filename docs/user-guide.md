@@ -32,7 +32,7 @@ Implemented browser workflows:
 - basic project webhook list, create, delete, enable/disable, incoming token rotation, run history, and outgoing delivery inspection for the selected project;
 - basic project ticket-hook list, create, delete, enable/disable, and preview controls for the selected project;
 - rendered custom ticket create-page intake forms under `/projects/{project_id}/create/{slug}`;
-- compact selected-sprint reports with totals, status counts, ticket-count velocity, remaining and burnup summaries, ticket links, and live-versus-completed snapshot scope labels.
+- compact selected-sprint reports with totals, status counts, story-point totals when estimates exist, velocity, remaining and burnup summaries, ticket links, and live-versus-completed snapshot scope labels.
 
 API token secrets are shown once when created and are not listed later.
 
@@ -46,7 +46,7 @@ See [API Guide](api.md) for endpoint details.
 
 ## Planned Jira-Like Workflows
 
-Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline board edits, richer sprint reporting beyond compact selected-sprint summaries and ticket-count analytics, roadmap drag/drop dependency graph visualization and capacity planning, richer component/version reporting beyond compact live version reports, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
+Rich backlog planning beyond reorder controls and drag/drop, richer board settings beyond inline board edits, richer sprint reporting beyond compact selected-sprint summaries and point/ticket-count analytics, roadmap drag/drop dependency graph visualization and capacity planning, richer component/version reporting beyond compact live version reports, richer label administration beyond the current ticket-derived label index, richer custom-field layout/search integration, advanced release planning, richer custom create-page layout widgets, richer notification-hook routing controls, richer cron/webhook/ticket-hook editing/history screens, and richer saved-view UI beyond the current paginated list are **Planned**. Lua-backed and OpenRouter AI-backed dynamic custom create pages must return structured form definitions and options, not raw HTML. Remaining OpenRouter AI surfaces and persisted WebAssembly automation are also **Planned**.
 
 ## Notifications
 
@@ -56,7 +56,7 @@ Richer hook routing controls are **Planned**.
 
 ## Search
 
-Current search supports full-text search over ticket title, description, comments, and attachment metadata such as filename and content type with SQLite FTS5, plus CEL-backed ticket filters. Roadmap date fields `start_date` and `due_date` are available for search filters, sort specs, and saved-view columns. Filters support boolean operators, comparisons, label membership, selected string helpers, `currentUser()`, `today()`, `now()`, and `custom.<field_key>` access for typed custom fields. See:
+Current search supports full-text search over ticket title, description, comments, and attachment metadata such as filename and content type with SQLite FTS5, plus CEL-backed ticket filters. Roadmap date fields `start_date` and `due_date`, and estimate field `story_points`, are available for search filters, sort specs, and saved-view columns. Filters support boolean operators, comparisons, label membership, selected string helpers, `currentUser()`, `today()`, `now()`, and `custom.<field_key>` access for typed custom fields. See:
 
 - CEL: https://cel.dev/
 - cel-go: https://github.com/google/cel-go

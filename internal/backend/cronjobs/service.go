@@ -599,6 +599,7 @@ func (s *Service) executeAIAction(ctx context.Context, job Job, actionType strin
 			Rank:           stringValue(input, "rank"),
 			StartDate:      stringValue(input, "start_date"),
 			DueDate:        stringValue(input, "due_date"),
+			StoryPoints:    storyPointsValue(input, "story_points"),
 			Labels:         labels,
 			CustomFields:   customFields,
 		})
@@ -628,6 +629,8 @@ func (s *Service) executeAIAction(ctx context.Context, job Job, actionType strin
 			Rank:           optionalString(input, "rank"),
 			StartDate:      optionalString(input, "start_date"),
 			DueDate:        optionalString(input, "due_date"),
+			StoryPoints:    storyPointsValue(input, "story_points"),
+			StoryPointsSet: hasKey(input, "story_points"),
 		}
 		if hasCustomFields {
 			update.CustomFields = &customFields

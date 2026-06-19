@@ -1,6 +1,8 @@
 package tickets
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/timo-42/rayboard/internal/backend/httpapi/shared"
@@ -75,6 +77,7 @@ type TicketSpec struct {
 	Rank           string         `json:"rank,omitempty"`
 	StartDate      string         `json:"start_date,omitempty"`
 	DueDate        string         `json:"due_date,omitempty"`
+	StoryPoints    *float64       `json:"story_points,omitempty"`
 	Labels         []string       `json:"labels,omitempty"`
 	CustomFields   map[string]any `json:"custom_fields,omitempty"`
 }
@@ -93,8 +96,28 @@ type TicketUpdateSpec struct {
 	Rank           *string         `json:"rank,omitempty"`
 	StartDate      *string         `json:"start_date,omitempty"`
 	DueDate        *string         `json:"due_date,omitempty"`
+	StoryPoints    OptionalFloat   `json:"story_points,omitempty"`
 	Labels         *[]string       `json:"labels,omitempty"`
 	CustomFields   *map[string]any `json:"custom_fields,omitempty"`
+}
+
+type OptionalFloat struct {
+	Set   bool
+	Value *float64
+}
+
+func (value *OptionalFloat) UnmarshalJSON(data []byte) error {
+	value.Set = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		value.Value = nil
+		return nil
+	}
+	var decoded float64
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	value.Value = &decoded
+	return nil
 }
 
 type TicketStatus struct {
@@ -173,6 +196,7 @@ func (spec TicketSpec) ToCreateInput(projectID string) tracker.CreateTicketInput
 		Rank:           spec.Rank,
 		StartDate:      spec.StartDate,
 		DueDate:        spec.DueDate,
+		StoryPoints:    spec.StoryPoints,
 		Labels:         spec.Labels,
 		CustomFields:   spec.CustomFields,
 	}
@@ -193,6 +217,8 @@ func (spec TicketUpdateSpec) ToUpdateInput() tracker.UpdateTicketInput {
 		Rank:           spec.Rank,
 		StartDate:      spec.StartDate,
 		DueDate:        spec.DueDate,
+		StoryPoints:    spec.StoryPoints.Value,
+		StoryPointsSet: spec.StoryPoints.Set,
 		Labels:         spec.Labels,
 		CustomFields:   spec.CustomFields,
 	}
@@ -227,6 +253,7 @@ func ResourceFromTracker(ticket tracker.Ticket) TicketResource {
 			Rank:           ticket.Rank,
 			StartDate:      ticket.StartDate,
 			DueDate:        ticket.DueDate,
+			StoryPoints:    ticket.StoryPoints,
 			Labels:         ticket.Labels,
 			CustomFields:   ticket.CustomFields,
 		},

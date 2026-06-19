@@ -142,8 +142,8 @@ Implemented cron Lua helpers:
 - `rayboard.log(message)`
 - `rayboard.search({ project_id, filter, text, sort, limit, cursor })`
 - `rayboard.get_ticket({ ticket_id })`
-- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, labels, custom_fields })`
-- `rayboard.update_ticket({ ticket_id, title, description, status, priority, type, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, labels, custom_fields })`
+- `rayboard.create_ticket({ project_id, title, description, status, priority, type, reporter_id, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, story_points, labels, custom_fields })`
+- `rayboard.update_ticket({ ticket_id, title, description, status, priority, type, assignee_id, parent_ticket_id, sprint_id, component_id, version_id, rank, story_points, labels, custom_fields })`
 - `rayboard.comment({ ticket_id, body })`
 
 These helpers return `value, nil` on success and `nil, { message = "..." }` on failure. Each helper goes through the normal backend service and RBAC path using the cron job owner as an `AuthKindCron` principal.

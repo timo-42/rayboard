@@ -164,18 +164,20 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 		Labels:      []string{"backend", "auth"},
 		StartDate:   "2026-06-15",
 		DueDate:     "2026-06-16",
+		StoryPoints: floatPtr(5),
 		UpdatedAt:   fixedNow().Add(-3 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
-		ID:        "ticket-core-2",
-		ProjectID: "project-core",
-		Key:       "CORE-2",
-		Title:     "Billing issue",
-		Status:    "done",
-		Labels:    []string{"docs"},
-		StartDate: "2026-06-10",
-		DueDate:   "2026-06-15",
-		UpdatedAt: fixedNow().Add(-2 * time.Hour),
+		ID:          "ticket-core-2",
+		ProjectID:   "project-core",
+		Key:         "CORE-2",
+		Title:       "Billing issue",
+		Status:      "done",
+		Labels:      []string{"docs"},
+		StartDate:   "2026-06-10",
+		DueDate:     "2026-06-15",
+		StoryPoints: floatPtr(2),
+		UpdatedAt:   fixedNow().Add(-2 * time.Hour),
 	})
 	seedTicket(t, ctx, db.SQL, testTicket{
 		ID:          "ticket-ops-1",
@@ -318,6 +320,18 @@ func TestSearchTicketsFTSRefreshAndRBAC(t *testing.T) {
 	}
 	assertTicketIDs(t, customFiltered.Tickets, "ticket-core-1")
 
+	pointFiltered, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{
+		Filter: `story_points >= 3`,
+		Sort:   []search.SortSpec{{Field: "story_points", Direction: "desc"}},
+	})
+	if err != nil {
+		t.Fatalf("search story points: %v", err)
+	}
+	assertTicketIDs(t, pointFiltered.Tickets, "ticket-core-1")
+	if pointFiltered.Tickets[0].StoryPoints == nil || *pointFiltered.Tickets[0].StoryPoints != 5 {
+		t.Fatalf("unexpected story points in search result: %#v", pointFiltered.Tickets[0].StoryPoints)
+	}
+
 	if _, err := service.SearchTickets(ctx, member, search.SearchTicketsInput{Filter: `size(labels) > 0`}); !errors.Is(err, search.ErrValidation) {
 		t.Fatalf("expected unsupported function validation, got %v", err)
 	}
@@ -434,6 +448,7 @@ type testTicket struct {
 	Labels      []string
 	StartDate   string
 	DueDate     string
+	StoryPoints *float64
 	UpdatedAt   time.Time
 }
 
@@ -545,10 +560,10 @@ func seedTicket(t *testing.T, ctx context.Context, db *sql.DB, ticket testTicket
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO tickets (
 			id, project_id, key, title, description, status, assignee_id,
-			start_date, due_date, created_at, updated_at
+			start_date, due_date, story_points, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, ticket.Description, ticket.Status, nullableString(ticket.AssigneeID), nullableString(ticket.StartDate), nullableString(ticket.DueDate), formatTime(fixedNow()), formatTime(ticket.UpdatedAt))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, ticket.ID, ticket.ProjectID, ticket.Key, ticket.Title, ticket.Description, ticket.Status, nullableString(ticket.AssigneeID), nullableString(ticket.StartDate), nullableString(ticket.DueDate), nullableFloat(ticket.StoryPoints), formatTime(fixedNow()), formatTime(ticket.UpdatedAt))
 	if err != nil {
 		t.Fatalf("seed ticket %s: %v", ticket.ID, err)
 	}
@@ -666,4 +681,15 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+func nullableFloat(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
 }

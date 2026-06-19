@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -1080,6 +1081,9 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		fields["rank"] = "Must be 200 characters or fewer"
 	}
 	validateTicketDates(fields, startDate, dueDate)
+	if invalidStoryPoints(input.StoryPoints) {
+		fields["story_points"] = "Must be zero or greater"
+	}
 	labels, err := normalizeTicketLabels(input.Labels)
 	if err != nil {
 		return Ticket{}, err
@@ -1130,6 +1134,7 @@ func (s *Service) buildTicket(ctx context.Context, tx *sql.Tx, principal authz.P
 		Rank:           rank,
 		StartDate:      startDate,
 		DueDate:        dueDate,
+		StoryPoints:    cloneFloat(input.StoryPoints),
 		Labels:         labels,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -1224,6 +1229,13 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	if input.DueDate != nil {
 		next.DueDate = strings.TrimSpace(*input.DueDate)
 	}
+	if input.StoryPointsSet {
+		if invalidStoryPoints(input.StoryPoints) {
+			fields["story_points"] = "Must be zero or greater"
+		} else {
+			next.StoryPoints = cloneFloat(input.StoryPoints)
+		}
+	}
 	if input.Labels != nil {
 		labels, err := normalizeTicketLabels(*input.Labels)
 		if err != nil {
@@ -1266,6 +1278,7 @@ func (s *Service) applyTicketUpdate(ctx context.Context, tx *sql.Tx, current Tic
 	addChange(changes, "rank", current.Rank, next.Rank)
 	addChange(changes, "start_date", current.StartDate, next.StartDate)
 	addChange(changes, "due_date", current.DueDate, next.DueDate)
+	addChange(changes, "story_points", formatStoryPoints(current.StoryPoints), formatStoryPoints(next.StoryPoints))
 	if input.Labels != nil && !equalStringSlices(current.Labels, next.Labels) {
 		changes["labels"] = ticketFieldChange{Old: strings.Join(current.Labels, ","), New: strings.Join(next.Labels, ",")}
 	}
@@ -1470,6 +1483,25 @@ func addChange(changes map[string]ticketFieldChange, field string, oldValue stri
 		return
 	}
 	changes[field] = ticketFieldChange{Old: oldValue, New: newValue}
+}
+
+func cloneFloat(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func invalidStoryPoints(value *float64) bool {
+	return value != nil && (*value < 0 || math.IsNaN(*value) || math.IsInf(*value, 0))
+}
+
+func formatStoryPoints(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", *value), "0"), ".")
 }
 
 func actorID(principal authz.Principal) string {
