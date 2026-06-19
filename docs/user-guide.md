@@ -8,9 +8,9 @@ Implemented browser workflows:
 - dashboard summary with recently modified tickets, biggest projects, active sprints, unread notifications, and ticket/project counts;
 - project list and project creation;
 - project detail pages under `/projects/{project_id}`;
-- issue detail pages under `/issues/{ticket_id}` with watch/unwatch controls, linked issues, comments, attachments, custom fields, and activity history;
+- issue detail pages under `/issues/{ticket_id}` with watch/unwatch controls, linked issues, comments, attachments, custom fields, delete actions, and activity history;
 - ticket list for the selected project with label, component, and version filters;
-- ticket creation;
+- ticket creation and soft delete;
 - ticket status changes;
 - ticket label entry, display, update from ticket cards, and project label filtering with ticket counts;
 - ticket watch/unwatch controls and watcher lists from ticket cards and issue detail pages;

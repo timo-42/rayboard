@@ -35,7 +35,7 @@ The current UI is a small vanilla JavaScript website shell. It supports:
 - an unread notification badge in the persistent Dashboard nav item;
 - project listing and project creation;
 - ticket listing per selected project, including label, component, and version filters backed by the project ticket API;
-- ticket creation;
+- ticket creation and soft delete from ticket cards or issue detail pages;
 - ticket status changes between `todo`, `in_progress`, and `done`;
 - ticket label entry on create plus ticket-card label display, comma-separated label updates, and project label filtering with ticket counts;
 - ticket watch/unwatch controls and watcher lists on ticket cards and issue detail pages;

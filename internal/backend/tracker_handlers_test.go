@@ -747,6 +747,51 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if activity.Code != http.StatusOK {
 		t.Fatalf("expected activity status 200, got %d: %s", activity.Code, activity.Body.String())
 	}
+
+	missingCSRFDeleteReq := httptest.NewRequest(http.MethodDelete, "/api/tickets/"+second.ID, nil)
+	missingCSRFDeleteReq.AddCookie(session)
+	missingCSRFDelete := httptest.NewRecorder()
+	handler.ServeHTTP(missingCSRFDelete, missingCSRFDeleteReq)
+	if missingCSRFDelete.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF delete status 403, got %d: %s", missingCSRFDelete.Code, missingCSRFDelete.Body.String())
+	}
+
+	deleteTicketReq := httptest.NewRequest(http.MethodDelete, "/api/tickets/"+second.ID, nil)
+	addSessionCSRF(deleteTicketReq, session, csrf)
+	deleteTicket := httptest.NewRecorder()
+	handler.ServeHTTP(deleteTicket, deleteTicketReq)
+	if deleteTicket.Code != http.StatusNoContent {
+		t.Fatalf("expected delete ticket status 204, got %d: %s", deleteTicket.Code, deleteTicket.Body.String())
+	}
+
+	getDeletedReq := httptest.NewRequest(http.MethodGet, "/api/tickets/"+second.ID, nil)
+	getDeletedReq.AddCookie(session)
+	getDeleted := httptest.NewRecorder()
+	handler.ServeHTTP(getDeleted, getDeletedReq)
+	if getDeleted.Code != http.StatusNotFound {
+		t.Fatalf("expected deleted ticket get status 404, got %d: %s", getDeleted.Code, getDeleted.Body.String())
+	}
+
+	listAfterDeleteReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/tickets", nil)
+	listAfterDeleteReq.AddCookie(session)
+	listAfterDelete := httptest.NewRecorder()
+	handler.ServeHTTP(listAfterDelete, listAfterDeleteReq)
+	if listAfterDelete.Code != http.StatusOK {
+		t.Fatalf("expected list after delete status 200, got %d: %s", listAfterDelete.Code, listAfterDelete.Body.String())
+	}
+	var afterDeleteList struct {
+		Status struct {
+			Items []ticketResourceBody `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(listAfterDelete.Body.Bytes(), &afterDeleteList); err != nil {
+		t.Fatalf("decode list after delete: %v", err)
+	}
+	if slices.ContainsFunc(afterDeleteList.Status.Items, func(item ticketResourceBody) bool {
+		return item.Metadata.ID == second.ID
+	}) {
+		t.Fatalf("deleted ticket still listed: %#v", afterDeleteList.Status.Items)
+	}
 }
 
 func TestTrackerEndpointsDenyUnprivilegedMutations(t *testing.T) {

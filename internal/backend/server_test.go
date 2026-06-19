@@ -112,6 +112,9 @@ func TestOpenAPIJSON(t *testing.T) {
 	assertResponseBodyFields(t, spec, "/api/projects/{project_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "key"}, []string{"status"})
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/tickets", http.MethodPost, []string{"spec"}, []string{"spec", "title"}, []string{"spec", "labels"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "id"}, []string{"spec"}, []string{"spec", "title"}, []string{"status"}, []string{"status", "key"}, []string{"status", "watcher_count"}, []string{"status", "watching"})
+	if !openAPIHasOperation(spec, "/api/tickets/{ticket_id}", http.MethodDelete) {
+		t.Fatalf("expected ticket delete operation in OpenAPI")
+	}
 	assertRequestBodyFields(t, spec, "/api/projects/{project_id}/backlog", http.MethodPatch, []string{"spec"}, []string{"spec", "ticket_ids"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/activity", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"spec"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "spec"}, []string{"status", "items", "status"})
 	assertResponseBodyFields(t, spec, "/api/tickets/{ticket_id}/watchers", http.MethodGet, "200", []string{"metadata"}, []string{"metadata", "count"}, []string{"status"}, []string{"status", "items"}, []string{"status", "items", "metadata"}, []string{"status", "items", "metadata", "user_id"}, []string{"status", "items", "spec"}, []string{"status", "items", "spec", "display_name"})

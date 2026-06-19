@@ -477,6 +477,9 @@ func TestEmbeddedAppSupportsTicketWatchers(t *testing.T) {
 		"ticket.watcher_added",
 		"watcher_count",
 		"watching",
+		"data-delete-ticket-id",
+		"ticketDeleteButton",
+		"ticket.deleted",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -485,6 +488,7 @@ func TestEmbeddedAppSupportsTicketWatchers(t *testing.T) {
 	cssText := string(css)
 	for _, expected := range []string{
 		".ticket-watchers",
+		".ticket-delete",
 		".watcher-heading",
 		".watcher-list",
 	} {

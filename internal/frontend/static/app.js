@@ -1980,6 +1980,37 @@ function bindEvents() {
       return;
     }
 
+    const deleteTicket = event.target.closest("[data-delete-ticket-id]");
+    if (deleteTicket) {
+      const ticketID = deleteTicket.dataset.deleteTicketId;
+      const projectID = deleteTicket.dataset.projectId || (state.selectedProject ? state.selectedProject.id : "");
+      if (!window.confirm("Delete this ticket?")) {
+        return;
+      }
+      await runAction(async () => {
+        await api(`/api/tickets/${ticketID}`, { method: "DELETE" });
+        delete state.attachments[ticketID];
+        delete state.comments[ticketID];
+        delete state.ticketLinks[ticketID];
+        delete state.ticketWatchers[ticketID];
+        delete state.activities[ticketID];
+        await loadProjectLabels({ renderTickets: false });
+        await loadRoadmap({ renderTickets: false });
+        await loadBacklog();
+        if (state.selectedBoardID) {
+          await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
+        }
+        await loadTickets();
+        await refreshSelectedSprintReport();
+        await refreshSelectedVersionReport();
+        if (state.selectedIssue && state.selectedIssue.id === ticketID) {
+          state.selectedIssue = null;
+          await navigate(`/projects/${encodeURIComponent(projectID)}`);
+        }
+      }, "Ticket deleted");
+      return;
+    }
+
     const watch = event.target.closest("[data-watch-ticket-id]");
     if (watch) {
       const ticketID = watch.dataset.watchTicketId;
@@ -6516,6 +6547,7 @@ function renderIssue() {
   els.issueDetail.append(
     overview,
     description,
+    ticketDeleteNode(ticket),
     labelControlNode(ticket),
     customFieldControlNode(ticket),
     planningControlNode(ticket),
@@ -6783,9 +6815,27 @@ function ticketNode(ticket) {
     button.textContent = action.label;
     actions.append(button);
   }
+  actions.append(ticketDeleteButton(ticket));
 
   article.append(key, title, meta, watcherNode(ticket), labelControlNode(ticket), customFieldControlNode(ticket), planningControlNode(ticket), ticketLinksNode(ticket), sprintControlNode(ticket), commentNode(ticket), attachmentNode(ticket), actions);
   return article;
+}
+
+function ticketDeleteNode(ticket) {
+  const section = document.createElement("section");
+  section.className = "ticket-delete";
+  section.setAttribute("aria-label", `${ticket.key} delete`);
+  section.append(ticketDeleteButton(ticket));
+  return section;
+}
+
+function ticketDeleteButton(ticket) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.deleteTicketId = ticket.id;
+  button.dataset.projectId = ticket.project_id;
+  button.textContent = "Delete";
+  return button;
 }
 
 function watcherNode(ticket) {
@@ -7278,6 +7328,7 @@ function activityLabel(activity) {
   const labels = {
     "ticket.created": "Ticket created",
     "ticket.updated": "Ticket updated",
+    "ticket.deleted": "Ticket deleted",
     "ticket.link_created": "Issue link added",
     "ticket.link_deleted": "Issue link removed",
     "ticket.watcher_added": "Watcher added",

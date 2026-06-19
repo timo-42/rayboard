@@ -1153,11 +1153,29 @@ p {
 .ticket-attachments,
 .ticket-links,
 .ticket-watchers,
+.ticket-delete,
 .ticket-activity {
   display: grid;
   gap: 7px;
   border-top: 1px solid var(--border);
   padding-top: 8px;
+}
+
+.ticket-delete {
+  justify-items: start;
+}
+
+.ticket-delete button {
+  min-height: 30px;
+  border-color: var(--border-strong);
+  background: var(--panel-bg);
+  color: var(--heading);
+  padding: 0 9px;
+}
+
+.ticket-delete button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .comment-heading,

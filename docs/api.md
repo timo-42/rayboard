@@ -102,6 +102,7 @@ Effective-permission requests default to global scope when `scope` is omitted. `
 | `GET` | `/api/projects/{project_id}/labels` | Lists labels currently used by non-deleted project tickets, with ticket counts. |
 | `GET` | `/api/tickets/{ticket_id}` | none |
 | `PATCH` | `/api/tickets/{ticket_id}` | `{"spec":{...}}` with any subset of `title`, `description`, `status`, `priority`, `type`, `assignee_id`, `component_id`, `version_id`, `parent_ticket_id`, `rank`, `labels`, `custom_fields`. |
+| `DELETE` | `/api/tickets/{ticket_id}` | none |
 | `GET` | `/api/tickets/{ticket_id}/activity` | none |
 | `GET` | `/api/tickets/{ticket_id}/watchers` | none |
 | `PUT` | `/api/tickets/{ticket_id}/watchers/me` | Watch the ticket as the authenticated user. |
@@ -114,7 +115,7 @@ Ticket statuses are stored as strings. Workflow status APIs define the ordered p
 
 Project responses use `metadata`, `spec`, and `status`. Project IDs are returned as `metadata.id`; project key, name, description, and lead user are returned in `spec`; archive/delete lifecycle fields are returned in `status`.
 
-Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, watcher count, current-user watch state, and delete state are returned in `status`.
+Project ticket list/create responses, backlog ticket collection responses, and direct ticket get/update responses use `metadata`, `spec`, and `status`. Ticket IDs and project IDs are returned in `metadata`; editable fields such as title, description, status, priority, assignee, labels, and custom fields are returned in `spec`; server-observed fields such as ticket key, reporter, watcher count, current-user watch state, and delete state are returned in `status`. Deleting a ticket requires ticket write permission, soft-deletes the ticket by setting `deleted_at` and `updated_at`, records `ticket.deleted` activity and a durable domain event, and removes the ticket from list, board, backlog, roadmap, report, label, link, watcher, comment, and attachment surfaces that only expose active tickets.
 
 Ticket `component_id` and `version_id` assignments are optional. When present, the component or version must belong to the ticket's project. Clearing either field removes the assignment.
 
@@ -122,7 +123,7 @@ Ticket `labels` is a string array on create, update, get, list, board/backlog, a
 
 Ticket `custom_fields` is an object keyed by project custom-field key. On create, all required project custom fields must be present. On update, omitting `custom_fields` leaves existing custom-field values unchanged; sending `custom_fields` replaces the ticket's custom-field values and revalidates required fields.
 
-Ticket activity responses use a list resource with `metadata.count` and `status.items`. Each activity item uses `metadata.id`, `metadata.ticket_id`, `metadata.created_at`, `spec.activity_type`, optional `spec.data`, and `status.actor_id`. Common activity types include `ticket.created`, `ticket.updated`, `comment.created`, `comment.deleted`, `attachment.uploaded`, and `attachment.deleted`. The embedded issue page at `/issues/{ticket_id}` renders this activity history.
+Ticket activity responses use a list resource with `metadata.count` and `status.items`. Each activity item uses `metadata.id`, `metadata.ticket_id`, `metadata.created_at`, `spec.activity_type`, optional `spec.data`, and `status.actor_id`. Common activity types include `ticket.created`, `ticket.updated`, `ticket.deleted`, `comment.created`, `comment.deleted`, `attachment.uploaded`, and `attachment.deleted`. The embedded issue page at `/issues/{ticket_id}` renders this activity history.
 
 Ticket watcher responses use a list resource with `metadata.count` and `status.items`. Each watcher item uses `metadata.ticket_id`, `metadata.user_id`, `metadata.created_at`, `spec.username`, and `spec.display_name`. Watching and unwatching require ticket read access, are idempotent for the authenticated user, update ticket resource `status.watching` and `status.watcher_count`, and record `ticket.watcher_added` or `ticket.watcher_removed` activity only when the stored watch state changes. Comment and ticket-change notifications include watchers, excluding the actor and deduplicating reporter, assignee, and watcher overlaps.
 

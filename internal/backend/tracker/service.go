@@ -20,6 +20,7 @@ const (
 
 	activityTicketCreated  = "ticket.created"
 	activityTicketUpdated  = "ticket.updated"
+	activityTicketDeleted  = "ticket.deleted"
 	activityLinkCreated    = "ticket.link_created"
 	activityLinkDeleted    = "ticket.link_deleted"
 	activityWatcherAdded   = "ticket.watcher_added"
@@ -301,6 +302,71 @@ func (s *Service) GetTicket(ctx context.Context, principal authz.Principal, tick
 		return Ticket{}, err
 	}
 	return tickets[0], nil
+}
+
+func (s *Service) DeleteTicket(ctx context.Context, principal authz.Principal, ticketID string) error {
+	ticketID = strings.TrimSpace(ticketID)
+	if ticketID == "" {
+		return validationFailed(map[string]string{"ticket_id": "Required"})
+	}
+
+	current, err := s.repo.GetTicket(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+	if err := s.require(principal, authz.PermissionTicketsWrite, authz.ProjectScope(current.ProjectID)); err != nil {
+		return err
+	}
+
+	now := s.now().UTC()
+	eventData := ticketDeletedActivityData(current)
+	event := events.Event{
+		Type:        activityTicketDeleted,
+		ActorID:     actorID(principal),
+		ProjectID:   current.ProjectID,
+		ObjectID:    current.ID,
+		SubjectType: "ticket",
+		SubjectID:   current.ID,
+		At:          now,
+		Data:        eventData,
+	}
+
+	if err := s.withTx(ctx, func(tx *sql.Tx) error {
+		current, err := s.repo.getTicket(ctx, tx, ticketID)
+		if err != nil {
+			return err
+		}
+		project, err := s.repo.getProject(ctx, tx, current.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.ArchivedAt != nil {
+			return &ConflictError{Resource: "project", Field: "archived_at", Value: project.ID, Message: "project is archived"}
+		}
+		if err := s.repo.deleteTicket(ctx, tx, current.ID, now); err != nil {
+			return err
+		}
+		activityID, err := newID("activity")
+		if err != nil {
+			return err
+		}
+		if err := s.repo.insertTicketActivity(ctx, tx, TicketActivity{
+			ID:           activityID,
+			TicketID:     current.ID,
+			ActorID:      actorID(principal),
+			ActivityType: activityTicketDeleted,
+			Data:         eventData,
+			CreatedAt:    now,
+		}); err != nil {
+			return err
+		}
+		return s.appendDomainEvent(ctx, tx, event)
+	}); err != nil {
+		return err
+	}
+
+	s.publish(ctx, event)
+	return nil
 }
 
 func (s *Service) ListTicketWatchers(ctx context.Context, principal authz.Principal, ticketID string) ([]TicketWatcher, error) {
@@ -657,6 +723,14 @@ func ticketLinkActivityData(link TicketLink) map[string]any {
 		"source_key":       link.Source.Key,
 		"target_ticket_id": link.Target.ID,
 		"target_key":       link.Target.Key,
+	}
+}
+
+func ticketDeletedActivityData(ticket Ticket) map[string]any {
+	return map[string]any{
+		"key":    ticket.Key,
+		"title":  ticket.Title,
+		"status": ticket.Status,
 	}
 }
 
