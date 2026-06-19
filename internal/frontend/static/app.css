@@ -2418,8 +2418,38 @@ p {
 }
 
 .ticket-custom-field-controls {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
+}
+
+.ticket-form > .ticket-custom-field-controls {
+  grid-column: 1 / -1;
+}
+
+.custom-field-input {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.custom-field-input span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.custom-field-input input,
+.custom-field-input select,
+.ticket-custom-field-controls textarea {
+  width: 100%;
+}
+
+.custom-field-input select[multiple] {
+  min-height: 74px;
+}
+
+.ticket-custom-field-controls button {
+  justify-self: end;
 }
 
 .ticket-custom-field-controls textarea {

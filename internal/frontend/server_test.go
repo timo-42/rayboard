@@ -874,6 +874,13 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		"renderCustomFields",
 		"normalizeCustomField",
 		"parseCustomFields",
+		"customFieldsFromControls",
+		"renderTicketCreateCustomFields",
+		"renderCustomFieldInputs",
+		"customFieldInputNode",
+		"ticketCustomFields",
+		"data-custom-field-key",
+		"data-custom-field-input",
 		"customFieldUpdateSpec",
 		"data-custom-field-edit-form",
 		"/api/projects/${state.selectedProject.id}/custom-fields",
@@ -893,6 +900,7 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		".field-edit-form",
 		".field-list",
 		".ticket-custom-fields",
+		".custom-field-input",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
