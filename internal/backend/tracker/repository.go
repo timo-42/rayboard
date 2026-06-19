@@ -346,6 +346,25 @@ func (r *Repository) updateTicket(ctx context.Context, q sqlRunner, ticket Ticke
 	return nil
 }
 
+func (r *Repository) deleteTicket(ctx context.Context, q sqlRunner, ticketID string, deletedAt time.Time) error {
+	result, err := q.ExecContext(ctx, `
+		UPDATE tickets
+		SET deleted_at = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`, formatTime(deletedAt), formatTime(deletedAt), ticketID)
+	if err != nil {
+		return fmt.Errorf("delete ticket: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read deleted ticket rows: %w", err)
+	}
+	if deleted == 0 {
+		return notFound("ticket", ticketID)
+	}
+	return nil
+}
+
 func (r *Repository) insertTicketActivity(ctx context.Context, q sqlRunner, activity TicketActivity) error {
 	data := activity.Data
 	if data == nil {

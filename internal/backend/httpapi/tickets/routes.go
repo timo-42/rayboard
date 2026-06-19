@@ -11,6 +11,7 @@ import (
 func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}", "Tickets", "Get ticket"), provider.getTicket)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/tickets/{ticket_id}", "Tickets", "Update ticket"), provider.updateTicket)
+	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/tickets/{ticket_id}", "Tickets", "Delete ticket", http.StatusNoContent), provider.deleteTicket)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}/activity", "Tickets", "List ticket activity"), provider.listActivity)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/tickets/{ticket_id}/watchers", "Ticket Watchers", "List ticket watchers"), provider.listWatchers)
 	huma.Register(api, shared.Operation(http.MethodPut, "/api/tickets/{ticket_id}/watchers/me", "Ticket Watchers", "Watch ticket"), provider.watchTicket)
@@ -45,6 +46,17 @@ func (provider Provider) updateTicket(ctx context.Context, input *UpdateTicketIn
 		return nil, shared.TrackerError(err)
 	}
 	return &TicketOutput{Body: ResourceFromTracker(ticket)}, nil
+}
+
+func (provider Provider) deleteTicket(ctx context.Context, input *TicketIDInput) (*shared.EmptyOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Tracker.DeleteTicket(ctx, principal, input.TicketID); err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &shared.EmptyOutput{}, nil
 }
 
 func (provider Provider) listActivity(ctx context.Context, input *TicketIDInput) (*ActivityOutput, error) {

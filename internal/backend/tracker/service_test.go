@@ -339,6 +339,141 @@ func TestTicketCreateListGetUpdateAndActivity(t *testing.T) {
 	}
 }
 
+func TestTicketDeleteSoftDeletesAndRecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow), tracker.WithEventStore(events.NewStore(db.SQL)))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Delete me", Labels: []string{"cleanup"}})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	if err := service.DeleteTicket(ctx, member, ticket.ID); err != nil {
+		t.Fatalf("delete ticket: %v", err)
+	}
+
+	if _, err := service.GetTicket(ctx, member, ticket.ID); !errors.Is(err, tracker.ErrNotFound) {
+		t.Fatalf("expected deleted ticket to be hidden, got %v", err)
+	}
+	listed, err := service.ListTickets(ctx, member, tracker.ListTicketsInput{ProjectID: project.ID})
+	if err != nil {
+		t.Fatalf("list tickets after delete: %v", err)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("expected deleted ticket to be omitted, got %#v", listed)
+	}
+	labels, err := service.ListProjectLabels(ctx, member, project.ID)
+	if err != nil {
+		t.Fatalf("list labels after delete: %v", err)
+	}
+	if len(labels) != 0 {
+		t.Fatalf("expected deleted ticket labels to be omitted, got %#v", labels)
+	}
+	if err := service.DeleteTicket(ctx, member, ticket.ID); !errors.Is(err, tracker.ErrNotFound) {
+		t.Fatalf("expected repeated delete not found, got %v", err)
+	}
+
+	var deletedAt string
+	var updatedAt string
+	if err := db.SQL.QueryRowContext(ctx, "SELECT deleted_at, updated_at FROM tickets WHERE id = ?", ticket.ID).Scan(&deletedAt, &updatedAt); err != nil {
+		t.Fatalf("query deleted ticket: %v", err)
+	}
+	if deletedAt != fixedNow().UTC().Format(time.RFC3339Nano) || updatedAt != deletedAt {
+		t.Fatalf("unexpected delete timestamps deleted_at=%q updated_at=%q", deletedAt, updatedAt)
+	}
+
+	var activityType string
+	var actorID string
+	var payload string
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT activity_type, actor_id, data_json
+		FROM ticket_activity
+		WHERE ticket_id = ? AND activity_type = 'ticket.deleted'
+	`, ticket.ID).Scan(&activityType, &actorID, &payload); err != nil {
+		t.Fatalf("query delete activity: %v", err)
+	}
+	if activityType != "ticket.deleted" || actorID != "user-member" {
+		t.Fatalf("unexpected delete activity %s actor %s", activityType, actorID)
+	}
+	var activityData map[string]any
+	if err := json.Unmarshal([]byte(payload), &activityData); err != nil {
+		t.Fatalf("decode delete activity: %v", err)
+	}
+	if activityData["key"] != ticket.Key || activityData["title"] != ticket.Title || activityData["status"] != ticket.Status {
+		t.Fatalf("unexpected delete activity data: %#v", activityData)
+	}
+
+	var eventType string
+	var subjectType string
+	var subjectID string
+	var projectID sql.NullString
+	if err := db.SQL.QueryRowContext(ctx, `
+		SELECT event_type, subject_type, subject_id, project_id
+		FROM domain_events
+		WHERE event_type = 'ticket.deleted' AND subject_id = ?
+	`, ticket.ID).Scan(&eventType, &subjectType, &subjectID, &projectID); err != nil {
+		t.Fatalf("query delete domain event: %v", err)
+	}
+	if eventType != "ticket.deleted" || subjectType != "ticket" || subjectID != ticket.ID || !projectID.Valid || projectID.String != project.ID {
+		t.Fatalf("unexpected delete domain event %s %s %s %#v", eventType, subjectType, subjectID, projectID)
+	}
+}
+
+func TestTicketDeleteAuthorizationAndArchivedProject(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedUser(t, ctx, db.SQL, "user-viewer")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	evaluator.BindRole(authz.UserBinding("user-viewer", authz.RoleProjectViewer, authz.ProjectScope(project.ID)))
+	member := principal("user-member")
+	viewer := principal("user-viewer")
+
+	ticket, err := service.CreateTicket(ctx, member, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Protected"})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	if err := service.DeleteTicket(ctx, viewer, ticket.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected viewer delete forbidden, got %v", err)
+	}
+
+	if _, err := db.SQL.ExecContext(ctx, "UPDATE projects SET archived_at = ? WHERE id = ?", fixedNow().UTC().Format(time.RFC3339Nano), project.ID); err != nil {
+		t.Fatalf("archive project: %v", err)
+	}
+	if err := service.DeleteTicket(ctx, member, ticket.ID); !errors.Is(err, tracker.ErrConflict) {
+		t.Fatalf("expected archived project conflict, got %v", err)
+	}
+	if _, err := service.GetTicket(ctx, member, ticket.ID); err != nil {
+		t.Fatalf("ticket should remain visible after failed delete: %v", err)
+	}
+}
+
 func TestTicketLinksCreateListDeleteAndValidate(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)
