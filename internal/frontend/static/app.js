@@ -7432,7 +7432,9 @@ function automationRunSummaryNode(runs, visibleRuns, filterKey) {
     ["failed", summary.failed],
     ["active", summary.active],
     ["avg duration", summary.averageDurationLabel],
-    ["max duration", summary.maxDurationLabel]
+    ["max duration", summary.maxDurationLabel],
+    ["oldest", summary.oldestRunLabel],
+    ["newest", summary.newestRunLabel]
   ]) {
     if (metric[1] === "") {
       continue;
@@ -7523,11 +7525,15 @@ function summarizeAutomationRuns(runs) {
     active: 0,
     latestFailure: "",
     averageDurationLabel: "",
-    maxDurationLabel: ""
+    maxDurationLabel: "",
+    oldestRunLabel: "",
+    newestRunLabel: ""
   };
   let durationCount = 0;
   let totalDurationMs = 0;
   let maxDurationMs = 0;
+  let oldestRunMs = 0;
+  let newestRunMs = 0;
   for (const run of runs || []) {
     if (!run) {
       continue;
@@ -7550,10 +7556,21 @@ function summarizeAutomationRuns(runs) {
       totalDurationMs += durationMs;
       maxDurationMs = Math.max(maxDurationMs, durationMs);
     }
+    const createdMs = Date.parse(run.created_at || "");
+    if (Number.isFinite(createdMs)) {
+      oldestRunMs = oldestRunMs === 0 ? createdMs : Math.min(oldestRunMs, createdMs);
+      newestRunMs = Math.max(newestRunMs, createdMs);
+    }
   }
   if (durationCount > 0) {
     summary.averageDurationLabel = formatDuration(Math.round(totalDurationMs / durationCount));
     summary.maxDurationLabel = formatDuration(maxDurationMs);
+  }
+  if (oldestRunMs > 0) {
+    summary.oldestRunLabel = formatDateTime(new Date(oldestRunMs).toISOString());
+  }
+  if (newestRunMs > 0) {
+    summary.newestRunLabel = formatDateTime(new Date(newestRunMs).toISOString());
   }
   return summary;
 }
