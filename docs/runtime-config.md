@@ -20,6 +20,8 @@ rayboard verify release
 
 Flags are bound for all three runtime commands. Environment variables provide defaults, and flags win.
 
+Rayboard uses Go's standard flag parser, which accepts both `--flag` and `-flag` spellings for long flag names. Documentation and command help use the GNU-style `--flag` form for long flags.
+
 | Flag | Environment | Default | Purpose |
 | --- | --- | --- | --- |
 | `--frontend-addr` | `RAYBOARD_FRONTEND_ADDR` | `127.0.0.1:8080` | Frontend listen address. |
