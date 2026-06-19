@@ -2574,6 +2574,7 @@ async function loadProjects(selectedID = "") {
   const data = await api("/api/projects");
   state.projects = listItems(data).map(normalizeProject);
   const route = currentRoute();
+  const previousProjectID = state.selectedProject ? state.selectedProject.id : "";
   if (route.projectID) {
     const nextProject = state.projects.find((project) => project.id === route.projectID) || null;
     if (!state.selectedProject || !nextProject || state.selectedProject.id !== nextProject.id) {
@@ -2590,6 +2591,10 @@ async function loadProjects(selectedID = "") {
     state.selectedProject = state.projects[0];
   } else if (state.selectedProject) {
     state.selectedProject = state.projects.find((project) => project.id === state.selectedProject.id) || null;
+  }
+  const nextProjectID = state.selectedProject ? state.selectedProject.id : "";
+  if (previousProjectID !== nextProjectID) {
+    resetSavedViewPagination();
   }
   await loadDashboardSummaries();
   if (state.selectedProject && route.page === "projects") {
@@ -2677,7 +2682,11 @@ async function loadTickets() {
 async function loadSelectedIssue(ticketID) {
   const ticket = normalizeTicket(await api(`/api/tickets/${ticketID}`));
   state.selectedIssue = ticket;
+  const previousProjectID = state.selectedProject ? state.selectedProject.id : "";
   state.selectedProject = state.projects.find((project) => project.id === ticket.project_id) || state.selectedProject;
+  if (previousProjectID !== (state.selectedProject ? state.selectedProject.id : "")) {
+    resetSavedViewPagination();
+  }
   if (state.selectedProject) {
     await Promise.all([
       loadSprints({ renderTickets: false }),
