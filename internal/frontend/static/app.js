@@ -13772,6 +13772,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
+    boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13793,6 +13794,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     issue_types: boardIssueTypeBreakdown(boardColumns),
     labels: boardLabelBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
+    reporters: boardReporterBreakdown(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -14040,6 +14042,40 @@ function boardAssigneeWorkloadsNode(items, filtered) {
     const chip = document.createElement("span");
     const points = workload.has_story_points ? `${formatStoryPoints(workload.story_points)} pts` : "no estimates";
     chip.textContent = `${workload.label}: ${workload.tickets} ticket${workload.tickets === 1 ? "" : "s"} / ${points}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardReporterBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportReporterBreakdown(tickets);
+}
+
+function boardReporterBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-reporter-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Reporters (filtered saved view)" : "Reporters";
+
+  const chips = document.createElement("div");
+  chips.className = "board-reporter-chips";
+  const reporters = Array.isArray(items) ? items : [];
+  if (!reporters.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No reporter data";
+    chips.append(chip);
+  }
+  for (const reporter of reporters) {
+    const chip = document.createElement("span");
+    const points = reporter.has_story_points ? `${formatStoryPoints(reporter.story_points)} pts` : "no estimates";
+    chip.textContent = `${reporter.label}: ${reporter.tickets} ticket${reporter.tickets === 1 ? "" : "s"} / ${points}`;
     chips.append(chip);
   }
 
@@ -17033,6 +17069,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardIssueTypeBreakdown,
     boardLabelBreakdown,
     boardAssigneeWorkloads,
+    boardReporterBreakdown,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
