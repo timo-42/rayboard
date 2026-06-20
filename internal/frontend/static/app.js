@@ -11237,6 +11237,8 @@ function ticketLinksNode(ticket) {
   heading.textContent = `Links (${links.length})`;
   section.append(heading);
 
+  section.append(ticketLinkDependencyOverviewNode(links));
+
   const list = document.createElement("div");
   list.className = "ticket-link-list";
   if (!links.length) {
@@ -11290,6 +11292,48 @@ function ticketLinksNode(ticket) {
   form.append(type, target, submit);
   section.append(form);
   return section;
+}
+
+function ticketLinkDependencyOverviewNode(links) {
+  const summary = ticketLinkDependencySummary(links);
+  const overview = document.createElement("div");
+  overview.className = "ticket-link-dependency-overview";
+
+  if (!summary.total) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No dependencies";
+    overview.append(empty);
+    return overview;
+  }
+
+  for (const item of summary.items) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    overview.append(chip);
+  }
+  return overview;
+}
+
+function ticketLinkDependencySummary(links) {
+  const counts = {
+    blocks: 0,
+    is_blocked_by: 0,
+    relates_to: 0
+  };
+  for (const link of Array.isArray(links) ? links : []) {
+    if (Object.prototype.hasOwnProperty.call(counts, link.link_type)) {
+      counts[link.link_type] += 1;
+    }
+  }
+  return {
+    total: Object.values(counts).reduce((sum, count) => sum + count, 0),
+    items: [
+      { label: "Blocks", count: counts.blocks },
+      { label: "Blocked by", count: counts.is_blocked_by },
+      { label: "Related", count: counts.relates_to }
+    ]
+  };
 }
 
 function ticketLinkItemNode(link, ticketID) {
@@ -13107,6 +13151,7 @@ if (typeof module !== "undefined" && module.exports) {
     daysBetween,
     sprintReportHealth,
     sprintReportHealthDates,
+    ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
     versionReportEstimateCoverage,

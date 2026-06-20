@@ -1196,8 +1196,12 @@ func TestEmbeddedAppSupportsTicketLinks(t *testing.T) {
 		"ticketLinks",
 		"loadTicketLinks",
 		"ticketLinksNode",
+		"ticketLinkDependencyOverviewNode",
+		"ticketLinkDependencySummary",
 		"ticketLinkItemNode",
 		"normalizeTicketLink",
+		"No dependencies",
+		"Blocked by",
 		"dataset.ticketLinkForm",
 		"deleteTicketLinkId",
 		"/api/tickets/${ticketID}/links",
@@ -1212,6 +1216,7 @@ func TestEmbeddedAppSupportsTicketLinks(t *testing.T) {
 	cssText := string(css)
 	for _, expected := range []string{
 		".ticket-links",
+		".ticket-link-dependency-overview",
 		".ticket-link-list",
 		".ticket-link-item",
 		".ticket-link-form",
@@ -1219,6 +1224,17 @@ func TestEmbeddedAppSupportsTicketLinks(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestTicketDependencySummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "ticket_dependency_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ticket dependency summary node test failed: %v\n%s", err, output)
 	}
 }
 
