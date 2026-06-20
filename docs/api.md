@@ -136,7 +136,7 @@ Ticket links model directed issue relationships for lightweight dependency track
 
 ## Backlog
 
-The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived readiness, risk, ticket-age, and update-freshness summaries for planning gaps. Richer backlog planning beyond assignment controls, readiness/risk summaries, age/freshness breakdowns, and reports is **Planned**.
+The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived readiness, risk, label, ticket-age, and update-freshness summaries for planning gaps. Richer backlog planning beyond assignment controls, readiness/risk/label summaries, age/freshness breakdowns, and reports is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
@@ -166,7 +166,7 @@ Board ticket responses use `metadata` for the board view identity, `spec.board` 
 
 ## Sprints
 
-The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count or story-point analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes sprint list/create/edit/state-filter/start/complete/delete, ticket-card and backlog sprint assignment/removal, story point editing, backlog readiness/risk summaries, and compact sprint reports with status, start-date, due-date, priority, issue-type, label, estimate-coverage, component, version, parent epic, and reporter breakdowns for the selected project. Richer backlog planning beyond assignment controls and frontend-derived summaries, and sprint reporting beyond compact analytics are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count or story-point analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes sprint list/create/edit/state-filter/start/complete/delete, ticket-card and backlog sprint assignment/removal, story point editing, backlog readiness/risk/label summaries, and compact sprint reports with status, start-date, due-date, priority, issue-type, label, estimate-coverage, component, version, parent epic, and reporter breakdowns for the selected project. Richer backlog planning beyond assignment controls and frontend-derived summaries, and sprint reporting beyond compact analytics are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

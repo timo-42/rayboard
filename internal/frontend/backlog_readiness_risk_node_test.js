@@ -31,6 +31,7 @@ global.window = {
 
 const {
   backlogAgeBreakdown,
+  backlogLabelBreakdown,
   backlogReadinessSummary,
   backlogRiskSummary,
   backlogUpdateFreshness
@@ -42,6 +43,7 @@ const tickets = [
     priority: "High",
     assignee_id: "",
     story_points: null,
+    labels: ["backend", "urgent"],
     created_at: "2026-06-18T09:00:00Z",
     start_date: "",
     due_date: "2026-06-19",
@@ -52,6 +54,7 @@ const tickets = [
     priority: "Medium",
     assignee_id: "user_1",
     story_points: 3,
+    labels: ["backend"],
     created_at: "2026-05-25T09:00:00Z",
     start_date: "2026-06-18",
     due_date: "2026-06-25",
@@ -62,6 +65,7 @@ const tickets = [
     priority: "Critical",
     assignee_id: "",
     story_points: "",
+    labels: [],
     created_at: "2026-04-01T09:00:00Z",
     start_date: "",
     due_date: "2026-06-01",
@@ -72,6 +76,7 @@ const tickets = [
     priority: "Low",
     assignee_id: "   ",
     story_points: "bad",
+    labels: null,
     created_at: "",
     start_date: "not-a-date",
     due_date: "",
@@ -109,6 +114,12 @@ assert.deepStrictEqual(backlogUpdateFreshness(tickets, "2026-06-20"), [
   { key: "dormant", label: "Dormant (31+ days)", count: 1 }
 ]);
 
+assert.deepStrictEqual(backlogLabelBreakdown(tickets), [
+  { label: "backend", count: 2 },
+  { label: "urgent", count: 1 },
+  { label: "No labels", count: 2 }
+]);
+
 assert.deepStrictEqual(backlogReadinessSummary([]), []);
 assert.deepStrictEqual(backlogReadinessSummary(null), []);
 assert.deepStrictEqual(backlogRiskSummary([], "2026-06-20"), []);
@@ -117,3 +128,5 @@ assert.deepStrictEqual(backlogAgeBreakdown([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogAgeBreakdown(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogUpdateFreshness([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogUpdateFreshness(null, "2026-06-20"), []);
+assert.deepStrictEqual(backlogLabelBreakdown([]), []);
+assert.deepStrictEqual(backlogLabelBreakdown(null), []);
