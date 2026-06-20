@@ -4309,6 +4309,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogStatusBreakdownNode(metrics.statuses));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
   section.append(backlogLabelBreakdownNode(metrics.labels));
+  section.append(backlogComponentBreakdownNode(metrics.components));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   section.append(backlogStartDateBreakdownNode(metrics.start_dates));
@@ -4347,6 +4348,7 @@ function backlogSummaryMetrics(tickets) {
     statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
     labels: backlogLabelBreakdown(list),
+    components: backlogComponentBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list),
     start_dates: backlogStartDateBreakdown(list),
@@ -4504,6 +4506,39 @@ function backlogLabelBreakdownVisibleItems(labels, limit = 8) {
     .filter((item) => item.label !== "No labels")
     .slice(0, Math.max(visibleLimit - 1, 0))
     .concat(noLabels);
+}
+
+function backlogComponentBreakdown(tickets) {
+  return sprintReportComponents(tickets).map((component) => ({
+    id: component.id,
+    label: component.name,
+    count: component.total,
+    done: component.done,
+    story_points_total: component.story_points_total,
+    story_points_done: component.story_points_done,
+    unestimated: component.unestimated
+  }));
+}
+
+function backlogComponentBreakdownNode(components) {
+  const list = document.createElement("div");
+  list.className = "backlog-component-breakdown";
+  if (!components.length) {
+    return list;
+  }
+  for (const component of components) {
+    const item = document.createElement("span");
+    item.textContent = backlogComponentBreakdownLabel(component);
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogComponentBreakdownLabel(component) {
+  const pointText = component.story_points_total > 0
+    ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
+    : `${component.unestimated} unestimated`;
+  return `${component.label}: ${component.done}/${component.count} done / ${pointText}`;
 }
 
 function backlogAssigneeBreakdown(tickets) {
@@ -17374,6 +17409,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogAttentionSummary,
     backlogLabelBreakdown,
     backlogLabelBreakdownVisibleItems,
+    backlogComponentBreakdown,
+    backlogComponentBreakdownLabel,
     backlogDueDateBreakdown,
     backlogStartDateBreakdown,
     backlogAgeBreakdown,
