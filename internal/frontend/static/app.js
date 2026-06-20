@@ -13779,6 +13779,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
+    boardAttentionSummaryNode(metrics.attention, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
   return section;
@@ -13806,6 +13807,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     reporters: boardReporterBreakdown(boardColumns),
     estimate_coverage: boardEstimateCoverage(boardColumns),
     capacity,
+    attention: boardAttentionSummary(boardColumns),
     risks: boardRiskOverview(boardColumns)
   };
 }
@@ -14371,6 +14373,39 @@ function boardCapacityOverviewLabel(item) {
     return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.overage} over limit`;
   }
   return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.remaining} remaining`;
+}
+
+function boardAttentionSummary(columns, todayValue = todayLocalISODate()) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportAttentionSummary(tickets, todayValue);
+}
+
+function boardAttentionSummaryNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-attention-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Attention (filtered saved view)" : "Attention";
+
+  const chips = document.createElement("div");
+  chips.className = "board-attention-chips";
+  const attention = Array.isArray(items) ? items : [];
+  if (!attention.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No attention data";
+    chips.append(chip);
+  }
+  for (const item of attention) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
 }
 
 function boardRiskOverview(columns, todayValue = todayLocalISODate()) {
@@ -17300,6 +17335,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardAssigneeWorkloads,
     boardReporterBreakdown,
     boardEstimateCoverage,
+    boardAttentionSummary,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
