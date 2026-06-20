@@ -32,6 +32,8 @@ global.window = {
 const {
   groupedSearchResults,
   savedViewConfigurationInsightItems,
+  savedViewDisplayModeSummary,
+  savedViewDisplayModeSummaryItems,
   savedViewFieldUsageInsightItems,
   savedViewFieldUsageSummary,
   savedViewOverviewSummary,
@@ -140,21 +142,36 @@ assert.deepStrictEqual(
       query: { filter: "priority == 'High'" },
       columns: ["key"],
       sort: [{ field: "priority", direction: "asc" }]
+    },
+    {
+      scope_type: "user",
+      display_mode: "timeline",
+      query: {},
+      columns: [],
+      sort: []
     }
   ]),
   {
-    total: 3,
+    total: 4,
     pinned: 1,
     scopes: [
       { key: "global", count: 1 },
       { key: "project", count: 1 },
-      { key: "user", count: 1 }
+      { key: "user", count: 2 }
     ],
     modes: [
       { key: "backlog", count: 1 },
       { key: "board", count: 1 },
-      { key: "list", count: 1 }
+      { key: "list", count: 1 },
+      { key: "timeline", count: 1 }
     ],
+    display_modes: {
+      list: 1,
+      board: 1,
+      backlog: 1,
+      unmodeled: 1,
+      unmodeled_items: [{ key: "timeline", count: 1 }]
+    },
     configuration: {
       text_queries: 1,
       cel_filters: 2,
@@ -180,6 +197,40 @@ assert.deepStrictEqual(
       ]
     }
   }
+);
+
+assert.deepStrictEqual(
+  savedViewDisplayModeSummary([
+    { display_mode: "board" },
+    { display_mode: "backlog" },
+    { display_mode: "list" },
+    { display_mode: "timeline" },
+    { display_mode: "timeline" },
+    { display_mode: "calendar" },
+    { display_mode: "" },
+    {}
+  ]),
+  {
+    list: 3,
+    board: 1,
+    backlog: 1,
+    unmodeled: 3,
+    unmodeled_items: [
+      { key: "timeline", count: 2 },
+      { key: "calendar", count: 1 }
+    ]
+  }
+);
+
+assert.deepStrictEqual(
+  savedViewDisplayModeSummaryItems({
+    list: 3,
+    board: 1,
+    backlog: 1,
+    unmodeled: 2,
+    unmodeled_items: [{ key: "timeline", count: 2 }]
+  }),
+  ["list: 3", "board: 1", "backlog: 1", "unmodeled: 2", "unmodeled timeline: 2"]
 );
 
 assert.deepStrictEqual(

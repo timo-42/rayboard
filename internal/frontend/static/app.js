@@ -10368,6 +10368,7 @@ function savedViewOverviewNode(views) {
     heading,
     chips,
     savedViewScopeBreakdownNode(summary.scopes),
+    savedViewDisplayModeSummaryNode(summary.display_modes),
     savedViewConfigurationInsightsNode(summary.configuration),
     savedViewFieldUsageNode(summary.field_usage)
   );
@@ -10453,9 +10454,73 @@ function savedViewOverviewSummary(views) {
     pinned,
     scopes: toItems(scopes),
     modes: toItems(modes),
+    display_modes: savedViewDisplayModeSummary(list),
     configuration,
     field_usage: savedViewFieldUsageSummary(list)
   };
+}
+
+function savedViewDisplayModeSummary(views) {
+  const summary = {
+    list: 0,
+    board: 0,
+    backlog: 0,
+    unmodeled: 0,
+    unmodeled_items: []
+  };
+  const unmodeled = new Map();
+  for (const view of Array.isArray(views) ? views : []) {
+    const mode = String(view && view.display_mode || "list").trim() || "list";
+    if (mode === "list" || mode === "board" || mode === "backlog") {
+      summary[mode] += 1;
+      continue;
+    }
+    summary.unmodeled += 1;
+    unmodeled.set(mode, (unmodeled.get(mode) || 0) + 1);
+  }
+  summary.unmodeled_items = Array.from(unmodeled.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.key.localeCompare(right.key);
+    });
+  return summary;
+}
+
+function savedViewDisplayModeSummaryNode(displayModes) {
+  const group = document.createElement("div");
+  group.className = "saved-view-display-modes";
+
+  const label = document.createElement("strong");
+  label.textContent = "Display modes";
+
+  const chips = document.createElement("div");
+  chips.className = "saved-view-display-mode-chips";
+  for (const item of savedViewDisplayModeSummaryItems(displayModes)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function savedViewDisplayModeSummaryItems(displayModes) {
+  const summary = displayModes || {};
+  const items = [
+    `list: ${Number(summary.list) || 0}`,
+    `board: ${Number(summary.board) || 0}`,
+    `backlog: ${Number(summary.backlog) || 0}`,
+    `unmodeled: ${Number(summary.unmodeled) || 0}`
+  ];
+  const unmodeled = Array.isArray(summary.unmodeled_items) ? summary.unmodeled_items : [];
+  return items.concat(unmodeled.slice(0, 4).map((item) => {
+    const key = String(item && item.key || "").trim() || "unknown";
+    return `unmodeled ${key}: ${Number(item && item.count) || 0}`;
+  }));
 }
 
 function savedViewConfigurationInsightsNode(configuration) {
@@ -17767,6 +17832,8 @@ if (typeof module !== "undefined" && module.exports) {
     groupedSearchResults,
     savedViewSearchPresentation,
     savedViewOverviewSummary,
+    savedViewDisplayModeSummary,
+    savedViewDisplayModeSummaryItems,
     savedViewConfigurationInsightItems,
     savedViewFieldUsageSummary,
     savedViewFieldUsageInsightItems,
