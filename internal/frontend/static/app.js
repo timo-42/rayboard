@@ -4162,6 +4162,7 @@ function backlogSummaryNode(tickets) {
     backlogSummaryMetricNode("Unassigned", metrics.unassigned),
     backlogSummaryMetricNode("Story points", metrics.story_points)
   );
+  section.append(backlogSprintWorkloadsNode(metrics.workloads));
   return section;
 }
 
@@ -4184,8 +4185,75 @@ function backlogSummaryMetrics(tickets) {
     total: list.length,
     assigned,
     unassigned: list.length - assigned,
-    story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none"
+    story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none",
+    workloads: backlogSprintWorkloads(list)
   };
+}
+
+function backlogSprintWorkloads(tickets) {
+  const workloads = new Map();
+  const ensureWorkload = (key, label, stateLabel = "") => {
+    if (!workloads.has(key)) {
+      workloads.set(key, {
+        key,
+        label,
+        state: stateLabel,
+        tickets: 0,
+        story_points: 0,
+        has_story_points: false
+      });
+    }
+    return workloads.get(key);
+  };
+  for (const sprint of state.sprints) {
+    ensureWorkload(sprint.id, sprint.name || sprint.id, sprint.state || "");
+  }
+  ensureWorkload("", "No sprint", "unassigned");
+  for (const ticket of tickets) {
+    const key = ticket.sprint_id || "";
+    const sprint = state.sprints.find((item) => item.id === key);
+    const workload = ensureWorkload(key, sprint ? sprint.name || sprint.id : sprintName(key), sprint ? sprint.state || "" : "unknown");
+    workload.tickets += 1;
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      continue;
+    }
+    const points = Number(ticket.story_points);
+    if (Number.isFinite(points)) {
+      workload.story_points += points;
+      workload.has_story_points = true;
+    }
+  }
+  return Array.from(workloads.values())
+    .filter((workload) => workload.tickets > 0)
+    .sort((left, right) => {
+      if (!left.key) {
+        return 1;
+      }
+      if (!right.key) {
+        return -1;
+      }
+      return 0;
+    });
+}
+
+function backlogSprintWorkloadsNode(workloads) {
+  const list = document.createElement("div");
+  list.className = "backlog-sprint-workloads";
+  if (!workloads.length) {
+    return list;
+  }
+  for (const workload of workloads) {
+    const item = document.createElement("span");
+    const points = workload.has_story_points ? `${formatStoryPoints(workload.story_points)} pts` : "no estimates";
+    item.textContent = [
+      workload.label,
+      workload.state,
+      `${workload.tickets} ticket${workload.tickets === 1 ? "" : "s"}`,
+      points
+    ].filter(Boolean).join(" / ");
+    list.append(item);
+  }
+  return list;
 }
 
 function backlogSummaryMetricNode(label, value) {
