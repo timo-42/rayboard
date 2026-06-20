@@ -136,7 +136,7 @@ Ticket links model directed issue relationships for lightweight dependency track
 
 ## Backlog
 
-The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived readiness and risk summaries for planning gaps. Richer backlog planning beyond assignment controls, readiness/risk summaries, and reports is **Planned**.
+The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived readiness, risk, ticket-age, and update-freshness summaries for planning gaps. Richer backlog planning beyond assignment controls, readiness/risk summaries, age/freshness breakdowns, and reports is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
