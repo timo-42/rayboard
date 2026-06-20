@@ -45,6 +45,7 @@ const state = {
   searchNextCursor: "",
   searchCursorStack: [""],
   searchCursorIndex: 0,
+  activeSearchPresentation: { view_id: "", name: "", columns: [], group_by: "" },
   savedViews: [],
   savedViewOffset: 0,
   savedViewHasMore: false,
@@ -1655,6 +1656,7 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     await runAction(async () => {
+      clearSearchPresentation();
       await runSearch(searchSpecFromForm(form), { reset: true });
     }, "Search complete");
   });
@@ -7860,19 +7862,254 @@ function renderSearchResults() {
     els.searchResults.append(empty);
     return;
   }
-  for (const ticket of state.searchResults) {
-    const row = document.createElement("article");
-    row.className = "search-result-item";
-
-    const title = document.createElement("p");
-    title.textContent = `${ticket.key} ${ticket.title}`;
-
-    const meta = document.createElement("span");
-    meta.textContent = [ticket.status, ticket.type, ticket.priority, storyPointLabel(ticket.story_points)].filter(Boolean).join(" / ") || "Ticket";
-
-    row.append(title, meta);
-    els.searchResults.append(row);
+  const columns = activeSearchResultColumns();
+  const groups = groupedSearchResults(state.searchResults, state.activeSearchPresentation.group_by);
+  if (groups.length) {
+    for (const group of groups) {
+      els.searchResults.append(searchResultGroupNode(group, columns));
+    }
+    return;
   }
+  for (const ticket of state.searchResults) {
+    els.searchResults.append(searchResultNode(ticket, columns));
+  }
+}
+
+function searchResultNode(ticket, columns = []) {
+  const row = document.createElement("article");
+  row.className = "search-result-item";
+
+  const title = document.createElement("p");
+  title.textContent = `${ticket.key} ${ticket.title}`;
+
+  if (!columns.length) {
+    const meta = document.createElement("span");
+    meta.className = "search-result-meta";
+    meta.textContent = searchResultFallbackMetadata(ticket);
+    row.append(title, meta);
+    return row;
+  }
+
+  const details = document.createElement("dl");
+  details.className = "search-result-columns";
+  for (const column of columns) {
+    const item = document.createElement("div");
+    item.className = "search-result-column";
+
+    const label = document.createElement("dt");
+    label.textContent = searchResultColumnLabel(column);
+
+    const value = document.createElement("dd");
+    value.textContent = searchResultColumnValue(ticket, column);
+
+    item.append(label, value);
+    details.append(item);
+  }
+  row.append(title, details);
+  return row;
+}
+
+function searchResultGroupNode(group, columns = []) {
+  const section = document.createElement("section");
+  section.className = "search-result-group";
+
+  const heading = document.createElement("h4");
+  heading.textContent = `${group.label} (${group.tickets.length})`;
+
+  const list = document.createElement("div");
+  list.className = "search-result-group-list";
+  for (const ticket of group.tickets) {
+    list.append(searchResultNode(ticket, columns));
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function activeSearchResultColumns() {
+  return searchResultColumns(state.activeSearchPresentation.columns);
+}
+
+function searchResultColumns(columns) {
+  const allowed = searchResultAllowedColumns();
+  const result = [];
+  const seen = new Set();
+  for (const column of Array.isArray(columns) ? columns : []) {
+    const key = String(column || "").trim().toLowerCase();
+    if (!allowed.has(key) || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(key);
+  }
+  return result;
+}
+
+function searchResultAllowedColumns() {
+  return new Set([
+    "key",
+    "title",
+    "description",
+    "status",
+    "priority",
+    "type",
+    "reporter_id",
+    "assignee_id",
+    "parent_ticket_id",
+    "sprint_id",
+    "component_id",
+    "version_id",
+    "labels",
+    "start_date",
+    "story_points",
+    "due_date",
+    "rank",
+    "created_at",
+    "updated_at"
+  ]);
+}
+
+function searchResultColumnLabel(column) {
+  switch (column) {
+  case "key":
+    return "Key";
+  case "title":
+    return "Title";
+  case "story_points":
+    return "Story points";
+  case "reporter_id":
+    return "Reporter";
+  case "assignee_id":
+    return "Assignee";
+  case "parent_ticket_id":
+    return "Parent";
+  case "sprint_id":
+    return "Sprint";
+  case "component_id":
+    return "Component";
+  case "version_id":
+    return "Version";
+  case "start_date":
+    return "Start";
+  case "due_date":
+    return "Due";
+  case "created_at":
+    return "Created";
+  case "updated_at":
+    return "Updated";
+  default:
+    return titleize(column);
+  }
+}
+
+function searchResultColumnValue(ticket, column) {
+  switch (column) {
+  case "key":
+    return ticket.key || ticket.id || "No key";
+  case "title":
+    return ticket.title || "Untitled";
+  case "description":
+    return ticket.description || "No description";
+  case "status":
+    return ticket.status || "No status";
+  case "priority":
+    return ticket.priority || "No priority";
+  case "type":
+    return ticket.type || "No type";
+  case "reporter_id":
+    return ticket.reporter_id || "No reporter";
+  case "assignee_id":
+    return ticket.assignee_id || "Unassigned";
+  case "parent_ticket_id":
+    return ticket.parent_ticket_id || "No parent";
+  case "sprint_id":
+    return ticket.sprint_id ? sprintName(ticket.sprint_id) : "No sprint";
+  case "component_id":
+    return ticket.component_id ? componentName(ticket.component_id) : "No component";
+  case "version_id":
+    return ticket.version_id ? versionName(ticket.version_id) : "No version";
+  case "labels":
+    return Array.isArray(ticket.labels) && ticket.labels.length ? ticket.labels.join(", ") : "No labels";
+  case "start_date":
+    return ticket.start_date || "No start date";
+  case "story_points":
+    return storyPointLabel(ticket.story_points) || "Unestimated";
+  case "due_date":
+    return ticket.due_date || "No due date";
+  case "rank":
+    return ticket.rank || "No rank";
+  case "created_at":
+    return formatDateTime(ticket.created_at) || "No created time";
+  case "updated_at":
+    return formatDateTime(ticket.updated_at) || "No updated time";
+  default:
+    return "";
+  }
+}
+
+function searchResultFallbackMetadata(ticket) {
+  return [ticket.status, ticket.type, ticket.priority, storyPointLabel(ticket.story_points)].filter(Boolean).join(" / ") || "Ticket";
+}
+
+function groupedSearchResults(tickets, groupBy) {
+  if (!searchResultGroupFields().has(groupBy)) {
+    return [];
+  }
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const key = searchResultGroupKey(ticket, groupBy);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: searchResultGroupLabel(groupBy, key),
+        tickets: []
+      });
+    }
+    groups.get(key).tickets.push(ticket);
+  }
+  return Array.from(groups.values()).sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function searchResultGroupFields() {
+  return new Set(["status", "assignee_id", "sprint_id", "component_id", "version_id", "priority", "type"]);
+}
+
+function searchResultGroupKey(ticket, groupBy) {
+  return String(ticket[groupBy] || "");
+}
+
+function searchResultGroupLabel(groupBy, value) {
+  switch (groupBy) {
+  case "status":
+    return value || "No status";
+  case "assignee_id":
+    return value || "Unassigned";
+  case "sprint_id":
+    return value ? sprintName(value) : "No sprint";
+  case "component_id":
+    return value ? componentName(value) : "No component";
+  case "version_id":
+    return value ? versionName(value) : "No version";
+  case "priority":
+    return value || "No priority";
+  case "type":
+    return value || "No type";
+  default:
+    return value || "No value";
+  }
+}
+
+function savedViewSearchPresentation(view) {
+  return {
+    view_id: view.id || "",
+    name: view.name || "",
+    columns: searchResultColumns(view.columns || []),
+    group_by: searchResultGroupFields().has(view.group_by) ? view.group_by : ""
+  };
+}
+
+function clearSearchPresentation() {
+  state.activeSearchPresentation = { view_id: "", name: "", columns: [], group_by: "" };
 }
 
 function renderSearchPagination() {
@@ -10122,6 +10359,7 @@ async function applySavedView(view, options = {}) {
     await navigate("/search");
   }
   setSearchForm(query);
+  state.activeSearchPresentation = savedViewSearchPresentation(view);
   await runSearch({
     text: query.text || "",
     filter: query.filter || "",
@@ -14004,6 +14242,12 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportEstimateCoverage,
     sprintReportPriorityBreakdown,
     sprintReportTypeBreakdown,
+    searchResultColumnLabel,
+    searchResultColumnValue,
+    searchResultColumns,
+    searchResultFallbackMetadata,
+    groupedSearchResults,
+    savedViewSearchPresentation,
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
