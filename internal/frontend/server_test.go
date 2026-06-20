@@ -1432,6 +1432,9 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"roadmapCapacityInsightItems",
 		"roadmapCapacityItemWork",
 		"roadmapCapacityBucketNode",
+		"roadmapCapacityDrilldown",
+		"roadmapCapacityDrilldownNode",
+		"roadmapCapacityDrilldownRowNode",
 		"roadmapCapacityBucketAtRisk",
 		"roadmapCapacityChildTickets",
 		"roadmapTimelineNode",
@@ -1470,8 +1473,10 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"els.roadmapDependencies.addEventListener(\"change\"",
 		"application/rayboard-roadmap-epic",
 		"Capacity summary",
+		"Capacity drilldown",
 		"Remaining pts",
 		"at-risk months",
+		"data-roadmap-capacity-bucket",
 		"roadmap-progress",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -1485,6 +1490,8 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		".roadmap-capacity",
 		".roadmap-capacity-insights",
 		".roadmap-capacity-bucket",
+		".roadmap-capacity-drilldown",
+		".roadmap-capacity-drilldown-item",
 		".roadmap-timeline",
 		".roadmap-unscheduled",
 		".roadmap-dependencies",
@@ -1514,6 +1521,17 @@ func TestRoadmapDependencyGraph(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("roadmap dependency graph node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestRoadmapCapacityDrilldown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "roadmap_capacity_drilldown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("roadmap capacity drilldown node test failed: %v\n%s", err, output)
 	}
 }
 

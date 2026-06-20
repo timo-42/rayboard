@@ -33,6 +33,7 @@ const state = {
   customFields: [],
   roadmap: [],
   roadmapCapacityTickets: [],
+  selectedRoadmapCapacityBucket: "",
   roadmapDependencies: [],
   attachments: {},
   comments: {},
@@ -1480,6 +1481,13 @@ function bindEvents() {
   });
 
   els.roadmap.addEventListener("click", async (event) => {
+    const capacityBucket = event.target.closest("[data-roadmap-capacity-bucket]");
+    if (capacityBucket) {
+      state.selectedRoadmapCapacityBucket = capacityBucket.dataset.roadmapCapacityBucket || "";
+      renderRoadmap();
+      return;
+    }
+
     const quickSchedule = event.target.closest("[data-roadmap-quick-schedule-id]");
     if (!quickSchedule || !state.selectedProject) {
       return;
@@ -7602,6 +7610,7 @@ function roadmapEpicName(epicID) {
 
 function roadmapCapacityNode(items) {
   const summary = roadmapCapacitySummary(items);
+  const selectedBucketKey = roadmapSelectedCapacityBucket(summary);
   const section = document.createElement("section");
   section.className = "roadmap-capacity";
 
@@ -7637,7 +7646,7 @@ function roadmapCapacityNode(items) {
   buckets.className = "roadmap-capacity-buckets";
   if (summary.buckets.length) {
     for (const bucket of summary.buckets) {
-      buckets.append(roadmapCapacityBucketNode(bucket));
+      buckets.append(roadmapCapacityBucketNode(bucket, bucket.key === selectedBucketKey));
     }
   } else {
     const empty = document.createElement("p");
@@ -7646,8 +7655,22 @@ function roadmapCapacityNode(items) {
     buckets.append(empty);
   }
 
-  section.append(header, metrics, insights, buckets);
+  section.append(header, metrics, insights, buckets, roadmapCapacityDrilldownNode(items, selectedBucketKey));
   return section;
+}
+
+function roadmapSelectedCapacityBucket(summary) {
+  const buckets = summary && Array.isArray(summary.buckets) ? summary.buckets : [];
+  if (!buckets.length) {
+    state.selectedRoadmapCapacityBucket = "";
+    return "";
+  }
+  if (buckets.some((bucket) => bucket.key === state.selectedRoadmapCapacityBucket)) {
+    return state.selectedRoadmapCapacityBucket;
+  }
+  const selected = buckets.find(roadmapCapacityBucketAtRisk) || summary.busiestBucket || buckets[0];
+  state.selectedRoadmapCapacityBucket = selected ? selected.key : "";
+  return state.selectedRoadmapCapacityBucket;
 }
 
 function roadmapCapacitySummary(items) {
@@ -7811,11 +7834,14 @@ function roadmapCapacityBucketLabel(key) {
   return date.toLocaleString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-function roadmapCapacityBucketNode(bucket) {
+function roadmapCapacityBucketNode(bucket, selected = false) {
   const ratio = roadmapCapacityBucketCompletionRatio(bucket);
   const atRisk = roadmapCapacityBucketAtRisk(bucket);
   const article = document.createElement("article");
   article.className = atRisk ? "roadmap-capacity-bucket is-at-risk" : "roadmap-capacity-bucket";
+  if (selected) {
+    article.classList.add("is-selected");
+  }
 
   const title = document.createElement("strong");
   title.textContent = bucket.label;
@@ -7832,7 +7858,100 @@ function roadmapCapacityBucketNode(bucket) {
     ? `${formatStoryPoints(bucket.storyPointsRemaining)} pts remaining`
     : `${bucket.unestimatedChildren} unestimated`;
   detail.textContent = `${bucket.doneChildren}/${bucket.childTickets} child tickets done / ${pointText}${atRisk ? " / capacity risk" : ""}`;
-  article.append(title, meta, progress, detail);
+  const select = document.createElement("button");
+  select.type = "button";
+  select.dataset.roadmapCapacityBucket = bucket.key;
+  select.textContent = selected ? "Selected" : "View";
+  article.append(title, meta, progress, detail, select);
+  return article;
+}
+
+function roadmapCapacityDrilldown(items, bucketKey) {
+  if (!bucketKey) {
+    return [];
+  }
+  const rows = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const epic = item && item.epic ? item.epic : null;
+    if (!epic || roadmapCapacityBucketKey(epic) !== bucketKey) {
+      continue;
+    }
+    const work = roadmapCapacityItemWork(item);
+    const row = {
+      id: epic.id || "",
+      label: ticketKeyTitle(epic),
+      date_range: dateRange(epic.start_date, epic.due_date) || "unscheduled",
+      childTickets: work.childTickets,
+      doneChildren: work.doneChildren,
+      openChildren: work.openChildren,
+      storyPointsRemaining: work.storyPointsRemaining,
+      unestimatedChildren: work.unestimatedChildren,
+      atRisk: roadmapCapacityBucketAtRisk({
+        childTickets: work.childTickets,
+        doneChildren: work.doneChildren,
+        openChildren: work.openChildren,
+        storyPointsRemaining: work.storyPointsRemaining
+      })
+    };
+    rows.push(row);
+  }
+  return rows.sort((left, right) => {
+    if (left.atRisk !== right.atRisk) {
+      return left.atRisk ? -1 : 1;
+    }
+    if (right.openChildren !== left.openChildren) {
+      return right.openChildren - left.openChildren;
+    }
+    if (right.storyPointsRemaining !== left.storyPointsRemaining) {
+      return right.storyPointsRemaining - left.storyPointsRemaining;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+function roadmapCapacityDrilldownNode(items, bucketKey) {
+  const section = document.createElement("section");
+  section.className = "roadmap-capacity-drilldown";
+
+  const heading = document.createElement("h4");
+  heading.textContent = bucketKey ? `${roadmapCapacityBucketLabel(bucketKey)} drilldown` : "Capacity drilldown";
+  section.append(heading);
+
+  const rows = roadmapCapacityDrilldown(items, bucketKey);
+  const list = document.createElement("div");
+  list.className = "roadmap-capacity-drilldown-list";
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Select a scheduled month to inspect capacity.";
+    list.append(empty);
+  } else {
+    for (const row of rows) {
+      list.append(roadmapCapacityDrilldownRowNode(row));
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function roadmapCapacityDrilldownRowNode(row) {
+  const article = document.createElement("article");
+  article.className = row.atRisk ? "roadmap-capacity-drilldown-item is-at-risk" : "roadmap-capacity-drilldown-item";
+
+  const title = document.createElement("strong");
+  title.textContent = row.label;
+
+  const meta = document.createElement("span");
+  meta.textContent = [
+    row.date_range,
+    `${row.openChildren} open`,
+    `${row.doneChildren}/${row.childTickets} done`,
+    row.storyPointsRemaining > 0 ? `${formatStoryPoints(row.storyPointsRemaining)} pts remaining` : "",
+    row.unestimatedChildren ? `${row.unestimatedChildren} unestimated` : "",
+    row.atRisk ? "capacity risk" : ""
+  ].filter(Boolean).join(" / ");
+
+  article.append(title, meta);
   return article;
 }
 
@@ -14811,6 +14930,7 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderTextKind,
     mutateCreatePageLayoutBuilderItems,
     parseCreatePageLayoutBuilderJSON,
+    roadmapCapacityDrilldown,
     roadmapDependencyGraph,
     roadmapDependencyGraphNodeLabel,
     ticketLinkDependencySummary,
