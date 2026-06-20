@@ -31,6 +31,8 @@ global.window = {
 
 const {
   groupedSearchResults,
+  savedViewConfigurationInsightItems,
+  savedViewOverviewSummary,
   savedViewSearchPresentation,
   searchResultColumnLabel,
   searchResultColumnValue,
@@ -110,4 +112,82 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(
   savedViewSearchPresentation({ columns: [], group_by: "bogus" }),
   { view_id: "", name: "", columns: [], group_by: "" }
+);
+
+assert.deepStrictEqual(
+  savedViewOverviewSummary([
+    {
+      scope_type: "project",
+      display_mode: "board",
+      pinned: true,
+      query: { text: "auth", filter: "status == 'todo'" },
+      group_by: "priority",
+      columns: ["key", "title"],
+      sort: [{ field: "updated_at", direction: "desc" }]
+    },
+    {
+      scope_type: "user",
+      display_mode: "backlog",
+      query: { text: "", filter: "" },
+      columns: [],
+      sort: []
+    },
+    {
+      scope_type: "global",
+      display_mode: "list",
+      query: { filter: "priority == 'High'" },
+      columns: ["key"],
+      sort: [{ field: "priority", direction: "asc" }]
+    }
+  ]),
+  {
+    total: 3,
+    pinned: 1,
+    scopes: [
+      { key: "global", count: 1 },
+      { key: "project", count: 1 },
+      { key: "user", count: 1 }
+    ],
+    modes: [
+      { key: "backlog", count: 1 },
+      { key: "board", count: 1 },
+      { key: "list", count: 1 }
+    ],
+    configuration: {
+      text_queries: 1,
+      cel_filters: 2,
+      grouped: 1,
+      column_configured: 2,
+      sorted: 2,
+      project_scoped: 1,
+      pinned: 1,
+      board_mode: 1,
+      backlog_mode: 1
+    }
+  }
+);
+
+assert.deepStrictEqual(
+  savedViewConfigurationInsightItems({
+    text_queries: 1,
+    cel_filters: 2,
+    grouped: 1,
+    column_configured: 2,
+    sorted: 2,
+    project_scoped: 1,
+    pinned: 1,
+    board_mode: 1,
+    backlog_mode: 1
+  }),
+  [
+    "text queries: 1",
+    "CEL filters: 2",
+    "grouped: 1",
+    "columns: 2",
+    "sorted: 2",
+    "project-scoped: 1",
+    "pinned: 1",
+    "board mode: 1",
+    "backlog mode: 1"
+  ]
 );

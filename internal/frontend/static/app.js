@@ -8848,7 +8848,7 @@ function savedViewOverviewNode(views) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, savedViewScopeBreakdownNode(summary.scopes));
+  section.append(heading, chips, savedViewScopeBreakdownNode(summary.scopes), savedViewConfigurationInsightsNode(summary.configuration));
   return section;
 }
 
@@ -8877,12 +8877,49 @@ function savedViewOverviewSummary(views) {
   const scopes = new Map();
   const modes = new Map();
   let pinned = 0;
+  const configuration = {
+    text_queries: 0,
+    cel_filters: 0,
+    grouped: 0,
+    column_configured: 0,
+    sorted: 0,
+    project_scoped: 0,
+    pinned: 0,
+    board_mode: 0,
+    backlog_mode: 0
+  };
   for (const view of list) {
     if (view.pinned) {
       pinned += 1;
+      configuration.pinned += 1;
     }
     const scope = view.scope_type || "user";
     const mode = view.display_mode || "list";
+    const query = view.query || {};
+    if (String(query.text || "").trim()) {
+      configuration.text_queries += 1;
+    }
+    if (String(query.filter || "").trim()) {
+      configuration.cel_filters += 1;
+    }
+    if (String(view.group_by || "").trim()) {
+      configuration.grouped += 1;
+    }
+    if (Array.isArray(view.columns) && view.columns.length) {
+      configuration.column_configured += 1;
+    }
+    if (Array.isArray(view.sort) && view.sort.length) {
+      configuration.sorted += 1;
+    }
+    if (scope === "project") {
+      configuration.project_scoped += 1;
+    }
+    if (mode === "board") {
+      configuration.board_mode += 1;
+    }
+    if (mode === "backlog") {
+      configuration.backlog_mode += 1;
+    }
     scopes.set(scope, (scopes.get(scope) || 0) + 1);
     modes.set(mode, (modes.get(mode) || 0) + 1);
   }
@@ -8893,8 +8930,43 @@ function savedViewOverviewSummary(views) {
     total: list.length,
     pinned,
     scopes: toItems(scopes),
-    modes: toItems(modes)
+    modes: toItems(modes),
+    configuration
   };
+}
+
+function savedViewConfigurationInsightsNode(configuration) {
+  const group = document.createElement("div");
+  group.className = "saved-view-configuration-insights";
+
+  const label = document.createElement("strong");
+  label.textContent = "Configuration";
+
+  const chips = document.createElement("div");
+  chips.className = "saved-view-configuration-chips";
+  for (const item of savedViewConfigurationInsightItems(configuration)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function savedViewConfigurationInsightItems(configuration) {
+  const config = configuration || {};
+  return [
+    `text queries: ${Number(config.text_queries) || 0}`,
+    `CEL filters: ${Number(config.cel_filters) || 0}`,
+    `grouped: ${Number(config.grouped) || 0}`,
+    `columns: ${Number(config.column_configured) || 0}`,
+    `sorted: ${Number(config.sorted) || 0}`,
+    `project-scoped: ${Number(config.project_scoped) || 0}`,
+    `pinned: ${Number(config.pinned) || 0}`,
+    `board mode: ${Number(config.board_mode) || 0}`,
+    `backlog mode: ${Number(config.backlog_mode) || 0}`
+  ];
 }
 
 function renderSavedViewPagination() {
@@ -15143,6 +15215,8 @@ if (typeof module !== "undefined" && module.exports) {
     searchResultFallbackMetadata,
     groupedSearchResults,
     savedViewSearchPresentation,
+    savedViewOverviewSummary,
+    savedViewConfigurationInsightItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

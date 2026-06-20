@@ -822,6 +822,9 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"applySavedView",
 		"activeSearchPresentation",
 		"savedViewSearchPresentation",
+		"savedViewOverviewSummary",
+		"savedViewConfigurationInsightsNode",
+		"savedViewConfigurationInsightItems",
 		"clearSearchPresentation",
 		"activeSearchResultColumns",
 		"searchResultColumns",
@@ -846,6 +849,10 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"data-apply-pinned-project-view-id",
 		"data-edit-saved-view-id",
 		"data-delete-saved-view-id",
+		"Configuration",
+		"text queries",
+		"CEL filters",
+		"board mode",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -868,6 +875,8 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".search-result-group-list",
 		".saved-view-scope-breakdown",
 		".saved-view-scope-chips",
+		".saved-view-configuration-insights",
+		".saved-view-configuration-chips",
 		".saved-view-metadata",
 		".saved-view-pagination",
 		".pinned-project-views",

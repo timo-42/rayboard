@@ -3986,6 +3986,33 @@ p {
   padding: 2px 7px;
 }
 
+.saved-view-configuration-insights {
+  display: grid;
+  gap: 5px;
+}
+
+.saved-view-configuration-insights strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.saved-view-configuration-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saved-view-configuration-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .saved-view-metadata {
   display: flex;
   flex-wrap: wrap;
