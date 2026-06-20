@@ -5252,7 +5252,7 @@ function versionReportTimelineItems(version) {
     } else {
       items.push("released on target");
     }
-  } else if (target) {
+  } else if (target && !releasedState) {
     const days = daysBetween(dateToUTC(todayISODate()), target);
     if (days < 0) {
       items.push(`${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} past target`);
@@ -12381,6 +12381,7 @@ if (typeof module !== "undefined" && module.exports) {
     daysBetween,
     sprintReportHealth,
     sprintReportHealthDates,
-    todayLocalISODate
+    todayLocalISODate,
+    versionReportTimelineItems
   };
 }
