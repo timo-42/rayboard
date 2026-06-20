@@ -2041,7 +2041,8 @@ p {
 
 .sprint-report-statuses,
 .version-report-statuses,
-.version-report-priorities {
+.version-report-priorities,
+.version-report-types {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -2049,7 +2050,8 @@ p {
 
 .sprint-report-statuses span,
 .version-report-statuses span,
-.version-report-priorities span {
+.version-report-priorities span,
+.version-report-types span {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -2129,7 +2131,7 @@ p {
 
 .version-report-breakdown {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -4484,6 +4486,7 @@ p {
   .component-form,
   .version-form,
   .version-report-health,
+  .version-report-breakdown,
   .component-item,
   .version-item,
   .component-edit-form,
