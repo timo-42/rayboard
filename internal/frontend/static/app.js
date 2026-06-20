@@ -6672,6 +6672,7 @@ function versionReportBreakdownNode(progress, tickets) {
     versionReportStatusNode(progress.by_status || {}),
     versionReportPriorityBreakdownNode(tickets),
     versionReportTypeBreakdownNode(tickets),
+    versionReportLabelBreakdownNode(tickets),
     versionReportComponentNode(tickets)
   );
   return section;
@@ -6718,6 +6719,57 @@ function versionReportComponentNode(tickets) {
   }
   section.append(title, list);
   return section;
+}
+
+function versionReportLabelBreakdownNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Label breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-labels";
+  const labels = versionReportLabelBreakdown(tickets);
+  for (const label of labels) {
+    const item = document.createElement("span");
+    item.textContent = `${label.label}: ${label.count}`;
+    list.append(item);
+  }
+  if (!labels.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No label data";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportLabelBreakdown(tickets) {
+  const labels = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const ticketLabels = Array.isArray(ticket.labels) ? ticket.labels.filter(Boolean) : [];
+    if (!ticketLabels.length) {
+      labels.set("No labels", (labels.get("No labels") || 0) + 1);
+      continue;
+    }
+    for (const label of ticketLabels) {
+      labels.set(label, (labels.get(label) || 0) + 1);
+    }
+  }
+  return Array.from(labels.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      if (left.label === "No labels") {
+        return 1;
+      }
+      if (right.label === "No labels") {
+        return -1;
+      }
+      return left.label.localeCompare(right.label);
+    });
 }
 
 function versionReportComponents(tickets) {
@@ -15376,6 +15428,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportAssigneeWorkloads,
     versionReportComponents,
     versionReportEstimateCoverage,
+    versionReportLabelBreakdown,
     versionReportPriorityBreakdown,
     versionReportScopeChangeItems,
     versionReportTypeBreakdown,
