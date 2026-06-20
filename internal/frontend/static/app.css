@@ -3754,7 +3754,8 @@ p {
 .version-assignee-summary,
 .version-reporter-summary,
 .version-due-date-summary,
-.version-start-date-summary {
+.version-start-date-summary,
+.version-age-summary {
   display: grid;
   gap: 5px;
 }
@@ -3767,7 +3768,8 @@ p {
 .version-assignee-summary strong,
 .version-reporter-summary strong,
 .version-due-date-summary strong,
-.version-start-date-summary strong {
+.version-start-date-summary strong,
+.version-age-summary strong {
   color: var(--heading);
   font-size: 12px;
 }
@@ -3780,7 +3782,8 @@ p {
 .version-assignee-chips,
 .version-reporter-chips,
 .version-due-date-chips,
-.version-start-date-chips {
+.version-start-date-chips,
+.version-age-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -3794,7 +3797,8 @@ p {
 .version-assignee-chips span,
 .version-reporter-chips span,
 .version-due-date-chips span,
-.version-start-date-chips span {
+.version-start-date-chips span,
+.version-age-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
