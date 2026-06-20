@@ -13773,6 +13773,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
+    boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13795,6 +13796,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     labels: boardLabelBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
     reporters: boardReporterBreakdown(boardColumns),
+    estimate_coverage: boardEstimateCoverage(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -14076,6 +14078,45 @@ function boardReporterBreakdownNode(items, filtered) {
     const chip = document.createElement("span");
     const points = reporter.has_story_points ? `${formatStoryPoints(reporter.story_points)} pts` : "no estimates";
     chip.textContent = `${reporter.label}: ${reporter.tickets} ticket${reporter.tickets === 1 ? "" : "s"} / ${points}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardEstimateCoverage(columns) {
+  let total = 0;
+  let estimated = 0;
+  for (const column of Array.isArray(columns) ? columns : []) {
+    for (const ticket of Array.isArray(column && column.tickets) ? column.tickets : []) {
+      total += 1;
+      if (sprintReportHasEstimate(ticket && ticket.story_points)) {
+        estimated += 1;
+      }
+    }
+  }
+  return backlogEstimateCoverage(total, estimated);
+}
+
+function boardEstimateCoverageNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-estimate-coverage";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Estimate coverage (filtered saved view)" : "Estimate coverage";
+
+  const chips = document.createElement("div");
+  chips.className = "board-estimate-chips";
+  const coverage = Array.isArray(items) ? items : [];
+  if (!coverage.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No estimate data";
+    chips.append(chip);
+  }
+  for (const item of coverage) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
     chips.append(chip);
   }
 
@@ -17070,6 +17111,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardLabelBreakdown,
     boardAssigneeWorkloads,
     boardReporterBreakdown,
+    boardEstimateCoverage,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
