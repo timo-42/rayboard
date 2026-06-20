@@ -13768,6 +13768,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardSummaryMetricNode("Saved view", metrics.saved_view_filter),
     boardFlowBalanceNode(metrics.flow_balance),
     boardPriorityBreakdownNode(metrics.priorities, boardTickets && boardTickets.filtered_by_saved_view),
+    boardDueDateBreakdownNode(metrics.due_dates, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13785,6 +13786,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets",
     flow_balance: boardFlowBalance(boardColumns),
     priorities: boardPriorityBreakdown(boardColumns),
+    due_dates: boardDueDateBreakdown(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -13897,6 +13899,39 @@ function boardPriorityBreakdownNode(items, filtered) {
     chips.append(chip);
   }
   for (const item of priorities) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardDueDateBreakdown(columns, todayValue = todayLocalISODate()) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportDueDateBreakdown(tickets, todayValue);
+}
+
+function boardDueDateBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-due-date-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Due dates (filtered saved view)" : "Due dates";
+
+  const chips = document.createElement("div");
+  chips.className = "board-due-date-chips";
+  const dueDates = Array.isArray(items) ? items : [];
+  if (!dueDates.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No due date data";
+    chips.append(chip);
+  }
+  for (const item of dueDates) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
     chips.append(chip);
@@ -16888,6 +16923,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardFlowBalance,
     boardFlowBalanceItems,
     boardPriorityBreakdown,
+    boardDueDateBreakdown,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
