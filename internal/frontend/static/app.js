@@ -4311,6 +4311,8 @@ function backlogSummaryNode(tickets) {
   section.append(backlogLabelBreakdownNode(metrics.labels));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
+  section.append(backlogStartDateBreakdownNode(metrics.start_dates));
+  section.append(backlogDueDateBreakdownNode(metrics.due_dates));
   section.append(backlogReadinessSummaryNode(metrics.readiness));
   section.append(backlogRiskSummaryNode(metrics.risks));
   section.append(backlogAgeBreakdownNode(metrics.ages));
@@ -4346,6 +4348,8 @@ function backlogSummaryMetrics(tickets) {
     labels: backlogLabelBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list),
+    start_dates: backlogStartDateBreakdown(list),
+    due_dates: backlogDueDateBreakdown(list),
     readiness: backlogReadinessSummary(list),
     risks: backlogRiskSummary(list),
     ages: backlogAgeBreakdown(list),
@@ -4600,6 +4604,32 @@ function backlogSprintWorkloadsNode(workloads) {
     list.append(item);
   }
   return list;
+}
+
+function backlogDueDateBreakdown(tickets, todayValue = todayLocalISODate()) {
+  return sprintReportDueDateBreakdown(tickets, todayValue);
+}
+
+function backlogDueDateBreakdownNode(dueDates) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-due-date-breakdown",
+    headingText: "Due dates",
+    items: dueDates,
+    emptyText: "No due date data"
+  });
+}
+
+function backlogStartDateBreakdown(tickets, todayValue = todayLocalISODate()) {
+  return sprintReportStartDateBreakdown(tickets, todayValue);
+}
+
+function backlogStartDateBreakdownNode(startDates) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-start-date-breakdown",
+    headingText: "Start dates",
+    items: startDates,
+    emptyText: "No start date data"
+  });
 }
 
 function backlogReadinessSummary(tickets) {
@@ -16787,6 +16817,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogRiskSummary,
     backlogLabelBreakdown,
     backlogLabelBreakdownVisibleItems,
+    backlogDueDateBreakdown,
+    backlogStartDateBreakdown,
     backlogAgeBreakdown,
     backlogUpdateFreshness,
     mutateCreatePageLayoutBuilderItems,
