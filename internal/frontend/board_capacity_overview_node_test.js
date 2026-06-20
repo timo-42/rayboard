@@ -33,6 +33,8 @@ const {
   boardCapacityOverview,
   boardCapacityOverviewLabel,
   boardColumnTicketCount,
+  boardFlowBalance,
+  boardFlowBalanceItems,
   boardRiskOverview,
   boardRiskOverviewLabel,
   boardSummaryMetrics
@@ -72,6 +74,12 @@ const columns = [
     name: "Review",
     ticket_count: 3,
     wip_limit: 3
+  },
+  {
+    slug: "qa",
+    name: "QA",
+    ticket_count: 0,
+    wip_limit: 2
   }
 ];
 
@@ -115,6 +123,15 @@ assert.deepStrictEqual(boardCapacityOverview(columns), [
     status: "limited",
     remaining: 0,
     overage: 0
+  },
+  {
+    slug: "qa",
+    name: "QA",
+    ticket_count: 0,
+    wip_limit: 2,
+    status: "limited",
+    remaining: 2,
+    overage: 0
   }
 ]);
 
@@ -122,9 +139,10 @@ assert.deepStrictEqual(
   boardSummaryMetrics({ filtered_by_saved_view: true, columns }, []),
   {
     total_tickets: 16,
-    column_count: 4,
+    column_count: 5,
     wip_warnings: 1,
     saved_view_filter: "filtered",
+    flow_balance: boardFlowBalance(columns),
     capacity: boardCapacityOverview(columns),
     risks: boardRiskOverview(columns)
   }
@@ -137,6 +155,19 @@ assert.deepStrictEqual(
     column_count: 1,
     wip_warnings: 0,
     saved_view_filter: "all tickets",
+    flow_balance: {
+      empty_columns: 0,
+      at_limit_columns: 0,
+      over_limit_columns: 0,
+      bottleneck: {
+        slug: "todo",
+        name: "To Do",
+        ticket_count: 1,
+        wip_limit: null,
+        at_limit: false,
+        over_limit: false
+      }
+    },
     capacity: [
       {
         slug: "todo",
@@ -155,6 +186,33 @@ assert.deepStrictEqual(
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[0]), "To Do: 2/5, 3 remaining");
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[1]), "Doing: 4/3, 1 over limit");
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[2]), "Done: 7, unlimited");
+
+assert.deepStrictEqual(boardFlowBalance(columns), {
+  empty_columns: 1,
+  at_limit_columns: 1,
+  over_limit_columns: 1,
+  bottleneck: {
+    slug: "done",
+    name: "Done",
+    ticket_count: 7,
+    wip_limit: null,
+    at_limit: false,
+    over_limit: false
+  }
+});
+
+assert.deepStrictEqual(boardFlowBalanceItems(boardFlowBalance(columns)), [
+  "empty columns: 1",
+  "at WIP limit: 1",
+  "over WIP limit: 1",
+  "bottleneck: Done (7)"
+]);
+assert.deepStrictEqual(boardFlowBalanceItems(boardFlowBalance(null)), [
+  "empty columns: 0",
+  "at WIP limit: 0",
+  "over WIP limit: 0",
+  "bottleneck: none"
+]);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {

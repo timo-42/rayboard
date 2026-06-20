@@ -147,7 +147,7 @@ Backlog responses use the same persisted ticket shape as project ticket lists, o
 
 ## Boards and Workflows
 
-The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. Board definitions can include optional per-column WIP limits keyed by status slug. The embedded project page exposes status replacement, board creation/selection/edit/delete, board-backed ticket columns, per-column count/limit warnings, compact capacity utilization overviews, selected-board risk summaries for blocked/overdue/stale/high-priority work, and browser drag/drop movement between board columns. Richer board planning beyond advisory WIP warnings, capacity utilization summaries, and risk summaries is **Planned**.
+The board/workflow API defines ordered project workflow statuses and board definitions whose ordered columns map to those status slugs. Board definitions can include optional per-column WIP limits keyed by status slug. The embedded project page exposes status replacement, board creation/selection/edit/delete, board-backed ticket columns, per-column count/limit warnings, compact flow-balance summaries, compact capacity utilization overviews, selected-board risk summaries for blocked/overdue/stale/high-priority work, and browser drag/drop movement between board columns. Richer board planning beyond advisory WIP warnings, flow-balance summaries, capacity utilization summaries, and risk summaries is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
