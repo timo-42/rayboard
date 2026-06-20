@@ -4978,6 +4978,12 @@ p {
   overflow-wrap: anywhere;
 }
 
+.automation-run-summary .automation-run-summary-failure {
+  border-color: var(--danger);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
 .webhook-token {
   border: 1px solid var(--border);
   border-radius: 6px;

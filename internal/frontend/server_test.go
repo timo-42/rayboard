@@ -408,6 +408,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"cronJobEditForm",
 		"automationRunSummaryNode",
 		"summarizeAutomationRuns",
+		"automationRunFailureBreakdown",
+		"automationRunFailureLabel",
 		"handleAutomationRunFilterChange",
 		"filterAutomationRuns",
 		"automationRunDurationLabel",
@@ -418,6 +420,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"max duration",
 		"oldestRunLabel",
 		"newestRunLabel",
+		"failure ",
 		"triggerCounts",
 		"trigger ${trigger} ${count}",
 		"completionRateLabel",
@@ -582,6 +585,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".automation-run-summary",
 		".automation-run-filter",
 		".automation-run-summary-error",
+		".automation-run-summary-failure",
 		".engine-result-summary",
 		".engine-result-badge",
 		".engine-action-preview",
@@ -622,6 +626,17 @@ func TestNotificationDeliveryAnalytics(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("notification delivery analytics node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestAutomationRunSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "automation_run_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("automation run summary node test failed: %v\n%s", err, output)
 	}
 }
 
