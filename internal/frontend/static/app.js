@@ -13769,6 +13769,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardFlowBalanceNode(metrics.flow_balance),
     boardPriorityBreakdownNode(metrics.priorities, boardTickets && boardTickets.filtered_by_saved_view),
     boardDueDateBreakdownNode(metrics.due_dates, boardTickets && boardTickets.filtered_by_saved_view),
+    boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13787,6 +13788,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     flow_balance: boardFlowBalance(boardColumns),
     priorities: boardPriorityBreakdown(boardColumns),
     due_dates: boardDueDateBreakdown(boardColumns),
+    issue_types: boardIssueTypeBreakdown(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -13932,6 +13934,39 @@ function boardDueDateBreakdownNode(items, filtered) {
     chips.append(chip);
   }
   for (const item of dueDates) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardIssueTypeBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportTypeBreakdown(tickets);
+}
+
+function boardIssueTypeBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-issue-type-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Issue types (filtered saved view)" : "Issue types";
+
+  const chips = document.createElement("div");
+  chips.className = "board-issue-type-chips";
+  const issueTypes = Array.isArray(items) ? items : [];
+  if (!issueTypes.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No issue type data";
+    chips.append(chip);
+  }
+  for (const item of issueTypes) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
     chips.append(chip);
@@ -16924,6 +16959,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardFlowBalanceItems,
     boardPriorityBreakdown,
     boardDueDateBreakdown,
+    boardIssueTypeBreakdown,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
