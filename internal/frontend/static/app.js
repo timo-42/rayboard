@@ -12390,24 +12390,22 @@ function boardSummaryNode(boardTickets, columns) {
     boardSummaryMetricNode("Tickets", metrics.total_tickets),
     boardSummaryMetricNode("Columns", metrics.column_count),
     boardSummaryMetricNode("WIP warnings", metrics.wip_warnings),
-    boardSummaryMetricNode("Saved view", metrics.saved_view_filter)
+    boardSummaryMetricNode("Saved view", metrics.saved_view_filter),
+    boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view)
   );
   return section;
 }
 
 function boardSummaryMetrics(boardTickets, columns = []) {
   const boardColumns = Array.isArray(boardTickets && boardTickets.columns) ? boardTickets.columns : columns;
-  const totalTickets = boardColumns.reduce((sum, column) => {
-    if (Number.isFinite(column.ticket_count)) {
-      return sum + column.ticket_count;
-    }
-    return sum + (Array.isArray(column.tickets) ? column.tickets.length : 0);
-  }, 0);
+  const capacity = boardCapacityOverview(boardColumns);
+  const totalTickets = capacity.reduce((sum, item) => sum + item.ticket_count, 0);
   return {
     total_tickets: totalTickets,
     column_count: boardColumns.length,
-    wip_warnings: boardColumns.filter((column) => column.over_wip_limit).length,
-    saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets"
+    wip_warnings: capacity.filter((item) => item.status === "over_limit").length,
+    saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets",
+    capacity
   };
 }
 
@@ -12420,6 +12418,71 @@ function boardSummaryMetricNode(label, value) {
   span.textContent = label;
   item.append(strong, span);
   return item;
+}
+
+function boardCapacityOverview(columns) {
+  const boardColumns = Array.isArray(columns) ? columns : [];
+  return boardColumns.map((column) => {
+    const count = boardColumnTicketCount(column);
+    const limit = Number(column && column.wip_limit);
+    const hasLimit = Number.isFinite(limit) && limit > 0;
+    const overLimit = hasLimit && (count > limit || Boolean(column && column.over_wip_limit));
+    return {
+      slug: column && column.slug ? column.slug : "",
+      name: column && column.name ? column.name : statusName(column && column.slug ? column.slug : ""),
+      ticket_count: count,
+      wip_limit: hasLimit ? limit : null,
+      status: hasLimit ? (overLimit ? "over_limit" : "limited") : "unlimited",
+      remaining: hasLimit ? Math.max(limit - count, 0) : null,
+      overage: overLimit ? Math.max(count - limit, 0) : 0
+    };
+  });
+}
+
+function boardColumnTicketCount(column) {
+  if (column && Number.isFinite(column.ticket_count)) {
+    return column.ticket_count;
+  }
+  return column && Array.isArray(column.tickets) ? column.tickets.length : 0;
+}
+
+function boardCapacityOverviewNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-capacity-overview";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Capacity (filtered saved view)" : "Capacity";
+
+  const chips = document.createElement("div");
+  chips.className = "board-capacity-chips";
+  const capacity = Array.isArray(items) ? items : [];
+  if (!capacity.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No board columns";
+    chips.append(chip);
+  }
+  for (const item of capacity) {
+    const chip = document.createElement("span");
+    chip.textContent = boardCapacityOverviewLabel(item);
+    if (item.status === "over_limit") {
+      chip.className = "is-over-limit";
+    }
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardCapacityOverviewLabel(item) {
+  const name = item.name || item.slug || "Column";
+  if (item.status === "unlimited") {
+    return `${name}: ${item.ticket_count}, unlimited`;
+  }
+  if (item.status === "over_limit") {
+    return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.overage} over limit`;
+  }
+  return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.remaining} remaining`;
 }
 
 function ticketColumnNode(column) {
@@ -15217,6 +15280,10 @@ if (typeof module !== "undefined" && module.exports) {
     savedViewSearchPresentation,
     savedViewOverviewSummary,
     savedViewConfigurationInsightItems,
+    boardCapacityOverview,
+    boardCapacityOverviewLabel,
+    boardColumnTicketCount,
+    boardSummaryMetrics,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

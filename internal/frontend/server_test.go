@@ -352,7 +352,14 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"boardSummaryNode",
 		"boardSummaryMetrics",
 		"boardSummaryMetricNode",
+		"boardCapacityOverview",
+		"boardCapacityOverviewNode",
+		"boardCapacityOverviewLabel",
+		"boardColumnTicketCount",
 		"filtered_by_saved_view",
+		"Capacity (filtered saved view)",
+		"over limit",
+		"unlimited",
 		"WIP warnings",
 		"parseBoardWIPLimits",
 		"over_wip_limit",
@@ -507,6 +514,8 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".board-status-coverage-chips",
 		".board-summary",
 		".board-summary-metric",
+		".board-capacity-overview",
+		".board-capacity-chips",
 		".column-capacity",
 		".is-over-wip",
 		".is-dragging",
@@ -548,6 +557,17 @@ func TestBacklogReadinessRiskSummaries(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("backlog readiness risk node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestBoardCapacityOverview(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "board_capacity_overview_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("board capacity overview node test failed: %v\n%s", err, output)
 	}
 }
 
