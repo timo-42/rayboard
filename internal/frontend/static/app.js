@@ -4392,7 +4392,7 @@ function backlogEstimateCoverageNode(coverage) {
 
 function backlogStatusBreakdown(tickets) {
   const counts = new Map();
-  for (const ticket of tickets) {
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
     const slug = ticket.status || "";
     counts.set(slug, (counts.get(slug) || 0) + 1);
   }
@@ -4431,7 +4431,7 @@ function backlogStatusBreakdownNode(statuses) {
 
 function backlogPriorityBreakdown(tickets) {
   const priorities = new Map();
-  for (const ticket of tickets) {
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
     const label = ticket.priority || "No priority";
     priorities.set(label, (priorities.get(label) || 0) + 1);
   }
@@ -4723,8 +4723,10 @@ function backlogSprintWorkloads(tickets) {
         label,
         state: stateLabel,
         tickets: 0,
-        story_points: 0,
-        has_story_points: false
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
       });
     }
     return workloads.get(key);
@@ -4733,18 +4735,26 @@ function backlogSprintWorkloads(tickets) {
     ensureWorkload(sprint.id, sprint.name || sprint.id, sprint.state || "");
   }
   ensureWorkload("", "No sprint", "unassigned");
-  for (const ticket of tickets) {
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
     const key = ticket.sprint_id || "";
     const sprint = state.sprints.find((item) => item.id === key);
     const workload = ensureWorkload(key, sprint ? sprint.name || sprint.id : sprintName(key), sprint ? sprint.state || "" : "unknown");
     workload.tickets += 1;
+    if (sprintReportTicketDone(ticket)) {
+      workload.done += 1;
+    }
     if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      workload.unestimated += 1;
       continue;
     }
     const points = Number(ticket.story_points);
-    if (Number.isFinite(points)) {
-      workload.story_points += points;
-      workload.has_story_points = true;
+    if (!Number.isFinite(points)) {
+      workload.unestimated += 1;
+      continue;
+    }
+    workload.story_points_total += points;
+    if (sprintReportTicketDone(ticket)) {
+      workload.story_points_done += points;
     }
   }
   return Array.from(workloads.values())
@@ -4768,16 +4778,22 @@ function backlogSprintWorkloadsNode(workloads) {
   }
   for (const workload of workloads) {
     const item = document.createElement("span");
-    const points = workload.has_story_points ? `${formatStoryPoints(workload.story_points)} pts` : "no estimates";
-    item.textContent = [
-      workload.label,
-      workload.state,
-      `${workload.tickets} ticket${workload.tickets === 1 ? "" : "s"}`,
-      points
-    ].filter(Boolean).join(" / ");
+    item.textContent = backlogSprintWorkloadLabel(workload);
     list.append(item);
   }
   return list;
+}
+
+function backlogSprintWorkloadLabel(workload) {
+  const pointText = workload.story_points_total > 0
+    ? `${formatStoryPoints(workload.story_points_done)}/${formatStoryPoints(workload.story_points_total)} pts`
+    : `${workload.unestimated} unestimated`;
+  return [
+    workload.label,
+    workload.state,
+    `${workload.done}/${workload.tickets} done`,
+    pointText
+  ].filter(Boolean).join(" / ");
 }
 
 function backlogDueDateBreakdown(tickets, todayValue = todayLocalISODate()) {
@@ -17556,6 +17572,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogAssigneeBreakdownLabel,
     backlogReporterBreakdown,
     backlogReporterBreakdownLabel,
+    backlogSprintWorkloads,
+    backlogSprintWorkloadLabel,
     backlogDueDateBreakdown,
     backlogStartDateBreakdown,
     backlogAgeBreakdown,

@@ -41,6 +41,8 @@ const {
   backlogAssigneeBreakdownLabel,
   backlogReporterBreakdown,
   backlogReporterBreakdownLabel,
+  backlogSprintWorkloads,
+  backlogSprintWorkloadLabel,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
@@ -60,6 +62,7 @@ const tickets = [
     component_id: "api",
     version_id: "v1",
     parent_ticket_id: "epic_a",
+    sprint_id: "sprint_a",
     story_points: null,
     labels: ["backend", "urgent"],
     created_at: "2026-06-18T09:00:00Z",
@@ -75,6 +78,7 @@ const tickets = [
     component_id: "api",
     version_id: "v1",
     parent_ticket_id: "epic_a",
+    sprint_id: "sprint_a",
     story_points: 3,
     labels: ["backend"],
     created_at: "2026-05-25T09:00:00Z",
@@ -90,6 +94,7 @@ const tickets = [
     component_id: "ui",
     version_id: "v2",
     parent_ticket_id: "epic_b",
+    sprint_id: "",
     story_points: "",
     labels: [],
     created_at: "2026-04-01T09:00:00Z",
@@ -105,6 +110,7 @@ const tickets = [
     component_id: "",
     version_id: "",
     parent_ticket_id: "",
+    sprint_id: "sprint_z",
     story_points: null,
     labels: null,
     created_at: "",
@@ -357,6 +363,47 @@ assert.strictEqual(
   "No reporter: 1 ticket / no estimates"
 );
 
+assert.deepStrictEqual(backlogSprintWorkloads(tickets), [
+  {
+    key: "sprint_a",
+    label: "sprint_a",
+    state: "unknown",
+    tickets: 2,
+    done: 0,
+    story_points_total: 3,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    key: "sprint_z",
+    label: "sprint_z",
+    state: "unknown",
+    tickets: 1,
+    done: 0,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    key: "",
+    label: "No sprint",
+    state: "unassigned",
+    tickets: 1,
+    done: 1,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  }
+]);
+assert.strictEqual(
+  backlogSprintWorkloadLabel(backlogSprintWorkloads(tickets)[0]),
+  "sprint_a / unknown / 0/2 done / 0/3 pts"
+);
+assert.strictEqual(
+  backlogSprintWorkloadLabel(backlogSprintWorkloads(tickets)[2]),
+  "No sprint / unassigned / 1/1 done / 1 unestimated"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -406,3 +453,5 @@ assert.deepStrictEqual(backlogAssigneeBreakdown([]), []);
 assert.deepStrictEqual(backlogAssigneeBreakdown(null), []);
 assert.deepStrictEqual(backlogReporterBreakdown([]), []);
 assert.deepStrictEqual(backlogReporterBreakdown(null), []);
+assert.deepStrictEqual(backlogSprintWorkloads([]), []);
+assert.deepStrictEqual(backlogSprintWorkloads(null), []);
