@@ -4162,6 +4162,7 @@ function backlogSummaryNode(tickets) {
     backlogSummaryMetricNode("Unassigned", metrics.unassigned),
     backlogSummaryMetricNode("Story points", metrics.story_points)
   );
+  section.append(backlogEstimateCoverageNode(metrics.estimate_coverage));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   return section;
@@ -4171,6 +4172,7 @@ function backlogSummaryMetrics(tickets) {
   const list = Array.isArray(tickets) ? tickets : [];
   let storyPoints = 0;
   let hasStoryPoints = false;
+  let estimated = 0;
   for (const ticket of list) {
     if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
       continue;
@@ -4179,6 +4181,7 @@ function backlogSummaryMetrics(tickets) {
     if (Number.isFinite(points)) {
       storyPoints += points;
       hasStoryPoints = true;
+      estimated += 1;
     }
   }
   const assigned = list.filter((ticket) => Boolean(ticket.sprint_id)).length;
@@ -4187,9 +4190,33 @@ function backlogSummaryMetrics(tickets) {
     assigned,
     unassigned: list.length - assigned,
     story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none",
+    estimate_coverage: backlogEstimateCoverage(list.length, estimated),
     priorities: backlogPriorityBreakdown(list),
     workloads: backlogSprintWorkloads(list)
   };
+}
+
+function backlogEstimateCoverage(total, estimated) {
+  const estimatedCount = Number.isFinite(estimated) ? estimated : 0;
+  const totalCount = Number.isFinite(total) ? total : 0;
+  return [
+    { label: "Estimated", count: estimatedCount },
+    { label: "Unestimated", count: Math.max(totalCount - estimatedCount, 0) }
+  ];
+}
+
+function backlogEstimateCoverageNode(coverage) {
+  const list = document.createElement("div");
+  list.className = "backlog-estimate-coverage";
+  if (!coverage.length) {
+    return list;
+  }
+  for (const item of coverage) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    list.append(chip);
+  }
+  return list;
 }
 
 function backlogPriorityBreakdown(tickets) {
