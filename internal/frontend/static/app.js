@@ -7137,6 +7137,67 @@ function versionPrioritySummaryItems(summary) {
   }));
 }
 
+function versionIssueTypeSummary(tickets, versionID) {
+  const types = new Map();
+  let total = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    const type = String(ticket.type || "").trim() || "No issue type";
+    types.set(type, (types.get(type) || 0) + 1);
+  }
+  return {
+    total,
+    types: Array.from(types.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.type.localeCompare(right.type);
+      })
+  };
+}
+
+function versionIssueTypeSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-issue-type-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket issue types";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-issue-type-chips";
+  for (const item of versionIssueTypeSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionIssueTypeSummaryItems(summary) {
+  const data = summary || {};
+  const items = [`total: ${Number(data.total) || 0}`];
+  const types = Array.isArray(data.types) ? data.types : [];
+  return items.concat(types.slice(0, 4).map((item) => {
+    const type = String(item && item.type || "").trim() || "No issue type";
+    return `${type}: ${Number(item && item.count) || 0}`;
+  }));
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8687,7 +8748,8 @@ function versionNode(version, tickets = state.tickets) {
     name,
     meta,
     versionStatusSummaryNode(versionStatusSummary(tickets, version.id)),
-    versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id))
+    versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id)),
+    versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18304,6 +18366,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionStatusSummaryItems,
     versionPrioritySummary,
     versionPrioritySummaryItems,
+    versionIssueTypeSummary,
+    versionIssueTypeSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
