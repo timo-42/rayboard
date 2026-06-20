@@ -4905,6 +4905,7 @@ function renderSprintReport() {
   const ages = sprintReportAgeBreakdownNode(report && report.tickets ? report.tickets : []);
   const updates = sprintReportUpdateFreshnessNode(report && report.tickets ? report.tickets : []);
   const readiness = sprintReportReadinessSummaryNode(report && report.tickets ? report.tickets : []);
+  const risks = sprintReportRiskSummaryNode(report && report.tickets ? report.tickets : []);
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const labels = sprintReportLabelBreakdownNode(report && report.tickets ? report.tickets : []);
@@ -4932,7 +4933,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, updates, readiness, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, updates, readiness, risks, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5420,6 +5421,68 @@ function sprintReportHasEstimate(value) {
     return false;
   }
   return Number.isFinite(Number(value));
+}
+
+function sprintReportRiskSummaryNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-risks";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Risk summary";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-risk-list";
+  const buckets = sprintReportRiskSummary(tickets);
+  if (!buckets.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No risk data";
+    list.append(empty);
+  } else {
+    for (const bucket of buckets) {
+      const item = document.createElement("span");
+      item.textContent = `${bucket.label}: ${bucket.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportRiskSummary(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "overdue_open", label: "Open overdue", count: 0 },
+    { key: "stale_open", label: "Stale open", count: 0 },
+    { key: "unassigned_open", label: "Unassigned open", count: 0 },
+    { key: "unscheduled_open", label: "Unscheduled open", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (sprintReportTicketDone(ticket)) {
+      continue;
+    }
+    const due = dateToUTC(ticket.due_date);
+    if (due && daysBetween(today, due) < 0) {
+      byKey.get("overdue_open").count += 1;
+    }
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (updated && daysBetween(updated, today) > 7) {
+      byKey.get("stale_open").count += 1;
+    }
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("unassigned_open").count += 1;
+    }
+    if (!dateToUTC(ticket.start_date) || !due) {
+      byKey.get("unscheduled_open").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function sprintReportTicketDone(ticket) {
+  return String(ticket && ticket.status ? ticket.status : "").toLowerCase() === "done";
 }
 
 function sprintReportStartDateBreakdownNode(tickets) {
@@ -14024,6 +14087,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportAgeBreakdown,
     sprintReportUpdateFreshness,
     sprintReportReadinessSummary,
+    sprintReportRiskSummary,
     sprintReportDueDateBreakdown,
     sprintReportStartDateBreakdown,
     sprintReportHealth,
