@@ -6996,11 +6996,78 @@ function renderVersions() {
     els.versions.append(empty);
     return;
   }
+  els.versions.append(versionLifecycleSummaryNode(state.versions));
   els.versions.append(versionTargetHealthSummaryNode(state.versions));
   els.versions.append(versionTimingVarianceSummaryNode(state.versions));
   for (const version of state.versions) {
     els.versions.append(versionNode(version));
   }
+}
+
+function versionLifecycleSummary(versions) {
+  const summary = {
+    total: 0,
+    planned: 0,
+    released: 0,
+    archived: 0,
+    unmodeled: 0,
+    unmodeled_items: []
+  };
+  const unmodeled = new Map();
+  for (const version of Array.isArray(versions) ? versions : []) {
+    summary.total += 1;
+    const stateValue = String(version && version.state || "planned").trim() || "planned";
+    if (stateValue === "planned" || stateValue === "released" || stateValue === "archived") {
+      summary[stateValue] += 1;
+      continue;
+    }
+    summary.unmodeled += 1;
+    unmodeled.set(stateValue, (unmodeled.get(stateValue) || 0) + 1);
+  }
+  summary.unmodeled_items = Array.from(unmodeled.entries())
+    .map(([state, count]) => ({ state, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.state.localeCompare(right.state);
+    });
+  return summary;
+}
+
+function versionLifecycleSummaryNode(versions) {
+  const section = document.createElement("section");
+  section.className = "version-lifecycle-summary";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Lifecycle states";
+
+  const list = document.createElement("div");
+  list.className = "version-lifecycle-list";
+  for (const item of versionLifecycleSummaryItems(versionLifecycleSummary(versions))) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    list.append(chip);
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function versionLifecycleSummaryItems(summary) {
+  const data = summary || {};
+  const items = [
+    `versions: ${Number(data.total) || 0}`,
+    `planned: ${Number(data.planned) || 0}`,
+    `released: ${Number(data.released) || 0}`,
+    `archived: ${Number(data.archived) || 0}`,
+    `unmodeled: ${Number(data.unmodeled) || 0}`
+  ];
+  const unmodeled = Array.isArray(data.unmodeled_items) ? data.unmodeled_items : [];
+  return items.concat(unmodeled.slice(0, 4).map((item) => {
+    const state = String(item && item.state || "").trim() || "unknown";
+    return `unmodeled ${state}: ${Number(item && item.count) || 0}`;
+  }));
 }
 
 function renderVersionReport() {
@@ -18084,6 +18151,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportScopeChangeItems,
     versionReportSprints,
     versionReportStartDateBreakdown,
+    versionLifecycleSummary,
+    versionLifecycleSummaryItems,
     versionTimingVarianceSummary,
     versionTargetHealthSummary,
     versionReportTypeBreakdown,

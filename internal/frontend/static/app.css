@@ -2358,6 +2358,7 @@ p {
   display: none;
 }
 
+.version-lifecycle-summary,
 .version-target-health,
 .version-timing-variance {
   display: grid;
@@ -2368,6 +2369,7 @@ p {
   padding: 10px;
 }
 
+.version-lifecycle-summary h4,
 .version-target-health h4,
 .version-timing-variance h4 {
   color: var(--heading);
@@ -2375,6 +2377,7 @@ p {
   font-weight: 800;
 }
 
+.version-lifecycle-list,
 .version-target-health-list,
 .version-timing-variance-list {
   display: flex;
@@ -2382,6 +2385,7 @@ p {
   gap: 6px;
 }
 
+.version-lifecycle-list span,
 .version-target-health-list span,
 .version-timing-variance-list span {
   border: 1px solid var(--border);
