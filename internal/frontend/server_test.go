@@ -1659,6 +1659,17 @@ func TestComponentStatusSummary(t *testing.T) {
 	}
 }
 
+func TestComponentOwnershipSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "component_ownership_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("component ownership summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportLabelBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1731,6 +1742,13 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"refreshSelectedVersionReport",
 		"await refreshSelectedVersionReport();",
 		"renderVersionReport",
+		"componentOwnershipSummary",
+		"componentOwnershipSummaryItems",
+		"componentOwnershipSummaryNode",
+		"componentOwnerMetadataItems",
+		"componentOwnerMetadataNode",
+		"Ownership coverage",
+		"missing default",
 		"componentStatusSummary",
 		"componentStatusSummaryItems",
 		"componentStatusSummaryNode",
@@ -1874,6 +1892,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	for _, expected := range []string{
 		".release-panel",
 		".component-form",
+		".component-ownership-summary",
+		".component-ownership-chips",
+		".component-owner-metadata",
 		".component-status-summary",
 		".component-status-chips",
 		".version-form",

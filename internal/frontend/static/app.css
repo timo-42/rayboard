@@ -3704,6 +3704,40 @@ p {
   overflow-wrap: anywhere;
 }
 
+.component-ownership-summary {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.component-ownership-summary h4 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.component-ownership-chips,
+.component-owner-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.component-ownership-chips span,
+.component-owner-metadata span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .component-status-summary {
   display: grid;
   gap: 5px;
