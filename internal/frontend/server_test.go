@@ -1312,6 +1312,17 @@ func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	}
 }
 
+func TestVersionReportComponentBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_component_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version component breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportPriorityBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

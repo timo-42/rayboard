@@ -6722,7 +6722,7 @@ function versionReportComponentNode(tickets) {
 
 function versionReportComponents(tickets) {
   const groups = new Map();
-  for (const ticket of tickets) {
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
     const id = ticket.component_id || "";
     const key = id || "__unassigned__";
     if (!groups.has(key)) {
@@ -15374,6 +15374,7 @@ if (typeof module !== "undefined" && module.exports) {
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
+    versionReportComponents,
     versionReportEstimateCoverage,
     versionReportPriorityBreakdown,
     versionReportTypeBreakdown,
