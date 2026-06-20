@@ -1443,6 +1443,88 @@ func TestRoadmapEpicsDatesAndProgress(t *testing.T) {
 	}
 }
 
+func TestRoadmapCapacityTargetsPersistAndAuthorize(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedUser(t, ctx, db.SQL, "user-member")
+	seedUser(t, ctx, db.SQL, "user-viewer")
+	seedUser(t, ctx, db.SQL, "user-outsider")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "CORE", Name: "Core"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
+	evaluator.BindRole(authz.UserBinding("user-viewer", authz.RoleProjectViewer, authz.ProjectScope(project.ID)))
+
+	member := principal("user-member")
+	viewer := principal("user-viewer")
+	target, deleted, err := service.SetRoadmapCapacityTarget(ctx, member, project.ID, tracker.RoadmapCapacityTargetInput{
+		Month:        "2026-07",
+		TargetPoints: 24.5,
+	})
+	if err != nil {
+		t.Fatalf("set target: %v", err)
+	}
+	if deleted || target.ProjectID != project.ID || target.Month != "2026-07" || target.TargetPoints != 24.5 {
+		t.Fatalf("unexpected target: %#v deleted=%v", target, deleted)
+	}
+
+	targets, err := service.ListRoadmapCapacityTargets(ctx, viewer, project.ID)
+	if err != nil {
+		t.Fatalf("list targets: %v", err)
+	}
+	if len(targets) != 1 || targets[0].Month != "2026-07" || targets[0].TargetPoints != 24.5 {
+		t.Fatalf("unexpected listed targets: %#v", targets)
+	}
+
+	updated, deleted, err := service.SetRoadmapCapacityTarget(ctx, member, project.ID, tracker.RoadmapCapacityTargetInput{
+		Month:        "2026-07",
+		TargetPoints: 18,
+	})
+	if err != nil {
+		t.Fatalf("update target: %v", err)
+	}
+	if deleted || updated.TargetPoints != 18 || !updated.UpdatedAt.Equal(fixedNow()) {
+		t.Fatalf("unexpected updated target: %#v deleted=%v", updated, deleted)
+	}
+
+	deletedTarget, deleted, err := service.SetRoadmapCapacityTarget(ctx, member, project.ID, tracker.RoadmapCapacityTargetInput{Month: "2026-07"})
+	if err != nil {
+		t.Fatalf("delete target: %v", err)
+	}
+	if !deleted || deletedTarget.Month != "2026-07" {
+		t.Fatalf("expected deleted target marker, got %#v deleted=%v", deletedTarget, deleted)
+	}
+	targets, err = service.ListRoadmapCapacityTargets(ctx, viewer, project.ID)
+	if err != nil {
+		t.Fatalf("list targets after delete: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("expected no targets after delete, got %#v", targets)
+	}
+
+	if _, _, err := service.SetRoadmapCapacityTarget(ctx, viewer, project.ID, tracker.RoadmapCapacityTargetInput{Month: "2026-08", TargetPoints: 10}); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected viewer write forbidden, got %v", err)
+	}
+	if _, err := service.ListRoadmapCapacityTargets(ctx, principal("user-outsider"), project.ID); !errors.Is(err, authz.ErrForbidden) {
+		t.Fatalf("expected outsider read forbidden, got %v", err)
+	}
+	if _, _, err := service.SetRoadmapCapacityTarget(ctx, member, project.ID, tracker.RoadmapCapacityTargetInput{Month: "2026/08", TargetPoints: 10}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected bad month validation, got %v", err)
+	}
+	if _, _, err := service.SetRoadmapCapacityTarget(ctx, member, project.ID, tracker.RoadmapCapacityTargetInput{Month: "2026-08", TargetPoints: -1}); !errors.Is(err, tracker.ErrValidation) {
+		t.Fatalf("expected negative target validation, got %v", err)
+	}
+}
+
 func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	ctx := context.Background()
 	db := openMigratedDB(t, ctx)

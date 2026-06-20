@@ -33,6 +33,8 @@ const {
   roadmapCapacityBucketTargetLabel,
   roadmapCapacityBucketTargetStatus,
   roadmapCapacityDrilldown,
+  roadmapCapacityTargetForBucket,
+  roadmapCapacityTargetMap,
   roadmapCapacityTargetValue
 } = require("./static/app.js");
 
@@ -130,6 +132,17 @@ assert.strictEqual(roadmapCapacityTargetValue("12.5"), 12.5);
 assert.strictEqual(roadmapCapacityTargetValue(""), 0);
 assert.strictEqual(roadmapCapacityTargetValue("-4"), 0);
 assert.strictEqual(roadmapCapacityTargetValue("not-a-number"), 0);
+assert.strictEqual(roadmapCapacityTargetForBucket("2026-07", { "2026-07": "12.5", "2026-08": "8" }), "12.5");
+assert.strictEqual(roadmapCapacityTargetForBucket("2026-09", { "2026-07": "12.5" }), "");
+assert.strictEqual(roadmapCapacityTargetForBucket("2026-07", "14"), "14");
+assert.deepStrictEqual(
+  roadmapCapacityTargetMap([
+    { metadata: { project_id: "project_1", month: "2026-07" }, spec: { target_points: 12.5 }, status: {} },
+    { metadata: { project_id: "project_1", month: "2026-08" }, spec: { target_points: 0 }, status: {} },
+    { metadata: { project_id: "project_1", month: "2026-09" }, spec: { target_points: 9 }, status: { deleted: true } }
+  ]),
+  { "2026-07": "12.5" }
+);
 
 assert.deepStrictEqual(
   roadmapCapacityBucketTargetStatus({ storyPointsRemaining: 8 }, 12),

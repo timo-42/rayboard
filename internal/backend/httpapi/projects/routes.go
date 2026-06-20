@@ -38,6 +38,8 @@ func Register(api huma.API, provider Provider) {
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/labels/{label}", "Labels", "Update project label"), provider.updateLabel)
 	huma.Register(api, shared.OperationWithStatus(http.MethodDelete, "/api/projects/{project_id}/labels/{label}", "Labels", "Delete project label", http.StatusNoContent), provider.deleteLabel)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap", "Roadmap", "List project roadmap"), provider.listRoadmap)
+	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap/capacity-targets", "Roadmap", "List roadmap capacity targets"), provider.listRoadmapCapacityTargets)
+	huma.Register(api, shared.Operation(http.MethodPut, "/api/projects/{project_id}/roadmap/capacity-targets/{month}", "Roadmap", "Set roadmap capacity target"), provider.setRoadmapCapacityTarget)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/roadmap/dependencies", "Roadmap", "List roadmap dependencies"), provider.listRoadmapDependencies)
 	huma.Register(api, shared.Operation(http.MethodPatch, "/api/projects/{project_id}/roadmap/schedule", "Roadmap", "Schedule roadmap epics"), provider.scheduleRoadmap)
 	huma.Register(api, shared.Operation(http.MethodGet, "/api/projects/{project_id}/sprints", "Sprints", "List project sprints"), provider.listSprints)
@@ -319,6 +321,32 @@ func (provider Provider) listRoadmap(ctx context.Context, input *ProjectIDInput)
 		return nil, shared.TrackerError(err)
 	}
 	return &ListRoadmapOutput{Body: shared.NewListResource[RoadmapItemResource](roadmapItemResources(items))}, nil
+}
+
+func (provider Provider) listRoadmapCapacityTargets(ctx context.Context, input *ProjectIDInput) (*ListRoadmapCapacityTargetsOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, false)
+	if err != nil {
+		return nil, err
+	}
+	items, err := provider.Tracker.ListRoadmapCapacityTargets(ctx, principal, input.ProjectID)
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &ListRoadmapCapacityTargetsOutput{Body: shared.NewListResource[RoadmapCapacityTargetResource](roadmapCapacityTargetResources(items))}, nil
+}
+
+func (provider Provider) setRoadmapCapacityTarget(ctx context.Context, input *SetRoadmapCapacityTargetInput) (*RoadmapCapacityTargetOutput, error) {
+	_, principal, _, err := provider.Authenticator.Authenticate(ctx, input.AuthInput, true)
+	if err != nil {
+		return nil, err
+	}
+	spec := input.Body.Spec
+	spec.Month = input.Month
+	target, deleted, err := provider.Tracker.SetRoadmapCapacityTarget(ctx, principal, input.ProjectID, spec.ToSetInput())
+	if err != nil {
+		return nil, shared.TrackerError(err)
+	}
+	return &RoadmapCapacityTargetOutput{Body: roadmapCapacityTargetResource(target, deleted)}, nil
 }
 
 func (provider Provider) listRoadmapDependencies(ctx context.Context, input *ProjectIDInput) (*ListRoadmapDependenciesOutput, error) {

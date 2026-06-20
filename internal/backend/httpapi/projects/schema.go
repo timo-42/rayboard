@@ -48,6 +48,13 @@ type ScheduleRoadmapInput struct {
 	Body      shared.ResourceInput[RoadmapScheduleSpec]
 }
 
+type SetRoadmapCapacityTargetInput struct {
+	shared.AuthInput
+	ProjectID string `path:"project_id"`
+	Month     string `path:"month"`
+	Body      shared.ResourceInput[RoadmapCapacityTargetSpec]
+}
+
 type ReplaceStatusesInput struct {
 	shared.AuthInput
 	ProjectID string `path:"project_id"`
@@ -171,6 +178,18 @@ func (spec RoadmapScheduleSpec) ToScheduleInput() tracker.RoadmapScheduleInput {
 	}
 }
 
+type RoadmapCapacityTargetSpec struct {
+	Month        string  `json:"month,omitempty"`
+	TargetPoints float64 `json:"target_points,omitempty"`
+}
+
+func (spec RoadmapCapacityTargetSpec) ToSetInput() tracker.RoadmapCapacityTargetInput {
+	return tracker.RoadmapCapacityTargetInput{
+		Month:        spec.Month,
+		TargetPoints: spec.TargetPoints,
+	}
+}
+
 type ProjectStatusMetadata struct {
 	ID        string    `json:"id"`
 	ProjectID string    `json:"project_id"`
@@ -252,6 +271,13 @@ type RoadmapDependencyMetadata struct {
 	ProjectID string `json:"project_id"`
 }
 
+type RoadmapCapacityTargetMetadata struct {
+	ProjectID string    `json:"project_id"`
+	Month     string    `json:"month"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+}
+
 type RoadmapItemSpec struct {
 	Epic ticketapi.TicketResource `json:"epic"`
 }
@@ -269,10 +295,17 @@ type RoadmapItemStatus struct {
 type RoadmapDependencyStatus struct {
 }
 
+type RoadmapCapacityTargetStatus struct {
+	Deleted bool `json:"deleted,omitempty"`
+}
+
 type RoadmapItemResource = shared.Resource[RoadmapItemMetadata, RoadmapItemSpec, RoadmapItemStatus]
 type ListRoadmapOutput = shared.ListOutput[RoadmapItemResource]
 type RoadmapDependencyResource = shared.Resource[RoadmapDependencyMetadata, RoadmapDependencySpec, RoadmapDependencyStatus]
 type ListRoadmapDependenciesOutput = shared.ListOutput[RoadmapDependencyResource]
+type RoadmapCapacityTargetResource = shared.Resource[RoadmapCapacityTargetMetadata, RoadmapCapacityTargetSpec, RoadmapCapacityTargetStatus]
+type RoadmapCapacityTargetOutput = shared.CreatedOutput[RoadmapCapacityTargetResource]
+type ListRoadmapCapacityTargetsOutput = shared.ListOutput[RoadmapCapacityTargetResource]
 type ListSprintsOutput = shared.ListOutput[sprintapi.SprintResource]
 type CreateSprintOutput = shared.CreatedOutput[sprintapi.SprintResource]
 
@@ -427,4 +460,28 @@ func roadmapDependencyResources(items []tracker.RoadmapDependency) []RoadmapDepe
 		})
 	}
 	return resources
+}
+
+func roadmapCapacityTargetResources(items []tracker.RoadmapCapacityTarget) []RoadmapCapacityTargetResource {
+	resources := make([]RoadmapCapacityTargetResource, 0, len(items))
+	for _, item := range items {
+		resources = append(resources, roadmapCapacityTargetResource(item, false))
+	}
+	return resources
+}
+
+func roadmapCapacityTargetResource(item tracker.RoadmapCapacityTarget, deleted bool) RoadmapCapacityTargetResource {
+	return RoadmapCapacityTargetResource{
+		Metadata: RoadmapCapacityTargetMetadata{
+			ProjectID: item.ProjectID,
+			Month:     item.Month,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+		},
+		Spec: RoadmapCapacityTargetSpec{
+			Month:        item.Month,
+			TargetPoints: item.TargetPoints,
+		},
+		Status: RoadmapCapacityTargetStatus{Deleted: deleted},
+	}
 }

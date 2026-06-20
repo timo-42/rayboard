@@ -33,8 +33,8 @@ const state = {
   customFields: [],
   roadmap: [],
   roadmapCapacityTickets: [],
+  roadmapCapacityTargets: {},
   selectedRoadmapCapacityBucket: "",
-  roadmapCapacityTarget: "",
   roadmapDependencies: [],
   attachments: {},
   comments: {},
@@ -1505,16 +1505,21 @@ function bindEvents() {
     if (!target) {
       return;
     }
-    state.roadmapCapacityTarget = target.value || "";
+    setRoadmapCapacityTargetState(target.dataset.roadmapCapacityTarget || "", target.value || "");
   });
 
-  els.roadmap.addEventListener("change", (event) => {
+  els.roadmap.addEventListener("change", async (event) => {
     const target = event.target.closest("[data-roadmap-capacity-target]");
     if (!target) {
       return;
     }
-    state.roadmapCapacityTarget = target.value || "";
-    renderRoadmap();
+    const month = target.dataset.roadmapCapacityTarget || "";
+    const value = target.value || "";
+    setRoadmapCapacityTargetState(month, value);
+    await runAction(async () => {
+      await saveRoadmapCapacityTarget(month, value);
+      renderRoadmap();
+    }, "Roadmap capacity target saved");
   });
 
   els.roadmap.addEventListener("dragstart", (event) => {
@@ -3198,6 +3203,7 @@ async function loadRoadmap(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.roadmap = [];
     state.roadmapCapacityTickets = [];
+    state.roadmapCapacityTargets = {};
     state.roadmapDependencies = [];
     renderRoadmap();
     renderRoadmapDependencies();
@@ -3209,11 +3215,46 @@ async function loadRoadmap(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/roadmap`);
   state.roadmap = listItems(data).map(normalizeRoadmapItem);
+  await loadRoadmapCapacityTargets();
   await loadRoadmapCapacityTickets();
   renderRoadmap();
   renderTicketFormOptions();
   if (options.renderTickets !== false) {
     renderTickets();
+  }
+}
+
+async function loadRoadmapCapacityTargets() {
+  if (!state.selectedProject) {
+    state.roadmapCapacityTargets = {};
+    return;
+  }
+  try {
+    const data = await api(`/api/projects/${state.selectedProject.id}/roadmap/capacity-targets`);
+    state.roadmapCapacityTargets = roadmapCapacityTargetMap(listItems(data).map(normalizeRoadmapCapacityTarget));
+  } catch (_) {
+    state.roadmapCapacityTargets = {};
+  }
+}
+
+async function saveRoadmapCapacityTarget(month, value) {
+  if (!state.selectedProject || !month) {
+    return;
+  }
+  const target = roadmapCapacityTargetValue(value);
+  const response = await api(`/api/projects/${state.selectedProject.id}/roadmap/capacity-targets/${encodeURIComponent(month)}`, {
+    method: "PUT",
+    body: {
+      spec: {
+        target_points: target
+      }
+    }
+  });
+  const saved = normalizeRoadmapCapacityTarget(response);
+  if (saved && saved.deleted) {
+    delete state.roadmapCapacityTargets[month];
+  } else if (saved && saved.month) {
+    state.roadmapCapacityTargets[saved.month] = String(saved.target_points || "");
   }
 }
 
@@ -8434,9 +8475,10 @@ function roadmapEpicName(epicID) {
 }
 
 function roadmapCapacityNode(items) {
-  const target = roadmapCapacityTargetValue();
-  const summary = roadmapCapacitySummary(items, target);
-  const selectedBucketKey = roadmapSelectedCapacityBucket(summary, target);
+  const targets = state.roadmapCapacityTargets || {};
+  const summary = roadmapCapacitySummary(items, targets);
+  const selectedBucketKey = roadmapSelectedCapacityBucket(summary, targets);
+  const selectedTarget = roadmapCapacityTargetForBucket(selectedBucketKey, targets);
   const section = document.createElement("section");
   section.className = "roadmap-capacity";
 
@@ -8446,7 +8488,7 @@ function roadmapCapacityNode(items) {
   title.textContent = "Capacity summary";
   const meta = document.createElement("span");
   meta.textContent = `${summary.scheduled} scheduled / ${summary.unscheduled} unscheduled epics`;
-  header.append(title, meta, roadmapCapacityTargetNode());
+  header.append(title, meta, roadmapCapacityTargetNode(selectedBucketKey));
 
   const metrics = document.createElement("div");
   metrics.className = "roadmap-capacity-metrics";
@@ -8472,7 +8514,7 @@ function roadmapCapacityNode(items) {
   buckets.className = "roadmap-capacity-buckets";
   if (summary.buckets.length) {
     for (const bucket of summary.buckets) {
-      buckets.append(roadmapCapacityBucketNode(bucket, bucket.key === selectedBucketKey, target));
+      buckets.append(roadmapCapacityBucketNode(bucket, bucket.key === selectedBucketKey, roadmapCapacityTargetForBucket(bucket.key, targets)));
     }
   } else {
     const empty = document.createElement("p");
@@ -8481,28 +8523,50 @@ function roadmapCapacityNode(items) {
     buckets.append(empty);
   }
 
-  section.append(header, metrics, insights, buckets, roadmapCapacityDrilldownNode(items, selectedBucketKey, target));
+  section.append(header, metrics, insights, buckets, roadmapCapacityDrilldownNode(items, selectedBucketKey, selectedTarget));
   return section;
 }
 
-function roadmapCapacityTargetNode() {
+function roadmapCapacityTargetNode(bucketKey = "") {
   const label = document.createElement("label");
   label.className = "roadmap-capacity-target";
   const text = document.createElement("span");
-  text.textContent = "Monthly point target";
+  text.textContent = bucketKey ? `${roadmapCapacityBucketLabel(bucketKey)} target` : "Monthly point target";
   const input = document.createElement("input");
   input.type = "number";
   input.min = "0";
   input.step = "0.5";
   input.inputMode = "decimal";
-  input.value = state.roadmapCapacityTarget || "";
-  input.dataset.roadmapCapacityTarget = "true";
+  input.value = roadmapCapacityTargetForBucket(bucketKey);
+  input.dataset.roadmapCapacityTarget = bucketKey;
   input.setAttribute("aria-label", "Monthly point target");
+  input.disabled = !bucketKey;
   label.append(text, input);
   return label;
 }
 
-function roadmapCapacityTargetValue(value = state.roadmapCapacityTarget) {
+function setRoadmapCapacityTargetState(bucketKey, value) {
+  if (!bucketKey) {
+    return;
+  }
+  if (!state.roadmapCapacityTargets || Array.isArray(state.roadmapCapacityTargets)) {
+    state.roadmapCapacityTargets = {};
+  }
+  if (roadmapCapacityTargetValue(value) > 0) {
+    state.roadmapCapacityTargets[bucketKey] = String(value);
+  } else {
+    delete state.roadmapCapacityTargets[bucketKey];
+  }
+}
+
+function roadmapCapacityTargetForBucket(bucketKey = "", targets = state.roadmapCapacityTargets) {
+  if (targets && typeof targets === "object" && !Array.isArray(targets)) {
+    return bucketKey && Object.prototype.hasOwnProperty.call(targets, bucketKey) ? targets[bucketKey] : "";
+  }
+  return targets;
+}
+
+function roadmapCapacityTargetValue(value = "") {
   if (value === null || value === undefined || value === "") {
     return 0;
   }
@@ -8519,7 +8583,7 @@ function roadmapSelectedCapacityBucket(summary, target = 0) {
   if (buckets.some((bucket) => bucket.key === state.selectedRoadmapCapacityBucket)) {
     return state.selectedRoadmapCapacityBucket;
   }
-  const selected = buckets.find((bucket) => roadmapCapacityBucketAtRisk(bucket, target)) || summary.busiestBucket || buckets[0];
+  const selected = buckets.find((bucket) => roadmapCapacityBucketAtRisk(bucket, roadmapCapacityTargetForBucket(bucket.key, target))) || summary.busiestBucket || buckets[0];
   state.selectedRoadmapCapacityBucket = selected ? selected.key : "";
   return state.selectedRoadmapCapacityBucket;
 }
@@ -8585,7 +8649,7 @@ function roadmapCapacitySummary(items, target = 0) {
     bucket.unestimatedChildren += work.unestimatedChildren;
   }
   summary.buckets = Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
-  summary.atRiskBuckets = summary.buckets.filter((bucket) => roadmapCapacityBucketAtRisk(bucket, target)).length;
+  summary.atRiskBuckets = summary.buckets.filter((bucket) => roadmapCapacityBucketAtRisk(bucket, roadmapCapacityTargetForBucket(bucket.key, target))).length;
   summary.busiestBucket = summary.buckets.reduce((busiest, bucket) => {
     if (!busiest || bucket.openChildren > busiest.openChildren) {
       return bucket;
@@ -15279,6 +15343,37 @@ function normalizeRoadmapItem(item) {
   return item;
 }
 
+function normalizeRoadmapCapacityTarget(target) {
+  if (!target) {
+    return null;
+  }
+  if (target.metadata && target.spec && target.status) {
+    return {
+      project_id: target.metadata.project_id || "",
+      month: target.metadata.month || target.spec.month || "",
+      target_points: Number(target.spec.target_points || 0),
+      deleted: Boolean(target.status.deleted)
+    };
+  }
+  return {
+    project_id: target.project_id || "",
+    month: target.month || "",
+    target_points: Number(target.target_points || 0),
+    deleted: Boolean(target.deleted)
+  };
+}
+
+function roadmapCapacityTargetMap(targets) {
+  const map = {};
+  for (const target of Array.isArray(targets) ? targets : []) {
+    const normalized = normalizeRoadmapCapacityTarget(target);
+    if (normalized && normalized.month && normalized.target_points > 0 && !normalized.deleted) {
+      map[normalized.month] = String(normalized.target_points);
+    }
+  }
+  return map;
+}
+
 function normalizeToken(token) {
   if (!token) {
     return null;
@@ -15982,6 +16077,8 @@ if (typeof module !== "undefined" && module.exports) {
     mutateCreatePageLayoutBuilderItems,
     parseCreatePageLayoutBuilderJSON,
     roadmapCapacityDrilldown,
+    roadmapCapacityTargetForBucket,
+    roadmapCapacityTargetMap,
     roadmapCapacityBucketTargetLabel,
     roadmapCapacityBucketTargetStatus,
     roadmapCapacityTargetValue,
