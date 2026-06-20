@@ -6416,6 +6416,7 @@ function renderVersionReport() {
     versionReportStartDateBreakdownNode(tickets),
     versionReportDueDateBreakdownNode(tickets),
     versionReportAgeBreakdownNode(tickets),
+    versionReportUpdateFreshnessNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -7094,6 +7095,46 @@ function versionReportAgeBreakdown(tickets, todayValue = todayLocalISODate()) {
       byKey.get("recent").count += 1;
     } else {
       byKey.get("older").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function versionReportUpdateFreshnessNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-updates",
+    headingText: "Update freshness",
+    listClass: "version-report-update-list",
+    items: versionReportUpdateFreshness(tickets),
+    emptyText: "No update data"
+  });
+}
+
+function versionReportUpdateFreshness(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "today", label: "Updated today", count: 0 },
+    { key: "week", label: "Updated this week", count: 0 },
+    { key: "stale", label: "Stale (8-30 days)", count: 0 },
+    { key: "dormant", label: "Dormant (31+ days)", count: 0 },
+    { key: "none", label: "No update date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (!updated) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(updated, today), 0);
+    if (ageDays === 0) {
+      byKey.get("today").count += 1;
+    } else if (ageDays <= 7) {
+      byKey.get("week").count += 1;
+    } else if (ageDays <= 30) {
+      byKey.get("stale").count += 1;
+    } else {
+      byKey.get("dormant").count += 1;
     }
   }
   return buckets.filter((bucket) => bucket.count > 0);
@@ -15626,6 +15667,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportScopeChangeItems,
     versionReportStartDateBreakdown,
     versionReportTypeBreakdown,
+    versionReportUpdateFreshness,
     versionReportTimelineItems
   };
 }
