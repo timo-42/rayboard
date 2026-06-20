@@ -35,6 +35,7 @@ const {
   boardCapacityOverviewLabel,
   boardColumnTicketCount,
   boardDueDateBreakdown,
+  boardEstimateCoverage,
   boardFlowBalance,
   boardFlowBalanceItems,
   boardIssueTypeBreakdown,
@@ -156,6 +157,7 @@ assert.deepStrictEqual(
     labels: boardLabelBreakdown(columns),
     assignee_workloads: boardAssigneeWorkloads(columns),
     reporters: boardReporterBreakdown(columns),
+    estimate_coverage: boardEstimateCoverage(columns),
     capacity: boardCapacityOverview(columns),
     risks: boardRiskOverview(columns)
   }
@@ -198,6 +200,10 @@ assert.deepStrictEqual(
     ],
     reporters: [
       { key: "", label: "No reporter", tickets: 1, story_points: 0, has_story_points: false }
+    ],
+    estimate_coverage: [
+      { label: "Estimated", count: 0 },
+      { label: "Unestimated", count: 1 }
     ],
     capacity: [
       {
@@ -290,6 +296,15 @@ assert.deepStrictEqual(boardReporterBreakdown(columns), [
   { key: "", label: "No reporter", tickets: 2, story_points: 1, has_story_points: true }
 ]);
 assert.deepStrictEqual(boardReporterBreakdown(null), []);
+
+assert.deepStrictEqual(boardEstimateCoverage(columns), [
+  { label: "Estimated", count: 5 },
+  { label: "Unestimated", count: 2 }
+]);
+assert.deepStrictEqual(boardEstimateCoverage(null), [
+  { label: "Estimated", count: 0 },
+  { label: "Unestimated", count: 0 }
+]);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {
