@@ -1389,6 +1389,17 @@ func TestVersionReportRiskSummary(t *testing.T) {
 	}
 }
 
+func TestVersionReportAttentionSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_attention_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version attention summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1504,6 +1515,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportReadinessSummary",
 		"versionReportRiskSummaryNode",
 		"versionReportRiskSummary",
+		"versionReportAttentionSummaryNode",
+		"versionReportAttentionSummary",
 		"versionReportPriorityBreakdownNode",
 		"versionReportPriorityBreakdown",
 		"versionReportTypeBreakdownNode",
@@ -1530,6 +1543,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Risk summary",
 		"No risk data",
 		"Open overdue",
+		"Attention summary",
+		"No attention data",
+		"Blocked open",
 		"Estimate coverage",
 		"No release tickets",
 		"Priority breakdown",
@@ -1608,6 +1624,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-readiness-list",
 		".version-report-risks",
 		".version-report-risk-list",
+		".version-report-attention",
+		".version-report-attention-list",
 		".version-report-types",
 		".version-report-priorities",
 		".version-report-labels",

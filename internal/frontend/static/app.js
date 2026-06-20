@@ -6419,6 +6419,7 @@ function renderVersionReport() {
     versionReportUpdateFreshnessNode(tickets),
     versionReportReadinessSummaryNode(tickets),
     versionReportRiskSummaryNode(tickets),
+    versionReportAttentionSummaryNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -7222,6 +7223,47 @@ function versionReportRiskSummary(tickets, todayValue = todayLocalISODate()) {
     }
     if (!dateToUTC(ticket.start_date) || !due) {
       byKey.get("unscheduled_open").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function versionReportAttentionSummaryNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-attention",
+    headingText: "Attention summary",
+    listClass: "version-report-attention-list",
+    items: versionReportAttentionSummary(tickets),
+    emptyText: "No attention data"
+  });
+}
+
+function versionReportAttentionSummary(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "blocked_open", label: "Blocked open", count: 0 },
+    { key: "high_priority_open", label: "High-priority open", count: 0 },
+    { key: "unestimated_high", label: "Unestimated high priority", count: 0 },
+    { key: "stale_high", label: "Stale high priority", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (sprintReportTicketDone(ticket)) {
+      continue;
+    }
+    const highPriority = sprintReportHighPriority(ticket.priority);
+    if (sprintReportBlockedLikeStatus(ticket.status)) {
+      byKey.get("blocked_open").count += 1;
+    }
+    if (highPriority) {
+      byKey.get("high_priority_open").count += 1;
+      if (!sprintReportHasEstimate(ticket.story_points)) {
+        byKey.get("unestimated_high").count += 1;
+      }
+      const updated = sprintReportUpdatedDate(ticket.updated_at);
+      if (updated && daysBetween(updated, today) > 7) {
+        byKey.get("stale_high").count += 1;
+      }
     }
   }
   return buckets.filter((bucket) => bucket.count > 0);
@@ -15745,6 +15787,7 @@ if (typeof module !== "undefined" && module.exports) {
     todayLocalISODate,
     versionReportAgeBreakdown,
     versionReportAssigneeWorkloads,
+    versionReportAttentionSummary,
     versionReportComponents,
     versionReportDueDateBreakdown,
     versionReportEstimateCoverage,
