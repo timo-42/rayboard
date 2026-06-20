@@ -4209,6 +4209,8 @@ function backlogSummaryNode(tickets) {
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
+  section.append(backlogReadinessSummaryNode(metrics.readiness));
+  section.append(backlogRiskSummaryNode(metrics.risks));
   return section;
 }
 
@@ -4238,7 +4240,9 @@ function backlogSummaryMetrics(tickets) {
     statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
-    workloads: backlogSprintWorkloads(list)
+    workloads: backlogSprintWorkloads(list),
+    readiness: backlogReadinessSummary(list),
+    risks: backlogRiskSummary(list)
   };
 }
 
@@ -4434,6 +4438,123 @@ function backlogSprintWorkloadsNode(workloads) {
     list.append(item);
   }
   return list;
+}
+
+function backlogReadinessSummary(tickets) {
+  const buckets = [
+    { key: "ready", label: "Ready", count: 0 },
+    { key: "missing_assignee", label: "Missing assignee", count: 0 },
+    { key: "missing_estimate", label: "Missing estimate", count: 0 },
+    { key: "missing_start", label: "Missing start date", count: 0 },
+    { key: "missing_due", label: "Missing due date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    let gaps = 0;
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("missing_assignee").count += 1;
+      gaps += 1;
+    }
+    if (!sprintReportHasEstimate(ticket.story_points)) {
+      byKey.get("missing_estimate").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.start_date)) {
+      byKey.get("missing_start").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.due_date)) {
+      byKey.get("missing_due").count += 1;
+      gaps += 1;
+    }
+    if (gaps === 0) {
+      byKey.get("ready").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function backlogReadinessSummaryNode(readiness) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-readiness-summary",
+    headingText: "Readiness",
+    items: readiness,
+    emptyText: "No readiness data"
+  });
+}
+
+function backlogRiskSummary(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "overdue_open", label: "Open overdue", count: 0 },
+    { key: "stale_open", label: "Stale open", count: 0 },
+    { key: "unassigned_open", label: "Unassigned open", count: 0 },
+    { key: "unscheduled_open", label: "Unscheduled open", count: 0 },
+    { key: "blocked_open", label: "Blocked open", count: 0 },
+    { key: "high_priority_open", label: "High-priority open", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (sprintReportTicketDone(ticket)) {
+      continue;
+    }
+    const due = dateToUTC(ticket.due_date);
+    if (due && daysBetween(today, due) < 0) {
+      byKey.get("overdue_open").count += 1;
+    }
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (updated && daysBetween(updated, today) > 7) {
+      byKey.get("stale_open").count += 1;
+    }
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("unassigned_open").count += 1;
+    }
+    if (!dateToUTC(ticket.start_date) || !due) {
+      byKey.get("unscheduled_open").count += 1;
+    }
+    if (sprintReportBlockedLikeStatus(ticket.status)) {
+      byKey.get("blocked_open").count += 1;
+    }
+    if (sprintReportHighPriority(ticket.priority)) {
+      byKey.get("high_priority_open").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function backlogRiskSummaryNode(risks) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-risk-summary",
+    headingText: "Risk signals",
+    items: risks,
+    emptyText: "No risk signals"
+  });
+}
+
+function backlogPlanningSummaryNode({ sectionClass, headingText, items, emptyText }) {
+  const section = document.createElement("section");
+  section.className = sectionClass;
+
+  const heading = document.createElement("h4");
+  heading.textContent = headingText;
+
+  const chips = document.createElement("div");
+  chips.className = "backlog-planning-chips";
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = emptyText;
+    chips.append(empty);
+  } else {
+    for (const itemData of items) {
+      const item = document.createElement("span");
+      item.textContent = `${itemData.label}: ${itemData.count}`;
+      chips.append(item);
+    }
+  }
+
+  section.append(heading, chips);
+  return section;
 }
 
 function backlogSummaryMetricNode(label, value) {
@@ -14928,6 +15049,8 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
     createPageLayoutBuilderTextKind,
+    backlogReadinessSummary,
+    backlogRiskSummary,
     mutateCreatePageLayoutBuilderItems,
     parseCreatePageLayoutBuilderJSON,
     roadmapCapacityDrilldown,
