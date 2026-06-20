@@ -33,6 +33,7 @@ const {
   boardCapacityOverview,
   boardCapacityOverviewLabel,
   boardColumnTicketCount,
+  boardDueDateBreakdown,
   boardFlowBalance,
   boardFlowBalanceItems,
   boardPriorityBreakdown,
@@ -146,6 +147,7 @@ assert.deepStrictEqual(
     saved_view_filter: "filtered",
     flow_balance: boardFlowBalance(columns),
     priorities: boardPriorityBreakdown(columns),
+    due_dates: boardDueDateBreakdown(columns),
     capacity: boardCapacityOverview(columns),
     risks: boardRiskOverview(columns)
   }
@@ -173,6 +175,9 @@ assert.deepStrictEqual(
     },
     priorities: [
       { label: "No priority", count: 1 }
+    ],
+    due_dates: [
+      { key: "none", label: "No due date", count: 1 }
     ],
     capacity: [
       {
@@ -228,6 +233,13 @@ assert.deepStrictEqual(boardPriorityBreakdown(columns), [
   { label: "No priority", count: 1 }
 ]);
 assert.deepStrictEqual(boardPriorityBreakdown(null), []);
+
+assert.deepStrictEqual(boardDueDateBreakdown(columns, "2026-06-20"), [
+  { key: "overdue", label: "Overdue", count: 3 },
+  { key: "later", label: "Later", count: 2 },
+  { key: "none", label: "No due date", count: 2 }
+]);
+assert.deepStrictEqual(boardDueDateBreakdown(null, "2026-06-20"), []);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {

@@ -1236,6 +1236,16 @@ p {
   padding: 8px;
 }
 
+.board-due-date-breakdown {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
 .board-capacity-overview strong {
   color: var(--heading);
   font-size: 12px;
@@ -1247,6 +1257,11 @@ p {
 }
 
 .board-priority-breakdown strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.board-due-date-breakdown strong {
   color: var(--heading);
   font-size: 12px;
 }
@@ -1264,6 +1279,12 @@ p {
 }
 
 .board-priority-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-due-date-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1292,6 +1313,17 @@ p {
 }
 
 .board-priority-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
+.board-due-date-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
