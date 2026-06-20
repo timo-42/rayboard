@@ -2171,6 +2171,24 @@ p {
   overflow-wrap: anywhere;
 }
 
+.backlog-sprint-workloads {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.backlog-sprint-workloads span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .backlog-item {
   min-width: 0;
   display: grid;
