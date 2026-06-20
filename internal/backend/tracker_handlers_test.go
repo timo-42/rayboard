@@ -440,6 +440,63 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected roadmap labels: %#v", roadmapBody.Status.Items[0].Spec.Epic.Spec.Labels)
 	}
 
+	setRoadmapCapacityTargetReq := httptest.NewRequest(http.MethodPut, "/api/projects/"+project.ID+"/roadmap/capacity-targets/2026-07", mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"target_points": 21.5,
+		},
+	}))
+	addSessionCSRF(setRoadmapCapacityTargetReq, session, csrf)
+	setRoadmapCapacityTarget := httptest.NewRecorder()
+	handler.ServeHTTP(setRoadmapCapacityTarget, setRoadmapCapacityTargetReq)
+	if setRoadmapCapacityTarget.Code != http.StatusOK {
+		t.Fatalf("expected set roadmap capacity target status 200, got %d: %s", setRoadmapCapacityTarget.Code, setRoadmapCapacityTarget.Body.String())
+	}
+	var setRoadmapCapacityTargetBody struct {
+		Metadata struct {
+			ProjectID string `json:"project_id"`
+			Month     string `json:"month"`
+		} `json:"metadata"`
+		Spec struct {
+			Month        string  `json:"month"`
+			TargetPoints float64 `json:"target_points"`
+		} `json:"spec"`
+		Status struct {
+			Deleted bool `json:"deleted"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(setRoadmapCapacityTarget.Body.Bytes(), &setRoadmapCapacityTargetBody); err != nil {
+		t.Fatalf("decode set roadmap capacity target: %v", err)
+	}
+	if setRoadmapCapacityTargetBody.Metadata.ProjectID != project.ID || setRoadmapCapacityTargetBody.Metadata.Month != "2026-07" || setRoadmapCapacityTargetBody.Spec.TargetPoints != 21.5 || setRoadmapCapacityTargetBody.Status.Deleted {
+		t.Fatalf("unexpected set roadmap capacity target body: %#v", setRoadmapCapacityTargetBody)
+	}
+
+	roadmapCapacityTargetsReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+project.ID+"/roadmap/capacity-targets", nil)
+	roadmapCapacityTargetsReq.AddCookie(session)
+	roadmapCapacityTargets := httptest.NewRecorder()
+	handler.ServeHTTP(roadmapCapacityTargets, roadmapCapacityTargetsReq)
+	if roadmapCapacityTargets.Code != http.StatusOK {
+		t.Fatalf("expected roadmap capacity targets status 200, got %d: %s", roadmapCapacityTargets.Code, roadmapCapacityTargets.Body.String())
+	}
+	var roadmapCapacityTargetsBody struct {
+		Status struct {
+			Items []struct {
+				Metadata struct {
+					Month string `json:"month"`
+				} `json:"metadata"`
+				Spec struct {
+					TargetPoints float64 `json:"target_points"`
+				} `json:"spec"`
+			} `json:"items"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(roadmapCapacityTargets.Body.Bytes(), &roadmapCapacityTargetsBody); err != nil {
+		t.Fatalf("decode roadmap capacity targets: %v", err)
+	}
+	if len(roadmapCapacityTargetsBody.Status.Items) != 1 || roadmapCapacityTargetsBody.Status.Items[0].Metadata.Month != "2026-07" || roadmapCapacityTargetsBody.Status.Items[0].Spec.TargetPoints != 21.5 {
+		t.Fatalf("unexpected roadmap capacity targets body: %#v", roadmapCapacityTargetsBody.Status.Items)
+	}
+
 	scheduleRoadmapReq := httptest.NewRequest(http.MethodPatch, "/api/projects/"+project.ID+"/roadmap/schedule", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"ticket_id":  epic.ID,

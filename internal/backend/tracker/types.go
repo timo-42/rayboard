@@ -193,6 +193,19 @@ type RoadmapScheduleInput struct {
 	DueDate   string `json:"due_date,omitempty"`
 }
 
+type RoadmapCapacityTarget struct {
+	ProjectID    string    `json:"project_id"`
+	Month        string    `json:"month"`
+	TargetPoints float64   `json:"target_points"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type RoadmapCapacityTargetInput struct {
+	Month        string  `json:"month,omitempty"`
+	TargetPoints float64 `json:"target_points,omitempty"`
+}
+
 type RoadmapProgress struct {
 	Total    int            `json:"total"`
 	Done     int            `json:"done"`
