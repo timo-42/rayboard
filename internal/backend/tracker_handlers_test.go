@@ -619,6 +619,22 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("unexpected component: %#v", component)
 	}
 
+	sprintComponentUpdateReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+ticket.ID, mustJSON(t, map[string]any{
+		"spec": map[string]any{
+			"component_id": component.ID,
+		},
+	}))
+	addSessionCSRF(sprintComponentUpdateReq, session, csrf)
+	sprintComponentUpdate := httptest.NewRecorder()
+	handler.ServeHTTP(sprintComponentUpdate, sprintComponentUpdateReq)
+	if sprintComponentUpdate.Code != http.StatusOK {
+		t.Fatalf("expected sprint component ticket update status 200, got %d: %s", sprintComponentUpdate.Code, sprintComponentUpdate.Body.String())
+	}
+	componentTicket := decodeTicketResourceAsTracker(t, sprintComponentUpdate.Body.Bytes())
+	if componentTicket.ComponentID != component.ID {
+		t.Fatalf("unexpected sprint component ticket: %#v", componentTicket)
+	}
+
 	createVersionReq := httptest.NewRequest(http.MethodPost, "/api/projects/"+project.ID+"/versions", mustJSON(t, map[string]any{
 		"spec": map[string]any{
 			"name":        "1.0",
@@ -857,7 +873,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		len(activeReportBody.Status.Tickets) != 1 ||
 		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID ||
 		activeReportBody.Status.Tickets[0].Spec.Priority != "high" ||
-		activeReportBody.Status.Tickets[0].Spec.Type != "bug" {
+		activeReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		activeReportBody.Status.Tickets[0].Spec.ComponentID != component.ID {
 		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
 	}
 
@@ -901,7 +918,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		len(completedReportBody.Status.Tickets) != 1 ||
 		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
 		completedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
-		completedReportBody.Status.Tickets[0].Spec.Type != "bug" {
+		completedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		completedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
 	}
 
@@ -932,7 +950,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		len(committedReportBody.Status.Tickets) != 1 ||
 		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
 		committedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
-		committedReportBody.Status.Tickets[0].Spec.Type != "bug" {
+		committedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		committedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID {
 		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
 	}
 
