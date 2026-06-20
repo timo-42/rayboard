@@ -7195,7 +7195,7 @@ function customFieldLayoutOverviewNode(fields) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types));
+  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights));
   return section;
 }
 
@@ -7222,6 +7222,7 @@ function customFieldTypeBreakdownNode(types) {
 function customFieldLayoutSummary(fields) {
   const list = Array.isArray(fields) ? fields : [];
   const types = new Map();
+  const insights = customFieldRequirementInsights(list);
   let required = 0;
   for (const field of list) {
     if (field.required) {
@@ -7236,8 +7237,77 @@ function customFieldLayoutSummary(fields) {
     optional: Math.max(list.length - required, 0),
     types: Array.from(types.entries())
       .map(([type, count]) => ({ type, count }))
-      .sort((left, right) => left.type.localeCompare(right.type))
+      .sort((left, right) => left.type.localeCompare(right.type)),
+    insights
   };
+}
+
+function customFieldRequirementInsights(fields) {
+  const list = Array.isArray(fields) ? fields : [];
+  const summary = {
+    required: 0,
+    optional: 0,
+    select_with_options: 0,
+    select_without_options: 0,
+    search_ready: 0,
+    configuration_attention: 0
+  };
+  for (const field of list) {
+    if (field && field.required) {
+      summary.required += 1;
+    } else {
+      summary.optional += 1;
+    }
+    const type = field && field.field_type ? field.field_type : "text";
+    const options = Array.isArray(field && field.options) ? field.options.filter((option) => String(option || "").trim()) : [];
+    if (["single_select", "multi_select"].includes(type)) {
+      if (options.length) {
+        summary.select_with_options += 1;
+      } else {
+        summary.select_without_options += 1;
+      }
+    }
+    if (field && field.key && customFieldSearchReadyTypes().has(type)) {
+      summary.search_ready += 1;
+    }
+  }
+  summary.configuration_attention = summary.select_without_options;
+  return summary;
+}
+
+function customFieldSearchReadyTypes() {
+  return new Set(["text", "number", "boolean", "date", "single_select", "user"]);
+}
+
+function customFieldRequirementInsightsNode(insights) {
+  const group = document.createElement("div");
+  group.className = "field-requirement-insights";
+
+  const label = document.createElement("strong");
+  label.textContent = "Requirements";
+
+  const chips = document.createElement("div");
+  chips.className = "field-requirement-chips";
+  for (const item of customFieldRequirementInsightItems(insights)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function customFieldRequirementInsightItems(insights) {
+  const summary = insights || {};
+  return [
+    `required: ${Number(summary.required) || 0}`,
+    `optional: ${Number(summary.optional) || 0}`,
+    `selects configured: ${Number(summary.select_with_options) || 0}`,
+    `selects missing options: ${Number(summary.select_without_options) || 0}`,
+    `search-ready: ${Number(summary.search_ready) || 0}`,
+    `needs attention: ${Number(summary.configuration_attention) || 0}`
+  ];
 }
 
 function customFieldNode(field) {
@@ -15284,6 +15354,9 @@ if (typeof module !== "undefined" && module.exports) {
     boardCapacityOverviewLabel,
     boardColumnTicketCount,
     boardSummaryMetrics,
+    customFieldLayoutSummary,
+    customFieldRequirementInsights,
+    customFieldRequirementInsightItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
