@@ -1367,6 +1367,17 @@ func TestVersionReportUpdateFreshness(t *testing.T) {
 	}
 }
 
+func TestVersionReportReadinessSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_readiness_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version readiness summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1478,6 +1489,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportAgeBreakdown",
 		"versionReportUpdateFreshnessNode",
 		"versionReportUpdateFreshness",
+		"versionReportReadinessSummaryNode",
+		"versionReportReadinessSummary",
 		"versionReportPriorityBreakdownNode",
 		"versionReportPriorityBreakdown",
 		"versionReportTypeBreakdownNode",
@@ -1498,6 +1511,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Update freshness",
 		"No update data",
 		"No update date",
+		"Readiness summary",
+		"No readiness data",
+		"Missing estimate",
 		"Estimate coverage",
 		"No release tickets",
 		"Priority breakdown",
@@ -1572,6 +1588,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-age-list",
 		".version-report-updates",
 		".version-report-update-list",
+		".version-report-readiness",
+		".version-report-readiness-list",
 		".version-report-types",
 		".version-report-priorities",
 		".version-report-labels",
