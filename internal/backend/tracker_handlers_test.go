@@ -855,7 +855,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		activeReportBody.Status.Analytics.Velocity.Unit != "tickets" ||
 		len(activeReportBody.Status.Tickets) != 1 ||
-		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID {
+		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID ||
+		activeReportBody.Status.Tickets[0].Spec.Priority != "high" {
 		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
 	}
 
@@ -897,7 +898,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		completedReportBody.Status.ScopeChanges.Snapshot != 1 ||
 		completedReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		len(completedReportBody.Status.Tickets) != 1 ||
-		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
+		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
+		completedReportBody.Status.Tickets[0].Spec.Priority != "high" {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
 	}
 
@@ -926,7 +928,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		committedReportBody.Status.ScopeChanges.Snapshot != 1 ||
 		committedReportBody.Status.ScopeChanges.Removed != 1 ||
 		len(committedReportBody.Status.Tickets) != 1 ||
-		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
+		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
+		committedReportBody.Status.Tickets[0].Spec.Priority != "high" {
 		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
 	}
 
