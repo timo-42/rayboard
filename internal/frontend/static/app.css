@@ -1226,12 +1226,27 @@ p {
   padding: 8px;
 }
 
+.board-priority-breakdown {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
 .board-capacity-overview strong {
   color: var(--heading);
   font-size: 12px;
 }
 
 .board-flow-balance strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.board-priority-breakdown strong {
   color: var(--heading);
   font-size: 12px;
 }
@@ -1243,6 +1258,12 @@ p {
 }
 
 .board-flow-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-priority-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1260,6 +1281,17 @@ p {
 }
 
 .board-flow-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
+.board-priority-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);

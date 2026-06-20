@@ -35,6 +35,7 @@ const {
   boardColumnTicketCount,
   boardFlowBalance,
   boardFlowBalanceItems,
+  boardPriorityBreakdown,
   boardRiskOverview,
   boardRiskOverviewLabel,
   boardSummaryMetrics
@@ -58,7 +59,8 @@ const columns = [
       { id: "c", status: "blocked", priority: "Medium", due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
       { id: "d", status: "in_progress", priority: "Critical", due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
       { id: "e", status: "in_progress", priority: "Low", due_date: "", updated_at: "2026-06-20T09:00:00Z" },
-      { id: "f", status: "done", priority: "Critical", due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" }
+      { id: "f", status: "done", priority: "Critical", due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" },
+      { id: "g", status: "in_progress", priority: "", due_date: "", updated_at: "2026-06-20T09:00:00Z" }
     ],
     wip_limit: 3
   },
@@ -84,7 +86,7 @@ const columns = [
 ];
 
 assert.strictEqual(boardColumnTicketCount(columns[0]), 2);
-assert.strictEqual(boardColumnTicketCount(columns[1]), 4);
+assert.strictEqual(boardColumnTicketCount(columns[1]), 5);
 assert.strictEqual(boardColumnTicketCount({}), 0);
 
 assert.deepStrictEqual(boardCapacityOverview(columns), [
@@ -100,11 +102,11 @@ assert.deepStrictEqual(boardCapacityOverview(columns), [
   {
     slug: "doing",
     name: "Doing",
-    ticket_count: 4,
+    ticket_count: 5,
     wip_limit: 3,
     status: "over_limit",
     remaining: 0,
-    overage: 1
+    overage: 2
   },
   {
     slug: "done",
@@ -138,11 +140,12 @@ assert.deepStrictEqual(boardCapacityOverview(columns), [
 assert.deepStrictEqual(
   boardSummaryMetrics({ filtered_by_saved_view: true, columns }, []),
   {
-    total_tickets: 16,
+    total_tickets: 17,
     column_count: 5,
     wip_warnings: 1,
     saved_view_filter: "filtered",
     flow_balance: boardFlowBalance(columns),
+    priorities: boardPriorityBreakdown(columns),
     capacity: boardCapacityOverview(columns),
     risks: boardRiskOverview(columns)
   }
@@ -168,6 +171,9 @@ assert.deepStrictEqual(
         over_limit: false
       }
     },
+    priorities: [
+      { label: "No priority", count: 1 }
+    ],
     capacity: [
       {
         slug: "todo",
@@ -184,7 +190,7 @@ assert.deepStrictEqual(
 );
 
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[0]), "To Do: 2/5, 3 remaining");
-assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[1]), "Doing: 4/3, 1 over limit");
+assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[1]), "Doing: 5/3, 2 over limit");
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[2]), "Done: 7, unlimited");
 
 assert.deepStrictEqual(boardFlowBalance(columns), {
@@ -213,6 +219,15 @@ assert.deepStrictEqual(boardFlowBalanceItems(boardFlowBalance(null)), [
   "over WIP limit: 0",
   "bottleneck: none"
 ]);
+
+assert.deepStrictEqual(boardPriorityBreakdown(columns), [
+  { label: "Critical", count: 2 },
+  { label: "Low", count: 2 },
+  { label: "High", count: 1 },
+  { label: "Medium", count: 1 },
+  { label: "No priority", count: 1 }
+]);
+assert.deepStrictEqual(boardPriorityBreakdown(null), []);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {

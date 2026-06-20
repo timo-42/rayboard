@@ -13767,6 +13767,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardSummaryMetricNode("WIP warnings", metrics.wip_warnings),
     boardSummaryMetricNode("Saved view", metrics.saved_view_filter),
     boardFlowBalanceNode(metrics.flow_balance),
+    boardPriorityBreakdownNode(metrics.priorities, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13783,6 +13784,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     wip_warnings: capacity.filter((item) => item.status === "over_limit").length,
     saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets",
     flow_balance: boardFlowBalance(boardColumns),
+    priorities: boardPriorityBreakdown(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -13853,6 +13855,55 @@ function boardFlowBalanceItems(flowBalance) {
     `over WIP limit: ${Number(balance.over_limit_columns) || 0}`,
     bottleneck ? `bottleneck: ${bottleneck.name} (${bottleneck.ticket_count})` : "bottleneck: none"
   ];
+}
+
+function boardPriorityBreakdown(columns) {
+  const counts = new Map();
+  for (const column of Array.isArray(columns) ? columns : []) {
+    for (const ticket of Array.isArray(column && column.tickets) ? column.tickets : []) {
+      const label = String(ticket && ticket.priority ? ticket.priority : "").trim() || "No priority";
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (left.label === "No priority" && right.label !== "No priority") {
+        return 1;
+      }
+      if (right.label === "No priority" && left.label !== "No priority") {
+        return -1;
+      }
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function boardPriorityBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-priority-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Priorities (filtered saved view)" : "Priorities";
+
+  const chips = document.createElement("div");
+  chips.className = "board-priority-chips";
+  const priorities = Array.isArray(items) ? items : [];
+  if (!priorities.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No priority data";
+    chips.append(chip);
+  }
+  for (const item of priorities) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
 }
 
 function boardCapacityOverview(columns) {
@@ -16836,6 +16887,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardRiskOverviewLabel,
     boardFlowBalance,
     boardFlowBalanceItems,
+    boardPriorityBreakdown,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
