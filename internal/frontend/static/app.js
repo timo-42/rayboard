@@ -7407,6 +7407,78 @@ function versionReporterSummaryItems(summary) {
   }));
 }
 
+function versionDueDateSummary(tickets, versionID, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const summary = {
+    total: 0,
+    with_due_date: 0,
+    missing_due_date: 0,
+    open_overdue: 0,
+    due_today: 0,
+    future_due: 0
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    summary.total += 1;
+    const due = dateToUTC(ticket.due_date);
+    if (!due) {
+      summary.missing_due_date += 1;
+      continue;
+    }
+    summary.with_due_date += 1;
+    const days = daysBetween(today, due);
+    if (days < 0 && ticket.status !== "done") {
+      summary.open_overdue += 1;
+    } else if (days === 0) {
+      summary.due_today += 1;
+    } else if (days > 0) {
+      summary.future_due += 1;
+    }
+  }
+  return summary;
+}
+
+function versionDueDateSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-due-date-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket due dates";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-due-date-chips";
+  for (const item of versionDueDateSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionDueDateSummaryItems(summary) {
+  const data = summary || {};
+  return [
+    `total: ${Number(data.total) || 0}`,
+    `with due date: ${Number(data.with_due_date) || 0}`,
+    `missing due date: ${Number(data.missing_due_date) || 0}`,
+    `open overdue: ${Number(data.open_overdue) || 0}`,
+    `due today: ${Number(data.due_today) || 0}`,
+    `future due: ${Number(data.future_due) || 0}`
+  ];
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8961,7 +9033,8 @@ function versionNode(version, tickets = state.tickets) {
     versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id)),
     versionLabelSummaryNode(versionLabelSummary(tickets, version.id)),
     versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id)),
-    versionReporterSummaryNode(versionReporterSummary(tickets, version.id))
+    versionReporterSummaryNode(versionReporterSummary(tickets, version.id)),
+    versionDueDateSummaryNode(versionDueDateSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18586,6 +18659,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionAssigneeSummaryItems,
     versionReporterSummary,
     versionReporterSummaryItems,
+    versionDueDateSummary,
+    versionDueDateSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

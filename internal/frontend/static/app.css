@@ -3752,7 +3752,8 @@ p {
 .version-issue-type-summary,
 .version-label-summary,
 .version-assignee-summary,
-.version-reporter-summary {
+.version-reporter-summary,
+.version-due-date-summary {
   display: grid;
   gap: 5px;
 }
@@ -3763,7 +3764,8 @@ p {
 .version-issue-type-summary strong,
 .version-label-summary strong,
 .version-assignee-summary strong,
-.version-reporter-summary strong {
+.version-reporter-summary strong,
+.version-due-date-summary strong {
   color: var(--heading);
   font-size: 12px;
 }
@@ -3774,7 +3776,8 @@ p {
 .version-issue-type-chips,
 .version-label-chips,
 .version-assignee-chips,
-.version-reporter-chips {
+.version-reporter-chips,
+.version-due-date-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -3786,7 +3789,8 @@ p {
 .version-issue-type-chips span,
 .version-label-chips span,
 .version-assignee-chips span,
-.version-reporter-chips span {
+.version-reporter-chips span,
+.version-due-date-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
