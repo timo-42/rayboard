@@ -4910,6 +4910,7 @@ function renderSprintReport() {
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const estimateCoverage = sprintReportEstimateCoverageNode(progress);
+  const components = sprintReportComponentNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4929,7 +4930,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, estimateCoverage, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, estimateCoverage, components, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5237,6 +5238,87 @@ function sprintReportEstimateCoverage(progress) {
       { label: "Unestimated", count: unestimated }
     ]
   };
+}
+
+function sprintReportComponentNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-components";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Component breakdown";
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-component-list";
+  const components = sprintReportComponents(tickets);
+  if (!components.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No component assignments";
+    list.append(empty);
+  } else {
+    for (const component of components) {
+      list.append(sprintReportComponentItemNode(component));
+    }
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function sprintReportComponents(tickets) {
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const id = ticket.component_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? componentName(id) : "No component",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.id && right.id) {
+      return 1;
+    }
+    if (left.id && !right.id) {
+      return -1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function sprintReportComponentItemNode(component) {
+  const item = document.createElement("article");
+  item.className = component.id ? "sprint-report-component" : "sprint-report-component is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = component.name;
+  const meta = document.createElement("small");
+  const pointText = component.story_points_total > 0
+    ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
+    : `${component.unestimated} unestimated`;
+  meta.textContent = `${component.done}/${component.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
 }
 
 function sprintReportAssigneeWorkloads(tickets) {
@@ -13280,6 +13362,7 @@ if (typeof module !== "undefined" && module.exports) {
     dateRange,
     dateToUTC,
     daysBetween,
+    sprintReportComponents,
     sprintReportHealth,
     sprintReportHealthDates,
     sprintReportEstimateCoverage,
