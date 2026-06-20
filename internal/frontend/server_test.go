@@ -1323,6 +1323,17 @@ func TestVersionReportComponentBreakdown(t *testing.T) {
 	}
 }
 
+func TestVersionReportLabelBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_label_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version label breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportScopeChanges(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1397,6 +1408,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportBreakdownNode",
 		"versionReportComponentNode",
 		"versionReportComponents",
+		"versionReportLabelBreakdownNode",
+		"versionReportLabelBreakdown",
 		"versionReportAssigneeWorkloadsNode",
 		"versionReportAssigneeWorkloads",
 		"versionReportAssigneeItemNode",
@@ -1409,6 +1422,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"No release tickets",
 		"Priority breakdown",
 		"Issue type breakdown",
+		"Label breakdown",
+		"No label data",
 		"No issue type",
 		"No priority",
 		"Unassigned",
@@ -1469,6 +1484,7 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-assignee-list",
 		".version-report-types",
 		".version-report-priorities",
+		".version-report-labels",
 		".version-report-breakdown",
 		".version-report-component",
 		".component-edit-form",
