@@ -49,6 +49,7 @@ func TestIndex(t *testing.T) {
 		!strings.Contains(body, `id="notification-policies"`) ||
 		!strings.Contains(body, `id="notification-hook-form"`) ||
 		!strings.Contains(body, `id="notification-hooks"`) ||
+		!strings.Contains(body, `id="notification-hook-preview-summary"`) ||
 		!strings.Contains(body, `id="notification-hook-preview-output"`) ||
 		!strings.Contains(body, `id="project-preference-form"`) ||
 		!strings.Contains(body, `id="notification-delivery-form"`) ||
@@ -227,6 +228,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderNotificationHookPreviewDestinationOptions",
 		"applyNotificationHookPreviewPolicy",
 		"notificationHookPreviewDisplay",
+		"notificationHookPreviewSummary",
+		"notificationHookPreviewSummaryItems",
+		"notification-hook-preview-summary",
 		"els.notificationPolicyScope.value === \"project\" ? selectedNotificationPolicyProjectID() : \"\"",
 		"els.notificationHookScope.value === \"project\" ? selectedNotificationHookProjectID() : \"\"",
 		"availableNotificationDestinations",
@@ -499,6 +503,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-hook-preview-form select[multiple]",
 		".notification-hook-list",
 		".notification-hook-preview",
+		".notification-hook-preview-summary",
 		".notification-admin-card",
 		".notification-delivery-form",
 		".notification-delivery-summary",
@@ -603,6 +608,17 @@ func TestNotificationDeliveryAnalytics(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("notification delivery analytics node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestNotificationHookPreviewSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "notification_hook_preview_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("notification hook preview summary node test failed: %v\n%s", err, output)
 	}
 }
 
