@@ -13772,6 +13772,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
     boardComponentBreakdownNode(metrics.components, boardTickets && boardTickets.filtered_by_saved_view),
+    boardVersionBreakdownNode(metrics.versions, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
@@ -13796,6 +13797,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     issue_types: boardIssueTypeBreakdown(boardColumns),
     labels: boardLabelBreakdown(boardColumns),
     components: boardComponentBreakdown(boardColumns),
+    versions: boardVersionBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
     reporters: boardReporterBreakdown(boardColumns),
     estimate_coverage: boardEstimateCoverage(boardColumns),
@@ -14056,6 +14058,50 @@ function boardComponentBreakdownNode(items, filtered) {
       ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
       : `${component.unestimated} unestimated`;
     chip.textContent = `${component.label}: ${component.done}/${component.count} done / ${pointText}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardVersionBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportVersions(tickets).map((version) => ({
+    id: version.id,
+    label: version.name,
+    count: version.total,
+    done: version.done,
+    story_points_total: version.story_points_total,
+    story_points_done: version.story_points_done,
+    unestimated: version.unestimated
+  }));
+}
+
+function boardVersionBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-version-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Versions (filtered saved view)" : "Versions";
+
+  const chips = document.createElement("div");
+  chips.className = "board-version-chips";
+  const versions = Array.isArray(items) ? items : [];
+  if (!versions.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No version data";
+    chips.append(chip);
+  }
+  for (const version of versions) {
+    const chip = document.createElement("span");
+    const pointText = version.story_points_total > 0
+      ? `${formatStoryPoints(version.story_points_done)}/${formatStoryPoints(version.story_points_total)} pts`
+      : `${version.unestimated} unestimated`;
+    chip.textContent = `${version.label}: ${version.done}/${version.count} done / ${pointText}`;
     chips.append(chip);
   }
 
@@ -17156,6 +17202,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardIssueTypeBreakdown,
     boardLabelBreakdown,
     boardComponentBreakdown,
+    boardVersionBreakdown,
     boardAssigneeWorkloads,
     boardReporterBreakdown,
     boardEstimateCoverage,

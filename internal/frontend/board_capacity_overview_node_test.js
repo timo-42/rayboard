@@ -45,7 +45,8 @@ const {
   boardReporterBreakdown,
   boardRiskOverview,
   boardRiskOverviewLabel,
-  boardSummaryMetrics
+  boardSummaryMetrics,
+  boardVersionBreakdown
 } = require("./static/app.js");
 
 const columns = [
@@ -55,18 +56,18 @@ const columns = [
     ticket_count: 2,
     wip_limit: 5,
     tickets: [
-      { id: "a", status: "todo", reporter_id: "pat", assignee_id: "alice", component_id: "api", story_points: 3, type: "Bug", priority: "High", labels: ["backend", "urgent"], due_date: "2026-06-18", updated_at: "2026-06-10T09:00:00Z" },
-      { id: "b", status: "todo", reporter_id: "quinn", assignee_id: "bob", component_id: "ui", story_points: 5, type: "Story", priority: "Low", labels: ["frontend"], due_date: "2026-06-25", updated_at: "2026-06-20T09:00:00Z" }
+      { id: "a", status: "todo", reporter_id: "pat", assignee_id: "alice", component_id: "api", version_id: "v1", story_points: 3, type: "Bug", priority: "High", labels: ["backend", "urgent"], due_date: "2026-06-18", updated_at: "2026-06-10T09:00:00Z" },
+      { id: "b", status: "todo", reporter_id: "quinn", assignee_id: "bob", component_id: "ui", version_id: "v2", story_points: 5, type: "Story", priority: "Low", labels: ["frontend"], due_date: "2026-06-25", updated_at: "2026-06-20T09:00:00Z" }
     ]
   },
   {
     slug: "doing",
     name: "Doing",
     tickets: [
-      { id: "c", status: "blocked", reporter_id: "pat", assignee_id: "alice", component_id: "api", story_points: 2, type: "Bug", priority: "Medium", labels: ["backend"], due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
-      { id: "d", status: "in_progress", reporter_id: "quinn", assignee_id: "bob", component_id: "ui", story_points: "", type: "Task", priority: "Critical", labels: ["urgent"], due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
+      { id: "c", status: "blocked", reporter_id: "pat", assignee_id: "alice", component_id: "api", version_id: "v1", story_points: 2, type: "Bug", priority: "Medium", labels: ["backend"], due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
+      { id: "d", status: "in_progress", reporter_id: "quinn", assignee_id: "bob", component_id: "ui", version_id: "v2", story_points: "", type: "Task", priority: "Critical", labels: ["urgent"], due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
       { id: "e", status: "in_progress", reporter_id: "", assignee_id: "", story_points: 1, type: "", priority: "Low", labels: [], due_date: "", updated_at: "2026-06-20T09:00:00Z" },
-      { id: "f", status: "done", reporter_id: "pat", assignee_id: "alice", component_id: "api", story_points: 8, type: "Bug", priority: "Critical", labels: ["backend", "frontend"], due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" },
+      { id: "f", status: "done", reporter_id: "pat", assignee_id: "alice", component_id: "api", version_id: "v1", story_points: 8, type: "Bug", priority: "Critical", labels: ["backend", "frontend"], due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" },
       { id: "g", status: "in_progress", reporter_id: "", assignee_id: "", story_points: null, type: "Story", priority: "", labels: [], due_date: "", updated_at: "2026-06-20T09:00:00Z" }
     ],
     wip_limit: 3
@@ -157,6 +158,7 @@ assert.deepStrictEqual(
     issue_types: boardIssueTypeBreakdown(columns),
     labels: boardLabelBreakdown(columns),
     components: boardComponentBreakdown(columns),
+    versions: boardVersionBreakdown(columns),
     assignee_workloads: boardAssigneeWorkloads(columns),
     reporters: boardReporterBreakdown(columns),
     estimate_coverage: boardEstimateCoverage(columns),
@@ -201,6 +203,17 @@ assert.deepStrictEqual(
       {
         id: "",
         label: "No component",
+        count: 1,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 1
+      }
+    ],
+    versions: [
+      {
+        id: "",
+        label: "No version",
         count: 1,
         done: 0,
         story_points_total: 0,
@@ -326,6 +339,37 @@ assert.deepStrictEqual(boardComponentBreakdown(columns), [
   }
 ]);
 assert.deepStrictEqual(boardComponentBreakdown(null), []);
+
+assert.deepStrictEqual(boardVersionBreakdown(columns), [
+  {
+    id: "v1",
+    label: "v1",
+    count: 3,
+    done: 1,
+    story_points_total: 13,
+    story_points_done: 8,
+    unestimated: 0
+  },
+  {
+    id: "v2",
+    label: "v2",
+    count: 2,
+    done: 0,
+    story_points_total: 5,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "",
+    label: "No version",
+    count: 2,
+    done: 0,
+    story_points_total: 1,
+    story_points_done: 0,
+    unestimated: 1
+  }
+]);
+assert.deepStrictEqual(boardVersionBreakdown(null), []);
 
 assert.deepStrictEqual(boardAssigneeWorkloads(columns), [
   { key: "alice", label: "assignee alice", tickets: 3, story_points: 13, has_story_points: true },
