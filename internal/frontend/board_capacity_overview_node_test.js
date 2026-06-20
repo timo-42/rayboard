@@ -36,6 +36,7 @@ const {
   boardDueDateBreakdown,
   boardFlowBalance,
   boardFlowBalanceItems,
+  boardIssueTypeBreakdown,
   boardPriorityBreakdown,
   boardRiskOverview,
   boardRiskOverviewLabel,
@@ -49,19 +50,19 @@ const columns = [
     ticket_count: 2,
     wip_limit: 5,
     tickets: [
-      { id: "a", status: "todo", priority: "High", due_date: "2026-06-18", updated_at: "2026-06-10T09:00:00Z" },
-      { id: "b", status: "todo", priority: "Low", due_date: "2026-06-25", updated_at: "2026-06-20T09:00:00Z" }
+      { id: "a", status: "todo", type: "Bug", priority: "High", due_date: "2026-06-18", updated_at: "2026-06-10T09:00:00Z" },
+      { id: "b", status: "todo", type: "Story", priority: "Low", due_date: "2026-06-25", updated_at: "2026-06-20T09:00:00Z" }
     ]
   },
   {
     slug: "doing",
     name: "Doing",
     tickets: [
-      { id: "c", status: "blocked", priority: "Medium", due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
-      { id: "d", status: "in_progress", priority: "Critical", due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
-      { id: "e", status: "in_progress", priority: "Low", due_date: "", updated_at: "2026-06-20T09:00:00Z" },
-      { id: "f", status: "done", priority: "Critical", due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" },
-      { id: "g", status: "in_progress", priority: "", due_date: "", updated_at: "2026-06-20T09:00:00Z" }
+      { id: "c", status: "blocked", type: "Bug", priority: "Medium", due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
+      { id: "d", status: "in_progress", type: "Task", priority: "Critical", due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
+      { id: "e", status: "in_progress", type: "", priority: "Low", due_date: "", updated_at: "2026-06-20T09:00:00Z" },
+      { id: "f", status: "done", type: "Bug", priority: "Critical", due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" },
+      { id: "g", status: "in_progress", type: "Story", priority: "", due_date: "", updated_at: "2026-06-20T09:00:00Z" }
     ],
     wip_limit: 3
   },
@@ -148,6 +149,7 @@ assert.deepStrictEqual(
     flow_balance: boardFlowBalance(columns),
     priorities: boardPriorityBreakdown(columns),
     due_dates: boardDueDateBreakdown(columns),
+    issue_types: boardIssueTypeBreakdown(columns),
     capacity: boardCapacityOverview(columns),
     risks: boardRiskOverview(columns)
   }
@@ -178,6 +180,9 @@ assert.deepStrictEqual(
     ],
     due_dates: [
       { key: "none", label: "No due date", count: 1 }
+    ],
+    issue_types: [
+      { label: "No issue type", count: 1 }
     ],
     capacity: [
       {
@@ -240,6 +245,14 @@ assert.deepStrictEqual(boardDueDateBreakdown(columns, "2026-06-20"), [
   { key: "none", label: "No due date", count: 2 }
 ]);
 assert.deepStrictEqual(boardDueDateBreakdown(null, "2026-06-20"), []);
+
+assert.deepStrictEqual(boardIssueTypeBreakdown(columns), [
+  { label: "Bug", count: 3 },
+  { label: "Story", count: 2 },
+  { label: "No issue type", count: 1 },
+  { label: "Task", count: 1 }
+]);
+assert.deepStrictEqual(boardIssueTypeBreakdown(null), []);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {
