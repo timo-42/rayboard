@@ -13367,7 +13367,8 @@ function boardSummaryNode(boardTickets, columns) {
     boardSummaryMetricNode("Columns", metrics.column_count),
     boardSummaryMetricNode("WIP warnings", metrics.wip_warnings),
     boardSummaryMetricNode("Saved view", metrics.saved_view_filter),
-    boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view)
+    boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
+    boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
   return section;
 }
@@ -13381,7 +13382,8 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     column_count: boardColumns.length,
     wip_warnings: capacity.filter((item) => item.status === "over_limit").length,
     saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets",
-    capacity
+    capacity,
+    risks: boardRiskOverview(boardColumns)
   };
 }
 
@@ -13459,6 +13461,88 @@ function boardCapacityOverviewLabel(item) {
     return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.overage} over limit`;
   }
   return `${name}: ${item.ticket_count}/${item.wip_limit}, ${item.remaining} remaining`;
+}
+
+function boardRiskOverview(columns, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const boardColumns = Array.isArray(columns) ? columns : [];
+  return boardColumns
+    .map((column) => {
+      const risks = {
+        blocked: 0,
+        overdue: 0,
+        stale: 0,
+        high_priority: 0
+      };
+      for (const ticket of Array.isArray(column && column.tickets) ? column.tickets : []) {
+        if (sprintReportTicketDone(ticket)) {
+          continue;
+        }
+        const due = dateToUTC(ticket.due_date);
+        if (due && daysBetween(today, due) < 0) {
+          risks.overdue += 1;
+        }
+        const updated = sprintReportUpdatedDate(ticket.updated_at);
+        if (updated && daysBetween(updated, today) > 7) {
+          risks.stale += 1;
+        }
+        if (sprintReportBlockedLikeStatus(ticket.status)) {
+          risks.blocked += 1;
+        }
+        if (sprintReportHighPriority(ticket.priority)) {
+          risks.high_priority += 1;
+        }
+      }
+      const total = risks.blocked + risks.overdue + risks.stale + risks.high_priority;
+      return {
+        slug: column && column.slug ? column.slug : "",
+        name: column && column.name ? column.name : statusName(column && column.slug ? column.slug : ""),
+        ...risks,
+        total
+      };
+    })
+    .filter((item) => item.total > 0)
+    .sort((left, right) => {
+      if (right.total !== left.total) {
+        return right.total - left.total;
+      }
+      return left.name.localeCompare(right.name);
+    });
+}
+
+function boardRiskOverviewNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-risk-overview";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Risk signals (filtered saved view)" : "Risk signals";
+
+  const chips = document.createElement("div");
+  chips.className = "board-risk-chips";
+  const risks = Array.isArray(items) ? items : [];
+  if (!risks.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No active board risk signals";
+    chips.append(chip);
+  }
+  for (const item of risks) {
+    const chip = document.createElement("span");
+    chip.textContent = boardRiskOverviewLabel(item);
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardRiskOverviewLabel(item) {
+  const parts = [
+    item.blocked ? `${item.blocked} blocked` : "",
+    item.overdue ? `${item.overdue} overdue` : "",
+    item.stale ? `${item.stale} stale` : "",
+    item.high_priority ? `${item.high_priority} high priority` : ""
+  ].filter(Boolean);
+  return `${item.name || item.slug || "Column"}: ${parts.join(", ")}`;
 }
 
 function ticketColumnNode(column) {
@@ -16289,6 +16373,8 @@ if (typeof module !== "undefined" && module.exports) {
     savedViewConfigurationInsightItems,
     boardCapacityOverview,
     boardCapacityOverviewLabel,
+    boardRiskOverview,
+    boardRiskOverviewLabel,
     boardColumnTicketCount,
     boardSummaryMetrics,
     customFieldLayoutSummary,
