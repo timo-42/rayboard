@@ -5116,31 +5116,40 @@ function sprintReportScopeChangeItems(scopeChanges) {
   ];
 }
 
-function sprintReportStatusBreakdownNode(progress) {
+function sprintReportChipSectionNode({ sectionClass, headingText, listClass, items, emptyText }) {
   const section = document.createElement("section");
-  section.className = "sprint-report-statuses";
+  section.className = sectionClass;
 
   const heading = document.createElement("h4");
-  heading.textContent = "Status breakdown";
+  heading.textContent = headingText;
   section.append(heading);
 
   const list = document.createElement("div");
-  list.className = "sprint-report-status-list";
-  const statuses = sprintReportStatusBreakdown(progress);
-  if (!statuses.length) {
+  list.className = listClass;
+  if (!items.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
-    empty.textContent = "No status data";
+    empty.textContent = emptyText;
     list.append(empty);
   } else {
-    for (const status of statuses) {
+    for (const itemData of items) {
       const item = document.createElement("span");
-      item.textContent = `${status.label}: ${status.count}`;
+      item.textContent = `${itemData.label}: ${itemData.count}`;
       list.append(item);
     }
   }
   section.append(list);
   return section;
+}
+
+function sprintReportStatusBreakdownNode(progress) {
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-statuses",
+    headingText: "Status breakdown",
+    listClass: "sprint-report-status-list",
+    items: sprintReportStatusBreakdown(progress),
+    emptyText: "No status data"
+  });
 }
 
 function sprintReportStatusBreakdown(progress) {
@@ -5172,30 +5181,13 @@ function sprintReportStatusBreakdown(progress) {
 }
 
 function sprintReportDueDateBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-due-dates";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Due date breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-due-date-list";
-  const buckets = sprintReportDueDateBreakdown(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No due date data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-due-dates",
+    headingText: "Due date breakdown",
+    listClass: "sprint-report-due-date-list",
+    items: sprintReportDueDateBreakdown(tickets),
+    emptyText: "No due date data"
+  });
 }
 
 function sprintReportDueDateBreakdown(tickets, todayValue = todayLocalISODate()) {
@@ -5229,30 +5221,13 @@ function sprintReportDueDateBreakdown(tickets, todayValue = todayLocalISODate())
 }
 
 function sprintReportAgeBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-ages";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Ticket age breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-age-list";
-  const buckets = sprintReportAgeBreakdown(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No age data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-ages",
+    headingText: "Ticket age breakdown",
+    listClass: "sprint-report-age-list",
+    items: sprintReportAgeBreakdown(tickets),
+    emptyText: "No age data"
+  });
 }
 
 function sprintReportAgeBreakdown(tickets, todayValue = todayLocalISODate()) {
@@ -5290,30 +5265,13 @@ function sprintReportCreatedDate(value) {
 }
 
 function sprintReportUpdateFreshnessNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-updates";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Update freshness";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-update-list";
-  const buckets = sprintReportUpdateFreshness(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No update data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-updates",
+    headingText: "Update freshness",
+    listClass: "sprint-report-update-list",
+    items: sprintReportUpdateFreshness(tickets),
+    emptyText: "No update data"
+  });
 }
 
 function sprintReportUpdateFreshness(tickets, todayValue = todayLocalISODate()) {
@@ -5354,30 +5312,13 @@ function sprintReportUpdatedDate(value) {
 }
 
 function sprintReportReadinessSummaryNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-readiness";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Readiness summary";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-readiness-list";
-  const buckets = sprintReportReadinessSummary(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No readiness data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-readiness",
+    headingText: "Readiness summary",
+    listClass: "sprint-report-readiness-list",
+    items: sprintReportReadinessSummary(tickets),
+    emptyText: "No readiness data"
+  });
 }
 
 function sprintReportReadinessSummary(tickets) {
@@ -5425,30 +5366,13 @@ function sprintReportHasEstimate(value) {
 }
 
 function sprintReportRiskSummaryNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-risks";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Risk summary";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-risk-list";
-  const buckets = sprintReportRiskSummary(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No risk data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-risks",
+    headingText: "Risk summary",
+    listClass: "sprint-report-risk-list",
+    items: sprintReportRiskSummary(tickets),
+    emptyText: "No risk data"
+  });
 }
 
 function sprintReportRiskSummary(tickets, todayValue = todayLocalISODate()) {
@@ -5487,30 +5411,13 @@ function sprintReportTicketDone(ticket) {
 }
 
 function sprintReportAttentionSummaryNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-attention";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Attention summary";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-attention-list";
-  const buckets = sprintReportAttentionSummary(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No attention data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-attention",
+    headingText: "Attention summary",
+    listClass: "sprint-report-attention-list",
+    items: sprintReportAttentionSummary(tickets),
+    emptyText: "No attention data"
+  });
 }
 
 function sprintReportAttentionSummary(tickets, todayValue = todayLocalISODate()) {
@@ -5555,30 +5462,13 @@ function sprintReportBlockedLikeStatus(value) {
 }
 
 function sprintReportStartDateBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-start-dates";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Start date breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-start-date-list";
-  const buckets = sprintReportStartDateBreakdown(tickets);
-  if (!buckets.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No start date data";
-    list.append(empty);
-  } else {
-    for (const bucket of buckets) {
-      const item = document.createElement("span");
-      item.textContent = `${bucket.label}: ${bucket.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-start-dates",
+    headingText: "Start date breakdown",
+    listClass: "sprint-report-start-date-list",
+    items: sprintReportStartDateBreakdown(tickets),
+    emptyText: "No start date data"
+  });
 }
 
 function sprintReportStartDateBreakdown(tickets, todayValue = todayLocalISODate()) {
@@ -5612,30 +5502,13 @@ function sprintReportStartDateBreakdown(tickets, todayValue = todayLocalISODate(
 }
 
 function sprintReportPriorityBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-priorities";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Priority breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-priority-list";
-  const priorities = sprintReportPriorityBreakdown(tickets);
-  if (!priorities.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No priority data";
-    list.append(empty);
-  } else {
-    for (const priority of priorities) {
-      const item = document.createElement("span");
-      item.textContent = `${priority.label}: ${priority.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-priorities",
+    headingText: "Priority breakdown",
+    listClass: "sprint-report-priority-list",
+    items: sprintReportPriorityBreakdown(tickets),
+    emptyText: "No priority data"
+  });
 }
 
 function sprintReportPriorityBreakdown(tickets) {
@@ -5655,30 +5528,13 @@ function sprintReportPriorityBreakdown(tickets) {
 }
 
 function sprintReportTypeBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-types";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Issue type breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-type-list";
-  const types = sprintReportTypeBreakdown(tickets);
-  if (!types.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No issue type data";
-    list.append(empty);
-  } else {
-    for (const type of types) {
-      const item = document.createElement("span");
-      item.textContent = `${type.label}: ${type.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-types",
+    headingText: "Issue type breakdown",
+    listClass: "sprint-report-type-list",
+    items: sprintReportTypeBreakdown(tickets),
+    emptyText: "No issue type data"
+  });
 }
 
 function sprintReportTypeBreakdown(tickets) {
@@ -5698,30 +5554,13 @@ function sprintReportTypeBreakdown(tickets) {
 }
 
 function sprintReportLabelBreakdownNode(tickets) {
-  const section = document.createElement("section");
-  section.className = "sprint-report-labels";
-
-  const heading = document.createElement("h4");
-  heading.textContent = "Label breakdown";
-  section.append(heading);
-
-  const list = document.createElement("div");
-  list.className = "sprint-report-label-list";
-  const labels = sprintReportLabelBreakdown(tickets);
-  if (!labels.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No label data";
-    list.append(empty);
-  } else {
-    for (const label of labels) {
-      const item = document.createElement("span");
-      item.textContent = `${label.label}: ${label.count}`;
-      list.append(item);
-    }
-  }
-  section.append(list);
-  return section;
+  return sprintReportChipSectionNode({
+    sectionClass: "sprint-report-labels",
+    headingText: "Label breakdown",
+    listClass: "sprint-report-label-list",
+    items: sprintReportLabelBreakdown(tickets),
+    emptyText: "No label data"
+  });
 }
 
 function sprintReportLabelBreakdown(tickets) {
