@@ -865,6 +865,10 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportReadinessSummary",
 		"Readiness summary",
 		"No readiness data",
+		"sprintReportRiskSummaryNode",
+		"sprintReportRiskSummary",
+		"Risk summary",
+		"No risk data",
 		"sprintReportScopeChangesNode",
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
@@ -971,6 +975,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-update-list",
 		".sprint-report-readiness",
 		".sprint-report-readiness-list",
+		".sprint-report-risks",
+		".sprint-report-risk-list",
 		".sprint-report-scope-changes",
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
@@ -1078,6 +1084,17 @@ func TestSprintReportReadinessSummary(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint readiness summary node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportRiskSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_risk_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint risk summary node test failed: %v\n%s", err, output)
 	}
 }
 
