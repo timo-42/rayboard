@@ -2109,6 +2109,7 @@ p {
 
 .sprint-report-scope-changes,
 .version-report-scope-changes,
+.sprint-report-statuses,
 .sprint-report-priorities,
 .sprint-report-types,
 .sprint-report-labels,
@@ -2126,6 +2127,7 @@ p {
 
 .sprint-report-scope-changes h4,
 .version-report-scope-changes h4,
+.sprint-report-statuses h4,
 .sprint-report-priorities h4,
 .sprint-report-types h4,
 .sprint-report-labels h4,
@@ -2144,6 +2146,7 @@ p {
 
 .sprint-report-scope-change-list,
 .version-report-scope-change-list,
+.sprint-report-status-list,
 .sprint-report-priority-list,
 .sprint-report-type-list,
 .sprint-report-label-list,
@@ -2159,6 +2162,7 @@ p {
 
 .sprint-report-scope-change-list span,
 .version-report-scope-change-list span,
+.sprint-report-status-list span,
 .sprint-report-priority-list span,
 .sprint-report-type-list span,
 .sprint-report-label-list span,

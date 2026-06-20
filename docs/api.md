@@ -166,7 +166,7 @@ Board ticket responses use `metadata` for the board view identity, `spec.board` 
 
 ## Sprints
 
-The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count or story-point analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes sprint list/create/edit/state-filter/start/complete/delete, ticket-card and backlog sprint assignment/removal, story point editing, and compact sprint reports with priority, issue-type, label, estimate-coverage, component, version, parent epic, and reporter breakdowns for the selected project. Richer backlog planning beyond assignment controls and sprint reporting beyond compact analytics are **Planned**.
+The sprint API supports sprint CRUD within a project, starting and completing sprints, sprint reports with ticket-count or story-point analytics, and assigning or removing a ticket from a sprint. The embedded browser UI exposes sprint list/create/edit/state-filter/start/complete/delete, ticket-card and backlog sprint assignment/removal, story point editing, and compact sprint reports with status, priority, issue-type, label, estimate-coverage, component, version, parent epic, and reporter breakdowns for the selected project. Richer backlog planning beyond assignment controls and sprint reporting beyond compact analytics are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

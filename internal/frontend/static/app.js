@@ -4899,14 +4899,7 @@ function renderSprintReport() {
     );
   }
 
-  const statuses = document.createElement("div");
-  statuses.className = "sprint-report-statuses";
-  for (const [status, count] of Object.entries(progress.by_status || {})) {
-    const item = document.createElement("span");
-    item.textContent = `${status}: ${count}`;
-    statuses.append(item);
-  }
-
+  const statuses = sprintReportStatusBreakdownNode(progress);
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const labels = sprintReportLabelBreakdownNode(report && report.tickets ? report.tickets : []);
@@ -5114,6 +5107,61 @@ function sprintReportScopeChangeItems(scopeChanges) {
     `removed ${Number(changes.removed) || 0}`,
     `unchanged ${Number(changes.unchanged) || 0}`
   ];
+}
+
+function sprintReportStatusBreakdownNode(progress) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-statuses";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Status breakdown";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-status-list";
+  const statuses = sprintReportStatusBreakdown(progress);
+  if (!statuses.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No status data";
+    list.append(empty);
+  } else {
+    for (const status of statuses) {
+      const item = document.createElement("span");
+      item.textContent = `${status.label}: ${status.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportStatusBreakdown(progress) {
+  const byStatus = progress && progress.by_status ? progress.by_status : {};
+  const counts = new Map();
+  for (const [slug, count] of Object.entries(byStatus)) {
+    const value = Number(count) || 0;
+    if (value > 0) {
+      counts.set(slug || "", value);
+    }
+  }
+  const configured = (state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses())
+    .slice()
+    .sort((left, right) => Number(left.position || 0) - Number(right.position || 0));
+  const known = new Set(configured.map((status) => status.slug));
+  const ordered = configured
+    .filter((status) => counts.has(status.slug))
+    .map((status) => ({ label: status.name || status.slug, count: counts.get(status.slug) }));
+  const unknown = Array.from(counts.entries())
+    .filter(([slug]) => !known.has(slug))
+    .map(([slug, count]) => ({ label: slug || "No status", count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+  return ordered.concat(unknown);
 }
 
 function sprintReportPriorityBreakdownNode(tickets) {
@@ -13657,6 +13705,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportEpics,
     sprintReportReporterBreakdown,
     sprintReportLabelBreakdown,
+    sprintReportStatusBreakdown,
     sprintReportHealth,
     sprintReportHealthDates,
     sprintReportEstimateCoverage,
