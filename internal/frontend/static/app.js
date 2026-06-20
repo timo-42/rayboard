@@ -4916,6 +4916,7 @@ function renderSprintReport() {
   const epics = sprintReportEpicBreakdownNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
+  const reporters = sprintReportReporterBreakdownNode(report && report.tickets ? report.tickets : []);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
 
   const tickets = document.createElement("div");
@@ -4933,7 +4934,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5539,6 +5540,75 @@ function sprintReportEpicItemNode(epic) {
   meta.textContent = `${epic.done}/${epic.total} done / ${pointText}`;
   item.append(title, meta);
   return item;
+}
+
+function sprintReportReporterBreakdown(tickets) {
+  const reporters = new Map();
+  const ensureReporter = (reporterID) => {
+    const key = reporterID || "";
+    if (!reporters.has(key)) {
+      reporters.set(key, {
+        key,
+        label: key ? `reporter ${key}` : "No reporter",
+        tickets: 0,
+        story_points: 0,
+        has_story_points: false
+      });
+    }
+    return reporters.get(key);
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const reporter = ensureReporter(String(ticket.reporter_id || "").trim());
+    reporter.tickets += 1;
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      continue;
+    }
+    const points = Number(ticket.story_points);
+    if (Number.isFinite(points)) {
+      reporter.story_points += points;
+      reporter.has_story_points = true;
+    }
+  }
+  return Array.from(reporters.values()).sort((left, right) => {
+    if (!left.key) {
+      return 1;
+    }
+    if (!right.key) {
+      return -1;
+    }
+    if (right.tickets !== left.tickets) {
+      return right.tickets - left.tickets;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+function sprintReportReporterBreakdownNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-reporters";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Reporter breakdown";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-reporter-list";
+  const reporters = sprintReportReporterBreakdown(tickets);
+  if (!reporters.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No reporter data";
+    list.append(empty);
+  } else {
+    for (const reporter of reporters) {
+      const item = document.createElement("span");
+      const points = reporter.has_story_points ? `${formatStoryPoints(reporter.story_points)} pts` : "no estimates";
+      item.textContent = `${reporter.label}: ${reporter.tickets} ticket${reporter.tickets === 1 ? "" : "s"} / ${points}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
 }
 
 function sprintReportAssigneeWorkloads(tickets) {
@@ -13585,6 +13655,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportComponents,
     sprintReportVersions,
     sprintReportEpics,
+    sprintReportReporterBreakdown,
     sprintReportLabelBreakdown,
     sprintReportHealth,
     sprintReportHealthDates,
