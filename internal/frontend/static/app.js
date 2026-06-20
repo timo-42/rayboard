@@ -4673,7 +4673,7 @@ function boardNode(board) {
 
   body.append(title, boardMetadataNode(board));
   if (board.id === state.selectedBoardID) {
-    body.append(boardColumnSettingsOverviewNode(board));
+    body.append(boardColumnSettingsOverviewNode(board), boardStatusCoverageOverviewNode(board));
   }
 
   const edit = document.createElement("form");
@@ -4779,6 +4779,47 @@ function boardColumnSettingsOverviewItems(board) {
       ? `${wipLimitedColumns} WIP-limited column${wipLimitedColumns === 1 ? "" : "s"}`
       : "no WIP-limited columns"
   ];
+}
+
+function boardStatusCoverageOverviewNode(board) {
+  const overview = document.createElement("section");
+  overview.className = "board-status-coverage-overview";
+
+  const title = document.createElement("strong");
+  title.textContent = "Status coverage";
+
+  const chips = document.createElement("div");
+  chips.className = "board-status-coverage-chips";
+  for (const item of boardStatusCoverageOverviewItems(board)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  overview.append(title, chips);
+  return overview;
+}
+
+function boardStatusCoverageOverviewItems(board) {
+  const boardStatuses = Array.isArray(board.status_slugs) ? board.status_slugs.filter(Boolean) : [];
+  const workflowStatuses = (state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses())
+    .filter((status) => status && status.slug);
+  const workflowSlugs = new Set(workflowStatuses.map((status) => status.slug));
+  const boardSlugs = new Set(boardStatuses);
+  const covered = workflowStatuses.filter((status) => boardSlugs.has(status.slug));
+  const missing = workflowStatuses.filter((status) => !boardSlugs.has(status.slug));
+  const extra = boardStatuses.filter((slug) => !workflowSlugs.has(slug));
+
+  const items = [
+    `${covered.length} covered workflow status${covered.length === 1 ? "" : "es"}`,
+    missing.length
+      ? `${missing.length} not on board: ${missing.map((status) => status.name || status.slug).join(", ")}`
+      : "no workflow statuses off board",
+    extra.length
+      ? `${extra.length} extra board status${extra.length === 1 ? "" : "es"}: ${extra.map((slug) => statusName(slug)).join(", ")}`
+      : "no extra board statuses"
+  ];
+  return items;
 }
 
 function renderSprints() {
