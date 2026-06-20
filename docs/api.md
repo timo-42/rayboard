@@ -237,7 +237,7 @@ Roadmap dependency list items use `metadata` for the ticket link identity, `spec
 
 ## Custom Fields
 
-The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/update/delete controls, JSON ticket custom-field value editing, and field-aware `/search` controls that append safe custom-field CEL clauses to the search filter. Richer field schemas and richer field-aware layout screens are **Planned**.
+The custom-field API supports project-scoped field definitions, select options, typed ticket values, server-side validation during ticket create/update, and CEL search filters through `custom.<field_key>`. The embedded browser UI exposes basic field list/create/update/delete controls, layout overview type and requirement insight counts, JSON ticket custom-field value editing, and field-aware `/search` controls that append safe custom-field CEL clauses to the search filter. Richer field schemas and richer field-aware layout screens beyond these summaries are **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |

@@ -1715,8 +1715,14 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		"customFieldLayoutOverviewNode",
 		"customFieldLayoutSummary",
 		"customFieldTypeBreakdownNode",
+		"customFieldRequirementInsightsNode",
+		"customFieldRequirementInsights",
+		"customFieldRequirementInsightItems",
 		"Field layout",
 		"Field types",
+		"Requirements",
+		"selects missing options",
+		"search-ready",
 		"customFieldMetadataNode",
 		"customFieldMetadataItems",
 		"customFieldOptionsSummary",
@@ -1753,6 +1759,8 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		".field-layout-chips",
 		".field-type-breakdown",
 		".field-type-chips",
+		".field-requirement-insights",
+		".field-requirement-chips",
 		".field-metadata",
 		".ticket-custom-fields",
 		".custom-field-input",
@@ -1760,6 +1768,17 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestCustomFieldRequirementInsights(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "custom_field_requirement_insights_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("custom-field requirement insights node test failed: %v\n%s", err, output)
 	}
 }
 
