@@ -870,6 +870,17 @@ func TestSprintReportHealthDateBoundaries(t *testing.T) {
 	}
 }
 
+func TestVersionReportTimelineItems(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "release_timeline_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("release timeline node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {
