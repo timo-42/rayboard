@@ -1648,6 +1648,17 @@ func TestVersionReportComponentBreakdown(t *testing.T) {
 	}
 }
 
+func TestComponentStatusSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "component_status_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("component status summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportLabelBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1720,6 +1731,11 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"refreshSelectedVersionReport",
 		"await refreshSelectedVersionReport();",
 		"renderVersionReport",
+		"componentStatusSummary",
+		"componentStatusSummaryItems",
+		"componentStatusSummaryNode",
+		"Visible ticket status",
+		"No visible tickets",
 		"versionReportHealthNode",
 		"versionReleaseHealth",
 		"versionTargetHealthSummaryNode",
@@ -1858,6 +1874,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	for _, expected := range []string{
 		".release-panel",
 		".component-form",
+		".component-status-summary",
+		".component-status-chips",
 		".version-form",
 		".version-report",
 		".version-target-health",
