@@ -187,10 +187,14 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"renderNotificationDeliveries",
 		"renderNotificationDeliverySummary",
 		"notificationDeliverySummary",
+		"notificationDeliveryAnalytics",
+		"notificationDeliveryAnalyticsLabel",
 		"notificationDeliverySummaryTime",
 		"deliveryUpdatedAt",
 		"Oldest",
 		"Newest",
+		"Retry pressure",
+		"attempts exhausted",
 		"queued",
 		"sending",
 		"renderNotificationBadge",
@@ -496,6 +500,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".notification-delivery-form",
 		".notification-delivery-summary",
 		".notification-delivery-metrics",
+		".notification-delivery-analytics",
+		".notification-delivery-analytics-group",
+		".notification-delivery-analytics-chips",
 		".notification-delivery-list",
 		".notification-delivery-item",
 		".backlog-panel",
@@ -581,6 +588,17 @@ func TestBoardCapacityOverview(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("board capacity overview node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestNotificationDeliveryAnalytics(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "notification_delivery_analytics_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("notification delivery analytics node test failed: %v\n%s", err, output)
 	}
 }
 

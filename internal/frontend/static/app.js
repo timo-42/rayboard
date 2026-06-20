@@ -10378,6 +10378,7 @@ function renderNotificationDeliverySummary() {
     metrics.append(item);
   }
   els.notificationDeliverySummary.append(metrics);
+  els.notificationDeliverySummary.append(notificationDeliveryAnalyticsNode(notificationDeliveryAnalytics()));
 
   if (summary.latestFailure) {
     const failure = document.createElement("p");
@@ -10421,6 +10422,130 @@ function notificationDeliverySummary() {
     oldestDelivery,
     newestDelivery
   };
+}
+
+function notificationDeliveryAnalytics(deliveries = state.notificationDeliveries) {
+  const byEvent = new Map();
+  const byDestination = new Map();
+  let retryPressure = 0;
+  let exhausted = 0;
+  for (const delivery of Array.isArray(deliveries) ? deliveries : []) {
+    const stateValue = delivery.state || "";
+    applyNotificationDeliveryAnalyticsCounts(
+      ensureNotificationDeliveryAnalyticsItem(byEvent, delivery.event_type || "unknown event", delivery.event_type || "unknown event"),
+      stateValue
+    );
+    const destinationKey = delivery.destination_id || delivery.destination_name || "unknown destination";
+    const destinationLabel = [
+      delivery.destination_name || delivery.destination_id || "unknown destination",
+      delivery.destination_service || ""
+    ].filter(Boolean).join(" / ");
+    applyNotificationDeliveryAnalyticsCounts(
+      ensureNotificationDeliveryAnalyticsItem(byDestination, destinationKey, destinationLabel),
+      stateValue
+    );
+    const attemptCount = Number(delivery.attempt_count || 0);
+    const maxAttempts = Number(delivery.max_attempts || 0);
+    if (stateValue === "failed" || stateValue === "canceled" || attemptCount > 1) {
+      retryPressure += 1;
+    }
+    if (maxAttempts > 0 && attemptCount >= maxAttempts && stateValue !== "delivered") {
+      exhausted += 1;
+    }
+  }
+  return {
+    by_event: notificationDeliveryAnalyticsItems(byEvent),
+    by_destination: notificationDeliveryAnalyticsItems(byDestination),
+    retry_pressure: retryPressure,
+    exhausted
+  };
+}
+
+function ensureNotificationDeliveryAnalyticsItem(items, key, label) {
+  if (!items.has(key)) {
+    items.set(key, {
+      key,
+      label,
+      total: 0,
+      delivered: 0,
+      failed: 0,
+      queued: 0,
+      sending: 0,
+      canceled: 0
+    });
+  }
+  return items.get(key);
+}
+
+function applyNotificationDeliveryAnalyticsCounts(item, stateValue) {
+  item.total += 1;
+  if (Object.prototype.hasOwnProperty.call(item, stateValue)) {
+    item[stateValue] += 1;
+  }
+}
+
+function notificationDeliveryAnalyticsItems(items) {
+  return Array.from(items.values()).sort((left, right) => right.total - left.total || left.label.localeCompare(right.label));
+}
+
+function notificationDeliveryAnalyticsNode(analytics) {
+  const node = document.createElement("div");
+  node.className = "notification-delivery-analytics";
+  node.append(
+    notificationDeliveryAnalyticsGroupNode("Events", analytics.by_event),
+    notificationDeliveryAnalyticsGroupNode("Destinations", analytics.by_destination),
+    notificationDeliveryRetryPressureNode(analytics)
+  );
+  return node;
+}
+
+function notificationDeliveryAnalyticsGroupNode(labelText, items) {
+  const group = document.createElement("div");
+  group.className = "notification-delivery-analytics-group";
+  const label = document.createElement("strong");
+  label.textContent = labelText;
+  const chips = document.createElement("div");
+  chips.className = "notification-delivery-analytics-chips";
+  if (!items.length) {
+    const empty = document.createElement("span");
+    empty.textContent = "No loaded data";
+    chips.append(empty);
+  }
+  for (const item of items.slice(0, 6)) {
+    const chip = document.createElement("span");
+    chip.textContent = notificationDeliveryAnalyticsLabel(item);
+    chips.append(chip);
+  }
+  group.append(label, chips);
+  return group;
+}
+
+function notificationDeliveryRetryPressureNode(analytics) {
+  const group = document.createElement("div");
+  group.className = "notification-delivery-analytics-group";
+  const label = document.createElement("strong");
+  label.textContent = "Retry pressure";
+  const chips = document.createElement("div");
+  chips.className = "notification-delivery-analytics-chips";
+  for (const item of [
+    ["retry pressure", analytics.retry_pressure],
+    ["attempts exhausted", analytics.exhausted]
+  ]) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item[0]}: ${item[1]}`;
+    chips.append(chip);
+  }
+  group.append(label, chips);
+  return group;
+}
+
+function notificationDeliveryAnalyticsLabel(item) {
+  return [
+    `${item.label}: ${item.total}`,
+    `${item.delivered} delivered`,
+    `${item.failed} failed`,
+    `${item.queued} queued`
+  ].join(" / ");
 }
 
 function deliveryUpdatedAt(delivery) {
@@ -16377,6 +16502,8 @@ if (typeof module !== "undefined" && module.exports) {
     boardRiskOverviewLabel,
     boardColumnTicketCount,
     boardSummaryMetrics,
+    notificationDeliveryAnalytics,
+    notificationDeliveryAnalyticsLabel,
     customFieldLayoutSummary,
     customFieldRequirementInsights,
     customFieldRequirementInsightItems,

@@ -849,6 +849,36 @@ p {
   font-weight: 700;
 }
 
+.notification-delivery-analytics {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-delivery-analytics-group {
+  display: grid;
+  gap: 4px;
+}
+
+.notification-delivery-analytics-group strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.notification-delivery-analytics-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notification-delivery-analytics-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .notification-delivery-latest-failure {
   color: var(--muted);
   font-size: 12px;
