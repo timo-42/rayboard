@@ -847,6 +847,7 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportHealthDates",
 		"todayLocalISODate",
 		"sprintReportAnalyticsNode",
+		"sprintReportChipSectionNode",
 		"sprintReportStatusBreakdownNode",
 		"sprintReportStatusBreakdown",
 		"sprintReportStartDateBreakdownNode",
