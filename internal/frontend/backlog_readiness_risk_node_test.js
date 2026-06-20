@@ -31,10 +31,12 @@ global.window = {
 
 const {
   backlogAgeBreakdown,
+  backlogDueDateBreakdown,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
   backlogRiskSummary,
+  backlogStartDateBreakdown,
   backlogUpdateFreshness
 } = require("./static/app.js");
 
@@ -115,6 +117,31 @@ assert.deepStrictEqual(backlogUpdateFreshness(tickets, "2026-06-20"), [
   { key: "dormant", label: "Dormant (31+ days)", count: 1 }
 ]);
 
+const scheduleTickets = [
+  { start_date: "2026-06-01", due_date: "2026-06-19" },
+  { start_date: "2026-06-20", due_date: "2026-06-20" },
+  { start_date: "2026-06-22", due_date: "2026-06-22" },
+  { start_date: "2026-07-01", due_date: "2026-07-01" },
+  { start_date: "", due_date: "" },
+  { start_date: "bad", due_date: "bad" }
+];
+
+assert.deepStrictEqual(backlogStartDateBreakdown(scheduleTickets, "2026-06-20"), [
+  { key: "started", label: "Started", count: 1 },
+  { key: "today", label: "Starts today", count: 1 },
+  { key: "soon", label: "Starts soon", count: 1 },
+  { key: "future", label: "Future start", count: 1 },
+  { key: "none", label: "No start date", count: 2 }
+]);
+
+assert.deepStrictEqual(backlogDueDateBreakdown(scheduleTickets, "2026-06-20"), [
+  { key: "overdue", label: "Overdue", count: 1 },
+  { key: "today", label: "Due today", count: 1 },
+  { key: "soon", label: "Due soon", count: 1 },
+  { key: "later", label: "Later", count: 1 },
+  { key: "none", label: "No due date", count: 2 }
+]);
+
 assert.deepStrictEqual(backlogLabelBreakdown(tickets), [
   { label: "backend", count: 2 },
   { label: "urgent", count: 1 },
@@ -147,6 +174,10 @@ assert.deepStrictEqual(backlogReadinessSummary([]), []);
 assert.deepStrictEqual(backlogReadinessSummary(null), []);
 assert.deepStrictEqual(backlogRiskSummary([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogRiskSummary(null, "2026-06-20"), []);
+assert.deepStrictEqual(backlogStartDateBreakdown([], "2026-06-20"), []);
+assert.deepStrictEqual(backlogStartDateBreakdown(null, "2026-06-20"), []);
+assert.deepStrictEqual(backlogDueDateBreakdown([], "2026-06-20"), []);
+assert.deepStrictEqual(backlogDueDateBreakdown(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogAgeBreakdown([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogAgeBreakdown(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogUpdateFreshness([], "2026-06-20"), []);
