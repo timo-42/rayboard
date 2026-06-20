@@ -13770,6 +13770,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardPriorityBreakdownNode(metrics.priorities, boardTickets && boardTickets.filtered_by_saved_view),
     boardDueDateBreakdownNode(metrics.due_dates, boardTickets && boardTickets.filtered_by_saved_view),
     boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
+    boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13789,6 +13790,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     priorities: boardPriorityBreakdown(boardColumns),
     due_dates: boardDueDateBreakdown(boardColumns),
     issue_types: boardIssueTypeBreakdown(boardColumns),
+    labels: boardLabelBreakdown(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -13967,6 +13969,39 @@ function boardIssueTypeBreakdownNode(items, filtered) {
     chips.append(chip);
   }
   for (const item of issueTypes) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardLabelBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportLabelBreakdown(tickets);
+}
+
+function boardLabelBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-label-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Labels (filtered saved view)" : "Labels";
+
+  const chips = document.createElement("div");
+  chips.className = "board-label-chips";
+  const labels = Array.isArray(items) ? items : [];
+  if (!labels.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No label data";
+    chips.append(chip);
+  }
+  for (const item of labels) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
     chips.append(chip);
@@ -16960,6 +16995,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardPriorityBreakdown,
     boardDueDateBreakdown,
     boardIssueTypeBreakdown,
+    boardLabelBreakdown,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
