@@ -5610,6 +5610,7 @@ function versionReportBreakdownNode(progress, tickets) {
   section.className = "version-report-breakdown";
   section.append(
     versionReportStatusNode(progress.by_status || {}),
+    versionReportPriorityBreakdownNode(tickets),
     versionReportComponentNode(tickets)
   );
   return section;
@@ -5793,6 +5794,45 @@ function versionReportAssigneeItemNode(assignee) {
     : `${assignee.unestimated} unestimated`;
   item.textContent = `${assignee.label}: ${assignee.done}/${assignee.total} done / ${pointText}`;
   return item;
+}
+
+function versionReportPriorityBreakdownNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Priority breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-priorities";
+  const priorities = versionReportPriorityBreakdown(tickets);
+  for (const priority of priorities) {
+    const item = document.createElement("span");
+    item.textContent = `${priority.label}: ${priority.count}`;
+    list.append(item);
+  }
+  if (!priorities.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No priority data";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportPriorityBreakdown(tickets) {
+  const priorities = new Map();
+  for (const ticket of tickets) {
+    const label = ticket.priority || "No priority";
+    priorities.set(label, (priorities.get(label) || 0) + 1);
+  }
+  return Array.from(priorities.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
 }
 
 function versionReportTicketListNode(report, tickets) {
@@ -12986,6 +13026,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportHealthDates,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
+    versionReportPriorityBreakdown,
     versionReportTimelineItems
   };
 }

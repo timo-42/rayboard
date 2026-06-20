@@ -2040,14 +2040,16 @@ p {
 }
 
 .sprint-report-statuses,
-.version-report-statuses {
+.version-report-statuses,
+.version-report-priorities {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .sprint-report-statuses span,
-.version-report-statuses span {
+.version-report-statuses span,
+.version-report-priorities span {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -2127,7 +2129,7 @@ p {
 
 .version-report-breakdown {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 

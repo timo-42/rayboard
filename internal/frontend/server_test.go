@@ -947,6 +947,17 @@ func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	}
 }
 
+func TestVersionReportPriorityBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_priority_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version priority breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {
@@ -978,7 +989,11 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportAssigneeWorkloadsNode",
 		"versionReportAssigneeWorkloads",
 		"versionReportAssigneeItemNode",
+		"versionReportPriorityBreakdownNode",
+		"versionReportPriorityBreakdown",
 		"Assignee workload",
+		"Priority breakdown",
+		"No priority",
 		"Unassigned",
 		"versionReportTicketNode",
 		"versionReportScopeText",
@@ -1033,6 +1048,7 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-scope-change-list",
 		".version-report-assignees",
 		".version-report-assignee-list",
+		".version-report-priorities",
 		".version-report-breakdown",
 		".version-report-component",
 		".component-edit-form",
