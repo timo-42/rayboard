@@ -6816,7 +6816,6 @@ function savedViewOverviewNode(views) {
   const items = [
     `${summary.total} visible`,
     `${summary.pinned} pinned`,
-    ...summary.scopes.map((item) => `scope ${item.key}: ${item.count}`),
     ...summary.modes.map((item) => `mode ${item.key}: ${item.count}`)
   ];
   for (const item of items) {
@@ -6825,8 +6824,28 @@ function savedViewOverviewNode(views) {
     chips.append(chip);
   }
 
-  section.append(heading, chips);
+  section.append(heading, chips, savedViewScopeBreakdownNode(summary.scopes));
   return section;
+}
+
+function savedViewScopeBreakdownNode(scopes) {
+  const group = document.createElement("div");
+  group.className = "saved-view-scope-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = "Scopes";
+
+  const chips = document.createElement("div");
+  chips.className = "saved-view-scope-chips";
+  const items = Array.isArray(scopes) && scopes.length ? scopes : [{ key: "user", count: 0 }];
+  for (const item of items) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.key}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
 }
 
 function savedViewOverviewSummary(views) {
