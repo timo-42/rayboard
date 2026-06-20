@@ -1440,6 +1440,10 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"roadmapDependencyFormNode",
 		"roadmapDependencyOverviewNode",
 		"roadmapDependencyOverviewSummary",
+		"roadmapDependencyGraph",
+		"roadmapDependencyGraphNode",
+		"roadmapDependencyGraphEdgeNode",
+		"Dependency graph",
 		"refreshRoadmapDependencyViews",
 		"renderRoadmapDependencies",
 		"normalizeRoadmapDependency",
@@ -1487,6 +1491,9 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		".roadmap-dependency-form",
 		".roadmap-dependency-overview",
 		".roadmap-dependency-overview-chips",
+		".roadmap-dependency-graph",
+		".roadmap-dependency-graph-node",
+		".roadmap-dependency-graph-edge",
 		".roadmap-dependency",
 		".roadmap-item",
 		".roadmap-quick-actions",
@@ -1496,6 +1503,17 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestRoadmapDependencyGraph(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "roadmap_dependency_graph_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("roadmap dependency graph node test failed: %v\n%s", err, output)
 	}
 }
 

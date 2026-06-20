@@ -7288,6 +7288,7 @@ function renderRoadmapDependencies() {
     els.roadmapDependencies.append(empty);
     return;
   }
+  els.roadmapDependencies.append(roadmapDependencyGraphNode(state.roadmapDependencies));
   const list = document.createElement("div");
   list.className = "roadmap-dependency-list";
   for (const dependency of state.roadmapDependencies) {
@@ -7343,6 +7344,132 @@ function roadmapDependencyOverviewSummary(dependencies) {
     }
   }
   return summary;
+}
+
+function roadmapDependencyGraph(dependencies) {
+  const graph = {
+    nodes: [],
+    edges: [],
+    incomplete: 0
+  };
+  const nodeMap = new Map();
+  const ensureNode = (ticket, epicID) => {
+    if (!ticket || !ticket.id) {
+      return null;
+    }
+    if (!nodeMap.has(ticket.id)) {
+      nodeMap.set(ticket.id, {
+        id: ticket.id,
+        key: ticket.key || ticket.id,
+        title: ticket.title || "",
+        status: ticket.status || "",
+        epic_id: epicID || "",
+        node_type: epicID && ticket.id === epicID ? "epic" : "issue"
+      });
+    }
+    return nodeMap.get(ticket.id);
+  };
+  for (const dependency of Array.isArray(dependencies) ? dependencies : []) {
+    const link = dependency.link || {};
+    const source = ensureNode(link.source, dependency.source_epic_id || "");
+    const target = ensureNode(link.target, dependency.target_epic_id || "");
+    if (!link.id || !source || !target) {
+      graph.incomplete += 1;
+      continue;
+    }
+    graph.edges.push({
+      id: link.id,
+      source_id: source.id,
+      target_id: target.id,
+      source_label: roadmapDependencyGraphNodeLabel(source),
+      target_label: roadmapDependencyGraphNodeLabel(target),
+      link_type: link.link_type || "relates_to",
+      label: ticketLinkTypeLabel(link.link_type || "relates_to"),
+      scope: source.epic_id && target.epic_id && source.epic_id !== target.epic_id ? "cross_epic" : "same_epic"
+    });
+  }
+  graph.nodes = Array.from(nodeMap.values()).sort((left, right) => roadmapDependencyGraphNodeLabel(left).localeCompare(roadmapDependencyGraphNodeLabel(right)));
+  graph.edges.sort((left, right) => {
+    if (left.scope !== right.scope) {
+      return left.scope === "cross_epic" ? -1 : 1;
+    }
+    return `${left.source_label} ${left.label} ${left.target_label}`.localeCompare(`${right.source_label} ${right.label} ${right.target_label}`);
+  });
+  return graph;
+}
+
+function roadmapDependencyGraphNode(dependencies) {
+  const graph = roadmapDependencyGraph(dependencies);
+  const section = document.createElement("section");
+  section.className = "roadmap-dependency-graph";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Dependency graph";
+
+  const nodes = document.createElement("div");
+  nodes.className = "roadmap-dependency-graph-nodes";
+  for (const node of graph.nodes) {
+    nodes.append(roadmapDependencyGraphNodeBadge(node));
+  }
+
+  const edges = document.createElement("div");
+  edges.className = "roadmap-dependency-graph-edges";
+  if (!graph.edges.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = graph.incomplete ? `${graph.incomplete} incomplete dependencies` : "No graph edges";
+    edges.append(empty);
+  } else {
+    for (const edge of graph.edges) {
+      edges.append(roadmapDependencyGraphEdgeNode(edge));
+    }
+  }
+
+  section.append(heading, nodes, edges);
+  return section;
+}
+
+function roadmapDependencyGraphNodeBadge(node) {
+  const badge = document.createElement("span");
+  badge.className = node.node_type === "epic" ? "roadmap-dependency-graph-node is-epic" : "roadmap-dependency-graph-node";
+  badge.textContent = [
+    roadmapDependencyGraphNodeLabel(node),
+    node.status ? `(${node.status})` : ""
+  ].filter(Boolean).join(" ");
+  return badge;
+}
+
+function roadmapDependencyGraphEdgeNode(edge) {
+  const row = document.createElement("article");
+  row.className = edge.scope === "cross_epic"
+    ? "roadmap-dependency-graph-edge is-cross-epic"
+    : "roadmap-dependency-graph-edge";
+
+  const source = document.createElement("span");
+  source.className = "roadmap-dependency-graph-edge-node";
+  source.textContent = edge.source_label;
+
+  const relation = document.createElement("span");
+  relation.className = "roadmap-dependency-graph-edge-label";
+  relation.textContent = `-> ${edge.label} ->`;
+
+  const target = document.createElement("span");
+  target.className = "roadmap-dependency-graph-edge-node";
+  target.textContent = edge.target_label;
+
+  const scope = document.createElement("span");
+  scope.className = "roadmap-dependency-graph-edge-scope";
+  scope.textContent = edge.scope === "cross_epic" ? "cross-epic" : "same-epic";
+
+  row.append(source, relation, target, scope);
+  return row;
+}
+
+function roadmapDependencyGraphNodeLabel(node) {
+  if (!node) {
+    return "issue";
+  }
+  return [node.key || node.id || "issue", node.title || ""].filter(Boolean).join(" ");
 }
 
 function roadmapDependencyNode(dependency) {
@@ -14684,6 +14811,8 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderTextKind,
     mutateCreatePageLayoutBuilderItems,
     parseCreatePageLayoutBuilderJSON,
+    roadmapDependencyGraph,
+    roadmapDependencyGraphNodeLabel,
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
