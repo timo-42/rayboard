@@ -851,6 +851,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
 		"sprintReportPriorityBreakdown",
+		"sprintReportTypeBreakdownNode",
+		"sprintReportTypeBreakdown",
 		"sprintReportAssigneeWorkloads",
 		"sprintReportAssigneeWorkloadsNode",
 		"normalizeSprint",
@@ -886,6 +888,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"Live current assignment",
 		"Priority breakdown",
 		"No priority",
+		"Issue type breakdown",
+		"No issue type",
 		"Assignee workload",
 		"Unassigned",
 	} {
@@ -908,6 +912,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
 		".sprint-report-priority-list",
+		".sprint-report-types",
+		".sprint-report-type-list",
 		".sprint-report-assignees",
 		".sprint-report-assignee-list",
 		".sprint-report-ticket",
@@ -917,6 +923,17 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestSprintReportTypeBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_type_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint type breakdown node test failed: %v\n%s", err, output)
 	}
 }
 

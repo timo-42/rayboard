@@ -4908,6 +4908,7 @@ function renderSprintReport() {
   }
 
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
+  const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4927,7 +4928,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5143,6 +5144,49 @@ function sprintReportPriorityBreakdown(tickets) {
     priorities.set(label, (priorities.get(label) || 0) + 1);
   }
   return Array.from(priorities.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function sprintReportTypeBreakdownNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-types";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Issue type breakdown";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-type-list";
+  const types = sprintReportTypeBreakdown(tickets);
+  if (!types.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No issue type data";
+    list.append(empty);
+  } else {
+    for (const type of types) {
+      const item = document.createElement("span");
+      item.textContent = `${type.label}: ${type.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportTypeBreakdown(tickets) {
+  const types = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const label = ticket.type || "No issue type";
+    types.set(label, (types.get(label) || 0) + 1);
+  }
+  return Array.from(types.entries())
     .map(([label, count]) => ({ label, count }))
     .sort((left, right) => {
       if (right.count !== left.count) {
@@ -13196,6 +13240,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportHealth,
     sprintReportHealthDates,
     sprintReportPriorityBreakdown,
+    sprintReportTypeBreakdown,
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
