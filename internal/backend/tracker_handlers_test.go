@@ -891,7 +891,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		activeReportBody.Status.Tickets[0].Spec.Type != "bug" ||
 		activeReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
-		activeReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
+		activeReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		!slices.Equal(activeReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
 	}
 
@@ -937,7 +938,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		completedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		completedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
 		completedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
-		completedReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
+		completedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		!slices.Equal(completedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
 	}
 
@@ -970,7 +972,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		committedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		committedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
 		committedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
-		committedReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
+		committedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		!slices.Equal(committedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
 	}
 

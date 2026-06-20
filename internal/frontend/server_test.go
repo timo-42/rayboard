@@ -853,6 +853,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportPriorityBreakdown",
 		"sprintReportTypeBreakdownNode",
 		"sprintReportTypeBreakdown",
+		"sprintReportLabelBreakdownNode",
+		"sprintReportLabelBreakdown",
 		"sprintReportEstimateCoverageNode",
 		"sprintReportEstimateCoverage",
 		"sprintReportComponentNode",
@@ -898,6 +900,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"No priority",
 		"Issue type breakdown",
 		"No issue type",
+		"Label breakdown",
+		"No label data",
 		"Estimate coverage",
 		"No sprint tickets",
 		"Component breakdown",
@@ -928,6 +932,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-priority-list",
 		".sprint-report-types",
 		".sprint-report-type-list",
+		".sprint-report-labels",
+		".sprint-report-label-list",
 		".sprint-report-estimate-coverage",
 		".sprint-report-estimate-coverage-list",
 		".sprint-report-components",
@@ -945,6 +951,17 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestSprintReportLabelBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_label_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint label breakdown node test failed: %v\n%s", err, output)
 	}
 }
 
