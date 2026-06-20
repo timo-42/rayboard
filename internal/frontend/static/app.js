@@ -5393,6 +5393,7 @@ function renderVersionReport() {
     versionReportTimelineNode(version),
     versionReportSummaryNode(progress),
     versionReportScopeChangesNode(report ? report.scope_changes : null),
+    versionReportAssigneeWorkloadsNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -5710,6 +5711,87 @@ function versionReportComponentItemNode(component) {
     : `${component.unestimated} unestimated`;
   meta.textContent = `${component.done}/${component.total} done / ${pointText}`;
   item.append(title, meta);
+  return item;
+}
+
+function versionReportAssigneeWorkloadsNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "version-report-assignees";
+  const title = document.createElement("h4");
+  title.textContent = "Assignee workload";
+  const list = document.createElement("div");
+  list.className = "version-report-assignee-list";
+  const assignees = versionReportAssigneeWorkloads(tickets);
+  for (const assignee of assignees) {
+    list.append(versionReportAssigneeItemNode(assignee));
+  }
+  if (!assignees.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No assignee workload";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportAssigneeWorkloads(tickets) {
+  const groups = new Map();
+  const ensureGroup = (assigneeID) => {
+    const key = assigneeID || "";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: key ? `assignee ${key}` : "Unassigned",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    return groups.get(key);
+  };
+  for (const ticket of tickets) {
+    const group = ensureGroup(ticket.assignee_id || "");
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      if (Number.isFinite(points)) {
+        group.story_points_total += points;
+        if (ticket.status === "done") {
+          group.story_points_done += points;
+        }
+      } else {
+        group.unestimated += 1;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.key) {
+      return 1;
+    }
+    if (!right.key) {
+      return -1;
+    }
+    if (right.total !== left.total) {
+      return right.total - left.total;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+function versionReportAssigneeItemNode(assignee) {
+  const item = document.createElement("span");
+  const pointText = assignee.story_points_total > 0
+    ? `${formatStoryPoints(assignee.story_points_done)}/${formatStoryPoints(assignee.story_points_total)} pts`
+    : `${assignee.unestimated} unestimated`;
+  item.textContent = `${assignee.label}: ${assignee.done}/${assignee.total} done / ${pointText}`;
   return item;
 }
 
@@ -12903,6 +12985,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportHealth,
     sprintReportHealthDates,
     todayLocalISODate,
+    versionReportAssigneeWorkloads,
     versionReportTimelineItems
   };
 }

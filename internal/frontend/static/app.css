@@ -2087,14 +2087,16 @@ p {
 
 .sprint-report-scope-changes,
 .version-report-scope-changes,
-.sprint-report-assignees {
+.sprint-report-assignees,
+.version-report-assignees {
   display: grid;
   gap: 6px;
 }
 
 .sprint-report-scope-changes h4,
 .version-report-scope-changes h4,
-.sprint-report-assignees h4 {
+.sprint-report-assignees h4,
+.version-report-assignees h4 {
   margin: 0;
   color: var(--heading);
   font-size: 13px;
@@ -2102,7 +2104,8 @@ p {
 
 .sprint-report-scope-change-list,
 .version-report-scope-change-list,
-.sprint-report-assignee-list {
+.sprint-report-assignee-list,
+.version-report-assignee-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -2110,7 +2113,8 @@ p {
 
 .sprint-report-scope-change-list span,
 .version-report-scope-change-list span,
-.sprint-report-assignee-list span {
+.sprint-report-assignee-list span,
+.version-report-assignee-list span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
