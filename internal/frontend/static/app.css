@@ -3895,26 +3895,30 @@ p {
 }
 
 .field-usage-summary,
-.field-option-usage {
+.field-option-usage,
+.field-unmodeled-values {
   display: grid;
   gap: 5px;
 }
 
 .field-usage-summary strong,
-.field-option-usage strong {
+.field-option-usage strong,
+.field-unmodeled-values strong {
   color: var(--heading);
   font-size: 12px;
 }
 
 .field-usage-chips,
-.field-option-usage-chips {
+.field-option-usage-chips,
+.field-unmodeled-value-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .field-usage-chips span,
-.field-option-usage-chips span {
+.field-option-usage-chips span,
+.field-unmodeled-value-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);

@@ -8349,6 +8349,7 @@ function renderCustomFields() {
     els.customFields.append(empty);
     return;
   }
+  els.customFields.append(customFieldLayoutOverviewNode(state.customFields));
   if (!state.customFields.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -8356,7 +8357,6 @@ function renderCustomFields() {
     els.customFields.append(empty);
     return;
   }
-  els.customFields.append(customFieldLayoutOverviewNode(state.customFields));
   for (const field of state.customFields) {
     els.customFields.append(customFieldNode(field));
   }
@@ -8389,7 +8389,8 @@ function customFieldLayoutOverviewNode(fields) {
     customFieldTypeBreakdownNode(summary.types),
     customFieldRequirementInsightsNode(summary.insights),
     customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.customFieldUsageTickets)),
-    customFieldOptionUsageSummaryNode(customFieldOptionUsageSummary(fields, state.customFieldUsageTickets))
+    customFieldOptionUsageSummaryNode(customFieldOptionUsageSummary(fields, state.customFieldUsageTickets)),
+    customFieldUnmodeledValueSummaryNode(customFieldUnmodeledValueSummary(fields, state.customFieldUsageTickets))
   );
   return section;
 }
@@ -8673,6 +8674,57 @@ function customFieldOptionUsageSummaryNode(items) {
         : "";
       const chip = document.createElement("span");
       chip.textContent = `${item.label}: ${configured}${unconfigured}`;
+      chips.append(chip);
+    }
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function customFieldUnmodeledValueSummary(fields, tickets) {
+  const definedKeys = new Set((Array.isArray(fields) ? fields : [])
+    .map((field) => field && field.key ? String(field.key).trim() : "")
+    .filter(Boolean));
+  const counts = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const values = ticket && ticket.custom_fields && typeof ticket.custom_fields === "object" ? ticket.custom_fields : {};
+    for (const [key, value] of Object.entries(values)) {
+      const fieldKey = String(key || "").trim();
+      if (!fieldKey || definedKeys.has(fieldKey) || !customFieldValuePresent(value)) {
+        continue;
+      }
+      counts.set(fieldKey, (counts.get(fieldKey) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.key.localeCompare(right.key);
+    });
+}
+
+function customFieldUnmodeledValueSummaryNode(items) {
+  const group = document.createElement("div");
+  group.className = "field-unmodeled-values";
+
+  const label = document.createElement("strong");
+  label.textContent = "Unmodeled values";
+
+  const chips = document.createElement("div");
+  chips.className = "field-unmodeled-value-chips";
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    const empty = document.createElement("span");
+    empty.textContent = "no unmodeled values";
+    chips.append(empty);
+  } else {
+    for (const item of list) {
+      const chip = document.createElement("span");
+      chip.textContent = `${item.key}: ${item.count}`;
       chips.append(chip);
     }
   }
@@ -17749,6 +17801,7 @@ if (typeof module !== "undefined" && module.exports) {
     customFieldRequirementInsights,
     customFieldRequirementInsightItems,
     customFieldOptionUsageSummary,
+    customFieldUnmodeledValueSummary,
     customFieldUsageSummary,
     customFieldValuePresent,
     createPageLayoutBuilderFieldItem,
