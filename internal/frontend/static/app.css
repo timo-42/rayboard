@@ -2173,6 +2173,7 @@ p {
 .version-report-due-dates,
 .version-report-ages,
 .version-report-updates,
+.version-report-readiness,
 .version-report-estimate-coverage {
   display: grid;
   gap: 6px;
@@ -2203,6 +2204,7 @@ p {
 .version-report-due-dates h4,
 .version-report-ages h4,
 .version-report-updates h4,
+.version-report-readiness h4,
 .version-report-estimate-coverage h4 {
   margin: 0;
   color: var(--heading);
@@ -2231,6 +2233,7 @@ p {
 .version-report-due-date-list,
 .version-report-age-list,
 .version-report-update-list,
+.version-report-readiness-list,
 .version-report-estimate-coverage-list {
   display: flex;
   flex-wrap: wrap;
@@ -2259,6 +2262,7 @@ p {
 .version-report-due-date-list span,
 .version-report-age-list span,
 .version-report-update-list span,
+.version-report-readiness-list span,
 .version-report-estimate-coverage-list span {
   border: 1px solid var(--border);
   border-radius: 999px;

@@ -6417,6 +6417,7 @@ function renderVersionReport() {
     versionReportDueDateBreakdownNode(tickets),
     versionReportAgeBreakdownNode(tickets),
     versionReportUpdateFreshnessNode(tickets),
+    versionReportReadinessSummaryNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -7135,6 +7136,50 @@ function versionReportUpdateFreshness(tickets, todayValue = todayLocalISODate())
       byKey.get("stale").count += 1;
     } else {
       byKey.get("dormant").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function versionReportReadinessSummaryNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-readiness",
+    headingText: "Readiness summary",
+    listClass: "version-report-readiness-list",
+    items: versionReportReadinessSummary(tickets),
+    emptyText: "No readiness data"
+  });
+}
+
+function versionReportReadinessSummary(tickets) {
+  const buckets = [
+    { key: "ready", label: "Ready", count: 0 },
+    { key: "missing_assignee", label: "Missing assignee", count: 0 },
+    { key: "missing_estimate", label: "Missing estimate", count: 0 },
+    { key: "missing_start", label: "Missing start date", count: 0 },
+    { key: "missing_due", label: "Missing due date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    let gaps = 0;
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("missing_assignee").count += 1;
+      gaps += 1;
+    }
+    if (!sprintReportHasEstimate(ticket.story_points)) {
+      byKey.get("missing_estimate").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.start_date)) {
+      byKey.get("missing_start").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.due_date)) {
+      byKey.get("missing_due").count += 1;
+      gaps += 1;
+    }
+    if (gaps === 0) {
+      byKey.get("ready").count += 1;
     }
   }
   return buckets.filter((bucket) => bucket.count > 0);
@@ -15663,6 +15708,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportEstimateCoverage,
     versionReportLabelBreakdown,
     versionReportPriorityBreakdown,
+    versionReportReadinessSummary,
     versionReportReporterBreakdown,
     versionReportScopeChangeItems,
     versionReportStartDateBreakdown,
