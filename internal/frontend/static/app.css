@@ -3515,6 +3515,80 @@ p {
   padding: 2px 7px;
 }
 
+.roadmap-dependency-graph {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 10px;
+}
+
+.roadmap-dependency-graph h4 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.roadmap-dependency-graph-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roadmap-dependency-graph-node {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
+.roadmap-dependency-graph-node.is-epic {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.roadmap-dependency-graph-edges {
+  display: grid;
+  gap: 6px;
+}
+
+.roadmap-dependency-graph-edge {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 8px;
+}
+
+.roadmap-dependency-graph-edge.is-cross-epic {
+  border-left-color: var(--primary);
+}
+
+.roadmap-dependency-graph-edge-node {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.roadmap-dependency-graph-edge-label,
+.roadmap-dependency-graph-edge-scope {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .roadmap-dependency-form {
   min-width: 0;
   display: grid;
@@ -4710,6 +4784,7 @@ p {
   .board-edit-form,
   .roadmap-dependency-form,
   .roadmap-dependency,
+  .roadmap-dependency-graph-edge,
   .create-page-layout-builder-item,
   .roadmap-schedule-form,
   .release-grid,
