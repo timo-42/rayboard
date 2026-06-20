@@ -34,6 +34,7 @@ const {
   customFieldOptionUsageSummary,
   customFieldRequirementInsightItems,
   customFieldRequirementInsights,
+  customFieldUnmodeledValueSummary,
   customFieldUsageSummary,
   customFieldValuePresent
 } = require("./static/app.js");
@@ -259,3 +260,41 @@ assert.deepStrictEqual(customFieldOptionUsageSummary(fields, [
 
 assert.deepStrictEqual(customFieldOptionUsageSummary([], []), []);
 assert.deepStrictEqual(customFieldOptionUsageSummary(null, null), []);
+
+assert.deepStrictEqual(customFieldUnmodeledValueSummary(fields, [
+  {
+    custom_fields: {
+      severity: "High",
+      legacy_score: 5,
+      retired: "yes"
+    }
+  },
+  {
+    custom_fields: {
+      severity: "Low",
+      legacy_score: 0,
+      retired: " "
+    }
+  },
+  {
+    custom_fields: {
+      region: ["EU"],
+      orphan: ["", "east"],
+      retired: true
+    }
+  }
+]), [
+  { key: "legacy_score", count: 2 },
+  { key: "retired", count: 2 },
+  { key: "orphan", count: 1 }
+]);
+
+assert.deepStrictEqual(customFieldUnmodeledValueSummary([], [
+  { custom_fields: { severity: "High" } },
+  { custom_fields: { severity: "" } }
+]), [
+  { key: "severity", count: 1 }
+]);
+
+assert.deepStrictEqual(customFieldUnmodeledValueSummary(fields, null), []);
+assert.deepStrictEqual(customFieldUnmodeledValueSummary(null, null), []);
