@@ -936,6 +936,17 @@ func TestVersionReportTimelineItems(t *testing.T) {
 	}
 }
 
+func TestVersionReportAssigneeWorkloads(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_assignee_workload_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version assignee workload node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {
@@ -964,6 +975,11 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportBreakdownNode",
 		"versionReportComponentNode",
 		"versionReportComponents",
+		"versionReportAssigneeWorkloadsNode",
+		"versionReportAssigneeWorkloads",
+		"versionReportAssigneeItemNode",
+		"Assignee workload",
+		"Unassigned",
 		"versionReportTicketNode",
 		"versionReportScopeText",
 		"normalizeComponent",
@@ -1015,6 +1031,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-progress",
 		".version-report-scope-changes",
 		".version-report-scope-change-list",
+		".version-report-assignees",
+		".version-report-assignee-list",
 		".version-report-breakdown",
 		".version-report-component",
 		".component-edit-form",
