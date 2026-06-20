@@ -853,6 +853,10 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportStartDateBreakdown",
 		"sprintReportDueDateBreakdownNode",
 		"sprintReportDueDateBreakdown",
+		"sprintReportAgeBreakdownNode",
+		"sprintReportAgeBreakdown",
+		"Ticket age breakdown",
+		"No age data",
 		"sprintReportScopeChangesNode",
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
@@ -953,6 +957,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-start-date-list",
 		".sprint-report-due-dates",
 		".sprint-report-due-date-list",
+		".sprint-report-ages",
+		".sprint-report-age-list",
 		".sprint-report-scope-changes",
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
@@ -1027,6 +1033,17 @@ func TestSprintReportStartDateBreakdown(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint start date breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportAgeBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_age_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint age breakdown node test failed: %v\n%s", err, output)
 	}
 }
 
