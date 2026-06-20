@@ -2305,6 +2305,11 @@ p {
   gap: 6px;
 }
 
+.version-report-epic-list {
+  display: grid;
+  gap: 6px;
+}
+
 .sprint-report-component-list {
   display: grid;
   gap: 6px;
@@ -2323,7 +2328,8 @@ p {
 .sprint-report-component,
 .sprint-report-version,
 .sprint-report-epic,
-.version-report-component {
+.version-report-component,
+.version-report-epic {
   min-width: 0;
   display: grid;
   gap: 3px;
@@ -2335,7 +2341,8 @@ p {
 .sprint-report-component strong,
 .sprint-report-version strong,
 .sprint-report-epic strong,
-.version-report-component strong {
+.version-report-component strong,
+.version-report-epic strong {
   color: var(--heading);
   font-size: 13px;
   overflow-wrap: anywhere;
@@ -2345,13 +2352,16 @@ p {
 .sprint-report-version.is-unassigned,
 .sprint-report-epic.is-unassigned,
 .version-report-component.is-unassigned,
+.version-report-epic.is-unassigned,
 .version-report-ticket.is-unassigned {
   border-left: 4px solid var(--accent);
 }
 
 .sprint-report-component small,
 .sprint-report-version small,
-.sprint-report-epic small {
+.sprint-report-epic small,
+.version-report-component small,
+.version-report-epic small {
   color: var(--muted);
   font-size: 12px;
 }

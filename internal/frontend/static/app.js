@@ -6681,7 +6681,8 @@ function versionReportBreakdownNode(progress, tickets) {
     versionReportPriorityBreakdownNode(tickets),
     versionReportTypeBreakdownNode(tickets),
     versionReportLabelBreakdownNode(tickets),
-    versionReportComponentNode(tickets)
+    versionReportComponentNode(tickets),
+    versionReportEpicBreakdownNode(tickets)
   );
   return section;
 }
@@ -6832,6 +6833,83 @@ function versionReportComponentItemNode(component) {
     ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
     : `${component.unestimated} unestimated`;
   meta.textContent = `${component.done}/${component.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
+}
+
+function versionReportEpicBreakdownNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Epic breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-epic-list";
+  const epics = versionReportEpics(tickets);
+  for (const epic of epics) {
+    list.append(versionReportEpicItemNode(epic));
+  }
+  if (!epics.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No epic assignments";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportEpics(tickets) {
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const id = ticket.parent_ticket_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? roadmapEpicName(id) : "No epic",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.id && right.id) {
+      return 1;
+    }
+    if (left.id && !right.id) {
+      return -1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function versionReportEpicItemNode(epic) {
+  const item = document.createElement("article");
+  item.className = epic.id ? "version-report-epic" : "version-report-epic is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = epic.name;
+  const meta = document.createElement("small");
+  const pointText = epic.story_points_total > 0
+    ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
+    : `${epic.unestimated} unestimated`;
+  meta.textContent = `${epic.done}/${epic.total} done / ${pointText}`;
   item.append(title, meta);
   return item;
 }
@@ -15790,6 +15868,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportAttentionSummary,
     versionReportComponents,
     versionReportDueDateBreakdown,
+    versionReportEpics,
     versionReportEstimateCoverage,
     versionReportLabelBreakdown,
     versionReportPriorityBreakdown,
