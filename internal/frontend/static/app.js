@@ -5611,6 +5611,7 @@ function versionReportBreakdownNode(progress, tickets) {
   section.append(
     versionReportStatusNode(progress.by_status || {}),
     versionReportPriorityBreakdownNode(tickets),
+    versionReportTypeBreakdownNode(tickets),
     versionReportComponentNode(tickets)
   );
   return section;
@@ -5826,6 +5827,45 @@ function versionReportPriorityBreakdown(tickets) {
     priorities.set(label, (priorities.get(label) || 0) + 1);
   }
   return Array.from(priorities.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function versionReportTypeBreakdownNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Issue type breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-types";
+  const types = versionReportTypeBreakdown(tickets);
+  for (const type of types) {
+    const item = document.createElement("span");
+    item.textContent = `${type.label}: ${type.count}`;
+    list.append(item);
+  }
+  if (!types.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No issue type data";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportTypeBreakdown(tickets) {
+  const types = new Map();
+  for (const ticket of tickets) {
+    const label = ticket.type || "No issue type";
+    types.set(label, (types.get(label) || 0) + 1);
+  }
+  return Array.from(types.entries())
     .map(([label, count]) => ({ label, count }))
     .sort((left, right) => {
       if (right.count !== left.count) {
@@ -13027,6 +13067,7 @@ if (typeof module !== "undefined" && module.exports) {
     todayLocalISODate,
     versionReportAssigneeWorkloads,
     versionReportPriorityBreakdown,
+    versionReportTypeBreakdown,
     versionReportTimelineItems
   };
 }
