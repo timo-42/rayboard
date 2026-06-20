@@ -33,6 +33,8 @@ const {
   boardCapacityOverview,
   boardCapacityOverviewLabel,
   boardColumnTicketCount,
+  boardRiskOverview,
+  boardRiskOverviewLabel,
   boardSummaryMetrics
 } = require("./static/app.js");
 
@@ -42,12 +44,20 @@ const columns = [
     name: "To Do",
     ticket_count: 2,
     wip_limit: 5,
-    tickets: [{ id: "ignored" }]
+    tickets: [
+      { id: "a", status: "todo", priority: "High", due_date: "2026-06-18", updated_at: "2026-06-10T09:00:00Z" },
+      { id: "b", status: "todo", priority: "Low", due_date: "2026-06-25", updated_at: "2026-06-20T09:00:00Z" }
+    ]
   },
   {
     slug: "doing",
     name: "Doing",
-    tickets: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+    tickets: [
+      { id: "c", status: "blocked", priority: "Medium", due_date: "2026-06-30", updated_at: "2026-06-01T09:00:00Z" },
+      { id: "d", status: "in_progress", priority: "Critical", due_date: "2026-06-19", updated_at: "2026-06-20T09:00:00Z" },
+      { id: "e", status: "in_progress", priority: "Low", due_date: "", updated_at: "2026-06-20T09:00:00Z" },
+      { id: "f", status: "done", priority: "Critical", due_date: "2026-06-01", updated_at: "2026-05-01T09:00:00Z" }
+    ],
     wip_limit: 3
   },
   {
@@ -115,7 +125,8 @@ assert.deepStrictEqual(
     column_count: 4,
     wip_warnings: 1,
     saved_view_filter: "filtered",
-    capacity: boardCapacityOverview(columns)
+    capacity: boardCapacityOverview(columns),
+    risks: boardRiskOverview(columns)
   }
 );
 
@@ -136,10 +147,35 @@ assert.deepStrictEqual(
         remaining: null,
         overage: 0
       }
-    ]
+    ],
+    risks: []
   }
 );
 
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[0]), "To Do: 2/5, 3 remaining");
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[1]), "Doing: 4/3, 1 over limit");
 assert.strictEqual(boardCapacityOverviewLabel(boardCapacityOverview(columns)[2]), "Done: 7, unlimited");
+
+assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
+  {
+    slug: "doing",
+    name: "Doing",
+    blocked: 1,
+    overdue: 1,
+    stale: 1,
+    high_priority: 1,
+    total: 4
+  },
+  {
+    slug: "todo",
+    name: "To Do",
+    blocked: 0,
+    overdue: 1,
+    stale: 1,
+    high_priority: 1,
+    total: 3
+  }
+]);
+
+assert.deepStrictEqual(boardRiskOverview(null, "2026-06-20"), []);
+assert.strictEqual(boardRiskOverviewLabel(boardRiskOverview(columns, "2026-06-20")[0]), "Doing: 1 blocked, 1 overdue, 1 stale, 1 high priority");

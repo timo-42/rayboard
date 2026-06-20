@@ -1198,6 +1198,38 @@ p {
   font-weight: 700;
 }
 
+.board-risk-overview {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
+.board-risk-overview strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.board-risk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-risk-chips span {
+  border: 1px solid var(--warning, #f79009);
+  border-radius: 999px;
+  background: var(--warning-soft, #fffaeb);
+  color: var(--heading);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .column {
   min-width: 0;
   display: grid;
