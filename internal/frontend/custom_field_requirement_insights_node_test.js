@@ -31,6 +31,7 @@ global.window = {
 
 const {
   customFieldLayoutSummary,
+  customFieldOptionUsageSummary,
   customFieldRequirementInsightItems,
   customFieldRequirementInsights,
   customFieldUsageSummary,
@@ -203,3 +204,58 @@ assert.deepStrictEqual(customFieldUsageSummary(fields, [
 ]);
 
 assert.deepStrictEqual(customFieldUsageSummary(null, null), []);
+
+assert.deepStrictEqual(customFieldOptionUsageSummary(fields, [
+  {
+    custom_fields: {
+      severity: "High",
+      region: ["EU", ""]
+    }
+  },
+  {
+    custom_fields: {
+      severity: "",
+      channel: "Email"
+    }
+  },
+  {
+    custom_fields: {
+      severity: "Low",
+      region: ["EU", "APAC"]
+    }
+  }
+]), [
+  {
+    key: "severity",
+    label: "severity",
+    field_type: "single_select",
+    configured_options: [
+      { option: "Low", count: 1 },
+      { option: "High", count: 1 }
+    ],
+    unconfigured_options: []
+  },
+  {
+    key: "region",
+    label: "region",
+    field_type: "multi_select",
+    configured_options: [
+      { option: "EU", count: 2 }
+    ],
+    unconfigured_options: [
+      { option: "APAC", count: 1 }
+    ]
+  },
+  {
+    key: "channel",
+    label: "channel",
+    field_type: "single_select",
+    configured_options: [],
+    unconfigured_options: [
+      { option: "Email", count: 1 }
+    ]
+  }
+]);
+
+assert.deepStrictEqual(customFieldOptionUsageSummary([], []), []);
+assert.deepStrictEqual(customFieldOptionUsageSummary(null, null), []);
