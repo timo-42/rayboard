@@ -13698,6 +13698,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardSummaryMetricNode("Columns", metrics.column_count),
     boardSummaryMetricNode("WIP warnings", metrics.wip_warnings),
     boardSummaryMetricNode("Saved view", metrics.saved_view_filter),
+    boardFlowBalanceNode(metrics.flow_balance),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13713,6 +13714,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     column_count: boardColumns.length,
     wip_warnings: capacity.filter((item) => item.status === "over_limit").length,
     saved_view_filter: boardTickets && boardTickets.filtered_by_saved_view ? "filtered" : "all tickets",
+    flow_balance: boardFlowBalance(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -13727,6 +13729,62 @@ function boardSummaryMetricNode(label, value) {
   span.textContent = label;
   item.append(strong, span);
   return item;
+}
+
+function boardFlowBalance(columns) {
+  const boardColumns = Array.isArray(columns) ? columns : [];
+  const items = boardColumns.map((column) => {
+    const count = boardColumnTicketCount(column);
+    const limit = Number(column && column.wip_limit);
+    const hasLimit = Number.isFinite(limit) && limit > 0;
+    return {
+      slug: column && column.slug ? column.slug : "",
+      name: column && column.name ? column.name : (column && column.slug ? column.slug : "Column"),
+      ticket_count: count,
+      wip_limit: hasLimit ? limit : null,
+      at_limit: hasLimit && count === limit,
+      over_limit: hasLimit && (count > limit || Boolean(column && column.over_wip_limit))
+    };
+  });
+  const bottleneck = items
+    .slice()
+    .sort((left, right) => right.ticket_count - left.ticket_count || left.name.localeCompare(right.name))[0] || null;
+  return {
+    empty_columns: items.filter((item) => item.ticket_count === 0).length,
+    at_limit_columns: items.filter((item) => item.at_limit).length,
+    over_limit_columns: items.filter((item) => item.over_limit).length,
+    bottleneck
+  };
+}
+
+function boardFlowBalanceNode(flowBalance) {
+  const overview = document.createElement("div");
+  overview.className = "board-flow-balance";
+
+  const label = document.createElement("strong");
+  label.textContent = "Flow balance";
+
+  const chips = document.createElement("div");
+  chips.className = "board-flow-chips";
+  for (const item of boardFlowBalanceItems(flowBalance)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardFlowBalanceItems(flowBalance) {
+  const balance = flowBalance || {};
+  const bottleneck = balance.bottleneck || null;
+  return [
+    `empty columns: ${Number(balance.empty_columns) || 0}`,
+    `at WIP limit: ${Number(balance.at_limit_columns) || 0}`,
+    `over WIP limit: ${Number(balance.over_limit_columns) || 0}`,
+    bottleneck ? `bottleneck: ${bottleneck.name} (${bottleneck.ticket_count})` : "bottleneck: none"
+  ];
 }
 
 function boardCapacityOverview(columns) {
@@ -16708,6 +16766,8 @@ if (typeof module !== "undefined" && module.exports) {
     boardCapacityOverviewLabel,
     boardRiskOverview,
     boardRiskOverviewLabel,
+    boardFlowBalance,
+    boardFlowBalanceItems,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
