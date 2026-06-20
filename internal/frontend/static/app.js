@@ -11666,6 +11666,13 @@ function automationRunSummaryNode(runs, visibleRuns, filterKey) {
     section.append(item);
   }
 
+  for (const failure of summary.failures) {
+    const item = document.createElement("span");
+    item.className = "automation-run-summary-failure";
+    item.textContent = `failure ${failure.label} ${failure.count}`;
+    section.append(item);
+  }
+
   return section;
 }
 
@@ -11745,7 +11752,8 @@ function summarizeAutomationRuns(runs) {
     maxDurationLabel: "",
     oldestRunLabel: "",
     newestRunLabel: "",
-    triggerCounts: {}
+    triggerCounts: {},
+    failures: []
   };
   let durationCount = 0;
   let totalDurationMs = 0;
@@ -11796,7 +11804,37 @@ function summarizeAutomationRuns(runs) {
   if (newestRunMs > 0) {
     summary.newestRunLabel = formatDateTime(new Date(newestRunMs).toISOString());
   }
+  summary.failures = automationRunFailureBreakdown(runs);
   return summary;
+}
+
+function automationRunFailureBreakdown(runs, limit = 4) {
+  const counts = new Map();
+  for (const run of runs || []) {
+    if (automationRunStateGroup(run) !== "failed") {
+      continue;
+    }
+    const label = automationRunFailureLabel(run);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const maxItems = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 4;
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    })
+    .slice(0, maxItems);
+}
+
+function automationRunFailureLabel(run) {
+  const raw = String((run && (run.error || run.state)) || "failed").replace(/\s+/g, " ").trim();
+  if (!raw) {
+    return "failed";
+  }
+  return raw.length > 72 ? `${raw.slice(0, 69)}...` : raw;
 }
 
 function formatRunRate(count, total) {
@@ -16804,6 +16842,9 @@ if (typeof module !== "undefined" && module.exports) {
     notificationHookPreviewSummaryItems,
     notificationDeliveryAnalytics,
     notificationDeliveryAnalyticsLabel,
+    summarizeAutomationRuns,
+    automationRunFailureBreakdown,
+    automationRunFailureLabel,
     customFieldLayoutSummary,
     customFieldRequirementInsights,
     customFieldRequirementInsightItems,
