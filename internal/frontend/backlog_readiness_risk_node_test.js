@@ -30,8 +30,10 @@ global.window = {
 };
 
 const {
+  backlogAgeBreakdown,
   backlogReadinessSummary,
-  backlogRiskSummary
+  backlogRiskSummary,
+  backlogUpdateFreshness
 } = require("./static/app.js");
 
 const tickets = [
@@ -40,6 +42,7 @@ const tickets = [
     priority: "High",
     assignee_id: "",
     story_points: null,
+    created_at: "2026-06-18T09:00:00Z",
     start_date: "",
     due_date: "2026-06-19",
     updated_at: "2026-06-01T09:00:00Z"
@@ -49,6 +52,7 @@ const tickets = [
     priority: "Medium",
     assignee_id: "user_1",
     story_points: 3,
+    created_at: "2026-05-25T09:00:00Z",
     start_date: "2026-06-18",
     due_date: "2026-06-25",
     updated_at: "2026-06-20T09:00:00Z"
@@ -58,6 +62,7 @@ const tickets = [
     priority: "Critical",
     assignee_id: "",
     story_points: "",
+    created_at: "2026-04-01T09:00:00Z",
     start_date: "",
     due_date: "2026-06-01",
     updated_at: "2026-05-01T09:00:00Z"
@@ -67,6 +72,7 @@ const tickets = [
     priority: "Low",
     assignee_id: "   ",
     story_points: "bad",
+    created_at: "",
     start_date: "not-a-date",
     due_date: "",
     updated_at: "2026-06-10T09:00:00Z"
@@ -90,7 +96,24 @@ assert.deepStrictEqual(backlogRiskSummary(tickets, "2026-06-20"), [
   { key: "high_priority_open", label: "High-priority open", count: 1 }
 ]);
 
+assert.deepStrictEqual(backlogAgeBreakdown(tickets, "2026-06-20"), [
+  { key: "new", label: "New (0-7 days)", count: 1 },
+  { key: "recent", label: "Recent (8-30 days)", count: 1 },
+  { key: "older", label: "Older (31+ days)", count: 1 },
+  { key: "none", label: "No created date", count: 1 }
+]);
+
+assert.deepStrictEqual(backlogUpdateFreshness(tickets, "2026-06-20"), [
+  { key: "today", label: "Updated today", count: 1 },
+  { key: "stale", label: "Stale (8-30 days)", count: 2 },
+  { key: "dormant", label: "Dormant (31+ days)", count: 1 }
+]);
+
 assert.deepStrictEqual(backlogReadinessSummary([]), []);
 assert.deepStrictEqual(backlogReadinessSummary(null), []);
 assert.deepStrictEqual(backlogRiskSummary([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogRiskSummary(null, "2026-06-20"), []);
+assert.deepStrictEqual(backlogAgeBreakdown([], "2026-06-20"), []);
+assert.deepStrictEqual(backlogAgeBreakdown(null, "2026-06-20"), []);
+assert.deepStrictEqual(backlogUpdateFreshness([], "2026-06-20"), []);
+assert.deepStrictEqual(backlogUpdateFreshness(null, "2026-06-20"), []);

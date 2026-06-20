@@ -4270,6 +4270,8 @@ function backlogSummaryNode(tickets) {
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   section.append(backlogReadinessSummaryNode(metrics.readiness));
   section.append(backlogRiskSummaryNode(metrics.risks));
+  section.append(backlogAgeBreakdownNode(metrics.ages));
+  section.append(backlogUpdateFreshnessNode(metrics.updates));
   return section;
 }
 
@@ -4301,7 +4303,9 @@ function backlogSummaryMetrics(tickets) {
     assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list),
     readiness: backlogReadinessSummary(list),
-    risks: backlogRiskSummary(list)
+    risks: backlogRiskSummary(list),
+    ages: backlogAgeBreakdown(list),
+    updates: backlogUpdateFreshness(list)
   };
 }
 
@@ -4587,6 +4591,81 @@ function backlogRiskSummaryNode(risks) {
     headingText: "Risk signals",
     items: risks,
     emptyText: "No risk signals"
+  });
+}
+
+function backlogAgeBreakdown(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "new", label: "New (0-7 days)", count: 0 },
+    { key: "recent", label: "Recent (8-30 days)", count: 0 },
+    { key: "older", label: "Older (31+ days)", count: 0 },
+    { key: "none", label: "No created date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const created = sprintReportCreatedDate(ticket.created_at);
+    if (!created) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(created, today), 0);
+    if (ageDays <= 7) {
+      byKey.get("new").count += 1;
+    } else if (ageDays <= 30) {
+      byKey.get("recent").count += 1;
+    } else {
+      byKey.get("older").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function backlogAgeBreakdownNode(ages) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-age-breakdown",
+    headingText: "Ticket age",
+    items: ages,
+    emptyText: "No age data"
+  });
+}
+
+function backlogUpdateFreshness(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "today", label: "Updated today", count: 0 },
+    { key: "week", label: "Updated this week", count: 0 },
+    { key: "stale", label: "Stale (8-30 days)", count: 0 },
+    { key: "dormant", label: "Dormant (31+ days)", count: 0 },
+    { key: "none", label: "No update date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (!updated) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(updated, today), 0);
+    if (ageDays === 0) {
+      byKey.get("today").count += 1;
+    } else if (ageDays <= 7) {
+      byKey.get("week").count += 1;
+    } else if (ageDays <= 30) {
+      byKey.get("stale").count += 1;
+    } else {
+      byKey.get("dormant").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function backlogUpdateFreshnessNode(updates) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-update-freshness",
+    headingText: "Update freshness",
+    items: updates,
+    emptyText: "No update data"
   });
 }
 
@@ -16074,6 +16153,8 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderTextKind,
     backlogReadinessSummary,
     backlogRiskSummary,
+    backlogAgeBreakdown,
+    backlogUpdateFreshness,
     mutateCreatePageLayoutBuilderItems,
     parseCreatePageLayoutBuilderJSON,
     roadmapCapacityDrilldown,
