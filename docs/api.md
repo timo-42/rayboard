@@ -143,7 +143,7 @@ The backlog API lists project backlog tickets in stable backlog order and suppor
 | `GET` | `/api/projects/{project_id}/backlog` | none |
 | `PATCH` | `/api/projects/{project_id}/backlog` | `{"spec":{"ticket_ids":["ticket_2","ticket_1"]}}` |
 
-Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice. The embedded project page derives backlog planning summaries from the returned tickets, including assignee workload breakdowns with done totals and estimate coverage plus reporter breakdowns.
+Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice. The embedded project page derives backlog planning summaries from the returned tickets, including assignee workload breakdowns with done totals and estimate coverage, reporter breakdowns, and sprint workload progress summaries.
 
 ## Boards and Workflows
 
