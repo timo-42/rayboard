@@ -3263,6 +3263,38 @@ p {
   gap: 8px;
 }
 
+.roadmap-dependency-overview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
+.roadmap-dependency-overview h4 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.roadmap-dependency-overview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roadmap-dependency-overview-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .roadmap-dependency-form {
   min-width: 0;
   display: grid;
