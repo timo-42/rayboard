@@ -7165,7 +7165,9 @@ function renderNotificationDeliverySummary() {
     ["Failed", summary.counts.failed],
     ["Canceled", summary.counts.canceled],
     ["Retryable", summary.retryable],
-    ["Delivered %", `${summary.deliveredPercent}%`]
+    ["Delivered %", `${summary.deliveredPercent}%`],
+    ["Oldest", summary.oldestDelivery ? notificationDeliverySummaryTime(summary.oldestDelivery) : "n/a"],
+    ["Newest", summary.newestDelivery ? notificationDeliverySummaryTime(summary.newestDelivery) : "n/a"]
   ]) {
     const item = document.createElement("span");
     item.textContent = `${metric[0]}: ${metric[1]}`;
@@ -7189,12 +7191,20 @@ function renderNotificationDeliverySummary() {
 function notificationDeliverySummary() {
   const counts = { queued: 0, sending: 0, delivered: 0, failed: 0, canceled: 0 };
   let latestFailure = null;
+  let oldestDelivery = null;
+  let newestDelivery = null;
   for (const delivery of state.notificationDeliveries) {
     if (Object.prototype.hasOwnProperty.call(counts, delivery.state)) {
       counts[delivery.state] += 1;
     }
     if ((delivery.state === "failed" || delivery.state === "canceled") && (!latestFailure || deliveryUpdatedAt(delivery) > deliveryUpdatedAt(latestFailure))) {
       latestFailure = delivery;
+    }
+    if (!oldestDelivery || deliveryUpdatedAt(delivery) < deliveryUpdatedAt(oldestDelivery)) {
+      oldestDelivery = delivery;
+    }
+    if (!newestDelivery || deliveryUpdatedAt(delivery) > deliveryUpdatedAt(newestDelivery)) {
+      newestDelivery = delivery;
     }
   }
   const total = state.notificationDeliveries.length;
@@ -7203,13 +7213,19 @@ function notificationDeliverySummary() {
     counts,
     retryable: counts.failed + counts.canceled,
     deliveredPercent: total ? Math.round((counts.delivered / total) * 100) : 0,
-    latestFailure
+    latestFailure,
+    oldestDelivery,
+    newestDelivery
   };
 }
 
 function deliveryUpdatedAt(delivery) {
   const value = Date.parse(delivery.updated_at || delivery.last_attempt_at || delivery.created_at || "");
   return Number.isFinite(value) ? value : 0;
+}
+
+function notificationDeliverySummaryTime(delivery) {
+  return formatDateTime(delivery.updated_at || delivery.last_attempt_at || delivery.created_at || "");
 }
 
 function notificationDeliveryNode(delivery) {
