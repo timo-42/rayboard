@@ -793,7 +793,8 @@ function bindEvents() {
   els.createPageProject.addEventListener("change", async () => {
     const projectID = els.createPageProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
-    await Promise.all([loadCustomFields({ renderTickets: false }), loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
+    await loadCustomFields({ renderTickets: false });
+    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
   });
 
   els.createPageForm.addEventListener("submit", async (event) => {
@@ -2775,7 +2776,8 @@ async function loadRouteData() {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
     }
-    await Promise.all([loadCustomFields({ renderTickets: false }), loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
+    await loadCustomFields({ renderTickets: false });
+    await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
   }
 }
 
