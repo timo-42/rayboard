@@ -305,6 +305,11 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"backlogAssigneeBreakdownNode",
 		"backlogSprintWorkloads",
 		"backlogSprintWorkloadsNode",
+		"backlogReadinessSummary",
+		"backlogReadinessSummaryNode",
+		"backlogRiskSummary",
+		"backlogRiskSummaryNode",
+		"Risk signals",
 		"Estimated",
 		"Unestimated",
 		"Sprint assigned",
@@ -484,6 +489,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".backlog-priority-breakdown",
 		".backlog-assignee-breakdown",
 		".backlog-sprint-workloads",
+		".backlog-readiness-summary",
+		".backlog-risk-summary",
+		".backlog-planning-chips",
 		".backlog-sprint",
 		".backlog-sprint-controls",
 		".workflow-panel",
@@ -529,6 +537,17 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestBacklogReadinessRiskSummaries(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "backlog_readiness_risk_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("backlog readiness risk node test failed: %v\n%s", err, output)
 	}
 }
 
