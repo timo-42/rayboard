@@ -1312,6 +1312,17 @@ func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	}
 }
 
+func TestVersionReportReporterBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_reporter_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version reporter breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1413,11 +1424,16 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportAssigneeWorkloadsNode",
 		"versionReportAssigneeWorkloads",
 		"versionReportAssigneeItemNode",
+		"versionReportReporterBreakdownNode",
+		"versionReportReporterBreakdown",
 		"versionReportPriorityBreakdownNode",
 		"versionReportPriorityBreakdown",
 		"versionReportTypeBreakdownNode",
 		"versionReportTypeBreakdown",
 		"Assignee workload",
+		"Reporter breakdown",
+		"No reporter data",
+		"No reporter",
 		"Estimate coverage",
 		"No release tickets",
 		"Priority breakdown",
@@ -1482,6 +1498,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-scope-change-list",
 		".version-report-assignees",
 		".version-report-assignee-list",
+		".version-report-reporters",
+		".version-report-reporter-list",
 		".version-report-types",
 		".version-report-priorities",
 		".version-report-labels",
