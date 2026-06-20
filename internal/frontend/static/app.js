@@ -4900,6 +4900,7 @@ function renderSprintReport() {
   }
 
   const statuses = sprintReportStatusBreakdownNode(progress);
+  const dueDates = sprintReportDueDateBreakdownNode(report && report.tickets ? report.tickets : []);
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const labels = sprintReportLabelBreakdownNode(report && report.tickets ? report.tickets : []);
@@ -4927,7 +4928,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, dueDates, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5162,6 +5163,63 @@ function sprintReportStatusBreakdown(progress) {
       return left.label.localeCompare(right.label);
     });
   return ordered.concat(unknown);
+}
+
+function sprintReportDueDateBreakdownNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-due-dates";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Due date breakdown";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-due-date-list";
+  const buckets = sprintReportDueDateBreakdown(tickets);
+  if (!buckets.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No due date data";
+    list.append(empty);
+  } else {
+    for (const bucket of buckets) {
+      const item = document.createElement("span");
+      item.textContent = `${bucket.label}: ${bucket.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportDueDateBreakdown(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "overdue", label: "Overdue", count: 0 },
+    { key: "today", label: "Due today", count: 0 },
+    { key: "soon", label: "Due soon", count: 0 },
+    { key: "later", label: "Later", count: 0 },
+    { key: "none", label: "No due date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const due = dateToUTC(ticket.due_date);
+    if (!due) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const days = daysBetween(today, due);
+    if (days < 0) {
+      byKey.get("overdue").count += 1;
+    } else if (days === 0) {
+      byKey.get("today").count += 1;
+    } else if (days <= 3) {
+      byKey.get("soon").count += 1;
+    } else {
+      byKey.get("later").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
 }
 
 function sprintReportPriorityBreakdownNode(tickets) {
@@ -13706,6 +13764,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportReporterBreakdown,
     sprintReportLabelBreakdown,
     sprintReportStatusBreakdown,
+    sprintReportDueDateBreakdown,
     sprintReportHealth,
     sprintReportHealthDates,
     sprintReportEstimateCoverage,

@@ -849,6 +849,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportAnalyticsNode",
 		"sprintReportStatusBreakdownNode",
 		"sprintReportStatusBreakdown",
+		"sprintReportDueDateBreakdownNode",
+		"sprintReportDueDateBreakdown",
 		"sprintReportScopeChangesNode",
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
@@ -905,6 +907,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"Live current assignment",
 		"Status breakdown",
 		"No status data",
+		"Due date breakdown",
+		"No due date data",
 		"Priority breakdown",
 		"No priority",
 		"Issue type breakdown",
@@ -941,6 +945,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-chart",
 		".sprint-report-statuses",
 		".sprint-report-status-list",
+		".sprint-report-due-dates",
+		".sprint-report-due-date-list",
 		".sprint-report-scope-changes",
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
@@ -993,6 +999,17 @@ func TestSprintReportStatusBreakdown(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint status breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportDueDateBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_due_date_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint due date breakdown node test failed: %v\n%s", err, output)
 	}
 }
 
