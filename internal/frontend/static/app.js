@@ -7001,8 +7001,79 @@ function renderVersions() {
   els.versions.append(versionTargetHealthSummaryNode(state.versions));
   els.versions.append(versionTimingVarianceSummaryNode(state.versions));
   for (const version of state.versions) {
-    els.versions.append(versionNode(version));
+    els.versions.append(versionNode(version, state.tickets));
   }
+}
+
+function versionStatusSummary(tickets, versionID) {
+  const statuses = new Map();
+  let total = 0;
+  let done = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    if (ticket.status === "done") {
+      done += 1;
+    }
+    const status = String(ticket.status || "").trim() || "No status";
+    statuses.set(status, (statuses.get(status) || 0) + 1);
+  }
+  return {
+    total,
+    done,
+    open: Math.max(total - done, 0),
+    statuses: Array.from(statuses.entries())
+      .map(([status, count]) => ({ status, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.status.localeCompare(right.status);
+      })
+  };
+}
+
+function versionStatusSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-status-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket status";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-status-chips";
+  for (const item of versionStatusSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionStatusSummaryItems(summary) {
+  const data = summary || {};
+  const items = [
+    `total: ${Number(data.total) || 0}`,
+    `open: ${Number(data.open) || 0}`,
+    `done: ${Number(data.done) || 0}`
+  ];
+  const statuses = Array.isArray(data.statuses) ? data.statuses : [];
+  return items.concat(statuses.slice(0, 4).map((item) => {
+    const status = String(item && item.status || "").trim() || "No status";
+    return `${status}: ${Number(item && item.count) || 0}`;
+  }));
 }
 
 function versionLifecycleSummary(versions) {
@@ -8532,7 +8603,7 @@ function versionReportScopeText(report) {
   return "Live current assignment";
 }
 
-function versionNode(version) {
+function versionNode(version, tickets = state.tickets) {
   const article = document.createElement("article");
   article.className = "version-item";
   article.dataset.versionState = version.state || "planned";
@@ -8551,7 +8622,7 @@ function versionNode(version) {
     version.description
   ].filter(Boolean).join(" / ");
 
-  body.append(name, meta);
+  body.append(name, meta, versionStatusSummaryNode(versionStatusSummary(tickets, version.id)));
 
   const edit = document.createElement("form");
   edit.className = "version-edit-form";
@@ -18163,6 +18234,8 @@ if (typeof module !== "undefined" && module.exports) {
     componentOwnerMetadataItems,
     componentStatusSummary,
     componentStatusSummaryItems,
+    versionStatusSummary,
+    versionStatusSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

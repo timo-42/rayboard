@@ -1527,6 +1527,17 @@ func TestVersionTimingVarianceSummary(t *testing.T) {
 	}
 }
 
+func TestVersionStatusSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_status_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version status summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1792,6 +1803,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionTargetHealthSummary",
 		"versionTimingVarianceSummaryNode",
 		"versionTimingVarianceSummary",
+		"versionStatusSummary",
+		"versionStatusSummaryItems",
+		"versionStatusSummaryNode",
 		"versionReportHealthDates",
 		"versionReportTimelineNode",
 		"versionReportTimelineItems",
@@ -1931,6 +1945,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".component-status-chips",
 		".version-form",
 		".version-report",
+		".version-status-summary",
+		".version-status-chips",
 		".version-lifecycle-summary",
 		".version-lifecycle-list",
 		".version-date-coverage",
