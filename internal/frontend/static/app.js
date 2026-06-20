@@ -6682,7 +6682,8 @@ function versionReportBreakdownNode(progress, tickets) {
     versionReportTypeBreakdownNode(tickets),
     versionReportLabelBreakdownNode(tickets),
     versionReportComponentNode(tickets),
-    versionReportEpicBreakdownNode(tickets)
+    versionReportEpicBreakdownNode(tickets),
+    versionReportSprintBreakdownNode(tickets)
   );
   return section;
 }
@@ -6910,6 +6911,83 @@ function versionReportEpicItemNode(epic) {
     ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
     : `${epic.unestimated} unestimated`;
   meta.textContent = `${epic.done}/${epic.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
+}
+
+function versionReportSprintBreakdownNode(tickets) {
+  const section = document.createElement("div");
+  section.className = "version-report-section";
+  const title = document.createElement("h4");
+  title.textContent = "Sprint breakdown";
+  const list = document.createElement("div");
+  list.className = "version-report-sprint-list";
+  const sprints = versionReportSprints(tickets);
+  for (const sprint of sprints) {
+    list.append(versionReportSprintItemNode(sprint));
+  }
+  if (!sprints.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No sprint assignments";
+    list.append(empty);
+  }
+  section.append(title, list);
+  return section;
+}
+
+function versionReportSprints(tickets) {
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const id = ticket.sprint_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? sprintName(id) : "No sprint",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.id && right.id) {
+      return 1;
+    }
+    if (left.id && !right.id) {
+      return -1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function versionReportSprintItemNode(sprint) {
+  const item = document.createElement("article");
+  item.className = sprint.id ? "version-report-sprint" : "version-report-sprint is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = sprint.name;
+  const meta = document.createElement("small");
+  const pointText = sprint.story_points_total > 0
+    ? `${formatStoryPoints(sprint.story_points_done)}/${formatStoryPoints(sprint.story_points_total)} pts`
+    : `${sprint.unestimated} unestimated`;
+  meta.textContent = `${sprint.done}/${sprint.total} done / ${pointText}`;
   item.append(title, meta);
   return item;
 }
@@ -15876,6 +15954,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportReporterBreakdown,
     versionReportRiskSummary,
     versionReportScopeChangeItems,
+    versionReportSprints,
     versionReportStartDateBreakdown,
     versionReportTypeBreakdown,
     versionReportUpdateFreshness,
