@@ -4308,6 +4308,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogEstimateCoverageNode(metrics.estimate_coverage));
   section.append(backlogStatusBreakdownNode(metrics.statuses));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
+  section.append(backlogIssueTypeBreakdownNode(metrics.issue_types));
   section.append(backlogLabelBreakdownNode(metrics.labels));
   section.append(backlogComponentBreakdownNode(metrics.components));
   section.append(backlogVersionBreakdownNode(metrics.versions));
@@ -4350,6 +4351,7 @@ function backlogSummaryMetrics(tickets) {
     estimate_coverage: backlogEstimateCoverage(list.length, estimated),
     statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
+    issue_types: backlogIssueTypeBreakdown(list),
     labels: backlogLabelBreakdown(list),
     components: backlogComponentBreakdown(list),
     versions: backlogVersionBreakdown(list),
@@ -4454,6 +4456,24 @@ function backlogPriorityBreakdownNode(priorities) {
   for (const priority of priorities) {
     const item = document.createElement("span");
     item.textContent = `${priority.label}: ${priority.count}`;
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogIssueTypeBreakdown(tickets) {
+  return sprintReportTypeBreakdown(tickets);
+}
+
+function backlogIssueTypeBreakdownNode(types) {
+  const list = document.createElement("div");
+  list.className = "backlog-issue-type-breakdown";
+  if (!types.length) {
+    return list;
+  }
+  for (const type of types) {
+    const item = document.createElement("span");
+    item.textContent = `${type.label}: ${type.count}`;
     list.append(item);
   }
   return list;
@@ -17560,6 +17580,7 @@ if (typeof module !== "undefined" && module.exports) {
     backlogReadinessSummary,
     backlogRiskSummary,
     backlogAttentionSummary,
+    backlogIssueTypeBreakdown,
     backlogLabelBreakdown,
     backlogLabelBreakdownVisibleItems,
     backlogComponentBreakdown,

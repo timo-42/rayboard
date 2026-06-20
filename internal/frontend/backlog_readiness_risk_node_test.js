@@ -43,6 +43,7 @@ const {
   backlogReporterBreakdownLabel,
   backlogSprintWorkloads,
   backlogSprintWorkloadLabel,
+  backlogIssueTypeBreakdown,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
@@ -56,6 +57,7 @@ const {
 const tickets = [
   {
     status: "todo",
+    type: "bug",
     priority: "High",
     reporter_id: "user_reporter",
     assignee_id: "",
@@ -72,6 +74,7 @@ const tickets = [
   },
   {
     status: "blocked",
+    type: "task",
     priority: "Medium",
     reporter_id: "user_reporter",
     assignee_id: "user_1",
@@ -88,6 +91,7 @@ const tickets = [
   },
   {
     status: "done",
+    type: "bug",
     priority: "Critical",
     reporter_id: "user_other",
     assignee_id: "",
@@ -104,6 +108,7 @@ const tickets = [
   },
   {
     status: "todo",
+    type: "",
     priority: "Low",
     reporter_id: "",
     assignee_id: "   ",
@@ -186,6 +191,12 @@ assert.deepStrictEqual(backlogLabelBreakdown(tickets), [
   { label: "backend", count: 2 },
   { label: "urgent", count: 1 },
   { label: "No labels", count: 2 }
+]);
+
+assert.deepStrictEqual(backlogIssueTypeBreakdown(tickets), [
+  { label: "bug", count: 2 },
+  { label: "No issue type", count: 1 },
+  { label: "task", count: 1 }
 ]);
 
 assert.deepStrictEqual(backlogComponentBreakdown(tickets), [
@@ -443,6 +454,8 @@ assert.deepStrictEqual(backlogUpdateFreshness(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogLabelBreakdown([]), []);
 assert.deepStrictEqual(backlogLabelBreakdown(null), []);
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems(null), []);
+assert.deepStrictEqual(backlogIssueTypeBreakdown([]), []);
+assert.deepStrictEqual(backlogIssueTypeBreakdown(null), []);
 assert.deepStrictEqual(backlogComponentBreakdown([]), []);
 assert.deepStrictEqual(backlogComponentBreakdown(null), []);
 assert.deepStrictEqual(backlogVersionBreakdown([]), []);

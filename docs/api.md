@@ -136,14 +136,14 @@ Ticket links model directed issue relationships for lightweight dependency track
 
 ## Backlog
 
-The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived start-date, due-date, readiness, risk, attention, label, component, version, parent epic, reporter, ticket-age, and update-freshness summaries for planning gaps. Richer backlog planning beyond assignment controls, schedule/readiness/risk/attention/label/component/version/parent-epic/reporter summaries, age/freshness breakdowns, and reports is **Planned**.
+The backlog API lists project backlog tickets in stable backlog order and supports reordering those tickets by writing stable rank/order values. The embedded project page exposes a backlog list with up/down reorder controls, browser drag/drop reorder, current sprint labels, compact sprint assignment/removal controls backed by the ticket sprint endpoints, and frontend-derived start-date, due-date, readiness, risk, attention, issue type, label, component, version, parent epic, reporter, ticket-age, and update-freshness summaries for planning gaps. Richer backlog planning beyond assignment controls, schedule/readiness/risk/attention/issue-type/label/component/version/parent-epic/reporter summaries, age/freshness breakdowns, and reports is **Planned**.
 
 | Method | Path | Body or Query |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}/backlog` | none |
 | `PATCH` | `/api/projects/{project_id}/backlog` | `{"spec":{"ticket_ids":["ticket_2","ticket_1"]}}` |
 
-Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice. The embedded project page derives backlog planning summaries from the returned tickets, including assignee workload breakdowns with done totals and estimate coverage, reporter breakdowns, and sprint workload progress summaries.
+Backlog responses use the same persisted ticket shape as project ticket lists, ordered by backlog rank and then deterministic tie-breakers. Reorder requests submit ticket IDs in desired order and only affect tickets in the addressed project. The backend validates that every submitted ticket belongs to the project, writes rank values atomically, and returns the reordered backlog slice. The embedded project page derives backlog planning summaries from the returned tickets, including issue-type breakdowns, assignee workload breakdowns with done totals and estimate coverage, reporter breakdowns, and sprint workload progress summaries.
 
 ## Boards and Workflows
 
