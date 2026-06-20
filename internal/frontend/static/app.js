@@ -188,6 +188,7 @@ const els = {
   notificationHookPreviewDestinations: document.querySelector("#notification-hook-preview-destinations"),
   notificationHookStatus: document.querySelector("#notification-hook-status"),
   notificationHooks: document.querySelector("#notification-hooks"),
+  notificationHookPreviewSummary: document.querySelector("#notification-hook-preview-summary"),
   notificationHookPreviewOutput: document.querySelector("#notification-hook-preview-output"),
   preferenceForm: document.querySelector("#preference-form"),
   preferenceStatus: document.querySelector("#preference-status"),
@@ -11115,7 +11116,12 @@ function renderNotificationHookPreview() {
   if (!els.notificationHookPreviewOutput) {
     return;
   }
-  els.notificationHookPreviewOutput.textContent = JSON.stringify(notificationHookPreviewDisplay(state.notificationHookPreview), null, 2);
+  const display = notificationHookPreviewDisplay(state.notificationHookPreview);
+  if (els.notificationHookPreviewSummary) {
+    els.notificationHookPreviewSummary.replaceChildren();
+    els.notificationHookPreviewSummary.append(notificationHookPreviewSummaryNode(notificationHookPreviewSummary(display)));
+  }
+  els.notificationHookPreviewOutput.textContent = JSON.stringify(display, null, 2);
 }
 
 function renderNotificationHookPreviewPolicyOptions() {
@@ -11189,6 +11195,62 @@ function notificationHookPreviewDisplay(preview) {
     error: preview.status.error || "",
     run_id: preview.metadata ? preview.metadata.run_id || "" : ""
   };
+}
+
+function notificationHookPreviewSummary(display) {
+  if (!display || !display.state) {
+    return {
+      loaded: false,
+      state: "",
+      suppressed: false,
+      destinations: 0,
+      destination_override: false,
+      message_override: false,
+      payload_override: false,
+      has_error: false,
+      run_id: ""
+    };
+  }
+  const output = display.output || {};
+  const plan = display.plan || {};
+  return {
+    loaded: true,
+    state: display.state || "",
+    suppressed: Boolean(display.suppressed),
+    destinations: Array.isArray(plan.destination_ids) ? plan.destination_ids.length : 0,
+    destination_override: Object.prototype.hasOwnProperty.call(output, "destination_ids"),
+    message_override: Object.prototype.hasOwnProperty.call(output, "message"),
+    payload_override: Object.prototype.hasOwnProperty.call(output, "payload"),
+    has_error: Boolean(display.error),
+    run_id: display.run_id || ""
+  };
+}
+
+function notificationHookPreviewSummaryItems(summary) {
+  const item = summary || {};
+  if (!item.loaded) {
+    return ["preview: none"];
+  }
+  return [
+    `state: ${item.state || "unknown"}`,
+    `suppressed: ${item.suppressed ? "yes" : "no"}`,
+    `destinations: ${Number(item.destinations) || 0}`,
+    `destination override: ${item.destination_override ? "yes" : "no"}`,
+    `message override: ${item.message_override ? "yes" : "no"}`,
+    `payload override: ${item.payload_override ? "yes" : "no"}`,
+    `error: ${item.has_error ? "yes" : "no"}`,
+    item.run_id ? `run: ${item.run_id}` : ""
+  ].filter(Boolean);
+}
+
+function notificationHookPreviewSummaryNode(summary) {
+  const fragment = document.createDocumentFragment();
+  for (const item of notificationHookPreviewSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    fragment.append(chip);
+  }
+  return fragment;
 }
 
 function notificationHookNode(hook) {
@@ -16643,6 +16705,8 @@ if (typeof module !== "undefined" && module.exports) {
     boardRiskOverviewLabel,
     boardColumnTicketCount,
     boardSummaryMetrics,
+    notificationHookPreviewSummary,
+    notificationHookPreviewSummaryItems,
     notificationDeliveryAnalytics,
     notificationDeliveryAnalyticsLabel,
     customFieldLayoutSummary,
