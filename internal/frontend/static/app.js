@@ -6775,6 +6775,7 @@ function renderComponents() {
     els.components.append(empty);
     return;
   }
+  els.components.append(componentOwnershipSummaryNode(componentOwnershipSummary(state.components)));
   for (const component of state.components) {
     els.components.append(componentNode(component, state.tickets));
   }
@@ -6793,7 +6794,12 @@ function componentNode(component, tickets = state.tickets) {
   const meta = document.createElement("span");
   meta.textContent = component.description || component.id;
 
-  body.append(name, meta, componentStatusSummaryNode(componentStatusSummary(tickets, component.id)));
+  body.append(
+    name,
+    meta,
+    componentOwnerMetadataNode(componentOwnerMetadataItems(component)),
+    componentStatusSummaryNode(componentStatusSummary(tickets, component.id))
+  );
 
   const edit = document.createElement("form");
   edit.className = "component-edit-form";
@@ -6821,6 +6827,83 @@ function componentNode(component, tickets = state.tickets) {
 
   article.append(body, edit, actions);
   return article;
+}
+
+function componentOwnershipSummary(components) {
+  const list = Array.isArray(components) ? components : [];
+  let owners = 0;
+  let defaultAssignees = 0;
+  let fullyCovered = 0;
+  for (const component of list) {
+    const hasOwner = Boolean(String(component && component.owner_user_id || "").trim());
+    const hasDefaultAssignee = Boolean(String(component && component.default_assignee_id || "").trim());
+    if (hasOwner) {
+      owners += 1;
+    }
+    if (hasDefaultAssignee) {
+      defaultAssignees += 1;
+    }
+    if (hasOwner && hasDefaultAssignee) {
+      fullyCovered += 1;
+    }
+  }
+  return {
+    total: list.length,
+    owners,
+    default_assignees: defaultAssignees,
+    fully_covered: fullyCovered,
+    missing_owner: Math.max(list.length - owners, 0),
+    missing_default_assignee: Math.max(list.length - defaultAssignees, 0)
+  };
+}
+
+function componentOwnershipSummaryNode(summary) {
+  const section = document.createElement("section");
+  section.className = "component-ownership-summary";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Ownership coverage";
+
+  const chips = document.createElement("div");
+  chips.className = "component-ownership-chips";
+  for (const item of componentOwnershipSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function componentOwnershipSummaryItems(summary) {
+  const data = summary || {};
+  return [
+    `components: ${Number(data.total) || 0}`,
+    `owners: ${Number(data.owners) || 0}`,
+    `default assignees: ${Number(data.default_assignees) || 0}`,
+    `fully covered: ${Number(data.fully_covered) || 0}`,
+    `missing owner: ${Number(data.missing_owner) || 0}`,
+    `missing default: ${Number(data.missing_default_assignee) || 0}`
+  ];
+}
+
+function componentOwnerMetadataItems(component) {
+  return [
+    `owner: ${String(component && component.owner_user_id || "").trim() || "none"}`,
+    `default assignee: ${String(component && component.default_assignee_id || "").trim() || "none"}`
+  ];
+}
+
+function componentOwnerMetadataNode(items) {
+  const group = document.createElement("div");
+  group.className = "component-owner-metadata";
+  for (const item of Array.isArray(items) ? items : []) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    group.append(chip);
+  }
+  return group;
 }
 
 function componentStatusSummary(tickets, componentID) {
@@ -17942,6 +18025,9 @@ if (typeof module !== "undefined" && module.exports) {
     customFieldUnmodeledValueSummary,
     customFieldUsageSummary,
     customFieldValuePresent,
+    componentOwnershipSummary,
+    componentOwnershipSummaryItems,
+    componentOwnerMetadataItems,
     componentStatusSummary,
     componentStatusSummaryItems,
     createPageLayoutBuilderFieldItem,
