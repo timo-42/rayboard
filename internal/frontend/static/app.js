@@ -5238,9 +5238,10 @@ function versionReportTimelineNode(version) {
 function versionReportTimelineItems(version) {
   const target = dateToUTC(version.target_date);
   const released = dateToUTC(version.release_date);
+  const releasedState = version.state === "released" || version.state === "archived";
   const items = [
     version.target_date ? `target ${version.target_date}` : "no target date",
-    version.release_date ? `release ${version.release_date}` : "not released"
+    version.release_date ? `release ${version.release_date}` : releasedState ? "release date missing" : "not released"
   ];
   if (target && released) {
     const delta = daysBetween(target, released);

@@ -906,6 +906,7 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Add a target date to track release timing",
 		"Release timeline",
 		"released on target",
+		"release date missing",
 		"Component breakdown",
 		"Status breakdown",
 		"No component",
