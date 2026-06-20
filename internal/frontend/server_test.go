@@ -1400,6 +1400,17 @@ func TestVersionReportAttentionSummary(t *testing.T) {
 	}
 }
 
+func TestVersionReportEpicBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_epic_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version epic breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1496,6 +1507,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportBreakdownNode",
 		"versionReportComponentNode",
 		"versionReportComponents",
+		"versionReportEpicBreakdownNode",
+		"versionReportEpics",
+		"versionReportEpicItemNode",
 		"versionReportLabelBreakdownNode",
 		"versionReportLabelBreakdown",
 		"versionReportAssigneeWorkloadsNode",
@@ -1571,6 +1585,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"released on target",
 		"release date missing",
 		"Component breakdown",
+		"Epic breakdown",
+		"No epic assignments",
+		"No epic",
 		"Status breakdown",
 		"No component",
 		"story_points_total",
@@ -1631,6 +1648,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-labels",
 		".version-report-breakdown",
 		".version-report-component",
+		".version-report-epic-list",
+		".version-report-epic",
 		".component-edit-form",
 		".version-edit-form",
 		".ticket-planning",
