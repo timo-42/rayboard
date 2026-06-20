@@ -13771,6 +13771,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardDueDateBreakdownNode(metrics.due_dates, boardTickets && boardTickets.filtered_by_saved_view),
     boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
+    boardComponentBreakdownNode(metrics.components, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
@@ -13794,6 +13795,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     due_dates: boardDueDateBreakdown(boardColumns),
     issue_types: boardIssueTypeBreakdown(boardColumns),
     labels: boardLabelBreakdown(boardColumns),
+    components: boardComponentBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
     reporters: boardReporterBreakdown(boardColumns),
     estimate_coverage: boardEstimateCoverage(boardColumns),
@@ -14010,6 +14012,50 @@ function boardLabelBreakdownNode(items, filtered) {
   for (const item of labels) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardComponentBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportComponents(tickets).map((component) => ({
+    id: component.id,
+    label: component.name,
+    count: component.total,
+    done: component.done,
+    story_points_total: component.story_points_total,
+    story_points_done: component.story_points_done,
+    unestimated: component.unestimated
+  }));
+}
+
+function boardComponentBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-component-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Components (filtered saved view)" : "Components";
+
+  const chips = document.createElement("div");
+  chips.className = "board-component-chips";
+  const components = Array.isArray(items) ? items : [];
+  if (!components.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No component data";
+    chips.append(chip);
+  }
+  for (const component of components) {
+    const chip = document.createElement("span");
+    const pointText = component.story_points_total > 0
+      ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
+      : `${component.unestimated} unestimated`;
+    chip.textContent = `${component.label}: ${component.done}/${component.count} done / ${pointText}`;
     chips.append(chip);
   }
 
@@ -17109,6 +17155,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardDueDateBreakdown,
     boardIssueTypeBreakdown,
     boardLabelBreakdown,
+    boardComponentBreakdown,
     boardAssigneeWorkloads,
     boardReporterBreakdown,
     boardEstimateCoverage,
