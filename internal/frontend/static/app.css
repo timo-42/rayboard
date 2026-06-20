@@ -2086,12 +2086,14 @@ p {
 }
 
 .sprint-report-scope-changes,
+.version-report-scope-changes,
 .sprint-report-assignees {
   display: grid;
   gap: 6px;
 }
 
 .sprint-report-scope-changes h4,
+.version-report-scope-changes h4,
 .sprint-report-assignees h4 {
   margin: 0;
   color: var(--heading);
@@ -2099,6 +2101,7 @@ p {
 }
 
 .sprint-report-scope-change-list,
+.version-report-scope-change-list,
 .sprint-report-assignee-list {
   display: flex;
   flex-wrap: wrap;
@@ -2106,6 +2109,7 @@ p {
 }
 
 .sprint-report-scope-change-list span,
+.version-report-scope-change-list span,
 .sprint-report-assignee-list span {
   border: 1px solid var(--border);
   border-radius: 999px;

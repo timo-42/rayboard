@@ -65,10 +65,11 @@ type VersionReportSpec struct {
 }
 
 type VersionReportStatus struct {
-	Scope      string                        `json:"scope"`
-	SnapshotAt *time.Time                    `json:"snapshot_at,omitempty"`
-	Progress   tracker.VersionReportProgress `json:"progress"`
-	Tickets    []ticketapi.TicketResource    `json:"tickets"`
+	Scope        string                            `json:"scope"`
+	SnapshotAt   *time.Time                        `json:"snapshot_at,omitempty"`
+	Progress     tracker.VersionReportProgress     `json:"progress"`
+	ScopeChanges tracker.VersionReportScopeChanges `json:"scope_changes"`
+	Tickets      []ticketapi.TicketResource        `json:"tickets"`
 }
 
 type VersionReportResource = shared.Resource[VersionReportMetadata, VersionReportSpec, VersionReportStatus]
@@ -123,10 +124,11 @@ func ReportResourceFromTracker(report tracker.VersionReport) VersionReportResour
 			Version: ResourceFromTracker(report.Version),
 		},
 		Status: VersionReportStatus{
-			Scope:      report.Scope,
-			SnapshotAt: report.SnapshotAt,
-			Progress:   report.Progress,
-			Tickets:    ticketapi.ResourcesFromTracker(report.Tickets),
+			Scope:        report.Scope,
+			SnapshotAt:   report.SnapshotAt,
+			Progress:     report.Progress,
+			ScopeChanges: report.ScopeChanges,
+			Tickets:      ticketapi.ResourcesFromTracker(report.Tickets),
 		},
 	}
 }

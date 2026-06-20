@@ -2002,7 +2002,12 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get directly released version report: %v", err)
 	}
-	if directReleasedReport.Scope != tracker.VersionReportScopeSnapshot || directReleasedReport.SnapshotAt == nil || directReleasedReport.Progress.Total != 0 || len(directReleasedReport.Tickets) != 0 {
+	if directReleasedReport.Scope != tracker.VersionReportScopeSnapshot ||
+		directReleasedReport.SnapshotAt == nil ||
+		directReleasedReport.Progress.Total != 0 ||
+		directReleasedReport.ScopeChanges.Current != 1 ||
+		directReleasedReport.ScopeChanges.Added != 1 ||
+		len(directReleasedReport.Tickets) != 0 {
 		t.Fatalf("expected directly released version to keep empty release snapshot, got %#v", directReleasedReport)
 	}
 
@@ -2023,6 +2028,8 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 		report.Progress.StoryPointsUnestimated != 0 ||
 		report.Progress.ByStatus["todo"] != 1 ||
 		report.Progress.ByStatus["done"] != 1 ||
+		report.ScopeChanges.Current != 2 ||
+		report.ScopeChanges.Unchanged != 2 ||
 		len(report.Tickets) != 2 {
 		t.Fatalf("unexpected version report: %#v", report)
 	}
@@ -2065,6 +2072,9 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 		snapshotReport.Progress.StoryPointsTotal != 2 ||
 		snapshotReport.Progress.StoryPointsDone != 0 ||
 		snapshotReport.Progress.StoryPointsRemaining != 2 ||
+		snapshotReport.ScopeChanges.Current != 0 ||
+		snapshotReport.ScopeChanges.Snapshot != 1 ||
+		snapshotReport.ScopeChanges.Removed != 1 ||
 		len(snapshotReport.Tickets) != 1 ||
 		snapshotReport.Tickets[0].ID != first.ID {
 		t.Fatalf("unexpected released snapshot report after move/delete: %#v", snapshotReport)

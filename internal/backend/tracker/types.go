@@ -274,11 +274,20 @@ type SprintReportProgress struct {
 }
 
 type VersionReport struct {
-	Version    Version               `json:"version"`
-	Scope      string                `json:"scope"`
-	SnapshotAt *time.Time            `json:"snapshot_at,omitempty"`
-	Progress   VersionReportProgress `json:"progress"`
-	Tickets    []Ticket              `json:"tickets"`
+	Version      Version                   `json:"version"`
+	Scope        string                    `json:"scope"`
+	SnapshotAt   *time.Time                `json:"snapshot_at,omitempty"`
+	Progress     VersionReportProgress     `json:"progress"`
+	ScopeChanges VersionReportScopeChanges `json:"scope_changes"`
+	Tickets      []Ticket                  `json:"tickets"`
+}
+
+type VersionReportScopeChanges struct {
+	Current   int `json:"current"`
+	Snapshot  int `json:"snapshot"`
+	Added     int `json:"added"`
+	Removed   int `json:"removed"`
+	Unchanged int `json:"unchanged"`
 }
 
 type VersionReportProgress struct {
