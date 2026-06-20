@@ -4166,6 +4166,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogEstimateCoverageNode(metrics.estimate_coverage));
   section.append(backlogStatusBreakdownNode(metrics.statuses));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
+  section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   return section;
 }
@@ -4195,6 +4196,7 @@ function backlogSummaryMetrics(tickets) {
     estimate_coverage: backlogEstimateCoverage(list.length, estimated),
     statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
+    assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list)
   };
 }
@@ -4286,6 +4288,42 @@ function backlogPriorityBreakdownNode(priorities) {
   for (const priority of priorities) {
     const item = document.createElement("span");
     item.textContent = `${priority.label}: ${priority.count}`;
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogAssigneeBreakdown(tickets) {
+  const assignees = new Map();
+  for (const ticket of tickets) {
+    const key = ticket.assignee_id || "";
+    assignees.set(key, (assignees.get(key) || 0) + 1);
+  }
+  return Array.from(assignees.entries())
+    .map(([key, count]) => ({ key, label: key ? `assignee ${key}` : "Unassigned", count }))
+    .sort((left, right) => {
+      if (!left.key) {
+        return 1;
+      }
+      if (!right.key) {
+        return -1;
+      }
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function backlogAssigneeBreakdownNode(assignees) {
+  const list = document.createElement("div");
+  list.className = "backlog-assignee-breakdown";
+  if (!assignees.length) {
+    return list;
+  }
+  for (const assignee of assignees) {
+    const item = document.createElement("span");
+    item.textContent = `${assignee.label}: ${assignee.count}`;
     list.append(item);
   }
   return list;
