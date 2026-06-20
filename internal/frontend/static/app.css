@@ -3746,23 +3746,27 @@ p {
   padding: 2px 7px;
 }
 
-.component-status-summary {
+.component-status-summary,
+.version-status-summary {
   display: grid;
   gap: 5px;
 }
 
-.component-status-summary strong {
+.component-status-summary strong,
+.version-status-summary strong {
   color: var(--heading);
   font-size: 12px;
 }
 
-.component-status-chips {
+.component-status-chips,
+.version-status-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.component-status-chips span {
+.component-status-chips span,
+.version-status-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
