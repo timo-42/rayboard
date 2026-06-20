@@ -4677,6 +4677,7 @@ function renderSprintReport() {
   }
 
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
+  const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
 
   const tickets = document.createElement("div");
   tickets.className = "sprint-report-tickets";
@@ -4693,7 +4694,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -4843,6 +4844,75 @@ function sprintReportAnalyticsNode(analytics) {
 
 function latestPoint(points) {
   return Array.isArray(points) && points.length ? points[points.length - 1] : null;
+}
+
+function sprintReportAssigneeWorkloads(tickets) {
+  const workloads = new Map();
+  const ensureWorkload = (assigneeID) => {
+    const key = assigneeID || "";
+    if (!workloads.has(key)) {
+      workloads.set(key, {
+        key,
+        label: key ? `assignee ${key}` : "Unassigned",
+        tickets: 0,
+        story_points: 0,
+        has_story_points: false
+      });
+    }
+    return workloads.get(key);
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const workload = ensureWorkload(ticket.assignee_id || "");
+    workload.tickets += 1;
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      continue;
+    }
+    const points = Number(ticket.story_points);
+    if (Number.isFinite(points)) {
+      workload.story_points += points;
+      workload.has_story_points = true;
+    }
+  }
+  return Array.from(workloads.values()).sort((left, right) => {
+    if (!left.key) {
+      return 1;
+    }
+    if (!right.key) {
+      return -1;
+    }
+    if (right.tickets !== left.tickets) {
+      return right.tickets - left.tickets;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+function sprintReportAssigneeWorkloadsNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-assignees";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Assignee workload";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-assignee-list";
+  const workloads = sprintReportAssigneeWorkloads(tickets);
+  if (!workloads.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Assignee workload appears when report tickets are loaded";
+    list.append(empty);
+  } else {
+    for (const workload of workloads) {
+      const item = document.createElement("span");
+      const points = workload.has_story_points ? `${formatStoryPoints(workload.story_points)} pts` : "no estimates";
+      item.textContent = `${workload.label}: ${workload.tickets} ticket${workload.tickets === 1 ? "" : "s"} / ${points}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
 }
 
 function sprintReportTicketNode(ticket) {
