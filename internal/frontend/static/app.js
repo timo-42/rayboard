@@ -7339,6 +7339,74 @@ function versionAssigneeSummaryItems(summary) {
   }));
 }
 
+function versionReporterSummary(tickets, versionID) {
+  const reporters = new Map();
+  let total = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    const key = String(ticket.reporter_id || "").trim();
+    const label = key ? `reporter ${key}` : "No reporter";
+    reporters.set(label, (reporters.get(label) || 0) + 1);
+  }
+  return {
+    total,
+    reporters: Array.from(reporters.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        if (left.label === "No reporter" && right.label !== "No reporter") {
+          return 1;
+        }
+        if (right.label === "No reporter" && left.label !== "No reporter") {
+          return -1;
+        }
+        return left.label.localeCompare(right.label);
+      })
+  };
+}
+
+function versionReporterSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-reporter-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket reporters";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-reporter-chips";
+  for (const item of versionReporterSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionReporterSummaryItems(summary) {
+  const data = summary || {};
+  const items = [`total: ${Number(data.total) || 0}`];
+  const reporters = Array.isArray(data.reporters) ? data.reporters : [];
+  return items.concat(reporters.slice(0, 4).map((item) => {
+    const label = String(item && item.label || "").trim() || "No reporter";
+    return `${label}: ${Number(item && item.count) || 0}`;
+  }));
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8892,7 +8960,8 @@ function versionNode(version, tickets = state.tickets) {
     versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id)),
     versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id)),
     versionLabelSummaryNode(versionLabelSummary(tickets, version.id)),
-    versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id))
+    versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id)),
+    versionReporterSummaryNode(versionReporterSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18515,6 +18584,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionLabelSummaryItems,
     versionAssigneeSummary,
     versionAssigneeSummaryItems,
+    versionReporterSummary,
+    versionReporterSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
