@@ -5128,6 +5128,7 @@ function renderVersionReport() {
   els.versionReport.append(
     header,
     versionReportHealthNode(version),
+    versionReportTimelineNode(version),
     versionReportSummaryNode(progress),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
@@ -5213,6 +5214,55 @@ function versionReportHealthDates(version) {
     version.release_date ? `released ${version.release_date}` : "",
     `state ${version.state || "planned"}`
   ].filter(Boolean);
+}
+
+function versionReportTimelineNode(version) {
+  const section = document.createElement("section");
+  section.className = "version-report-timeline";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Release timeline";
+
+  const chips = document.createElement("div");
+  chips.className = "version-report-timeline-chips";
+  for (const item of versionReportTimelineItems(version)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function versionReportTimelineItems(version) {
+  const target = dateToUTC(version.target_date);
+  const released = dateToUTC(version.release_date);
+  const items = [
+    version.target_date ? `target ${version.target_date}` : "no target date",
+    version.release_date ? `release ${version.release_date}` : "not released"
+  ];
+  if (target && released) {
+    const delta = daysBetween(target, released);
+    if (delta < 0) {
+      items.push(`${Math.abs(delta)} day${Math.abs(delta) === 1 ? "" : "s"} early`);
+    } else if (delta > 0) {
+      items.push(`${delta} day${delta === 1 ? "" : "s"} late`);
+    } else {
+      items.push("released on target");
+    }
+  } else if (target) {
+    const days = daysBetween(dateToUTC(todayISODate()), target);
+    if (days < 0) {
+      items.push(`${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} past target`);
+    } else if (days === 0) {
+      items.push("target today");
+    } else {
+      items.push(`${days} day${days === 1 ? "" : "s"} to target`);
+    }
+  }
+  items.push(`state ${version.state || "planned"}`);
+  return items;
 }
 
 function versionReportSummaryNode(progress) {
