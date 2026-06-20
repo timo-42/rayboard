@@ -6684,9 +6684,61 @@ function renderSavedViews() {
     els.savedViews.append(empty);
     return;
   }
+  els.savedViews.append(savedViewOverviewNode(state.savedViews));
   for (const view of state.savedViews) {
     els.savedViews.append(savedViewNode(view));
   }
+}
+
+function savedViewOverviewNode(views) {
+  const summary = savedViewOverviewSummary(views);
+  const section = document.createElement("section");
+  section.className = "saved-view-overview";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Saved-view overview";
+
+  const chips = document.createElement("div");
+  chips.className = "saved-view-overview-chips";
+  const items = [
+    `${summary.total} visible`,
+    `${summary.pinned} pinned`,
+    ...summary.scopes.map((item) => `scope ${item.key}: ${item.count}`),
+    ...summary.modes.map((item) => `mode ${item.key}: ${item.count}`)
+  ];
+  for (const item of items) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function savedViewOverviewSummary(views) {
+  const list = Array.isArray(views) ? views : [];
+  const scopes = new Map();
+  const modes = new Map();
+  let pinned = 0;
+  for (const view of list) {
+    if (view.pinned) {
+      pinned += 1;
+    }
+    const scope = view.scope_type || "user";
+    const mode = view.display_mode || "list";
+    scopes.set(scope, (scopes.get(scope) || 0) + 1);
+    modes.set(mode, (modes.get(mode) || 0) + 1);
+  }
+  const toItems = (map) => Array.from(map.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => left.key.localeCompare(right.key));
+  return {
+    total: list.length,
+    pinned,
+    scopes: toItems(scopes),
+    modes: toItems(modes)
+  };
 }
 
 function renderSavedViewPagination() {
