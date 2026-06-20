@@ -37,6 +37,8 @@ const {
   backlogDueDateBreakdown,
   backlogEpicBreakdown,
   backlogEpicBreakdownLabel,
+  backlogAssigneeBreakdown,
+  backlogAssigneeBreakdownLabel,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
@@ -288,6 +290,35 @@ assert.strictEqual(
   "No epic: 0/1 done / 1 unestimated"
 );
 
+assert.deepStrictEqual(backlogAssigneeBreakdown(tickets), [
+  {
+    key: "user_1",
+    label: "assignee user_1",
+    count: 1,
+    done: 0,
+    story_points_total: 3,
+    story_points_done: 0,
+    unestimated: 0
+  },
+  {
+    key: "",
+    label: "Unassigned",
+    count: 3,
+    done: 1,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 3
+  }
+]);
+assert.strictEqual(
+  backlogAssigneeBreakdownLabel(backlogAssigneeBreakdown(tickets)[0]),
+  "assignee user_1: 0/1 done / 0/3 pts"
+);
+assert.strictEqual(
+  backlogAssigneeBreakdownLabel(backlogAssigneeBreakdown(tickets)[1]),
+  "Unassigned: 1/3 done / 3 unestimated"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -333,3 +364,5 @@ assert.deepStrictEqual(backlogVersionBreakdown([]), []);
 assert.deepStrictEqual(backlogVersionBreakdown(null), []);
 assert.deepStrictEqual(backlogEpicBreakdown([]), []);
 assert.deepStrictEqual(backlogEpicBreakdown(null), []);
+assert.deepStrictEqual(backlogAssigneeBreakdown([]), []);
+assert.deepStrictEqual(backlogAssigneeBreakdown(null), []);

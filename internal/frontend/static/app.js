@@ -4613,24 +4613,53 @@ function backlogEpicBreakdownLabel(epic) {
 
 function backlogAssigneeBreakdown(tickets) {
   const assignees = new Map();
-  for (const ticket of tickets) {
-    const key = ticket.assignee_id || "";
-    assignees.set(key, (assignees.get(key) || 0) + 1);
+  const ensureAssignee = (assigneeID) => {
+    const key = String(assigneeID || "").trim();
+    if (!assignees.has(key)) {
+      assignees.set(key, {
+        key,
+        label: key ? `assignee ${key}` : "Unassigned",
+        count: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    return assignees.get(key);
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const assignee = ensureAssignee(ticket.assignee_id);
+    assignee.count += 1;
+    if (sprintReportTicketDone(ticket)) {
+      assignee.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      assignee.unestimated += 1;
+      continue;
+    }
+    const points = Number(ticket.story_points);
+    if (!Number.isFinite(points)) {
+      assignee.unestimated += 1;
+      continue;
+    }
+    assignee.story_points_total += points;
+    if (sprintReportTicketDone(ticket)) {
+      assignee.story_points_done += points;
+    }
   }
-  return Array.from(assignees.entries())
-    .map(([key, count]) => ({ key, label: key ? `assignee ${key}` : "Unassigned", count }))
-    .sort((left, right) => {
-      if (!left.key) {
-        return 1;
-      }
-      if (!right.key) {
-        return -1;
-      }
-      if (right.count !== left.count) {
-        return right.count - left.count;
-      }
-      return left.label.localeCompare(right.label);
-    });
+  return Array.from(assignees.values()).sort((left, right) => {
+    if (!left.key) {
+      return 1;
+    }
+    if (!right.key) {
+      return -1;
+    }
+    if (right.count !== left.count) {
+      return right.count - left.count;
+    }
+    return left.label.localeCompare(right.label);
+  });
 }
 
 function backlogAssigneeBreakdownNode(assignees) {
@@ -4641,10 +4670,17 @@ function backlogAssigneeBreakdownNode(assignees) {
   }
   for (const assignee of assignees) {
     const item = document.createElement("span");
-    item.textContent = `${assignee.label}: ${assignee.count}`;
+    item.textContent = backlogAssigneeBreakdownLabel(assignee);
     list.append(item);
   }
   return list;
+}
+
+function backlogAssigneeBreakdownLabel(assignee) {
+  const pointText = assignee.story_points_total > 0
+    ? `${formatStoryPoints(assignee.story_points_done)}/${formatStoryPoints(assignee.story_points_total)} pts`
+    : `${assignee.unestimated} unestimated`;
+  return `${assignee.label}: ${assignee.done}/${assignee.count} done / ${pointText}`;
 }
 
 function backlogSprintWorkloads(tickets) {
@@ -17485,6 +17521,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogVersionBreakdownLabel,
     backlogEpicBreakdown,
     backlogEpicBreakdownLabel,
+    backlogAssigneeBreakdown,
+    backlogAssigneeBreakdownLabel,
     backlogDueDateBreakdown,
     backlogStartDateBreakdown,
     backlogAgeBreakdown,
