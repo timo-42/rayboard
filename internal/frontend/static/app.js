@@ -4315,6 +4315,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogDueDateBreakdownNode(metrics.due_dates));
   section.append(backlogReadinessSummaryNode(metrics.readiness));
   section.append(backlogRiskSummaryNode(metrics.risks));
+  section.append(backlogAttentionSummaryNode(metrics.attention));
   section.append(backlogAgeBreakdownNode(metrics.ages));
   section.append(backlogUpdateFreshnessNode(metrics.updates));
   return section;
@@ -4352,6 +4353,7 @@ function backlogSummaryMetrics(tickets) {
     due_dates: backlogDueDateBreakdown(list),
     readiness: backlogReadinessSummary(list),
     risks: backlogRiskSummary(list),
+    attention: backlogAttentionSummary(list),
     ages: backlogAgeBreakdown(list),
     updates: backlogUpdateFreshness(list)
   };
@@ -4720,6 +4722,19 @@ function backlogRiskSummaryNode(risks) {
     headingText: "Risk signals",
     items: risks,
     emptyText: "No risk signals"
+  });
+}
+
+function backlogAttentionSummary(tickets, todayValue = todayLocalISODate()) {
+  return sprintReportAttentionSummary(tickets, todayValue);
+}
+
+function backlogAttentionSummaryNode(attention) {
+  return backlogPlanningSummaryNode({
+    sectionClass: "backlog-attention-summary",
+    headingText: "Attention",
+    items: attention,
+    emptyText: "No attention data"
   });
 }
 
@@ -17356,6 +17371,7 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderTextKind,
     backlogReadinessSummary,
     backlogRiskSummary,
+    backlogAttentionSummary,
     backlogLabelBreakdown,
     backlogLabelBreakdownVisibleItems,
     backlogDueDateBreakdown,
