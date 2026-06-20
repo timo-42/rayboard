@@ -2069,6 +2069,15 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if !reportIDs[first.ID] || !reportIDs[second.ID] {
 		t.Fatalf("expected assigned tickets in report, got %#v", report.Tickets)
 	}
+	if report.Analytics.Velocity.Completed != 5 || report.Analytics.Velocity.Unit != "points" {
+		t.Fatalf("unexpected version analytics velocity: %#v", report.Analytics.Velocity)
+	}
+	if len(report.Analytics.Burndown) != 1 || report.Analytics.Burndown[0].Date != "2026-06-16" || report.Analytics.Burndown[0].Remaining != 2 {
+		t.Fatalf("unexpected version analytics burndown: %#v", report.Analytics.Burndown)
+	}
+	if len(report.Analytics.Burnup) != 1 || report.Analytics.Burnup[0].Date != "2026-06-16" || report.Analytics.Burnup[0].Total != 7 || report.Analytics.Burnup[0].Done != 5 {
+		t.Fatalf("unexpected version analytics burnup: %#v", report.Analytics.Burnup)
+	}
 
 	released := tracker.VersionStatusReleased
 	updatedVersion, err := service.UpdateVersion(ctx, admin, version.ID, tracker.UpdateVersionInput{Status: &released})
@@ -2106,6 +2115,12 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 		len(snapshotReport.Tickets) != 3 {
 		t.Fatalf("unexpected released snapshot report after move/delete: %#v", snapshotReport)
 	}
+	if snapshotReport.Analytics.Velocity.Completed != 0 || snapshotReport.Analytics.Velocity.Unit != "points" {
+		t.Fatalf("unexpected released version analytics velocity: %#v", snapshotReport.Analytics.Velocity)
+	}
+	if len(snapshotReport.Analytics.Burndown) != 1 || snapshotReport.Analytics.Burndown[0].Date != "2026-06-16" || snapshotReport.Analytics.Burndown[0].Remaining != 2 {
+		t.Fatalf("unexpected released version analytics burndown: %#v", snapshotReport.Analytics.Burndown)
+	}
 
 	member := principal("user-member")
 	if _, err := service.GetVersionReport(ctx, member, version.ID); !errors.Is(err, authz.ErrForbidden) {
@@ -2114,6 +2129,63 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	evaluator.BindRole(authz.UserBinding("user-member", authz.RoleProjectMember, authz.ProjectScope(project.ID)))
 	if _, err := service.GetVersionReport(ctx, member, version.ID); err != nil {
 		t.Fatalf("expected project member to read version report: %v", err)
+	}
+}
+
+func TestVersionReportAnalyticsVelocityUsesWindowCutoff(t *testing.T) {
+	ctx := context.Background()
+	db := openMigratedDB(t, ctx)
+	seedUser(t, ctx, db.SQL, "user-admin")
+	seedRole(t, ctx, db.SQL, authz.RoleProjectOwner)
+
+	evaluator := authz.NewInMemoryEvaluator(authz.WithBindings(
+		authz.UserBinding("user-admin", authz.RoleGlobalAdmin, authz.GlobalScope()),
+	))
+	service := tracker.NewService(db.SQL, evaluator, tracker.WithNow(fixedNow))
+	admin := principal("user-admin")
+	project, err := service.CreateProject(ctx, admin, tracker.CreateProjectInput{Key: "REL", Name: "Releases"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	version, err := service.CreateVersion(ctx, admin, tracker.CreateVersionInput{
+		ProjectID:  project.ID,
+		Name:       "2026.08",
+		TargetDate: "2026-06-12",
+	})
+	if err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+	points := 3.0
+	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{
+		ProjectID:   project.ID,
+		Title:       "Done after target",
+		VersionID:   version.ID,
+		StoryPoints: &points,
+	})
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+	if _, err := db.SQL.ExecContext(ctx, "UPDATE tickets SET created_at = ? WHERE id = ?", "2026-06-10T09:00:00Z", ticket.ID); err != nil {
+		t.Fatalf("move ticket creation before target: %v", err)
+	}
+	doneStatus := "done"
+	if _, err := service.UpdateTicket(ctx, admin, ticket.ID, tracker.UpdateTicketInput{Status: &doneStatus}); err != nil {
+		t.Fatalf("mark ticket done: %v", err)
+	}
+
+	report, err := service.GetVersionReport(ctx, admin, version.ID)
+	if err != nil {
+		t.Fatalf("get version report: %v", err)
+	}
+	if report.Analytics.Velocity.Completed != 0 || report.Analytics.Velocity.Unit != "points" {
+		t.Fatalf("expected velocity to respect target window cutoff, got %#v", report.Analytics.Velocity)
+	}
+	if len(report.Analytics.Burnup) != 3 {
+		t.Fatalf("expected target-window burnup points, got %#v", report.Analytics.Burnup)
+	}
+	latest := report.Analytics.Burnup[len(report.Analytics.Burnup)-1]
+	if latest.Date != "2026-06-12" || latest.Done != 0 || latest.Total != 3 {
+		t.Fatalf("unexpected target-window latest burnup: %#v", latest)
 	}
 }
 

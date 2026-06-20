@@ -712,6 +712,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		versionReportBody.Status.Progress.Total != 1 ||
 		versionReportBody.Status.Progress.Open != 1 ||
 		versionReportBody.Status.Progress.ByStatus["todo"] != 1 ||
+		versionReportBody.Status.Analytics.Velocity.Unit != "tickets" ||
+		len(versionReportBody.Status.Analytics.Burndown) == 0 ||
+		len(versionReportBody.Status.Analytics.Burnup) == 0 ||
 		versionReportBody.Status.ScopeChanges.Current != 1 ||
 		versionReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		len(versionReportBody.Status.Tickets) != 1 ||
@@ -743,6 +746,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if releasedVersionReportBody.Status.Scope != tracker.VersionReportScopeSnapshot ||
 		releasedVersionReportBody.Status.SnapshotAt == "" ||
 		releasedVersionReportBody.Status.Progress.Total != 1 ||
+		releasedVersionReportBody.Status.Analytics.Velocity.Unit != "tickets" ||
+		len(releasedVersionReportBody.Status.Analytics.Burndown) == 0 ||
 		releasedVersionReportBody.Status.ScopeChanges.Current != 1 ||
 		releasedVersionReportBody.Status.ScopeChanges.Snapshot != 1 ||
 		releasedVersionReportBody.Status.ScopeChanges.Unchanged != 1 {
@@ -1190,6 +1195,7 @@ type versionReportResourceBody struct {
 		Scope        string                            `json:"scope"`
 		SnapshotAt   string                            `json:"snapshot_at"`
 		Progress     tracker.VersionReportProgress     `json:"progress"`
+		Analytics    tracker.SprintAnalytics           `json:"analytics"`
 		ScopeChanges tracker.VersionReportScopeChanges `json:"scope_changes"`
 		Tickets      []ticketResourceBody              `json:"tickets"`
 	} `json:"status"`

@@ -1422,6 +1422,17 @@ func TestVersionReportSprintBreakdown(t *testing.T) {
 	}
 }
 
+func TestVersionReportAnalyticsSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_analytics_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version analytics summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1511,6 +1522,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportTimelineNode",
 		"versionReportTimelineItems",
 		"versionReportSummaryNode",
+		"versionReportAnalyticsNode",
+		"versionReportAnalyticsSummary",
 		"versionReportEstimateCoverageNode",
 		"versionReportEstimateCoverage",
 		"versionReportScopeChangesNode",
@@ -1598,6 +1611,7 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Release timeline",
 		"released on target",
 		"release date missing",
+		"Release analytics will appear when the report is loaded",
 		"Component breakdown",
 		"Epic breakdown",
 		"No epic assignments",
@@ -1638,6 +1652,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-ticket",
 		".version-report-summary",
 		".version-report-progress",
+		".version-report-analytics",
+		".version-report-chart",
 		".version-report-estimate-coverage",
 		".version-report-estimate-coverage-list",
 		".version-report-scope-changes",

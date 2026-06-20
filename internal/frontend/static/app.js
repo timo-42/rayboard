@@ -6411,6 +6411,7 @@ function renderVersionReport() {
     versionReportSummaryNode(progress),
     versionReportEstimateCoverageNode(progress),
     versionReportScopeChangesNode(report ? report.scope_changes : null),
+    versionReportAnalyticsNode(report ? report.analytics : null),
     versionReportAssigneeWorkloadsNode(tickets),
     versionReportReporterBreakdownNode(tickets),
     versionReportStartDateBreakdownNode(tickets),
@@ -6671,6 +6672,53 @@ function versionReportScopeChangeItems(scopeChanges) {
     `removed ${Number(changes.removed) || 0}`,
     `unchanged ${Number(changes.unchanged) || 0}`
   ];
+}
+
+function versionReportAnalyticsNode(analytics) {
+  const section = document.createElement("section");
+  section.className = "version-report-analytics";
+  const summary = versionReportAnalyticsSummary(analytics);
+  section.append(
+    sprintMetricNode("Velocity", `${summary.velocity.completed} ${summary.velocity.unit}`),
+    sprintMetricNode("Remaining", summary.remaining),
+    sprintMetricNode("Burnup", `${summary.burnup.done}/${summary.burnup.total}`)
+  );
+
+  const chart = document.createElement("div");
+  chart.className = "version-report-chart";
+  const burnup = analytics && Array.isArray(analytics.burnup) ? analytics.burnup : [];
+  for (const point of burnup.slice(-14)) {
+    const total = Math.max(Number(point.total) || 0, 1);
+    const done = Math.max(Number(point.done) || 0, 0);
+    const bar = document.createElement("span");
+    bar.style.height = `${Math.max(8, Math.round((done / total) * 100))}%`;
+    bar.title = `${point.date}: ${done}/${total} done`;
+    chart.append(bar);
+  }
+  if (!chart.children.length) {
+    const empty = document.createElement("small");
+    empty.textContent = "Release analytics will appear when the report is loaded";
+    chart.append(empty);
+  }
+  section.append(chart);
+  return section;
+}
+
+function versionReportAnalyticsSummary(analytics) {
+  const velocity = analytics && analytics.velocity ? analytics.velocity : {};
+  const latestBurndown = latestPoint(analytics && analytics.burndown);
+  const latestBurnup = latestPoint(analytics && analytics.burnup);
+  return {
+    velocity: {
+      completed: Number(velocity.completed) || 0,
+      unit: velocity.unit || "tickets"
+    },
+    remaining: latestBurndown ? Number(latestBurndown.remaining) || 0 : 0,
+    burnup: {
+      done: latestBurnup ? Number(latestBurnup.done) || 0 : 0,
+      total: latestBurnup ? Number(latestBurnup.total) || 0 : 0
+    }
+  };
 }
 
 function versionReportBreakdownNode(progress, tickets) {
@@ -15944,6 +15992,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportAgeBreakdown,
     versionReportAssigneeWorkloads,
     versionReportAttentionSummary,
+    versionReportAnalyticsSummary,
     versionReportComponents,
     versionReportDueDateBreakdown,
     versionReportEpics,

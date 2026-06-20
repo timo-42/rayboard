@@ -278,6 +278,7 @@ type VersionReport struct {
 	Scope        string                    `json:"scope"`
 	SnapshotAt   *time.Time                `json:"snapshot_at,omitempty"`
 	Progress     VersionReportProgress     `json:"progress"`
+	Analytics    SprintAnalytics           `json:"analytics"`
 	ScopeChanges VersionReportScopeChanges `json:"scope_changes"`
 	Tickets      []Ticket                  `json:"tickets"`
 }

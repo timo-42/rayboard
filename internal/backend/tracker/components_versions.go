@@ -288,6 +288,10 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 		}
 	}
 	scopeChanges := versionReportScopeChanges(currentTickets, snapshotTickets, hasSnapshot)
+	analytics, err := s.versionReportAnalytics(ctx, version, tickets, snapshotAt)
+	if err != nil {
+		return VersionReport{}, err
+	}
 	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return VersionReport{}, err
@@ -297,6 +301,7 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 		Scope:        scope,
 		SnapshotAt:   snapshotAt,
 		Progress:     versionReportProgress(tickets),
+		Analytics:    analytics,
 		ScopeChanges: scopeChanges,
 		Tickets:      tickets,
 	}, nil
@@ -673,6 +678,97 @@ func versionReportProgress(tickets []Ticket) VersionReportProgress {
 	progress.Open = progress.Total - progress.Done
 	progress.StoryPointsRemaining = progress.StoryPointsTotal - progress.StoryPointsDone
 	return progress
+}
+
+func (s *Service) versionReportAnalytics(ctx context.Context, version Version, tickets []Ticket, snapshotAt *time.Time) (SprintAnalytics, error) {
+	start, end := versionAnalyticsWindow(version, tickets, snapshotAt, s.now().UTC())
+	doneDates := map[string]time.Time{}
+	for _, ticket := range tickets {
+		doneAt, err := s.ticketDoneAt(ctx, ticket)
+		if err != nil {
+			return SprintAnalytics{}, err
+		}
+		if doneAt != nil {
+			doneDates[ticket.ID] = dateOnly(*doneAt)
+		}
+	}
+
+	usePoints := false
+	for _, ticket := range tickets {
+		if ticket.StoryPoints != nil {
+			usePoints = true
+			break
+		}
+	}
+
+	days := daysBetween(start, end)
+	burndown := make([]SprintBurndownPoint, 0, len(days))
+	burnup := make([]SprintBurnupPoint, 0, len(days))
+	velocity := SprintVelocity{Unit: "tickets"}
+	if usePoints {
+		velocity.Unit = "points"
+	}
+
+	for _, day := range days {
+		total := 0.0
+		done := 0.0
+		for _, ticket := range tickets {
+			if !dateOnly(ticket.CreatedAt).After(day) {
+				total += versionAnalyticsTicketValue(ticket, usePoints)
+			}
+			if doneAt, ok := doneDates[ticket.ID]; ok && !doneAt.After(day) {
+				done += versionAnalyticsTicketValue(ticket, usePoints)
+			}
+		}
+		date := day.Format(dateOnlyLayout)
+		burndown = append(burndown, SprintBurndownPoint{Date: date, Remaining: total - done})
+		burnup = append(burnup, SprintBurnupPoint{Date: date, Total: total, Done: done})
+	}
+	if len(burnup) > 0 {
+		velocity.Completed = burnup[len(burnup)-1].Done
+	}
+	return SprintAnalytics{Burndown: burndown, Burnup: burnup, Velocity: velocity}, nil
+}
+
+func versionAnalyticsWindow(version Version, tickets []Ticket, snapshotAt *time.Time, now time.Time) (time.Time, time.Time) {
+	var start time.Time
+	for _, ticket := range tickets {
+		created := dateOnly(ticket.CreatedAt)
+		if start.IsZero() || created.Before(start) {
+			start = created
+		}
+	}
+	if start.IsZero() {
+		start = dateOnly(version.CreatedAt)
+	}
+	if start.IsZero() {
+		start = dateOnly(now)
+	}
+
+	end := parseSprintDateOrZero(version.ReleaseDate)
+	if end.IsZero() && snapshotAt != nil {
+		end = dateOnly(*snapshotAt)
+	}
+	if end.IsZero() {
+		end = parseSprintDateOrZero(version.TargetDate)
+	}
+	if end.IsZero() {
+		end = dateOnly(now)
+	}
+	if end.Before(start) {
+		end = start
+	}
+	return start, end
+}
+
+func versionAnalyticsTicketValue(ticket Ticket, usePoints bool) float64 {
+	if !usePoints {
+		return 1
+	}
+	if ticket.StoryPoints == nil {
+		return 0
+	}
+	return *ticket.StoryPoints
 }
 
 func versionReportScopeChanges(current []Ticket, snapshot []Ticket, hasSnapshot bool) VersionReportScopeChanges {
