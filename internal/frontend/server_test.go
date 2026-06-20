@@ -1323,6 +1323,17 @@ func TestVersionReportComponentBreakdown(t *testing.T) {
 	}
 }
 
+func TestVersionReportScopeChanges(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_scope_change_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version scope-change node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportPriorityBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

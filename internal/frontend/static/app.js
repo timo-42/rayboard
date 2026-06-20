@@ -15377,6 +15377,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportComponents,
     versionReportEstimateCoverage,
     versionReportPriorityBreakdown,
+    versionReportScopeChangeItems,
     versionReportTypeBreakdown,
     versionReportTimelineItems
   };
