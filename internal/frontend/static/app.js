@@ -417,6 +417,8 @@ function bindEvents() {
       await loadRoadmap({ renderTickets: false });
       await loadProjectLabels({ renderTickets: false });
       await loadTickets();
+      await loadCustomFieldUsageTickets({ renderAfter: false });
+      renderCustomFields();
     }, "Ticket created");
   });
 
@@ -2577,6 +2579,8 @@ function bindEvents() {
           await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
         }
         await loadTickets();
+        await loadCustomFieldUsageTickets({ renderAfter: false });
+        renderCustomFields();
         await refreshSelectedSprintReport();
         await refreshSelectedVersionReport();
         if (state.selectedIssue && state.selectedIssue.id === ticketID) {
@@ -2640,6 +2644,8 @@ function bindEvents() {
         if (state.selectedProject && state.selectedProject.id === route.projectID) {
           await loadBacklog();
           await loadTickets();
+          await loadCustomFieldUsageTickets({ renderAfter: false });
+          renderCustomFields();
         }
         renderCreatePageView();
       }, "Ticket created");
