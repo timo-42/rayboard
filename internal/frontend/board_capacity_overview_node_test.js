@@ -31,6 +31,7 @@ global.window = {
 
 const {
   boardAssigneeWorkloads,
+  boardAttentionSummary,
   boardCapacityOverview,
   boardCapacityOverviewLabel,
   boardColumnTicketCount,
@@ -167,6 +168,7 @@ assert.deepStrictEqual(
     reporters: boardReporterBreakdown(columns),
     estimate_coverage: boardEstimateCoverage(columns),
     capacity: boardCapacityOverview(columns),
+    attention: boardAttentionSummary(columns),
     risks: boardRiskOverview(columns)
   }
 );
@@ -268,6 +270,7 @@ assert.deepStrictEqual(
         overage: 0
       }
     ],
+    attention: [],
     risks: []
   }
 );
@@ -481,6 +484,14 @@ assert.deepStrictEqual(boardEstimateCoverage(null), [
   { label: "Estimated", count: 0 },
   { label: "Unestimated", count: 0 }
 ]);
+
+assert.deepStrictEqual(boardAttentionSummary(columns, "2026-06-20"), [
+  { key: "blocked_open", label: "Blocked open", count: 1 },
+  { key: "high_priority_open", label: "High-priority open", count: 2 },
+  { key: "unestimated_high", label: "Unestimated high priority", count: 1 },
+  { key: "stale_high", label: "Stale high priority", count: 1 }
+]);
+assert.deepStrictEqual(boardAttentionSummary(null, "2026-06-20"), []);
 
 assert.deepStrictEqual(boardRiskOverview(columns, "2026-06-20"), [
   {
