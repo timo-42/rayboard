@@ -4307,6 +4307,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogEstimateCoverageNode(metrics.estimate_coverage));
   section.append(backlogStatusBreakdownNode(metrics.statuses));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
+  section.append(backlogLabelBreakdownNode(metrics.labels));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   section.append(backlogReadinessSummaryNode(metrics.readiness));
@@ -4341,6 +4342,7 @@ function backlogSummaryMetrics(tickets) {
     estimate_coverage: backlogEstimateCoverage(list.length, estimated),
     statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
+    labels: backlogLabelBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list),
     readiness: backlogReadinessSummary(list),
@@ -4437,6 +4439,48 @@ function backlogPriorityBreakdownNode(priorities) {
   for (const priority of priorities) {
     const item = document.createElement("span");
     item.textContent = `${priority.label}: ${priority.count}`;
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogLabelBreakdown(tickets) {
+  const labels = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const ticketLabels = Array.isArray(ticket.labels) ? ticket.labels.filter(Boolean) : [];
+    if (!ticketLabels.length) {
+      labels.set("No labels", (labels.get("No labels") || 0) + 1);
+      continue;
+    }
+    for (const label of ticketLabels) {
+      labels.set(label, (labels.get(label) || 0) + 1);
+    }
+  }
+  return Array.from(labels.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (left.label === "No labels" && right.label !== "No labels") {
+        return 1;
+      }
+      if (right.label === "No labels" && left.label !== "No labels") {
+        return -1;
+      }
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function backlogLabelBreakdownNode(labels) {
+  const list = document.createElement("div");
+  list.className = "backlog-label-breakdown";
+  if (!labels.length) {
+    return list;
+  }
+  for (const label of labels.slice(0, 8)) {
+    const item = document.createElement("span");
+    item.textContent = `${label.label}: ${label.count}`;
     list.append(item);
   }
   return list;
@@ -16515,6 +16559,7 @@ if (typeof module !== "undefined" && module.exports) {
     createPageLayoutBuilderTextKind,
     backlogReadinessSummary,
     backlogRiskSummary,
+    backlogLabelBreakdown,
     backlogAgeBreakdown,
     backlogUpdateFreshness,
     mutateCreatePageLayoutBuilderItems,
