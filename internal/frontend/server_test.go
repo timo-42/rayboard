@@ -857,6 +857,10 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportAgeBreakdown",
 		"Ticket age breakdown",
 		"No age data",
+		"sprintReportUpdateFreshnessNode",
+		"sprintReportUpdateFreshness",
+		"Update freshness",
+		"No update data",
 		"sprintReportScopeChangesNode",
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
@@ -959,6 +963,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-due-date-list",
 		".sprint-report-ages",
 		".sprint-report-age-list",
+		".sprint-report-updates",
+		".sprint-report-update-list",
 		".sprint-report-scope-changes",
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
@@ -1044,6 +1050,17 @@ func TestSprintReportAgeBreakdown(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint age breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportUpdateFreshness(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_update_freshness_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint update freshness node test failed: %v\n%s", err, output)
 	}
 }
 
