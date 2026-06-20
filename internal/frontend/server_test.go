@@ -869,6 +869,10 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportRiskSummary",
 		"Risk summary",
 		"No risk data",
+		"sprintReportAttentionSummaryNode",
+		"sprintReportAttentionSummary",
+		"Attention summary",
+		"No attention data",
 		"sprintReportScopeChangesNode",
 		"sprintReportScopeChangeItems",
 		"sprintReportPriorityBreakdownNode",
@@ -977,6 +981,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-readiness-list",
 		".sprint-report-risks",
 		".sprint-report-risk-list",
+		".sprint-report-attention",
+		".sprint-report-attention-list",
 		".sprint-report-scope-changes",
 		".sprint-report-scope-change-list",
 		".sprint-report-priorities",
@@ -1095,6 +1101,17 @@ func TestSprintReportRiskSummary(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint risk summary node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportAttentionSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_attention_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint attention summary node test failed: %v\n%s", err, output)
 	}
 }
 
