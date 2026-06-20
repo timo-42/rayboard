@@ -4162,6 +4162,7 @@ function backlogSummaryNode(tickets) {
     backlogSummaryMetricNode("Unassigned", metrics.unassigned),
     backlogSummaryMetricNode("Story points", metrics.story_points)
   );
+  section.append(backlogPriorityBreakdownNode(metrics.priorities));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   return section;
 }
@@ -4186,8 +4187,39 @@ function backlogSummaryMetrics(tickets) {
     assigned,
     unassigned: list.length - assigned,
     story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none",
+    priorities: backlogPriorityBreakdown(list),
     workloads: backlogSprintWorkloads(list)
   };
+}
+
+function backlogPriorityBreakdown(tickets) {
+  const priorities = new Map();
+  for (const ticket of tickets) {
+    const label = ticket.priority || "No priority";
+    priorities.set(label, (priorities.get(label) || 0) + 1);
+  }
+  return Array.from(priorities.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function backlogPriorityBreakdownNode(priorities) {
+  const list = document.createElement("div");
+  list.className = "backlog-priority-breakdown";
+  if (!priorities.length) {
+    return list;
+  }
+  for (const priority of priorities) {
+    const item = document.createElement("span");
+    item.textContent = `${priority.label}: ${priority.count}`;
+    list.append(item);
+  }
+  return list;
 }
 
 function backlogSprintWorkloads(tickets) {
