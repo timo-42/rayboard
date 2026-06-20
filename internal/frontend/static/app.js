@@ -4533,6 +4533,9 @@ function boardNode(board) {
   title.textContent = board.name || "Board";
 
   body.append(title, boardMetadataNode(board));
+  if (board.id === state.selectedBoardID) {
+    body.append(boardColumnSettingsOverviewNode(board));
+  }
 
   const edit = document.createElement("form");
   edit.className = "board-edit-form";
@@ -4588,6 +4591,54 @@ function boardMetadataItems(board) {
     statuses.length ? `${statuses.length} column${statuses.length === 1 ? "" : "s"}` : "no columns",
     wipLimitCount ? `${wipLimitCount} WIP limit${wipLimitCount === 1 ? "" : "s"}` : "no WIP limits",
     board.description ? "has description" : "no description"
+  ];
+}
+
+function boardColumnSettingsOverviewNode(board) {
+  const overview = document.createElement("section");
+  overview.className = "board-column-settings-overview";
+
+  const title = document.createElement("strong");
+  title.textContent = "Column settings";
+
+  const chips = document.createElement("div");
+  chips.className = "board-column-settings-chips";
+  for (const item of boardColumnSettingsOverviewItems(board)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  overview.append(title, chips);
+  return overview;
+}
+
+function boardColumnSettingsOverviewItems(board) {
+  const statuses = Array.isArray(board.status_slugs) ? board.status_slugs : [];
+  const columns = Array.isArray(board.columns) && board.columns.length
+    ? board.columns
+    : statuses.map((statusSlug) => ({ status_slug: statusSlug }));
+  const coveredStatuses = new Set();
+  for (const column of columns) {
+    const slug = column && (column.status_slug || column.slug);
+    if (slug) {
+      coveredStatuses.add(slug);
+    }
+  }
+  const wipLimits = board.wip_limits && typeof board.wip_limits === "object" ? board.wip_limits : {};
+  const wipLimitedColumns = columns.filter((column) => {
+    const columnLimit = column && Number(column.wip_limit);
+    const slug = column && (column.status_slug || column.slug);
+    const boardLimit = slug ? Number(wipLimits[slug]) : 0;
+    return columnLimit > 0 || boardLimit > 0;
+  }).length;
+
+  return [
+    `${columns.length} configured column${columns.length === 1 ? "" : "s"}`,
+    `${coveredStatuses.size} covered status${coveredStatuses.size === 1 ? "" : "es"}`,
+    wipLimitedColumns
+      ? `${wipLimitedColumns} WIP-limited column${wipLimitedColumns === 1 ? "" : "s"}`
+      : "no WIP-limited columns"
   ];
 }
 

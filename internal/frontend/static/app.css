@@ -2459,6 +2459,35 @@ p {
   padding: 3px 8px;
 }
 
+.board-column-settings-overview {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  padding: 8px;
+}
+
+.board-column-settings-overview strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.board-column-settings-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-column-settings-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
 .board-edit-form {
   min-width: 0;
   display: grid;
