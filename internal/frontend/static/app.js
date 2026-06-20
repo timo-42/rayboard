@@ -446,6 +446,7 @@ function bindEvents() {
     if (project) {
       state.selectedProject = project;
     }
+    await loadCustomFields({ renderTickets: false });
     await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
     renderEngineFields();
   });
@@ -545,6 +546,7 @@ function bindEvents() {
     if (project) {
       state.selectedProject = project;
     }
+    await loadCustomFields({ renderTickets: false });
     await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
     renderEngineFields();
   });
@@ -665,6 +667,7 @@ function bindEvents() {
   els.ticketHookProject.addEventListener("change", async () => {
     const projectID = els.ticketHookProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
+    await loadCustomFields({ renderTickets: false });
     await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
   });
 
