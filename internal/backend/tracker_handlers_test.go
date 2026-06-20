@@ -149,6 +149,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 			"description": "Created through HTTP",
 			"priority":    "High",
 			"type":        "Bug",
+			"start_date":  "2026-06-20",
 			"due_date":    "2026-06-24",
 			"labels":      []string{"backend", "API", "backend"},
 			"custom_fields": map[string]any{
@@ -163,7 +164,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected create ticket status 201, got %d: %s", createTicket.Code, createTicket.Body.String())
 	}
 	ticket := decodeTicketResourceAsTracker(t, createTicket.Body.Bytes())
-	if ticket.ID == "" || ticket.Key != "CORE-1" || ticket.Status != "todo" || ticket.DueDate != "2026-06-24" {
+	if ticket.ID == "" || ticket.Key != "CORE-1" || ticket.Status != "todo" || ticket.StartDate != "2026-06-20" || ticket.DueDate != "2026-06-24" {
 		t.Fatalf("unexpected ticket: %#v", ticket)
 	}
 	if ticket.CustomFields["severity"] != "High" {
@@ -896,6 +897,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		activeReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		activeReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		activeReportBody.Status.Tickets[0].Spec.StartDate != ticket.StartDate ||
 		activeReportBody.Status.Tickets[0].Spec.DueDate != ticket.DueDate ||
 		!slices.Equal(activeReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected active sprint report: %#v", activeReportBody)
@@ -946,6 +948,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		completedReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		completedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		completedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		completedReportBody.Status.Tickets[0].Spec.StartDate != ticket.StartDate ||
 		completedReportBody.Status.Tickets[0].Spec.DueDate != ticket.DueDate ||
 		!slices.Equal(completedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
@@ -983,6 +986,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		committedReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		committedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		committedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
+		committedReportBody.Status.Tickets[0].Spec.StartDate != ticket.StartDate ||
 		committedReportBody.Status.Tickets[0].Spec.DueDate != ticket.DueDate ||
 		!slices.Equal(committedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
 		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
