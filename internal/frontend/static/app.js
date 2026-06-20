@@ -6997,6 +6997,7 @@ function renderVersions() {
     return;
   }
   els.versions.append(versionLifecycleSummaryNode(state.versions));
+  els.versions.append(versionDateCoverageSummaryNode(state.versions));
   els.versions.append(versionTargetHealthSummaryNode(state.versions));
   els.versions.append(versionTimingVarianceSummaryNode(state.versions));
   for (const version of state.versions) {
@@ -7068,6 +7069,71 @@ function versionLifecycleSummaryItems(summary) {
     const state = String(item && item.state || "").trim() || "unknown";
     return `unmodeled ${state}: ${Number(item && item.count) || 0}`;
   }));
+}
+
+function versionDateCoverageSummary(versions) {
+  const summary = {
+    total: 0,
+    target_dates: 0,
+    release_dates: 0,
+    both_dates: 0,
+    target_only: 0,
+    release_only: 0,
+    missing_dates: 0
+  };
+  for (const version of Array.isArray(versions) ? versions : []) {
+    summary.total += 1;
+    const hasTarget = Boolean(String(version && version.target_date || "").trim());
+    const hasRelease = Boolean(String(version && version.release_date || "").trim());
+    if (hasTarget) {
+      summary.target_dates += 1;
+    }
+    if (hasRelease) {
+      summary.release_dates += 1;
+    }
+    if (hasTarget && hasRelease) {
+      summary.both_dates += 1;
+    } else if (hasTarget) {
+      summary.target_only += 1;
+    } else if (hasRelease) {
+      summary.release_only += 1;
+    } else {
+      summary.missing_dates += 1;
+    }
+  }
+  return summary;
+}
+
+function versionDateCoverageSummaryNode(versions) {
+  const section = document.createElement("section");
+  section.className = "version-date-coverage";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Date coverage";
+
+  const list = document.createElement("div");
+  list.className = "version-date-coverage-list";
+  for (const item of versionDateCoverageSummaryItems(versionDateCoverageSummary(versions))) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    list.append(chip);
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function versionDateCoverageSummaryItems(summary) {
+  const data = summary || {};
+  return [
+    `versions: ${Number(data.total) || 0}`,
+    `target dates: ${Number(data.target_dates) || 0}`,
+    `release dates: ${Number(data.release_dates) || 0}`,
+    `both dates: ${Number(data.both_dates) || 0}`,
+    `target only: ${Number(data.target_only) || 0}`,
+    `release only: ${Number(data.release_only) || 0}`,
+    `missing dates: ${Number(data.missing_dates) || 0}`
+  ];
 }
 
 function renderVersionReport() {
@@ -18151,6 +18217,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportScopeChangeItems,
     versionReportSprints,
     versionReportStartDateBreakdown,
+    versionDateCoverageSummary,
+    versionDateCoverageSummaryItems,
     versionLifecycleSummary,
     versionLifecycleSummaryItems,
     versionTimingVarianceSummary,
