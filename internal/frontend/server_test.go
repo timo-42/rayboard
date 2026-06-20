@@ -416,6 +416,15 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"/api/ticket-create-pages/${form.dataset.createPageForm}",
 		"renderCreatePageEditLogicFields",
 		"createPageEditForm",
+		"bindCreatePageLayoutBuilder",
+		"createPageLayoutBuilderNode",
+		"createPageLayoutBuilderFieldOptions",
+		"createPageLayoutBuilderFieldItem",
+		"handleCreatePageLayoutBuilderClick",
+		"handleCreatePageLayoutBuilderChange",
+		"data-create-page-layout-builder",
+		"data-create-page-layout-add",
+		"custom_fields.${field.key}",
 		"data-create-page-form",
 		"data-create-page-edit-logic-field",
 		"createPageRunListNode",
@@ -506,6 +515,9 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		".create-page-form",
 		".create-page-list",
 		".create-page-edit-form",
+		".create-page-layout-builder",
+		".create-page-layout-builder-item",
+		".create-page-layout-builder-actions",
 		".create-page-run-list",
 		".automation-run-summary",
 		".automation-run-filter",
@@ -557,6 +569,17 @@ func TestEmbeddedAppSupportsCreatePageLayoutWidgets(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestCreatePageLayoutBuilderHelpers(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "create_page_layout_builder_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("create page layout builder test failed: %v\n%s", err, output)
 	}
 }
 

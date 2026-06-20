@@ -768,8 +768,13 @@ function bindEvents() {
     renderCreatePageLogicFields();
   });
 
+  bindCreatePageLayoutBuilder(els.createPageForm);
+
   els.createPages.addEventListener("change", (event) => {
     if (handleAutomationRunFilterChange(event, renderCreatePages)) {
+      return;
+    }
+    if (handleCreatePageLayoutBuilderChange(event)) {
       return;
     }
     if (!event.target.matches("select[name='logic_type']")) {
@@ -781,10 +786,14 @@ function bindEvents() {
     }
   });
 
+  els.createPages.addEventListener("input", (event) => {
+    handleCreatePageLayoutBuilderChange(event);
+  });
+
   els.createPageProject.addEventListener("change", async () => {
     const projectID = els.createPageProject.value;
     state.selectedProject = state.projects.find((project) => project.id === projectID) || state.selectedProject;
-    await Promise.all([loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
+    await Promise.all([loadCustomFields({ renderTickets: false }), loadCronJobs(projectID), loadWebhooks(projectID), loadTicketHooks(projectID), loadCreatePages(projectID)]);
   });
 
   els.createPageForm.addEventListener("submit", async (event) => {
@@ -805,11 +814,16 @@ function bindEvents() {
       setFormValue(form, "field_layout", `[{"key":"title","type":"text","required":true}]`);
       setFormValue(form, "defaults", `{"priority":"High"}`);
       renderCreatePageLogicFields();
+      renderCreatePageLayoutBuilder(form);
       await loadCreatePages(projectID);
     }, "Create page saved");
   });
 
   els.createPages.addEventListener("click", async (event) => {
+    if (handleCreatePageLayoutBuilderClick(event)) {
+      return;
+    }
+
     const showRuns = event.target.closest("[data-load-create-page-runs-id]");
     if (showRuns) {
       await runAction(async () => {
@@ -850,6 +864,18 @@ function bindEvents() {
         await loadCreatePages();
       }, "Create page deleted");
     }
+  });
+
+  els.createPageForm.addEventListener("click", (event) => {
+    handleCreatePageLayoutBuilderClick(event);
+  });
+
+  els.createPageForm.addEventListener("change", (event) => {
+    handleCreatePageLayoutBuilderChange(event);
+  });
+
+  els.createPageForm.addEventListener("input", (event) => {
+    handleCreatePageLayoutBuilderChange(event);
   });
 
   els.createPages.addEventListener("submit", async (event) => {
@@ -2749,7 +2775,7 @@ async function loadRouteData() {
     if (!state.selectedProject && state.projects.length) {
       state.selectedProject = state.projects[0];
     }
-    await Promise.all([loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
+    await Promise.all([loadCustomFields({ renderTickets: false }), loadCronJobs(), loadWebhooks(), loadTicketHooks(), loadCreatePages()]);
   }
 }
 
@@ -10615,6 +10641,7 @@ function renderCreatePageLogicFields() {
   document.querySelectorAll("[data-create-page-logic-field]").forEach((field) => {
     field.hidden = field.dataset.createPageLogicField !== type;
   });
+  bindCreatePageLayoutBuilder(els.createPageForm);
 }
 
 function renderCreatePageEditLogicFields(form) {
@@ -10766,9 +10793,404 @@ function createPageEditForm(page) {
   save.type = "submit";
   save.textContent = "Save page";
 
-  form.append(enabled, description, fieldLayout, defaults, lua, ai, save);
+  form.append(enabled, description, fieldLayout, createPageLayoutBuilderNode(page.field_layout || []), defaults, lua, ai, save);
   renderCreatePageEditLogicFields(form);
   return form;
+}
+
+function bindCreatePageLayoutBuilder(form) {
+  if (!form || form.querySelector("[data-create-page-layout-builder]")) {
+    return;
+  }
+  const textarea = form.elements && form.elements.field_layout;
+  if (!textarea) {
+    return;
+  }
+  textarea.insertAdjacentElement("afterend", createPageLayoutBuilderNode(parseCreatePageLayoutBuilderJSON(textarea.value) || []));
+}
+
+function renderCreatePageLayoutBuilder(form) {
+  if (!form) {
+    return;
+  }
+  const builder = form.querySelector("[data-create-page-layout-builder]");
+  const textarea = form.elements && form.elements.field_layout;
+  if (!builder || !textarea) {
+    return;
+  }
+  builder.replaceWith(createPageLayoutBuilderNode(parseCreatePageLayoutBuilderJSON(textarea.value) || []));
+}
+
+function createPageLayoutBuilderNode(layout) {
+  const section = document.createElement("section");
+  section.className = "create-page-layout-builder";
+  section.dataset.createPageLayoutBuilder = "true";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Field layout builder";
+
+  const list = document.createElement("div");
+  list.className = "create-page-layout-builder-list";
+  list.dataset.createPageLayoutBuilderList = "true";
+  const items = Array.isArray(layout) ? layout : [];
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No layout items";
+    list.append(empty);
+  } else {
+    items.forEach((item, index) => {
+      list.append(createPageLayoutBuilderItemNode(item, index));
+    });
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "create-page-layout-builder-actions";
+
+  const fieldSelect = document.createElement("select");
+  fieldSelect.name = "layout_builder_field";
+  fieldSelect.setAttribute("aria-label", "Layout field");
+  appendCreatePageLayoutBuilderFieldOptions(fieldSelect);
+
+  const addField = document.createElement("button");
+  addField.type = "button";
+  addField.dataset.createPageLayoutAdd = "field";
+  addField.textContent = "Add field";
+
+  const addHeading = document.createElement("button");
+  addHeading.type = "button";
+  addHeading.dataset.createPageLayoutAdd = "heading";
+  addHeading.textContent = "Add heading";
+
+  const addHelp = document.createElement("button");
+  addHelp.type = "button";
+  addHelp.dataset.createPageLayoutAdd = "help";
+  addHelp.textContent = "Add help";
+
+  actions.append(fieldSelect, addField, addHeading, addHelp);
+  section.append(heading, list, actions);
+  return section;
+}
+
+function createPageLayoutBuilderItemNode(item, index) {
+  const row = document.createElement("article");
+  row.className = "create-page-layout-builder-item";
+  row.dataset.createPageLayoutIndex = String(index);
+  const kind = createPageLayoutBuilderItemKind(item);
+  row.dataset.createPageLayoutKind = kind;
+
+  if (kind === "field") {
+    row.append(...createPageLayoutBuilderFieldControls(item));
+  } else if (kind === "text") {
+    row.append(...createPageLayoutBuilderTextControls(item));
+  } else {
+    const unsupported = document.createElement("p");
+    unsupported.className = "muted";
+    unsupported.textContent = "Unsupported layout item; edit raw JSON";
+    row.append(unsupported);
+  }
+  row.append(createPageLayoutBuilderRowActions(index));
+  return row;
+}
+
+function createPageLayoutBuilderFieldControls(item) {
+  const key = document.createElement("select");
+  key.name = "layout_key";
+  key.setAttribute("aria-label", "Field key");
+  appendCreatePageLayoutBuilderFieldOptions(key);
+  key.value = item.key || "";
+
+  const label = inputNode("layout_label", item.label || titleize(item.key || ""), "label");
+  label.setAttribute("aria-label", "Field label");
+
+  const type = createPageSelect("layout_type", createPageLayoutBuilderFieldTypes(), item.type || createPageLayoutBuilderFieldType(item.key || ""));
+  type.setAttribute("aria-label", "Field type");
+
+  const required = document.createElement("label");
+  required.className = "inline-toggle";
+  const checkbox = document.createElement("input");
+  checkbox.name = "layout_required";
+  checkbox.type = "checkbox";
+  checkbox.checked = Boolean(item.required);
+  required.append(checkbox, " Required");
+
+  return [key, label, type, required];
+}
+
+function createPageLayoutBuilderTextControls(item) {
+  const kind = createPageSelect("layout_kind", [["heading", "Heading"], ["help", "Help text"]], createPageLayoutBuilderTextKind(item));
+  kind.setAttribute("aria-label", "Text kind");
+  const text = inputNode("layout_text", item.text || item.title || "", "text");
+  text.setAttribute("aria-label", "Text");
+  return [kind, text];
+}
+
+function createPageLayoutBuilderRowActions(index) {
+  const actions = document.createElement("div");
+  actions.className = "create-page-layout-builder-row-actions";
+  for (const [action, label] of [["up", "Up"], ["down", "Down"], ["remove", "Remove"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.createPageLayoutAction = action;
+    button.dataset.createPageLayoutIndex = String(index);
+    button.textContent = label;
+    actions.append(button);
+  }
+  return actions;
+}
+
+function appendCreatePageLayoutBuilderFieldOptions(select) {
+  for (const field of createPageLayoutBuilderFieldOptions()) {
+    const option = document.createElement("option");
+    option.value = field.key;
+    option.textContent = field.label;
+    select.append(option);
+  }
+}
+
+function createPageLayoutBuilderFieldOptions() {
+  const fields = [
+    { key: "title", label: "Title" },
+    { key: "description", label: "Description" },
+    { key: "priority", label: "Priority" },
+    { key: "type", label: "Type" },
+    { key: "status", label: "Status" },
+    { key: "assignee_id", label: "Assignee" },
+    { key: "labels", label: "Labels" },
+    { key: "start_date", label: "Start date" },
+    { key: "due_date", label: "Due date" },
+    { key: "story_points", label: "Story points" },
+    { key: "component_id", label: "Component" },
+    { key: "version_id", label: "Version" },
+    { key: "parent_ticket_id", label: "Parent epic" }
+  ];
+  for (const field of state.customFields || []) {
+    fields.push({
+      key: `custom_fields.${field.key}`,
+      label: `${field.name || field.key} (${field.field_type || "text"})`
+    });
+  }
+  return fields;
+}
+
+function createPageLayoutBuilderFieldTypes() {
+  return [
+    ["text", "Text"],
+    ["textarea", "Textarea"],
+    ["number", "Number"],
+    ["date", "Date"],
+    ["select", "Select"],
+    ["checkbox", "Checkbox"]
+  ];
+}
+
+function createPageLayoutBuilderItemKind(item) {
+  if (!item || typeof item !== "object" || item.html !== undefined || item.hidden || Array.isArray(item.fields) && item.fields.length) {
+    return "unsupported";
+  }
+  if (String(item.key || "").trim()) {
+    return "field";
+  }
+  const kind = createPageLayoutBuilderTextKind(item);
+  return kind ? "text" : "unsupported";
+}
+
+function createPageLayoutBuilderTextKind(item) {
+  const kind = String(item.kind || item.widget || item.layout || item.type || "").trim().toLowerCase();
+  if (["heading", "header", "title"].includes(kind)) {
+    return "heading";
+  }
+  if (["help", "hint", "note", "paragraph", "text", "description", "copy"].includes(kind)) {
+    return "help";
+  }
+  return "";
+}
+
+function createPageLayoutBuilderFieldType(key) {
+  const customKey = createPageCustomFieldKey(key);
+  if (customKey) {
+    const field = (state.customFields || []).find((item) => item.key === customKey);
+    return createPageLayoutBuilderCustomFieldType(field ? field.field_type : "text");
+  }
+  if (key === "description" || key === "labels") {
+    return "textarea";
+  }
+  if (key === "story_points") {
+    return "number";
+  }
+  if (key === "start_date" || key === "due_date") {
+    return "date";
+  }
+  return "text";
+}
+
+function createPageLayoutBuilderCustomFieldType(type) {
+  switch (type) {
+  case "number":
+    return "number";
+  case "date":
+    return "date";
+  case "boolean":
+    return "checkbox";
+  case "single_select":
+  case "multi_select":
+    return "select";
+  case "textarea":
+  case "markdown":
+    return "textarea";
+  default:
+    return "text";
+  }
+}
+
+function parseCreatePageLayoutBuilderJSON(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function handleCreatePageLayoutBuilderClick(event) {
+  const add = event.target.closest("[data-create-page-layout-add]");
+  const action = event.target.closest("[data-create-page-layout-action]");
+  if (!add && !action) {
+    return false;
+  }
+  const form = event.target.closest("form");
+  if (!form || !form.elements.field_layout) {
+    return false;
+  }
+  event.preventDefault();
+  const layout = createPageLayoutFromBuilder(form);
+  if (add) {
+    layout.push(createPageLayoutBuilderNewItem(form, add.dataset.createPageLayoutAdd));
+  } else if (action) {
+    mutateCreatePageLayoutBuilderItems(layout, Number(action.dataset.createPageLayoutIndex), action.dataset.createPageLayoutAction);
+  }
+  syncCreatePageLayoutTextarea(form, layout);
+  renderCreatePageLayoutBuilder(form);
+  return true;
+}
+
+function handleCreatePageLayoutBuilderChange(event) {
+  if (event.target.matches("textarea[name='field_layout']")) {
+    renderCreatePageLayoutBuilder(event.target.closest("form"));
+    return true;
+  }
+  if (!event.target.closest("[data-create-page-layout-builder]")) {
+    return false;
+  }
+  const form = event.target.closest("form");
+  syncCreatePageLayoutTextarea(form, createPageLayoutFromBuilder(form));
+  return true;
+}
+
+function createPageLayoutBuilderNewItem(form, type) {
+  if (type === "heading") {
+    return { kind: "heading", text: "Heading" };
+  }
+  if (type === "help") {
+    return { kind: "help", text: "Help text" };
+  }
+  const key = form.querySelector("[data-create-page-layout-builder] select[name='layout_builder_field']")?.value || "title";
+  return createPageLayoutBuilderFieldItem(key);
+}
+
+function createPageLayoutBuilderFieldItem(key) {
+  const item = {
+    key,
+    label: createPageLayoutBuilderFieldLabel(key),
+    type: createPageLayoutBuilderFieldType(key),
+    required: key === "title"
+  };
+  const customKey = createPageCustomFieldKey(key);
+  if (customKey) {
+    const field = (state.customFields || []).find((candidate) => candidate.key === customKey);
+    if (field) {
+      item.required = Boolean(field.required);
+      if (Array.isArray(field.options) && field.options.length) {
+        item.options = field.options.map(String);
+      }
+    }
+  }
+  return item;
+}
+
+function createPageLayoutBuilderFieldLabel(key) {
+  const customKey = createPageCustomFieldKey(key);
+  if (customKey) {
+    const field = (state.customFields || []).find((candidate) => candidate.key === customKey);
+    return field ? field.name || field.key : titleize(customKey);
+  }
+  return titleize(key);
+}
+
+function mutateCreatePageLayoutBuilderItems(layout, index, action) {
+  if (!Array.isArray(layout) || index < 0 || index >= layout.length) {
+    return;
+  }
+  if (action === "remove") {
+    layout.splice(index, 1);
+  } else if (action === "up" && index > 0) {
+    [layout[index - 1], layout[index]] = [layout[index], layout[index - 1]];
+  } else if (action === "down" && index < layout.length - 1) {
+    [layout[index + 1], layout[index]] = [layout[index], layout[index + 1]];
+  }
+}
+
+function createPageLayoutFromBuilder(form) {
+  const current = parseCreatePageLayoutBuilderJSON(form.elements.field_layout.value) || [];
+  const builder = form.querySelector("[data-create-page-layout-builder]");
+  if (!builder) {
+    return current;
+  }
+  for (const row of builder.querySelectorAll("[data-create-page-layout-index]")) {
+    const index = Number(row.dataset.createPageLayoutIndex);
+    if (index < 0 || index >= current.length) {
+      continue;
+    }
+    if (row.dataset.createPageLayoutKind === "field") {
+      current[index] = createPageLayoutBuilderFieldItemFromRow(row);
+    } else if (row.dataset.createPageLayoutKind === "text") {
+      current[index] = createPageLayoutBuilderTextItemFromRow(row);
+    }
+  }
+  return current;
+}
+
+function createPageLayoutBuilderFieldItemFromRow(row) {
+  const key = row.querySelector("[name='layout_key']")?.value || "title";
+  const item = {
+    key,
+    label: row.querySelector("[name='layout_label']")?.value || createPageLayoutBuilderFieldLabel(key),
+    type: row.querySelector("[name='layout_type']")?.value || createPageLayoutBuilderFieldType(key),
+    required: Boolean(row.querySelector("[name='layout_required']")?.checked)
+  };
+  const customKey = createPageCustomFieldKey(key);
+  if (customKey) {
+    const field = (state.customFields || []).find((candidate) => candidate.key === customKey);
+    if (field && Array.isArray(field.options) && field.options.length) {
+      item.options = field.options.map(String);
+    }
+  }
+  return item;
+}
+
+function createPageLayoutBuilderTextItemFromRow(row) {
+  const kind = row.querySelector("[name='layout_kind']")?.value || "help";
+  return {
+    kind,
+    text: row.querySelector("[name='layout_text']")?.value || (kind === "heading" ? "Heading" : "Help text")
+  };
+}
+
+function syncCreatePageLayoutTextarea(form, layout) {
+  if (!form || !form.elements.field_layout) {
+    return;
+  }
+  form.elements.field_layout.value = JSON.stringify(layout, null, 2);
 }
 
 function createPageSelect(name, options, selectedValue) {
@@ -11159,6 +11581,9 @@ function notificationHookPreviewSpec() {
 }
 
 function createPageSpec(form, options = {}) {
+  if (form && form.querySelector("[data-create-page-layout-builder]")) {
+    syncCreatePageLayoutTextarea(form, createPageLayoutFromBuilder(form));
+  }
   const data = formData(form);
   const logicType = data.logic_type || "none";
   const spec = {
@@ -14248,6 +14673,12 @@ if (typeof module !== "undefined" && module.exports) {
     searchResultFallbackMetadata,
     groupedSearchResults,
     savedViewSearchPresentation,
+    createPageLayoutBuilderFieldItem,
+    createPageLayoutBuilderFieldType,
+    createPageLayoutBuilderItemKind,
+    createPageLayoutBuilderTextKind,
+    mutateCreatePageLayoutBuilderItems,
+    parseCreatePageLayoutBuilderJSON,
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
