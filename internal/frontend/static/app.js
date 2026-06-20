@@ -4904,6 +4904,7 @@ function renderSprintReport() {
   const dueDates = sprintReportDueDateBreakdownNode(report && report.tickets ? report.tickets : []);
   const ages = sprintReportAgeBreakdownNode(report && report.tickets ? report.tickets : []);
   const updates = sprintReportUpdateFreshnessNode(report && report.tickets ? report.tickets : []);
+  const readiness = sprintReportReadinessSummaryNode(report && report.tickets ? report.tickets : []);
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const labels = sprintReportLabelBreakdownNode(report && report.tickets ? report.tickets : []);
@@ -4931,7 +4932,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, updates, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, updates, readiness, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5348,6 +5349,77 @@ function sprintReportUpdatedDate(value) {
     return null;
   }
   return dateToUTC(String(value).slice(0, 10));
+}
+
+function sprintReportReadinessSummaryNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-readiness";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Readiness summary";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-readiness-list";
+  const buckets = sprintReportReadinessSummary(tickets);
+  if (!buckets.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No readiness data";
+    list.append(empty);
+  } else {
+    for (const bucket of buckets) {
+      const item = document.createElement("span");
+      item.textContent = `${bucket.label}: ${bucket.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportReadinessSummary(tickets) {
+  const buckets = [
+    { key: "ready", label: "Ready", count: 0 },
+    { key: "missing_assignee", label: "Missing assignee", count: 0 },
+    { key: "missing_estimate", label: "Missing estimate", count: 0 },
+    { key: "missing_start", label: "Missing start date", count: 0 },
+    { key: "missing_due", label: "Missing due date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    let gaps = 0;
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("missing_assignee").count += 1;
+      gaps += 1;
+    }
+    if (!sprintReportHasEstimate(ticket.story_points)) {
+      byKey.get("missing_estimate").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.start_date)) {
+      byKey.get("missing_start").count += 1;
+      gaps += 1;
+    }
+    if (!dateToUTC(ticket.due_date)) {
+      byKey.get("missing_due").count += 1;
+      gaps += 1;
+    }
+    if (gaps === 0) {
+      byKey.get("ready").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function sprintReportHasEstimate(value) {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  if (typeof value === "string" && !value.trim()) {
+    return false;
+  }
+  return Number.isFinite(Number(value));
 }
 
 function sprintReportStartDateBreakdownNode(tickets) {
@@ -13951,6 +14023,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportStatusBreakdown,
     sprintReportAgeBreakdown,
     sprintReportUpdateFreshness,
+    sprintReportReadinessSummary,
     sprintReportDueDateBreakdown,
     sprintReportStartDateBreakdown,
     sprintReportHealth,
