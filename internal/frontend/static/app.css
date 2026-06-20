@@ -2359,6 +2359,7 @@ p {
 }
 
 .version-lifecycle-summary,
+.version-date-coverage,
 .version-target-health,
 .version-timing-variance {
   display: grid;
@@ -2370,6 +2371,7 @@ p {
 }
 
 .version-lifecycle-summary h4,
+.version-date-coverage h4,
 .version-target-health h4,
 .version-timing-variance h4 {
   color: var(--heading);
@@ -2378,6 +2380,7 @@ p {
 }
 
 .version-lifecycle-list,
+.version-date-coverage-list,
 .version-target-health-list,
 .version-timing-variance-list {
   display: flex;
@@ -2386,6 +2389,7 @@ p {
 }
 
 .version-lifecycle-list span,
+.version-date-coverage-list span,
 .version-target-health-list span,
 .version-timing-variance-list span {
   border: 1px solid var(--border);
