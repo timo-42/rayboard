@@ -1992,6 +1992,13 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mark second ticket done: %v", err)
 	}
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Needs estimate", VersionID: version.ID}); err != nil {
+		t.Fatalf("create unestimated ticket: %v", err)
+	}
+	zeroPoints := 0.0
+	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Zero point estimate", VersionID: version.ID, StoryPoints: &zeroPoints}); err != nil {
+		t.Fatalf("create zero point ticket: %v", err)
+	}
 	if _, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Other release", VersionID: otherVersion.ID}); err != nil {
 		t.Fatalf("create other version ticket: %v", err)
 	}
@@ -2018,19 +2025,20 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if report.Version.ID != version.ID ||
 		report.Scope != tracker.VersionReportScopeCurrent ||
 		report.SnapshotAt != nil ||
-		report.Progress.Total != 2 ||
+		report.Progress.Total != 4 ||
 		report.Progress.Done != 1 ||
-		report.Progress.Open != 1 ||
-		report.Progress.UnassignedComponent != 1 ||
+		report.Progress.Open != 3 ||
+		report.Progress.UnassignedComponent != 3 ||
 		report.Progress.StoryPointsTotal != 7 ||
 		report.Progress.StoryPointsDone != 5 ||
 		report.Progress.StoryPointsRemaining != 2 ||
-		report.Progress.StoryPointsUnestimated != 0 ||
-		report.Progress.ByStatus["todo"] != 1 ||
+		report.Progress.StoryPointsUnestimated != 1 ||
+		report.Progress.Total-report.Progress.StoryPointsUnestimated != 3 ||
+		report.Progress.ByStatus["todo"] != 3 ||
 		report.Progress.ByStatus["done"] != 1 ||
-		report.ScopeChanges.Current != 2 ||
-		report.ScopeChanges.Unchanged != 2 ||
-		len(report.Tickets) != 2 {
+		report.ScopeChanges.Current != 4 ||
+		report.ScopeChanges.Unchanged != 4 ||
+		len(report.Tickets) != 4 {
 		t.Fatalf("unexpected version report: %#v", report)
 	}
 	reportIDs := map[string]bool{}
@@ -2066,17 +2074,18 @@ func TestVersionReportSummarizesAssignedTickets(t *testing.T) {
 	if snapshotReport.Scope != tracker.VersionReportScopeSnapshot || snapshotReport.SnapshotAt == nil || !snapshotReport.SnapshotAt.Equal(updatedVersion.UpdatedAt) {
 		t.Fatalf("unexpected version report scope: %#v", snapshotReport)
 	}
-	if snapshotReport.Progress.Total != 1 ||
+	if snapshotReport.Progress.Total != 3 ||
 		snapshotReport.Progress.Done != 0 ||
-		snapshotReport.Progress.Open != 1 ||
+		snapshotReport.Progress.Open != 3 ||
 		snapshotReport.Progress.StoryPointsTotal != 2 ||
 		snapshotReport.Progress.StoryPointsDone != 0 ||
 		snapshotReport.Progress.StoryPointsRemaining != 2 ||
-		snapshotReport.ScopeChanges.Current != 0 ||
-		snapshotReport.ScopeChanges.Snapshot != 1 ||
+		snapshotReport.Progress.StoryPointsUnestimated != 1 ||
+		snapshotReport.ScopeChanges.Current != 2 ||
+		snapshotReport.ScopeChanges.Snapshot != 3 ||
 		snapshotReport.ScopeChanges.Removed != 1 ||
-		len(snapshotReport.Tickets) != 1 ||
-		snapshotReport.Tickets[0].ID != first.ID {
+		snapshotReport.ScopeChanges.Unchanged != 2 ||
+		len(snapshotReport.Tickets) != 3 {
 		t.Fatalf("unexpected released snapshot report after move/delete: %#v", snapshotReport)
 	}
 

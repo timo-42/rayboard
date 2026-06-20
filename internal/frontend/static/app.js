@@ -5392,6 +5392,7 @@ function renderVersionReport() {
     versionReportHealthNode(version),
     versionReportTimelineNode(version),
     versionReportSummaryNode(progress),
+    versionReportEstimateCoverageNode(progress),
     versionReportScopeChangesNode(report ? report.scope_changes : null),
     versionReportAssigneeWorkloadsNode(tickets),
     versionReportBreakdownNode(progress, tickets),
@@ -5573,6 +5574,48 @@ function versionReportSummaryNode(progress) {
   }
   section.append(progressBox, metrics);
   return section;
+}
+
+function versionReportEstimateCoverageNode(progress) {
+  const section = document.createElement("section");
+  section.className = "version-report-estimate-coverage";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Estimate coverage";
+
+  const list = document.createElement("div");
+  list.className = "version-report-estimate-coverage-list";
+  const coverage = versionReportEstimateCoverage(progress);
+  if (coverage.total === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No release tickets";
+    list.append(empty);
+  } else {
+    for (const item of coverage.items) {
+      const chip = document.createElement("span");
+      chip.textContent = `${item.label}: ${item.count}`;
+      list.append(chip);
+    }
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function versionReportEstimateCoverage(progress) {
+  const data = progress || {};
+  const totalValue = Number(data.total || 0);
+  const unestimatedValue = Number(data.story_points_unestimated || 0);
+  const total = Math.max(Number.isFinite(totalValue) ? totalValue : 0, 0);
+  const unestimated = Math.min(Math.max(Number.isFinite(unestimatedValue) ? unestimatedValue : 0, 0), total);
+  return {
+    total,
+    items: [
+      { label: "Estimated", count: Math.max(total - unestimated, 0) },
+      { label: "Unestimated", count: unestimated }
+    ]
+  };
 }
 
 function versionReportScopeChangesNode(scopeChanges) {
@@ -13066,6 +13109,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportHealthDates,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
+    versionReportEstimateCoverage,
     versionReportPriorityBreakdown,
     versionReportTypeBreakdown,
     versionReportTimelineItems
