@@ -844,6 +844,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.Scope != tracker.SprintReportScopeCurrent ||
 		activeReportBody.Status.SnapshotAt != "" ||
 		activeReportBody.Status.Progress.Total != 1 ||
+		activeReportBody.Status.ScopeChanges.Current != 1 ||
+		activeReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		activeReportBody.Status.Analytics.Velocity.Unit != "tickets" ||
 		len(activeReportBody.Status.Tickets) != 1 ||
 		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID {
@@ -884,6 +886,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if completedReportBody.Status.Scope != tracker.SprintReportScopeSnapshot ||
 		completedReportBody.Status.SnapshotAt == "" ||
 		completedReportBody.Status.Progress.Total != 1 ||
+		completedReportBody.Status.ScopeChanges.Current != 1 ||
+		completedReportBody.Status.ScopeChanges.Snapshot != 1 ||
+		completedReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		len(completedReportBody.Status.Tickets) != 1 ||
 		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReportBody)
@@ -910,6 +915,9 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	}
 	if committedReportBody.Status.Scope != tracker.SprintReportScopeSnapshot ||
 		committedReportBody.Status.Progress.Total != 1 ||
+		committedReportBody.Status.ScopeChanges.Current != 0 ||
+		committedReportBody.Status.ScopeChanges.Snapshot != 1 ||
+		committedReportBody.Status.ScopeChanges.Removed != 1 ||
 		len(committedReportBody.Status.Tickets) != 1 ||
 		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID {
 		t.Fatalf("expected completed report to keep committed ticket membership, got %#v", committedReportBody)
@@ -1096,11 +1104,12 @@ type sprintReportResourceBody struct {
 		Sprint sprintResourceBody `json:"sprint"`
 	} `json:"spec"`
 	Status struct {
-		Scope      string                       `json:"scope"`
-		SnapshotAt string                       `json:"snapshot_at"`
-		Progress   tracker.SprintReportProgress `json:"progress"`
-		Analytics  tracker.SprintAnalytics      `json:"analytics"`
-		Tickets    []ticketResourceBody         `json:"tickets"`
+		Scope        string                           `json:"scope"`
+		SnapshotAt   string                           `json:"snapshot_at"`
+		Progress     tracker.SprintReportProgress     `json:"progress"`
+		Analytics    tracker.SprintAnalytics          `json:"analytics"`
+		ScopeChanges tracker.SprintReportScopeChanges `json:"scope_changes"`
+		Tickets      []ticketResourceBody             `json:"tickets"`
 	} `json:"status"`
 }
 

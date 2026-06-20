@@ -2085,23 +2085,27 @@ p {
   font-size: 12px;
 }
 
+.sprint-report-scope-changes,
 .sprint-report-assignees {
   display: grid;
   gap: 6px;
 }
 
+.sprint-report-scope-changes h4,
 .sprint-report-assignees h4 {
   margin: 0;
   color: var(--heading);
   font-size: 13px;
 }
 
+.sprint-report-scope-change-list,
 .sprint-report-assignee-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
+.sprint-report-scope-change-list span,
 .sprint-report-assignee-list span {
   border: 1px solid var(--border);
   border-radius: 999px;

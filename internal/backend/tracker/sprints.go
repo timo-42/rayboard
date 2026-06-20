@@ -113,10 +113,16 @@ func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal
 
 	scope := SprintReportScopeCurrent
 	var snapshotAt *time.Time
-	var tickets []Ticket
+	currentTickets, err := s.listSprintReportTickets(ctx, sprint.ID)
+	if err != nil {
+		return SprintReport{}, err
+	}
+	tickets := currentTickets
+	snapshotTickets := []Ticket(nil)
+	hasSnapshot := false
 	if sprint.State == SprintStateCompleted {
 		var snapshotExists bool
-		tickets, snapshotAt, snapshotExists, err = s.listSprintSnapshotTickets(ctx, sprint.ID)
+		snapshotTickets, snapshotAt, snapshotExists, err = s.listSprintSnapshotTickets(ctx, sprint.ID)
 		if err != nil {
 			return SprintReport{}, err
 		}
@@ -124,16 +130,12 @@ func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal
 		if snapshotAt == nil {
 			snapshotAt = sprint.CompletedAt
 		}
-		if !snapshotExists {
-			tickets = nil
+		if snapshotExists {
+			tickets = snapshotTickets
+			hasSnapshot = true
 		}
 	}
-	if tickets == nil {
-		tickets, err = s.listSprintReportTickets(ctx, sprint.ID)
-		if err != nil {
-			return SprintReport{}, err
-		}
-	}
+	scopeChanges := sprintReportScopeChanges(currentTickets, snapshotTickets, hasSnapshot)
 	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return SprintReport{}, err
@@ -143,12 +145,13 @@ func (s *Service) GetSprintReport(ctx context.Context, principal authz.Principal
 		return SprintReport{}, err
 	}
 	return SprintReport{
-		Sprint:     sprint,
-		Scope:      scope,
-		SnapshotAt: snapshotAt,
-		Progress:   sprintReportProgress(tickets),
-		Analytics:  analytics,
-		Tickets:    tickets,
+		Sprint:       sprint,
+		Scope:        scope,
+		SnapshotAt:   snapshotAt,
+		Progress:     sprintReportProgress(tickets),
+		Analytics:    analytics,
+		ScopeChanges: scopeChanges,
+		Tickets:      tickets,
 	}, nil
 }
 
@@ -423,6 +426,38 @@ func sprintReportProgress(tickets []Ticket) SprintReportProgress {
 	}
 	progress.StoryPointsRemaining = progress.StoryPointsTotal - progress.StoryPointsDone
 	return progress
+}
+
+func sprintReportScopeChanges(current []Ticket, snapshot []Ticket, hasSnapshot bool) SprintReportScopeChanges {
+	currentIDs := map[string]struct{}{}
+	snapshotIDs := map[string]struct{}{}
+	for _, ticket := range current {
+		currentIDs[ticket.ID] = struct{}{}
+	}
+	for _, ticket := range snapshot {
+		snapshotIDs[ticket.ID] = struct{}{}
+	}
+	changes := SprintReportScopeChanges{
+		Current:  len(currentIDs),
+		Snapshot: len(snapshotIDs),
+	}
+	if !hasSnapshot {
+		changes.Unchanged = len(currentIDs)
+		return changes
+	}
+	for id := range currentIDs {
+		if _, ok := snapshotIDs[id]; ok {
+			changes.Unchanged++
+		} else {
+			changes.Added++
+		}
+	}
+	for id := range snapshotIDs {
+		if _, ok := currentIDs[id]; !ok {
+			changes.Removed++
+		}
+	}
+	return changes
 }
 
 func (s *Service) sprintAnalytics(ctx context.Context, sprint Sprint, tickets []Ticket) (SprintAnalytics, error) {

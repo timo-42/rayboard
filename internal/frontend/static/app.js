@@ -4728,6 +4728,7 @@ function renderSprintReport() {
   }
 
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
+  const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
 
   const tickets = document.createElement("div");
@@ -4745,7 +4746,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -4895,6 +4896,36 @@ function sprintReportAnalyticsNode(analytics) {
 
 function latestPoint(points) {
   return Array.isArray(points) && points.length ? points[points.length - 1] : null;
+}
+
+function sprintReportScopeChangesNode(scopeChanges) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-scope-changes";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Scope changes";
+
+  const chips = document.createElement("div");
+  chips.className = "sprint-report-scope-change-list";
+  for (const item of sprintReportScopeChangeItems(scopeChanges)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function sprintReportScopeChangeItems(scopeChanges) {
+  const changes = scopeChanges || {};
+  return [
+    `current ${Number(changes.current) || 0}`,
+    `snapshot ${Number(changes.snapshot) || 0}`,
+    `added ${Number(changes.added) || 0}`,
+    `removed ${Number(changes.removed) || 0}`,
+    `unchanged ${Number(changes.unchanged) || 0}`
+  ];
 }
 
 function sprintReportAssigneeWorkloads(tickets) {
@@ -11749,10 +11780,22 @@ function normalizeSprintReport(report) {
         by_status: (report.status.progress && report.status.progress.by_status) || {}
       },
       analytics: normalizeSprintAnalytics(report.status.analytics),
+      scope_changes: normalizeSprintReportScopeChanges(report.status.scope_changes),
       tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)
     };
   }
   return report;
+}
+
+function normalizeSprintReportScopeChanges(scopeChanges) {
+  scopeChanges = scopeChanges || {};
+  return {
+    current: Number(scopeChanges.current) || 0,
+    snapshot: Number(scopeChanges.snapshot) || 0,
+    added: Number(scopeChanges.added) || 0,
+    removed: Number(scopeChanges.removed) || 0,
+    unchanged: Number(scopeChanges.unchanged) || 0
+  };
 }
 
 function normalizeSprintAnalytics(analytics) {
