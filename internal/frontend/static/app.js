@@ -7271,6 +7271,74 @@ function versionLabelSummaryItems(summary) {
   }));
 }
 
+function versionAssigneeSummary(tickets, versionID) {
+  const assignees = new Map();
+  let total = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    const key = String(ticket.assignee_id || "").trim();
+    const label = key ? `assignee ${key}` : "Unassigned";
+    assignees.set(label, (assignees.get(label) || 0) + 1);
+  }
+  return {
+    total,
+    assignees: Array.from(assignees.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        if (left.label === "Unassigned" && right.label !== "Unassigned") {
+          return 1;
+        }
+        if (right.label === "Unassigned" && left.label !== "Unassigned") {
+          return -1;
+        }
+        return left.label.localeCompare(right.label);
+      })
+  };
+}
+
+function versionAssigneeSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-assignee-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket assignees";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-assignee-chips";
+  for (const item of versionAssigneeSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionAssigneeSummaryItems(summary) {
+  const data = summary || {};
+  const items = [`total: ${Number(data.total) || 0}`];
+  const assignees = Array.isArray(data.assignees) ? data.assignees : [];
+  return items.concat(assignees.slice(0, 4).map((item) => {
+    const label = String(item && item.label || "").trim() || "Unassigned";
+    return `${label}: ${Number(item && item.count) || 0}`;
+  }));
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8823,7 +8891,8 @@ function versionNode(version, tickets = state.tickets) {
     versionStatusSummaryNode(versionStatusSummary(tickets, version.id)),
     versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id)),
     versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id)),
-    versionLabelSummaryNode(versionLabelSummary(tickets, version.id))
+    versionLabelSummaryNode(versionLabelSummary(tickets, version.id)),
+    versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18444,6 +18513,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionIssueTypeSummaryItems,
     versionLabelSummary,
     versionLabelSummaryItems,
+    versionAssigneeSummary,
+    versionAssigneeSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

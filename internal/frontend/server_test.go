@@ -1571,6 +1571,17 @@ func TestVersionLabelSummary(t *testing.T) {
 	}
 }
 
+func TestVersionAssigneeSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_assignee_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version assignee summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1851,6 +1862,10 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionLabelSummaryItems",
 		"versionLabelSummaryNode",
 		"Visible ticket labels",
+		"versionAssigneeSummary",
+		"versionAssigneeSummaryItems",
+		"versionAssigneeSummaryNode",
+		"Visible ticket assignees",
 		"versionReportHealthDates",
 		"versionReportTimelineNode",
 		"versionReportTimelineItems",
@@ -1998,6 +2013,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-issue-type-chips",
 		".version-label-summary",
 		".version-label-chips",
+		".version-assignee-summary",
+		".version-assignee-chips",
 		".version-lifecycle-summary",
 		".version-lifecycle-list",
 		".version-date-coverage",
