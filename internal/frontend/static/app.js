@@ -5212,6 +5212,7 @@ function renderVersionReport() {
     versionReportHealthNode(version),
     versionReportTimelineNode(version),
     versionReportSummaryNode(progress),
+    versionReportScopeChangesNode(report ? report.scope_changes : null),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -5391,6 +5392,36 @@ function versionReportSummaryNode(progress) {
   }
   section.append(progressBox, metrics);
   return section;
+}
+
+function versionReportScopeChangesNode(scopeChanges) {
+  const section = document.createElement("section");
+  section.className = "version-report-scope-changes";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Scope changes";
+
+  const chips = document.createElement("div");
+  chips.className = "version-report-scope-change-list";
+  for (const item of versionReportScopeChangeItems(scopeChanges)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function versionReportScopeChangeItems(scopeChanges) {
+  const changes = scopeChanges || {};
+  return [
+    `current ${Number(changes.current) || 0}`,
+    `snapshot ${Number(changes.snapshot) || 0}`,
+    `added ${Number(changes.added) || 0}`,
+    `removed ${Number(changes.removed) || 0}`,
+    `unchanged ${Number(changes.unchanged) || 0}`
+  ];
 }
 
 function versionReportBreakdownNode(progress, tickets) {
@@ -11887,10 +11918,22 @@ function normalizeVersionReport(report) {
         story_points_unestimated: Number(report.status.progress && report.status.progress.story_points_unestimated) || 0,
         by_status: (report.status.progress && report.status.progress.by_status) || {}
       },
+      scope_changes: normalizeVersionReportScopeChanges(report.status.scope_changes),
       tickets: listItems({ items: report.status.tickets || [] }).map(normalizeTicket).filter(Boolean)
     };
   }
   return report;
+}
+
+function normalizeVersionReportScopeChanges(scopeChanges) {
+  scopeChanges = scopeChanges || {};
+  return {
+    current: Number(scopeChanges.current) || 0,
+    snapshot: Number(scopeChanges.snapshot) || 0,
+    added: Number(scopeChanges.added) || 0,
+    removed: Number(scopeChanges.removed) || 0,
+    unchanged: Number(scopeChanges.unchanged) || 0
+  };
 }
 
 function normalizeCustomField(field) {

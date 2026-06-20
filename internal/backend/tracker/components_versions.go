@@ -266,34 +266,39 @@ func (s *Service) GetVersionReport(ctx context.Context, principal authz.Principa
 	}
 	scope := VersionReportScopeCurrent
 	var snapshotAt *time.Time
-	var tickets []Ticket
+	currentTickets, err := s.listVersionReportTickets(ctx, version.ID)
+	if err != nil {
+		return VersionReport{}, err
+	}
+	tickets := currentTickets
+	snapshotTickets := []Ticket(nil)
+	hasSnapshot := false
 	if version.Status == VersionStatusReleased {
 		var snapshotExists bool
-		tickets, snapshotAt, snapshotExists, err = s.listVersionSnapshotTickets(ctx, version.ID)
+		snapshotTickets, snapshotAt, snapshotExists, err = s.listVersionSnapshotTickets(ctx, version.ID)
 		if err != nil {
 			return VersionReport{}, err
 		}
 		scope = VersionReportScopeSnapshot
-		if !snapshotExists {
+		if snapshotExists {
+			tickets = snapshotTickets
+			hasSnapshot = true
+		} else {
 			tickets = []Ticket{}
 		}
 	}
-	if tickets == nil {
-		tickets, err = s.listVersionReportTickets(ctx, version.ID)
-		if err != nil {
-			return VersionReport{}, err
-		}
-	}
+	scopeChanges := versionReportScopeChanges(currentTickets, snapshotTickets, hasSnapshot)
 	tickets, err = s.attachTicketDetailsAndWatcherStatus(ctx, principal, tickets)
 	if err != nil {
 		return VersionReport{}, err
 	}
 	return VersionReport{
-		Version:    version,
-		Scope:      scope,
-		SnapshotAt: snapshotAt,
-		Progress:   versionReportProgress(tickets),
-		Tickets:    tickets,
+		Version:      version,
+		Scope:        scope,
+		SnapshotAt:   snapshotAt,
+		Progress:     versionReportProgress(tickets),
+		ScopeChanges: scopeChanges,
+		Tickets:      tickets,
 	}, nil
 }
 
@@ -668,6 +673,38 @@ func versionReportProgress(tickets []Ticket) VersionReportProgress {
 	progress.Open = progress.Total - progress.Done
 	progress.StoryPointsRemaining = progress.StoryPointsTotal - progress.StoryPointsDone
 	return progress
+}
+
+func versionReportScopeChanges(current []Ticket, snapshot []Ticket, hasSnapshot bool) VersionReportScopeChanges {
+	currentIDs := map[string]struct{}{}
+	snapshotIDs := map[string]struct{}{}
+	for _, ticket := range current {
+		currentIDs[ticket.ID] = struct{}{}
+	}
+	for _, ticket := range snapshot {
+		snapshotIDs[ticket.ID] = struct{}{}
+	}
+	changes := VersionReportScopeChanges{
+		Current:  len(currentIDs),
+		Snapshot: len(snapshotIDs),
+	}
+	if !hasSnapshot {
+		changes.Unchanged = len(currentIDs)
+		return changes
+	}
+	for id := range currentIDs {
+		if _, ok := snapshotIDs[id]; ok {
+			changes.Unchanged++
+		} else {
+			changes.Added++
+		}
+	}
+	for id := range snapshotIDs {
+		if _, ok := currentIDs[id]; !ok {
+			changes.Removed++
+		}
+	}
+	return changes
 }
 
 func scanComponent(scanner rowScanner) (Component, error) {

@@ -694,6 +694,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		versionReportBody.Status.Progress.Total != 1 ||
 		versionReportBody.Status.Progress.Open != 1 ||
 		versionReportBody.Status.Progress.ByStatus["todo"] != 1 ||
+		versionReportBody.Status.ScopeChanges.Current != 1 ||
+		versionReportBody.Status.ScopeChanges.Unchanged != 1 ||
 		len(versionReportBody.Status.Tickets) != 1 ||
 		versionReportBody.Status.Tickets[0].Metadata.ID != second.ID ||
 		versionReportBody.Status.Tickets[0].Spec.VersionID != version.ID {
@@ -720,7 +722,12 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 	if err := json.Unmarshal(releasedVersionReport.Body.Bytes(), &releasedVersionReportBody); err != nil {
 		t.Fatalf("decode released version report: %v", err)
 	}
-	if releasedVersionReportBody.Status.Scope != tracker.VersionReportScopeSnapshot || releasedVersionReportBody.Status.SnapshotAt == "" || releasedVersionReportBody.Status.Progress.Total != 1 {
+	if releasedVersionReportBody.Status.Scope != tracker.VersionReportScopeSnapshot ||
+		releasedVersionReportBody.Status.SnapshotAt == "" ||
+		releasedVersionReportBody.Status.Progress.Total != 1 ||
+		releasedVersionReportBody.Status.ScopeChanges.Current != 1 ||
+		releasedVersionReportBody.Status.ScopeChanges.Snapshot != 1 ||
+		releasedVersionReportBody.Status.ScopeChanges.Unchanged != 1 {
 		t.Fatalf("unexpected released version report: %#v", releasedVersionReportBody)
 	}
 
@@ -1118,10 +1125,11 @@ type versionReportResourceBody struct {
 		Version versionResourceBody `json:"version"`
 	} `json:"spec"`
 	Status struct {
-		Scope      string                        `json:"scope"`
-		SnapshotAt string                        `json:"snapshot_at"`
-		Progress   tracker.VersionReportProgress `json:"progress"`
-		Tickets    []ticketResourceBody          `json:"tickets"`
+		Scope        string                            `json:"scope"`
+		SnapshotAt   string                            `json:"snapshot_at"`
+		Progress     tracker.VersionReportProgress     `json:"progress"`
+		ScopeChanges tracker.VersionReportScopeChanges `json:"scope_changes"`
+		Tickets      []ticketResourceBody              `json:"tickets"`
 	} `json:"status"`
 }
 
