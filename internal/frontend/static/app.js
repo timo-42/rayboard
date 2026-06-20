@@ -31,6 +31,7 @@ const state = {
   selectedVersionReportID: "",
   versionReport: null,
   customFields: [],
+  customFieldUsageTickets: [],
   roadmap: [],
   roadmapCapacityTickets: [],
   roadmapCapacityTargets: {},
@@ -3184,6 +3185,7 @@ async function refreshSelectedVersionReport() {
 async function loadCustomFields(options = {}) {
   if (!state.user || !state.selectedProject) {
     state.customFields = [];
+    state.customFieldUsageTickets = [];
     renderCustomFields();
     if (options.renderTickets !== false) {
       renderTickets();
@@ -3192,10 +3194,41 @@ async function loadCustomFields(options = {}) {
   }
   const data = await api(`/api/projects/${state.selectedProject.id}/custom-fields`);
   state.customFields = listItems(data).map(normalizeCustomField);
+  await loadCustomFieldUsageTickets({ renderAfter: false });
   renderCustomFields();
   renderTicketCreateCustomFields();
   if (options.renderTickets !== false) {
     renderTickets();
+  }
+}
+
+async function loadCustomFieldUsageTickets(options = {}) {
+  if (!state.selectedProject) {
+    state.customFieldUsageTickets = [];
+    if (options.renderAfter !== false) {
+      renderCustomFields();
+    }
+    return;
+  }
+  try {
+    const tickets = [];
+    const limit = 100;
+    let offset = 0;
+    while (true) {
+      const data = await api(`/api/projects/${state.selectedProject.id}/tickets?limit=${limit}&offset=${offset}`);
+      const page = listItems(data).map(normalizeTicket).filter(Boolean);
+      tickets.push(...page);
+      if (page.length < limit) {
+        break;
+      }
+      offset += limit;
+    }
+    state.customFieldUsageTickets = tickets;
+  } catch (_) {
+    state.customFieldUsageTickets = [];
+  }
+  if (options.renderAfter !== false) {
+    renderCustomFields();
   }
 }
 
@@ -3554,6 +3587,8 @@ async function refreshTicketViews(ticketID, options = {}) {
     await loadBoardTickets(state.selectedBoardID, { renderAfter: false });
   }
   await loadTickets();
+  await loadCustomFieldUsageTickets({ renderAfter: false });
+  renderCustomFields();
   if (state.selectedIssue && state.selectedIssue.id === ticketID) {
     await loadSelectedIssue(ticketID);
     renderIssue();
@@ -7931,7 +7966,7 @@ function customFieldLayoutOverviewNode(fields) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights), customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.tickets)));
+  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights), customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.customFieldUsageTickets)));
   return section;
 }
 
