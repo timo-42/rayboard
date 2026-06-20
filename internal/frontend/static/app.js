@@ -4903,6 +4903,7 @@ function renderSprintReport() {
   const startDates = sprintReportStartDateBreakdownNode(report && report.tickets ? report.tickets : []);
   const dueDates = sprintReportDueDateBreakdownNode(report && report.tickets ? report.tickets : []);
   const ages = sprintReportAgeBreakdownNode(report && report.tickets ? report.tickets : []);
+  const updates = sprintReportUpdateFreshnessNode(report && report.tickets ? report.tickets : []);
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const labels = sprintReportLabelBreakdownNode(report && report.tickets ? report.tickets : []);
@@ -4930,7 +4931,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, startDates, dueDates, ages, updates, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, reporters, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5279,6 +5280,70 @@ function sprintReportAgeBreakdown(tickets, todayValue = todayLocalISODate()) {
 }
 
 function sprintReportCreatedDate(value) {
+  if (!value) {
+    return null;
+  }
+  return dateToUTC(String(value).slice(0, 10));
+}
+
+function sprintReportUpdateFreshnessNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-updates";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Update freshness";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-update-list";
+  const buckets = sprintReportUpdateFreshness(tickets);
+  if (!buckets.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No update data";
+    list.append(empty);
+  } else {
+    for (const bucket of buckets) {
+      const item = document.createElement("span");
+      item.textContent = `${bucket.label}: ${bucket.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportUpdateFreshness(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "today", label: "Updated today", count: 0 },
+    { key: "week", label: "Updated this week", count: 0 },
+    { key: "stale", label: "Stale (8-30 days)", count: 0 },
+    { key: "dormant", label: "Dormant (31+ days)", count: 0 },
+    { key: "none", label: "No update date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (!updated) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(updated, today), 0);
+    if (ageDays === 0) {
+      byKey.get("today").count += 1;
+    } else if (ageDays <= 7) {
+      byKey.get("week").count += 1;
+    } else if (ageDays <= 30) {
+      byKey.get("stale").count += 1;
+    } else {
+      byKey.get("dormant").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function sprintReportUpdatedDate(value) {
   if (!value) {
     return null;
   }
@@ -13885,6 +13950,7 @@ if (typeof module !== "undefined" && module.exports) {
     sprintReportLabelBreakdown,
     sprintReportStatusBreakdown,
     sprintReportAgeBreakdown,
+    sprintReportUpdateFreshness,
     sprintReportDueDateBreakdown,
     sprintReportStartDateBreakdown,
     sprintReportHealth,
