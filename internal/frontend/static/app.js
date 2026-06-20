@@ -6415,6 +6415,7 @@ function renderVersionReport() {
     versionReportReporterBreakdownNode(tickets),
     versionReportStartDateBreakdownNode(tickets),
     versionReportDueDateBreakdownNode(tickets),
+    versionReportAgeBreakdownNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -7056,6 +7057,43 @@ function versionReportStartDateBreakdown(tickets, todayValue = todayLocalISODate
       byKey.get("soon").count += 1;
     } else {
       byKey.get("future").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function versionReportAgeBreakdownNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-ages",
+    headingText: "Ticket age breakdown",
+    listClass: "version-report-age-list",
+    items: versionReportAgeBreakdown(tickets),
+    emptyText: "No age data"
+  });
+}
+
+function versionReportAgeBreakdown(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "new", label: "New (0-7 days)", count: 0 },
+    { key: "recent", label: "Recent (8-30 days)", count: 0 },
+    { key: "older", label: "Older (31+ days)", count: 0 },
+    { key: "none", label: "No created date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const created = sprintReportCreatedDate(ticket.created_at);
+    if (!created) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(created, today), 0);
+    if (ageDays <= 7) {
+      byKey.get("new").count += 1;
+    } else if (ageDays <= 30) {
+      byKey.get("recent").count += 1;
+    } else {
+      byKey.get("older").count += 1;
     }
   }
   return buckets.filter((bucket) => bucket.count > 0);
@@ -15577,6 +15615,7 @@ if (typeof module !== "undefined" && module.exports) {
     roadmapDependencyGraphNodeLabel,
     ticketLinkDependencySummary,
     todayLocalISODate,
+    versionReportAgeBreakdown,
     versionReportAssigneeWorkloads,
     versionReportComponents,
     versionReportDueDateBreakdown,
