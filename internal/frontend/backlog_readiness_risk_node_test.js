@@ -32,6 +32,7 @@ global.window = {
 const {
   backlogAgeBreakdown,
   backlogLabelBreakdown,
+  backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
   backlogRiskSummary,
   backlogUpdateFreshness
@@ -120,6 +121,28 @@ assert.deepStrictEqual(backlogLabelBreakdown(tickets), [
   { label: "No labels", count: 2 }
 ]);
 
+assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
+  { label: "label-1", count: 9 },
+  { label: "label-2", count: 8 },
+  { label: "label-3", count: 7 },
+  { label: "label-4", count: 6 },
+  { label: "label-5", count: 5 },
+  { label: "label-6", count: 4 },
+  { label: "label-7", count: 3 },
+  { label: "label-8", count: 2 },
+  { label: "label-9", count: 1 },
+  { label: "No labels", count: 4 }
+]), [
+  { label: "label-1", count: 9 },
+  { label: "label-2", count: 8 },
+  { label: "label-3", count: 7 },
+  { label: "label-4", count: 6 },
+  { label: "label-5", count: 5 },
+  { label: "label-6", count: 4 },
+  { label: "label-7", count: 3 },
+  { label: "No labels", count: 4 }
+]);
+
 assert.deepStrictEqual(backlogReadinessSummary([]), []);
 assert.deepStrictEqual(backlogReadinessSummary(null), []);
 assert.deepStrictEqual(backlogRiskSummary([], "2026-06-20"), []);
@@ -130,3 +153,4 @@ assert.deepStrictEqual(backlogUpdateFreshness([], "2026-06-20"), []);
 assert.deepStrictEqual(backlogUpdateFreshness(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogLabelBreakdown([]), []);
 assert.deepStrictEqual(backlogLabelBreakdown(null), []);
+assert.deepStrictEqual(backlogLabelBreakdownVisibleItems(null), []);

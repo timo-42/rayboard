@@ -4478,12 +4478,25 @@ function backlogLabelBreakdownNode(labels) {
   if (!labels.length) {
     return list;
   }
-  for (const label of labels.slice(0, 8)) {
+  for (const label of backlogLabelBreakdownVisibleItems(labels)) {
     const item = document.createElement("span");
     item.textContent = `${label.label}: ${label.count}`;
     list.append(item);
   }
   return list;
+}
+
+function backlogLabelBreakdownVisibleItems(labels, limit = 8) {
+  const list = Array.isArray(labels) ? labels : [];
+  const visibleLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 8;
+  const noLabels = list.find((item) => item.label === "No labels");
+  if (!noLabels || list.length <= visibleLimit) {
+    return list.slice(0, visibleLimit);
+  }
+  return list
+    .filter((item) => item.label !== "No labels")
+    .slice(0, Math.max(visibleLimit - 1, 0))
+    .concat(noLabels);
 }
 
 function backlogAssigneeBreakdown(tickets) {
@@ -16560,6 +16573,7 @@ if (typeof module !== "undefined" && module.exports) {
     backlogReadinessSummary,
     backlogRiskSummary,
     backlogLabelBreakdown,
+    backlogLabelBreakdownVisibleItems,
     backlogAgeBreakdown,
     backlogUpdateFreshness,
     mutateCreatePageLayoutBuilderItems,
