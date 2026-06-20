@@ -4907,6 +4907,7 @@ function renderSprintReport() {
     statuses.append(item);
   }
 
+  const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4926,7 +4927,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5106,6 +5107,49 @@ function sprintReportScopeChangeItems(scopeChanges) {
     `removed ${Number(changes.removed) || 0}`,
     `unchanged ${Number(changes.unchanged) || 0}`
   ];
+}
+
+function sprintReportPriorityBreakdownNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-priorities";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Priority breakdown";
+  section.append(heading);
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-priority-list";
+  const priorities = sprintReportPriorityBreakdown(tickets);
+  if (!priorities.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No priority data";
+    list.append(empty);
+  } else {
+    for (const priority of priorities) {
+      const item = document.createElement("span");
+      item.textContent = `${priority.label}: ${priority.count}`;
+      list.append(item);
+    }
+  }
+  section.append(list);
+  return section;
+}
+
+function sprintReportPriorityBreakdown(tickets) {
+  const priorities = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const label = ticket.priority || "No priority";
+    priorities.set(label, (priorities.get(label) || 0) + 1);
+  }
+  return Array.from(priorities.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
 }
 
 function sprintReportAssigneeWorkloads(tickets) {
@@ -13151,6 +13195,7 @@ if (typeof module !== "undefined" && module.exports) {
     daysBetween,
     sprintReportHealth,
     sprintReportHealthDates,
+    sprintReportPriorityBreakdown,
     ticketLinkDependencySummary,
     todayLocalISODate,
     versionReportAssigneeWorkloads,
