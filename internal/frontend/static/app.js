@@ -5824,6 +5824,14 @@ function roadmapCapacityNode(items) {
     sprintMetricNode("Unestimated", summary.unestimatedChildren)
   );
 
+  const insights = document.createElement("div");
+  insights.className = "roadmap-capacity-insights";
+  for (const insight of roadmapCapacityInsightItems(summary)) {
+    const item = document.createElement("span");
+    item.textContent = insight;
+    insights.append(item);
+  }
+
   const buckets = document.createElement("div");
   buckets.className = "roadmap-capacity-buckets";
   if (summary.buckets.length) {
@@ -5837,7 +5845,7 @@ function roadmapCapacityNode(items) {
     buckets.append(empty);
   }
 
-  section.append(header, metrics, buckets);
+  section.append(header, metrics, insights, buckets);
   return section;
 }
 
@@ -5902,7 +5910,31 @@ function roadmapCapacitySummary(items) {
     bucket.unestimatedChildren += work.unestimatedChildren;
   }
   summary.buckets = Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
+  summary.atRiskBuckets = summary.buckets.filter(roadmapCapacityBucketAtRisk).length;
+  summary.busiestBucket = summary.buckets.reduce((busiest, bucket) => {
+    if (!busiest || bucket.openChildren > busiest.openChildren) {
+      return bucket;
+    }
+    if (busiest.openChildren === bucket.openChildren && bucket.storyPointsRemaining > busiest.storyPointsRemaining) {
+      return bucket;
+    }
+    return busiest;
+  }, null);
   return summary;
+}
+
+function roadmapCapacityInsightItems(summary) {
+  const items = [
+    `${summary.buckets.length} visible months`,
+    `${summary.atRiskBuckets || 0} at-risk months`
+  ];
+  if (summary.busiestBucket) {
+    const points = summary.busiestBucket.storyPointsTotal > 0
+      ? ` / ${formatStoryPoints(summary.busiestBucket.storyPointsRemaining)} pts`
+      : "";
+    items.push(`busiest ${summary.busiestBucket.label}: ${summary.busiestBucket.openChildren} open${points}`);
+  }
+  return items;
 }
 
 function roadmapCapacityItemWork(item) {
@@ -5979,8 +6011,8 @@ function roadmapCapacityBucketLabel(key) {
 }
 
 function roadmapCapacityBucketNode(bucket) {
-  const ratio = bucket.childTickets > 0 ? bucket.doneChildren / bucket.childTickets : 1;
-  const atRisk = bucket.openChildren >= 8 || (bucket.childTickets > 0 && ratio < 0.35);
+  const ratio = roadmapCapacityBucketCompletionRatio(bucket);
+  const atRisk = roadmapCapacityBucketAtRisk(bucket);
   const article = document.createElement("article");
   article.className = atRisk ? "roadmap-capacity-bucket is-at-risk" : "roadmap-capacity-bucket";
 
@@ -6001,6 +6033,15 @@ function roadmapCapacityBucketNode(bucket) {
   detail.textContent = `${bucket.doneChildren}/${bucket.childTickets} child tickets done / ${pointText}${atRisk ? " / capacity risk" : ""}`;
   article.append(title, meta, progress, detail);
   return article;
+}
+
+function roadmapCapacityBucketCompletionRatio(bucket) {
+  return bucket.childTickets > 0 ? bucket.doneChildren / bucket.childTickets : 1;
+}
+
+function roadmapCapacityBucketAtRisk(bucket) {
+  const ratio = roadmapCapacityBucketCompletionRatio(bucket);
+  return bucket.openChildren >= 8 || (bucket.childTickets > 0 && ratio < 0.35);
 }
 
 function roadmapTimelineNode(items) {
