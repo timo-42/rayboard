@@ -2958,6 +2958,7 @@ p {
 
 .backlog-readiness-summary,
 .backlog-risk-summary,
+.backlog-attention-summary,
 .backlog-age-breakdown,
 .backlog-update-freshness,
 .backlog-due-date-breakdown,
@@ -2973,6 +2974,7 @@ p {
 
 .backlog-readiness-summary h4,
 .backlog-risk-summary h4,
+.backlog-attention-summary h4,
 .backlog-age-breakdown h4,
 .backlog-update-freshness h4,
 .backlog-due-date-breakdown h4,
