@@ -2362,6 +2362,21 @@ p {
   gap: 5px;
 }
 
+.board-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-metadata span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
 .board-edit-form {
   min-width: 0;
   display: grid;

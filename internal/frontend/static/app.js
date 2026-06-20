@@ -4464,13 +4464,7 @@ function boardNode(board) {
   const title = document.createElement("p");
   title.textContent = board.name || "Board";
 
-  const meta = document.createElement("span");
-  meta.textContent = [
-    board.description || "",
-    board.status_slugs.length ? board.status_slugs.join(", ") : "no columns"
-  ].filter(Boolean).join(" / ");
-
-  body.append(title, meta);
+  body.append(title, boardMetadataNode(board));
 
   const edit = document.createElement("form");
   edit.className = "board-edit-form";
@@ -4503,6 +4497,30 @@ function boardNode(board) {
   actions.append(select, remove);
   article.append(body, edit, actions);
   return article;
+}
+
+function boardMetadataNode(board) {
+  const metadata = document.createElement("div");
+  metadata.className = "board-metadata";
+
+  for (const item of boardMetadataItems(board)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    metadata.append(chip);
+  }
+
+  return metadata;
+}
+
+function boardMetadataItems(board) {
+  const statuses = Array.isArray(board.status_slugs) ? board.status_slugs : [];
+  const wipLimits = board.wip_limits && typeof board.wip_limits === "object" ? board.wip_limits : {};
+  const wipLimitCount = Object.values(wipLimits).filter((value) => Number(value) > 0).length;
+  return [
+    statuses.length ? `${statuses.length} column${statuses.length === 1 ? "" : "s"}` : "no columns",
+    wipLimitCount ? `${wipLimitCount} WIP limit${wipLimitCount === 1 ? "" : "s"}` : "no WIP limits",
+    board.description ? "has description" : "no description"
+  ];
 }
 
 function renderSprints() {
