@@ -7479,6 +7479,78 @@ function versionDueDateSummaryItems(summary) {
   ];
 }
 
+function versionStartDateSummary(tickets, versionID, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const summary = {
+    total: 0,
+    with_start_date: 0,
+    missing_start_date: 0,
+    started_open: 0,
+    starts_today: 0,
+    future_start: 0
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    summary.total += 1;
+    const start = dateToUTC(ticket.start_date);
+    if (!start) {
+      summary.missing_start_date += 1;
+      continue;
+    }
+    summary.with_start_date += 1;
+    const days = daysBetween(today, start);
+    if (days < 0 && ticket.status !== "done") {
+      summary.started_open += 1;
+    } else if (days === 0) {
+      summary.starts_today += 1;
+    } else if (days > 0) {
+      summary.future_start += 1;
+    }
+  }
+  return summary;
+}
+
+function versionStartDateSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-start-date-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket start dates";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-start-date-chips";
+  for (const item of versionStartDateSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionStartDateSummaryItems(summary) {
+  const data = summary || {};
+  return [
+    `total: ${Number(data.total) || 0}`,
+    `with start date: ${Number(data.with_start_date) || 0}`,
+    `missing start date: ${Number(data.missing_start_date) || 0}`,
+    `started open: ${Number(data.started_open) || 0}`,
+    `starts today: ${Number(data.starts_today) || 0}`,
+    `future start: ${Number(data.future_start) || 0}`
+  ];
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -9034,7 +9106,8 @@ function versionNode(version, tickets = state.tickets) {
     versionLabelSummaryNode(versionLabelSummary(tickets, version.id)),
     versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id)),
     versionReporterSummaryNode(versionReporterSummary(tickets, version.id)),
-    versionDueDateSummaryNode(versionDueDateSummary(tickets, version.id))
+    versionDueDateSummaryNode(versionDueDateSummary(tickets, version.id)),
+    versionStartDateSummaryNode(versionStartDateSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18661,6 +18734,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionReporterSummaryItems,
     versionDueDateSummary,
     versionDueDateSummaryItems,
+    versionStartDateSummary,
+    versionStartDateSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
