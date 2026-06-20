@@ -11204,6 +11204,7 @@ function notificationHookPreviewSummary(display) {
       state: "",
       suppressed: false,
       destinations: 0,
+      planned_destinations: 0,
       destination_override: false,
       message_override: false,
       payload_override: false,
@@ -11213,11 +11214,14 @@ function notificationHookPreviewSummary(display) {
   }
   const output = display.output || {};
   const plan = display.plan || {};
+  const suppressed = Boolean(display.suppressed);
+  const destinationCount = Array.isArray(plan.destination_ids) ? plan.destination_ids.length : 0;
   return {
     loaded: true,
     state: display.state || "",
-    suppressed: Boolean(display.suppressed),
-    destinations: Array.isArray(plan.destination_ids) ? plan.destination_ids.length : 0,
+    suppressed,
+    destinations: suppressed ? 0 : destinationCount,
+    planned_destinations: destinationCount,
     destination_override: Object.prototype.hasOwnProperty.call(output, "destination_ids"),
     message_override: Object.prototype.hasOwnProperty.call(output, "message"),
     payload_override: Object.prototype.hasOwnProperty.call(output, "payload"),
@@ -11235,6 +11239,7 @@ function notificationHookPreviewSummaryItems(summary) {
     `state: ${item.state || "unknown"}`,
     `suppressed: ${item.suppressed ? "yes" : "no"}`,
     `destinations: ${Number(item.destinations) || 0}`,
+    item.suppressed && Number(item.planned_destinations) ? `planned destinations: ${Number(item.planned_destinations) || 0}` : "",
     `destination override: ${item.destination_override ? "yes" : "no"}`,
     `message override: ${item.message_override ? "yes" : "no"}`,
     `payload override: ${item.payload_override ? "yes" : "no"}`,
