@@ -32,7 +32,9 @@ global.window = {
 const {
   customFieldLayoutSummary,
   customFieldRequirementInsightItems,
-  customFieldRequirementInsights
+  customFieldRequirementInsights,
+  customFieldUsageSummary,
+  customFieldValuePresent
 } = require("./static/app.js");
 
 const fields = [
@@ -100,3 +102,104 @@ assert.deepStrictEqual(customFieldRequirementInsightItems(null), [
   "search-ready: 0",
   "needs attention: 0"
 ]);
+
+assert.strictEqual(customFieldValuePresent(" High "), true);
+assert.strictEqual(customFieldValuePresent("   "), false);
+assert.strictEqual(customFieldValuePresent(["", "EU"]), true);
+assert.strictEqual(customFieldValuePresent([]), false);
+assert.strictEqual(customFieldValuePresent(false), true);
+assert.strictEqual(customFieldValuePresent(null), false);
+
+assert.deepStrictEqual(customFieldUsageSummary(fields, [
+  {
+    custom_fields: {
+      severity: "High",
+      impact: 3,
+      region: ["EU", ""],
+      customer: "Acme"
+    }
+  },
+  {
+    custom_fields: {
+      severity: "",
+      impact: null,
+      region: [],
+      channel: "Email",
+      customer: "   "
+    }
+  },
+  {
+    custom_fields: {
+      severity: "Low",
+      impact: 0,
+      region: ["EU", "APAC"],
+      customer: "Northwind"
+    }
+  }
+]), [
+  {
+    key: "severity",
+    label: "severity",
+    field_type: "single_select",
+    required: true,
+    tickets: 3,
+    populated: 2,
+    empty: 1,
+    required_missing: 1,
+    option_usage: [
+      { option: "High", count: 1 },
+      { option: "Low", count: 1 }
+    ]
+  },
+  {
+    key: "impact",
+    label: "impact",
+    field_type: "number",
+    required: false,
+    tickets: 3,
+    populated: 2,
+    empty: 1,
+    required_missing: 0,
+    option_usage: []
+  },
+  {
+    key: "region",
+    label: "region",
+    field_type: "multi_select",
+    required: true,
+    tickets: 3,
+    populated: 2,
+    empty: 1,
+    required_missing: 1,
+    option_usage: [
+      { option: "EU", count: 2 },
+      { option: "APAC", count: 1 }
+    ]
+  },
+  {
+    key: "channel",
+    label: "channel",
+    field_type: "single_select",
+    required: false,
+    tickets: 3,
+    populated: 1,
+    empty: 2,
+    required_missing: 0,
+    option_usage: [
+      { option: "Email", count: 1 }
+    ]
+  },
+  {
+    key: "customer",
+    label: "customer",
+    field_type: "text",
+    required: false,
+    tickets: 3,
+    populated: 2,
+    empty: 1,
+    required_missing: 0,
+    option_usage: []
+  }
+]);
+
+assert.deepStrictEqual(customFieldUsageSummary(null, null), []);

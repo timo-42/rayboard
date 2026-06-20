@@ -7931,7 +7931,7 @@ function customFieldLayoutOverviewNode(fields) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights));
+  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights), customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.tickets)));
   return section;
 }
 
@@ -8044,6 +8044,112 @@ function customFieldRequirementInsightItems(insights) {
     `search-ready: ${Number(summary.search_ready) || 0}`,
     `needs attention: ${Number(summary.configuration_attention) || 0}`
   ];
+}
+
+function customFieldUsageSummary(fields, tickets) {
+  const fieldList = Array.isArray(fields) ? fields : [];
+  const ticketList = Array.isArray(tickets) ? tickets : [];
+  return fieldList
+    .filter((field) => field && field.key)
+    .map((field) => {
+      const item = {
+        key: field.key,
+        label: field.name || field.key,
+        field_type: field.field_type || "text",
+        required: Boolean(field.required),
+        tickets: ticketList.length,
+        populated: 0,
+        empty: 0,
+        required_missing: 0,
+        option_usage: []
+      };
+      const optionCounts = new Map();
+      const tracksOptions = ["single_select", "multi_select"].includes(item.field_type);
+      const configuredOptions = Array.isArray(field.options)
+        ? field.options.map((option) => String(option || "").trim()).filter(Boolean)
+        : [];
+      if (tracksOptions) {
+        for (const option of configuredOptions) {
+          optionCounts.set(option, 0);
+        }
+      }
+      for (const ticket of ticketList) {
+        const values = ticket && ticket.custom_fields && typeof ticket.custom_fields === "object" ? ticket.custom_fields : {};
+        const value = values[field.key];
+        if (customFieldValuePresent(value)) {
+          item.populated += 1;
+          if (tracksOptions) {
+            for (const optionValue of customFieldUsageOptionValues(value)) {
+              optionCounts.set(optionValue, (optionCounts.get(optionValue) || 0) + 1);
+            }
+          }
+        } else {
+          item.empty += 1;
+          if (field.required) {
+            item.required_missing += 1;
+          }
+        }
+      }
+      item.option_usage = Array.from(optionCounts.entries())
+        .map(([option, count]) => ({ option, count }))
+        .sort((left, right) => {
+          if (right.count !== left.count) {
+            return right.count - left.count;
+          }
+          return left.option.localeCompare(right.option);
+        });
+      return item;
+    });
+}
+
+function customFieldValuePresent(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => customFieldValuePresent(item));
+  }
+  if (typeof value === "string") {
+    return Boolean(value.trim());
+  }
+  return true;
+}
+
+function customFieldUsageOptionValues(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .map((item) => String(item === null || item === undefined ? "" : item).trim())
+    .filter(Boolean);
+}
+
+function customFieldUsageSummaryNode(items) {
+  const group = document.createElement("div");
+  group.className = "field-usage-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Usage coverage";
+
+  const chips = document.createElement("div");
+  chips.className = "field-usage-chips";
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    const empty = document.createElement("span");
+    empty.textContent = "no usage data";
+    chips.append(empty);
+  } else {
+    for (const item of list) {
+      const chip = document.createElement("span");
+      const requiredMissing = item.required_missing ? ` / ${item.required_missing} required missing` : "";
+      const optionUsage = item.option_usage && item.option_usage.length
+        ? ` / options ${item.option_usage.map((option) => `${option.option}:${option.count}`).join(", ")}`
+        : "";
+      chip.textContent = `${item.label}: ${item.populated}/${item.tickets} populated${requiredMissing}${optionUsage}`;
+      chips.append(chip);
+    }
+  }
+
+  group.append(label, chips);
+  return group;
 }
 
 function customFieldNode(field) {
@@ -16147,6 +16253,8 @@ if (typeof module !== "undefined" && module.exports) {
     customFieldLayoutSummary,
     customFieldRequirementInsights,
     customFieldRequirementInsightItems,
+    customFieldUsageSummary,
+    customFieldValuePresent,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
