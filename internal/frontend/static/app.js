@@ -13773,6 +13773,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
     boardComponentBreakdownNode(metrics.components, boardTickets && boardTickets.filtered_by_saved_view),
     boardVersionBreakdownNode(metrics.versions, boardTickets && boardTickets.filtered_by_saved_view),
+    boardEpicBreakdownNode(metrics.epics, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
@@ -13798,6 +13799,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     labels: boardLabelBreakdown(boardColumns),
     components: boardComponentBreakdown(boardColumns),
     versions: boardVersionBreakdown(boardColumns),
+    epics: boardEpicBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
     reporters: boardReporterBreakdown(boardColumns),
     estimate_coverage: boardEstimateCoverage(boardColumns),
@@ -14102,6 +14104,50 @@ function boardVersionBreakdownNode(items, filtered) {
       ? `${formatStoryPoints(version.story_points_done)}/${formatStoryPoints(version.story_points_total)} pts`
       : `${version.unestimated} unestimated`;
     chip.textContent = `${version.label}: ${version.done}/${version.count} done / ${pointText}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardEpicBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportEpics(tickets).map((epic) => ({
+    id: epic.id,
+    label: epic.name,
+    count: epic.total,
+    done: epic.done,
+    story_points_total: epic.story_points_total,
+    story_points_done: epic.story_points_done,
+    unestimated: epic.unestimated
+  }));
+}
+
+function boardEpicBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-epic-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Parent epics (filtered saved view)" : "Parent epics";
+
+  const chips = document.createElement("div");
+  chips.className = "board-epic-chips";
+  const epics = Array.isArray(items) ? items : [];
+  if (!epics.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No parent epic data";
+    chips.append(chip);
+  }
+  for (const epic of epics) {
+    const chip = document.createElement("span");
+    const pointText = epic.story_points_total > 0
+      ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
+      : `${epic.unestimated} unestimated`;
+    chip.textContent = `${epic.label}: ${epic.done}/${epic.count} done / ${pointText}`;
     chips.append(chip);
   }
 
@@ -17203,6 +17249,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardLabelBreakdown,
     boardComponentBreakdown,
     boardVersionBreakdown,
+    boardEpicBreakdown,
     boardAssigneeWorkloads,
     boardReporterBreakdown,
     boardEstimateCoverage,
