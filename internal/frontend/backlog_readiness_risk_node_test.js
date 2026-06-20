@@ -35,6 +35,8 @@ const {
   backlogComponentBreakdown,
   backlogComponentBreakdownLabel,
   backlogDueDateBreakdown,
+  backlogEpicBreakdown,
+  backlogEpicBreakdownLabel,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
@@ -52,6 +54,7 @@ const tickets = [
     assignee_id: "",
     component_id: "api",
     version_id: "v1",
+    parent_ticket_id: "epic_a",
     story_points: null,
     labels: ["backend", "urgent"],
     created_at: "2026-06-18T09:00:00Z",
@@ -65,6 +68,7 @@ const tickets = [
     assignee_id: "user_1",
     component_id: "api",
     version_id: "v1",
+    parent_ticket_id: "epic_a",
     story_points: 3,
     labels: ["backend"],
     created_at: "2026-05-25T09:00:00Z",
@@ -78,6 +82,7 @@ const tickets = [
     assignee_id: "",
     component_id: "ui",
     version_id: "v2",
+    parent_ticket_id: "epic_b",
     story_points: "",
     labels: [],
     created_at: "2026-04-01T09:00:00Z",
@@ -91,6 +96,7 @@ const tickets = [
     assignee_id: "   ",
     component_id: "",
     version_id: "",
+    parent_ticket_id: "",
     story_points: null,
     labels: null,
     created_at: "",
@@ -244,6 +250,44 @@ assert.strictEqual(
   "No version: 0/1 done / 1 unestimated"
 );
 
+assert.deepStrictEqual(backlogEpicBreakdown(tickets), [
+  {
+    id: "epic_a",
+    label: "epic_a",
+    count: 2,
+    done: 0,
+    story_points_total: 3,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "epic_b",
+    label: "epic_b",
+    count: 1,
+    done: 1,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "",
+    label: "No epic",
+    count: 1,
+    done: 0,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  }
+]);
+assert.strictEqual(
+  backlogEpicBreakdownLabel(backlogEpicBreakdown(tickets)[0]),
+  "epic_a: 0/2 done / 0/3 pts"
+);
+assert.strictEqual(
+  backlogEpicBreakdownLabel(backlogEpicBreakdown(tickets)[2]),
+  "No epic: 0/1 done / 1 unestimated"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -287,3 +331,5 @@ assert.deepStrictEqual(backlogComponentBreakdown([]), []);
 assert.deepStrictEqual(backlogComponentBreakdown(null), []);
 assert.deepStrictEqual(backlogVersionBreakdown([]), []);
 assert.deepStrictEqual(backlogVersionBreakdown(null), []);
+assert.deepStrictEqual(backlogEpicBreakdown([]), []);
+assert.deepStrictEqual(backlogEpicBreakdown(null), []);

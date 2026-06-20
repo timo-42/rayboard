@@ -4311,6 +4311,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogLabelBreakdownNode(metrics.labels));
   section.append(backlogComponentBreakdownNode(metrics.components));
   section.append(backlogVersionBreakdownNode(metrics.versions));
+  section.append(backlogEpicBreakdownNode(metrics.epics));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   section.append(backlogStartDateBreakdownNode(metrics.start_dates));
@@ -4351,6 +4352,7 @@ function backlogSummaryMetrics(tickets) {
     labels: backlogLabelBreakdown(list),
     components: backlogComponentBreakdown(list),
     versions: backlogVersionBreakdown(list),
+    epics: backlogEpicBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
     workloads: backlogSprintWorkloads(list),
     start_dates: backlogStartDateBreakdown(list),
@@ -4574,6 +4576,39 @@ function backlogVersionBreakdownLabel(version) {
     ? `${formatStoryPoints(version.story_points_done)}/${formatStoryPoints(version.story_points_total)} pts`
     : `${version.unestimated} unestimated`;
   return `${version.label}: ${version.done}/${version.count} done / ${pointText}`;
+}
+
+function backlogEpicBreakdown(tickets) {
+  return sprintReportEpics(tickets).map((epic) => ({
+    id: epic.id,
+    label: epic.name,
+    count: epic.total,
+    done: epic.done,
+    story_points_total: epic.story_points_total,
+    story_points_done: epic.story_points_done,
+    unestimated: epic.unestimated
+  }));
+}
+
+function backlogEpicBreakdownNode(epics) {
+  const list = document.createElement("div");
+  list.className = "backlog-epic-breakdown";
+  if (!epics.length) {
+    return list;
+  }
+  for (const epic of epics) {
+    const item = document.createElement("span");
+    item.textContent = backlogEpicBreakdownLabel(epic);
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogEpicBreakdownLabel(epic) {
+  const pointText = epic.story_points_total > 0
+    ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
+    : `${epic.unestimated} unestimated`;
+  return `${epic.label}: ${epic.done}/${epic.count} done / ${pointText}`;
 }
 
 function backlogAssigneeBreakdown(tickets) {
@@ -17448,6 +17483,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogComponentBreakdownLabel,
     backlogVersionBreakdown,
     backlogVersionBreakdownLabel,
+    backlogEpicBreakdown,
+    backlogEpicBreakdownLabel,
     backlogDueDateBreakdown,
     backlogStartDateBreakdown,
     backlogAgeBreakdown,
