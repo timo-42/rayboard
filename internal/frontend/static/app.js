@@ -6776,11 +6776,11 @@ function renderComponents() {
     return;
   }
   for (const component of state.components) {
-    els.components.append(componentNode(component));
+    els.components.append(componentNode(component, state.tickets));
   }
 }
 
-function componentNode(component) {
+function componentNode(component, tickets = state.tickets) {
   const article = document.createElement("article");
   article.className = "component-item";
 
@@ -6793,7 +6793,7 @@ function componentNode(component) {
   const meta = document.createElement("span");
   meta.textContent = component.description || component.id;
 
-  body.append(name, meta);
+  body.append(name, meta, componentStatusSummaryNode(componentStatusSummary(tickets, component.id)));
 
   const edit = document.createElement("form");
   edit.className = "component-edit-form";
@@ -6821,6 +6821,77 @@ function componentNode(component) {
 
   article.append(body, edit, actions);
   return article;
+}
+
+function componentStatusSummary(tickets, componentID) {
+  const statuses = new Map();
+  let total = 0;
+  let done = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.component_id !== componentID) {
+      continue;
+    }
+    total += 1;
+    if (ticket.status === "done") {
+      done += 1;
+    }
+    const status = String(ticket.status || "").trim() || "No status";
+    statuses.set(status, (statuses.get(status) || 0) + 1);
+  }
+  return {
+    total,
+    done,
+    open: Math.max(total - done, 0),
+    statuses: Array.from(statuses.entries())
+      .map(([status, count]) => ({ status, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.status.localeCompare(right.status);
+      })
+  };
+}
+
+function componentStatusSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "component-status-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket status";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "component-status-chips";
+  for (const item of componentStatusSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function componentStatusSummaryItems(summary) {
+  const data = summary || {};
+  const items = [
+    `total: ${Number(data.total) || 0}`,
+    `open: ${Number(data.open) || 0}`,
+    `done: ${Number(data.done) || 0}`
+  ];
+  const statuses = Array.isArray(data.statuses) ? data.statuses : [];
+  return items.concat(statuses.slice(0, 4).map((item) => {
+    const status = String(item && item.status || "").trim() || "No status";
+    return `${status}: ${Number(item && item.count) || 0}`;
+  }));
 }
 
 function renderVersions() {
@@ -17871,6 +17942,8 @@ if (typeof module !== "undefined" && module.exports) {
     customFieldUnmodeledValueSummary,
     customFieldUsageSummary,
     customFieldValuePresent,
+    componentStatusSummary,
+    componentStatusSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

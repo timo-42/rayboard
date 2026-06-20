@@ -3704,6 +3704,33 @@ p {
   overflow-wrap: anywhere;
 }
 
+.component-status-summary {
+  display: grid;
+  gap: 5px;
+}
+
+.component-status-summary strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.component-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.component-status-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .project-label-item p {
   display: flex;
   align-items: center;
