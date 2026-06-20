@@ -6418,6 +6418,7 @@ function renderVersionReport() {
     versionReportAgeBreakdownNode(tickets),
     versionReportUpdateFreshnessNode(tickets),
     versionReportReadinessSummaryNode(tickets),
+    versionReportRiskSummaryNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -7180,6 +7181,47 @@ function versionReportReadinessSummary(tickets) {
     }
     if (gaps === 0) {
       byKey.get("ready").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
+}
+
+function versionReportRiskSummaryNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-risks",
+    headingText: "Risk summary",
+    listClass: "version-report-risk-list",
+    items: versionReportRiskSummary(tickets),
+    emptyText: "No risk data"
+  });
+}
+
+function versionReportRiskSummary(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "overdue_open", label: "Open overdue", count: 0 },
+    { key: "stale_open", label: "Stale open", count: 0 },
+    { key: "unassigned_open", label: "Unassigned open", count: 0 },
+    { key: "unscheduled_open", label: "Unscheduled open", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (sprintReportTicketDone(ticket)) {
+      continue;
+    }
+    const due = dateToUTC(ticket.due_date);
+    if (due && daysBetween(today, due) < 0) {
+      byKey.get("overdue_open").count += 1;
+    }
+    const updated = sprintReportUpdatedDate(ticket.updated_at);
+    if (updated && daysBetween(updated, today) > 7) {
+      byKey.get("stale_open").count += 1;
+    }
+    if (!String(ticket.assignee_id || "").trim()) {
+      byKey.get("unassigned_open").count += 1;
+    }
+    if (!dateToUTC(ticket.start_date) || !due) {
+      byKey.get("unscheduled_open").count += 1;
     }
   }
   return buckets.filter((bucket) => bucket.count > 0);
@@ -15710,6 +15752,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportPriorityBreakdown,
     versionReportReadinessSummary,
     versionReportReporterBreakdown,
+    versionReportRiskSummary,
     versionReportScopeChangeItems,
     versionReportStartDateBreakdown,
     versionReportTypeBreakdown,
