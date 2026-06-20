@@ -9881,7 +9881,13 @@ function savedViewOverviewNode(views) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, savedViewScopeBreakdownNode(summary.scopes), savedViewConfigurationInsightsNode(summary.configuration));
+  section.append(
+    heading,
+    chips,
+    savedViewScopeBreakdownNode(summary.scopes),
+    savedViewConfigurationInsightsNode(summary.configuration),
+    savedViewFieldUsageNode(summary.field_usage)
+  );
   return section;
 }
 
@@ -9964,7 +9970,8 @@ function savedViewOverviewSummary(views) {
     pinned,
     scopes: toItems(scopes),
     modes: toItems(modes),
-    configuration
+    configuration,
+    field_usage: savedViewFieldUsageSummary(list)
   };
 }
 
@@ -10000,6 +10007,81 @@ function savedViewConfigurationInsightItems(configuration) {
     `board mode: ${Number(config.board_mode) || 0}`,
     `backlog mode: ${Number(config.backlog_mode) || 0}`
   ];
+}
+
+function savedViewFieldUsageSummary(views) {
+  const columns = new Map();
+  const sorts = new Map();
+  const groups = new Map();
+  for (const view of Array.isArray(views) ? views : []) {
+    for (const column of Array.isArray(view.columns) ? view.columns : []) {
+      incrementSavedViewFieldUsage(columns, column);
+    }
+    for (const sort of Array.isArray(view.sort) ? view.sort : []) {
+      incrementSavedViewFieldUsage(sorts, sort && sort.field);
+    }
+    incrementSavedViewFieldUsage(groups, view.group_by);
+  }
+  return {
+    columns: savedViewFieldUsageItems(columns),
+    sorts: savedViewFieldUsageItems(sorts),
+    groups: savedViewFieldUsageItems(groups)
+  };
+}
+
+function incrementSavedViewFieldUsage(fields, field) {
+  const key = String(field || "").trim();
+  if (!key) {
+    return;
+  }
+  fields.set(key, (fields.get(key) || 0) + 1);
+}
+
+function savedViewFieldUsageItems(fields) {
+  return Array.from(fields.entries())
+    .map(([field, count]) => ({ field, label: searchResultColumnLabel(field), count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function savedViewFieldUsageNode(fieldUsage) {
+  const group = document.createElement("div");
+  group.className = "saved-view-field-usage";
+
+  const label = document.createElement("strong");
+  label.textContent = "Field usage";
+
+  const chips = document.createElement("div");
+  chips.className = "saved-view-field-usage-chips";
+  for (const item of savedViewFieldUsageInsightItems(fieldUsage)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function savedViewFieldUsageInsightItems(fieldUsage) {
+  const usage = fieldUsage || {};
+  return [
+    ...savedViewFieldUsageInsightGroup("columns", usage.columns),
+    ...savedViewFieldUsageInsightGroup("sorts", usage.sorts),
+    ...savedViewFieldUsageInsightGroup("groups", usage.groups)
+  ];
+}
+
+function savedViewFieldUsageInsightGroup(prefix, items) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    return [`${prefix}: none`];
+  }
+  return list.slice(0, 4).map((item) => `${prefix} ${item.label}: ${item.count}`);
 }
 
 function renderSavedViewPagination() {
@@ -16553,6 +16635,8 @@ if (typeof module !== "undefined" && module.exports) {
     savedViewSearchPresentation,
     savedViewOverviewSummary,
     savedViewConfigurationInsightItems,
+    savedViewFieldUsageSummary,
+    savedViewFieldUsageInsightItems,
     boardCapacityOverview,
     boardCapacityOverviewLabel,
     boardRiskOverview,

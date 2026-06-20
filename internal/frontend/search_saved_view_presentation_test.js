@@ -32,6 +32,8 @@ global.window = {
 const {
   groupedSearchResults,
   savedViewConfigurationInsightItems,
+  savedViewFieldUsageInsightItems,
+  savedViewFieldUsageSummary,
   savedViewOverviewSummary,
   savedViewSearchPresentation,
   searchResultColumnLabel,
@@ -163,6 +165,19 @@ assert.deepStrictEqual(
       pinned: 1,
       board_mode: 1,
       backlog_mode: 1
+    },
+    field_usage: {
+      columns: [
+        { field: "key", label: "Key", count: 2 },
+        { field: "title", label: "Title", count: 1 }
+      ],
+      sorts: [
+        { field: "priority", label: "Priority", count: 1 },
+        { field: "updated_at", label: "Updated", count: 1 }
+      ],
+      groups: [
+        { field: "priority", label: "Priority", count: 1 }
+      ]
     }
   }
 );
@@ -191,3 +206,36 @@ assert.deepStrictEqual(
     "backlog mode: 1"
   ]
 );
+
+assert.deepStrictEqual(
+  savedViewFieldUsageSummary([
+    { columns: ["key", "priority", "key"], sort: [{ field: "updated_at" }, { field: "priority" }], group_by: "priority" },
+    { columns: ["status"], sort: [{ field: "updated_at" }], group_by: "" },
+    { columns: [], sort: [{ field: "" }], group_by: "status" }
+  ]),
+  {
+    columns: [
+      { field: "key", label: "Key", count: 2 },
+      { field: "priority", label: "Priority", count: 1 },
+      { field: "status", label: "Status", count: 1 }
+    ],
+    sorts: [
+      { field: "updated_at", label: "Updated", count: 2 },
+      { field: "priority", label: "Priority", count: 1 }
+    ],
+    groups: [
+      { field: "priority", label: "Priority", count: 1 },
+      { field: "status", label: "Status", count: 1 }
+    ]
+  }
+);
+
+assert.deepStrictEqual(
+  savedViewFieldUsageInsightItems({
+    columns: [{ label: "Key", count: 2 }, { label: "Priority", count: 1 }],
+    sorts: [{ label: "Updated", count: 2 }],
+    groups: []
+  }),
+  ["columns Key: 2", "columns Priority: 1", "sorts Updated: 2", "groups: none"]
+);
+assert.deepStrictEqual(savedViewFieldUsageSummary(null), { columns: [], sorts: [], groups: [] });

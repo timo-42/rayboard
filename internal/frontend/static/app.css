@@ -4194,7 +4194,17 @@ p {
   gap: 5px;
 }
 
+.saved-view-field-usage {
+  display: grid;
+  gap: 5px;
+}
+
 .saved-view-configuration-insights strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.saved-view-field-usage strong {
   color: var(--heading);
   font-size: 12px;
 }
@@ -4205,7 +4215,24 @@ p {
   gap: 6px;
 }
 
+.saved-view-field-usage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .saved-view-configuration-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
+.saved-view-field-usage-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
