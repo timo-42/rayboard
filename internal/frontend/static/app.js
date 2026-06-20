@@ -13771,6 +13771,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardDueDateBreakdownNode(metrics.due_dates, boardTickets && boardTickets.filtered_by_saved_view),
     boardIssueTypeBreakdownNode(metrics.issue_types, boardTickets && boardTickets.filtered_by_saved_view),
     boardLabelBreakdownNode(metrics.labels, boardTickets && boardTickets.filtered_by_saved_view),
+    boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardCapacityOverviewNode(metrics.capacity, boardTickets && boardTickets.filtered_by_saved_view),
     boardRiskOverviewNode(metrics.risks, boardTickets && boardTickets.filtered_by_saved_view)
   );
@@ -13791,6 +13792,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     due_dates: boardDueDateBreakdown(boardColumns),
     issue_types: boardIssueTypeBreakdown(boardColumns),
     labels: boardLabelBreakdown(boardColumns),
+    assignee_workloads: boardAssigneeWorkloads(boardColumns),
     capacity,
     risks: boardRiskOverview(boardColumns)
   };
@@ -14004,6 +14006,40 @@ function boardLabelBreakdownNode(items, filtered) {
   for (const item of labels) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardAssigneeWorkloads(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return sprintReportAssigneeWorkloads(tickets);
+}
+
+function boardAssigneeWorkloadsNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-assignee-workloads";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Assignee workload (filtered saved view)" : "Assignee workload";
+
+  const chips = document.createElement("div");
+  chips.className = "board-assignee-chips";
+  const workloads = Array.isArray(items) ? items : [];
+  if (!workloads.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No assignee workload";
+    chips.append(chip);
+  }
+  for (const workload of workloads) {
+    const chip = document.createElement("span");
+    const points = workload.has_story_points ? `${formatStoryPoints(workload.story_points)} pts` : "no estimates";
+    chip.textContent = `${workload.label}: ${workload.tickets} ticket${workload.tickets === 1 ? "" : "s"} / ${points}`;
     chips.append(chip);
   }
 
@@ -16996,6 +17032,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardDueDateBreakdown,
     boardIssueTypeBreakdown,
     boardLabelBreakdown,
+    boardAssigneeWorkloads,
     boardColumnTicketCount,
     boardSummaryMetrics,
     notificationHookPreviewSummary,
