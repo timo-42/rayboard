@@ -7551,6 +7551,79 @@ function versionStartDateSummaryItems(summary) {
   ];
 }
 
+function versionAgeSummary(tickets, versionID, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const summary = {
+    total: 0,
+    new: 0,
+    recent: 0,
+    aging: 0,
+    old: 0,
+    unknown_age: 0
+  };
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    summary.total += 1;
+    const created = sprintReportCreatedDate(ticket.created_at);
+    if (!created) {
+      summary.unknown_age += 1;
+      continue;
+    }
+    const ageDays = Math.max(daysBetween(created, today), 0);
+    if (ageDays <= 7) {
+      summary.new += 1;
+    } else if (ageDays <= 30) {
+      summary.recent += 1;
+    } else if (ageDays <= 60) {
+      summary.aging += 1;
+    } else {
+      summary.old += 1;
+    }
+  }
+  return summary;
+}
+
+function versionAgeSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-age-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket ages";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-age-chips";
+  for (const item of versionAgeSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionAgeSummaryItems(summary) {
+  const data = summary || {};
+  return [
+    `total: ${Number(data.total) || 0}`,
+    `new: ${Number(data.new) || 0}`,
+    `recent: ${Number(data.recent) || 0}`,
+    `aging: ${Number(data.aging) || 0}`,
+    `old: ${Number(data.old) || 0}`,
+    `unknown age: ${Number(data.unknown_age) || 0}`
+  ];
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -9107,7 +9180,8 @@ function versionNode(version, tickets = state.tickets) {
     versionAssigneeSummaryNode(versionAssigneeSummary(tickets, version.id)),
     versionReporterSummaryNode(versionReporterSummary(tickets, version.id)),
     versionDueDateSummaryNode(versionDueDateSummary(tickets, version.id)),
-    versionStartDateSummaryNode(versionStartDateSummary(tickets, version.id))
+    versionStartDateSummaryNode(versionStartDateSummary(tickets, version.id)),
+    versionAgeSummaryNode(versionAgeSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18736,6 +18810,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionDueDateSummaryItems,
     versionStartDateSummary,
     versionStartDateSummaryItems,
+    versionAgeSummary,
+    versionAgeSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
