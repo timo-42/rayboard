@@ -30,7 +30,10 @@ global.document = {
 global.window = { addEventListener() {} };
 
 const {
-  roadmapCapacityDrilldown
+  roadmapCapacityBucketTargetLabel,
+  roadmapCapacityBucketTargetStatus,
+  roadmapCapacityDrilldown,
+  roadmapCapacityTargetValue
 } = require("./static/app.js");
 
 const items = [
@@ -122,3 +125,46 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(roadmapCapacityDrilldown(items, "2026-09"), []);
 assert.deepStrictEqual(roadmapCapacityDrilldown(null, "2026-07"), []);
 assert.deepStrictEqual(roadmapCapacityDrilldown(items, ""), []);
+
+assert.strictEqual(roadmapCapacityTargetValue("12.5"), 12.5);
+assert.strictEqual(roadmapCapacityTargetValue(""), 0);
+assert.strictEqual(roadmapCapacityTargetValue("-4"), 0);
+assert.strictEqual(roadmapCapacityTargetValue("not-a-number"), 0);
+
+assert.deepStrictEqual(
+  roadmapCapacityBucketTargetStatus({ storyPointsRemaining: 8 }, 12),
+  {
+    hasTarget: true,
+    target: 12,
+    remaining: 4,
+    over: 0,
+    overTarget: false,
+    label: "4 pts target room"
+  }
+);
+
+assert.deepStrictEqual(
+  roadmapCapacityBucketTargetStatus({ storyPointsRemaining: 15.5 }, "12"),
+  {
+    hasTarget: true,
+    target: 12,
+    remaining: 0,
+    over: 3.5,
+    overTarget: true,
+    label: "over target by 3.5 pts"
+  }
+);
+
+assert.deepStrictEqual(
+  roadmapCapacityBucketTargetStatus({ storyPointsRemaining: 15.5 }, ""),
+  {
+    hasTarget: false,
+    target: 0,
+    remaining: 0,
+    over: 0,
+    overTarget: false,
+    label: ""
+  }
+);
+
+assert.strictEqual(roadmapCapacityBucketTargetLabel({ storyPointsRemaining: 15.5 }, "12"), "over target by 3.5 pts");
