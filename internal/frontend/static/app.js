@@ -4911,6 +4911,7 @@ function renderSprintReport() {
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
   const estimateCoverage = sprintReportEstimateCoverageNode(progress);
   const components = sprintReportComponentNode(report && report.tickets ? report.tickets : []);
+  const versions = sprintReportVersionNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4930,7 +4931,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, estimateCoverage, components, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, estimateCoverage, components, versions, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5317,6 +5318,87 @@ function sprintReportComponentItemNode(component) {
     ? `${formatStoryPoints(component.story_points_done)}/${formatStoryPoints(component.story_points_total)} pts`
     : `${component.unestimated} unestimated`;
   meta.textContent = `${component.done}/${component.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
+}
+
+function sprintReportVersionNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-versions";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Version breakdown";
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-version-list";
+  const versions = sprintReportVersions(tickets);
+  if (!versions.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No version assignments";
+    list.append(empty);
+  } else {
+    for (const version of versions) {
+      list.append(sprintReportVersionItemNode(version));
+    }
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function sprintReportVersions(tickets) {
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const id = ticket.version_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? versionName(id) : "No version",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.id && right.id) {
+      return 1;
+    }
+    if (left.id && !right.id) {
+      return -1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function sprintReportVersionItemNode(version) {
+  const item = document.createElement("article");
+  item.className = version.id ? "sprint-report-version" : "sprint-report-version is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = version.name;
+  const meta = document.createElement("small");
+  const pointText = version.story_points_total > 0
+    ? `${formatStoryPoints(version.story_points_done)}/${formatStoryPoints(version.story_points_total)} pts`
+    : `${version.unestimated} unestimated`;
+  meta.textContent = `${version.done}/${version.total} done / ${pointText}`;
   item.append(title, meta);
   return item;
 }
@@ -13363,6 +13445,7 @@ if (typeof module !== "undefined" && module.exports) {
     dateToUTC,
     daysBetween,
     sprintReportComponents,
+    sprintReportVersions,
     sprintReportHealth,
     sprintReportHealthDates,
     sprintReportEstimateCoverage,

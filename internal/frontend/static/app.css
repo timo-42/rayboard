@@ -2113,6 +2113,7 @@ p {
 .sprint-report-types,
 .sprint-report-estimate-coverage,
 .sprint-report-components,
+.sprint-report-versions,
 .sprint-report-assignees,
 .version-report-assignees,
 .version-report-estimate-coverage {
@@ -2126,6 +2127,7 @@ p {
 .sprint-report-types h4,
 .sprint-report-estimate-coverage h4,
 .sprint-report-components h4,
+.sprint-report-versions h4,
 .sprint-report-assignees h4,
 .version-report-assignees h4,
 .version-report-estimate-coverage h4 {
@@ -2193,7 +2195,13 @@ p {
   gap: 6px;
 }
 
+.sprint-report-version-list {
+  display: grid;
+  gap: 6px;
+}
+
 .sprint-report-component,
+.sprint-report-version,
 .version-report-component {
   min-width: 0;
   display: grid;
@@ -2204,6 +2212,7 @@ p {
 }
 
 .sprint-report-component strong,
+.sprint-report-version strong,
 .version-report-component strong {
   color: var(--heading);
   font-size: 13px;
@@ -2211,12 +2220,14 @@ p {
 }
 
 .sprint-report-component.is-unassigned,
+.sprint-report-version.is-unassigned,
 .version-report-component.is-unassigned,
 .version-report-ticket.is-unassigned {
   border-left: 4px solid var(--accent);
 }
 
-.sprint-report-component small {
+.sprint-report-component small,
+.sprint-report-version small {
   color: var(--muted);
   font-size: 12px;
 }
