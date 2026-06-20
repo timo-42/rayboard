@@ -2960,6 +2960,23 @@ p {
   gap: 8px;
 }
 
+.roadmap-capacity-insights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roadmap-capacity-insights span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .roadmap-capacity-buckets {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

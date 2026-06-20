@@ -954,8 +954,10 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"loadRoadmapCapacityTickets",
 		"roadmapCapacityNode",
 		"roadmapCapacitySummary",
+		"roadmapCapacityInsightItems",
 		"roadmapCapacityItemWork",
 		"roadmapCapacityBucketNode",
+		"roadmapCapacityBucketAtRisk",
 		"roadmapCapacityChildTickets",
 		"roadmapTimelineNode",
 		"roadmapScheduleFormNode",
@@ -985,6 +987,7 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		"application/rayboard-roadmap-epic",
 		"Capacity summary",
 		"Remaining pts",
+		"at-risk months",
 		"roadmap-progress",
 	} {
 		if !strings.Contains(appText, expected) {
@@ -996,6 +999,7 @@ func TestEmbeddedAppSupportsRoadmap(t *testing.T) {
 		".roadmap-panel",
 		".roadmap-list",
 		".roadmap-capacity",
+		".roadmap-capacity-insights",
 		".roadmap-capacity-bucket",
 		".roadmap-timeline",
 		".roadmap-unscheduled",
