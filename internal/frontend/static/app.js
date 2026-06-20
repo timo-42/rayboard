@@ -4313,6 +4313,7 @@ function backlogSummaryNode(tickets) {
   section.append(backlogVersionBreakdownNode(metrics.versions));
   section.append(backlogEpicBreakdownNode(metrics.epics));
   section.append(backlogAssigneeBreakdownNode(metrics.assignees));
+  section.append(backlogReporterBreakdownNode(metrics.reporters));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   section.append(backlogStartDateBreakdownNode(metrics.start_dates));
   section.append(backlogDueDateBreakdownNode(metrics.due_dates));
@@ -4354,6 +4355,7 @@ function backlogSummaryMetrics(tickets) {
     versions: backlogVersionBreakdown(list),
     epics: backlogEpicBreakdown(list),
     assignees: backlogAssigneeBreakdown(list),
+    reporters: backlogReporterBreakdown(list),
     workloads: backlogSprintWorkloads(list),
     start_dates: backlogStartDateBreakdown(list),
     due_dates: backlogDueDateBreakdown(list),
@@ -4681,6 +4683,35 @@ function backlogAssigneeBreakdownLabel(assignee) {
     ? `${formatStoryPoints(assignee.story_points_done)}/${formatStoryPoints(assignee.story_points_total)} pts`
     : `${assignee.unestimated} unestimated`;
   return `${assignee.label}: ${assignee.done}/${assignee.count} done / ${pointText}`;
+}
+
+function backlogReporterBreakdown(tickets) {
+  return sprintReportReporterBreakdown(tickets).map((reporter) => ({
+    key: reporter.key,
+    label: reporter.label,
+    tickets: reporter.tickets,
+    story_points: reporter.story_points,
+    has_story_points: reporter.has_story_points
+  }));
+}
+
+function backlogReporterBreakdownNode(reporters) {
+  const list = document.createElement("div");
+  list.className = "backlog-reporter-breakdown";
+  if (!reporters.length) {
+    return list;
+  }
+  for (const reporter of reporters) {
+    const item = document.createElement("span");
+    item.textContent = backlogReporterBreakdownLabel(reporter);
+    list.append(item);
+  }
+  return list;
+}
+
+function backlogReporterBreakdownLabel(reporter) {
+  const points = reporter.has_story_points ? `${formatStoryPoints(reporter.story_points)} pts` : "no estimates";
+  return `${reporter.label}: ${reporter.tickets} ticket${reporter.tickets === 1 ? "" : "s"} / ${points}`;
 }
 
 function backlogSprintWorkloads(tickets) {
@@ -17523,6 +17554,8 @@ if (typeof module !== "undefined" && module.exports) {
     backlogEpicBreakdownLabel,
     backlogAssigneeBreakdown,
     backlogAssigneeBreakdownLabel,
+    backlogReporterBreakdown,
+    backlogReporterBreakdownLabel,
     backlogDueDateBreakdown,
     backlogStartDateBreakdown,
     backlogAgeBreakdown,
