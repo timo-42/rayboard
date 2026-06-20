@@ -5653,9 +5653,57 @@ function renderCustomFields() {
     els.customFields.append(empty);
     return;
   }
+  els.customFields.append(customFieldLayoutOverviewNode(state.customFields));
   for (const field of state.customFields) {
     els.customFields.append(customFieldNode(field));
   }
+}
+
+function customFieldLayoutOverviewNode(fields) {
+  const summary = customFieldLayoutSummary(fields);
+  const section = document.createElement("section");
+  section.className = "field-layout-overview";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Field layout";
+
+  const chips = document.createElement("div");
+  chips.className = "field-layout-chips";
+  const items = [
+    `${summary.total} field${summary.total === 1 ? "" : "s"}`,
+    `${summary.required} required`,
+    `${summary.optional} optional`,
+    ...summary.types.map((item) => `${item.type}: ${item.count}`)
+  ];
+  for (const item of items) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function customFieldLayoutSummary(fields) {
+  const list = Array.isArray(fields) ? fields : [];
+  const types = new Map();
+  let required = 0;
+  for (const field of list) {
+    if (field.required) {
+      required += 1;
+    }
+    const type = field.field_type || "text";
+    types.set(type, (types.get(type) || 0) + 1);
+  }
+  return {
+    total: list.length,
+    required,
+    optional: Math.max(list.length - required, 0),
+    types: Array.from(types.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((left, right) => left.type.localeCompare(right.type))
+  };
 }
 
 function customFieldNode(field) {
