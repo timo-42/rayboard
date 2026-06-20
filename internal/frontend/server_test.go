@@ -323,6 +323,7 @@ func TestEmbeddedAppSupportsWebsitePages(t *testing.T) {
 		"backlogEpicBreakdownLabel",
 		"backlogAssigneeBreakdown",
 		"backlogAssigneeBreakdownNode",
+		"backlogAssigneeBreakdownLabel",
 		"backlogSprintWorkloads",
 		"backlogSprintWorkloadsNode",
 		"backlogStartDateBreakdown",
