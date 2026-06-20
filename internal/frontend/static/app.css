@@ -2358,6 +2358,38 @@ p {
   display: none;
 }
 
+.version-target-health {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--subtle-bg);
+  padding: 10px;
+}
+
+.version-target-health h4 {
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.version-target-health-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.version-target-health-list span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 3px 8px;
+}
+
 .sprint-report-header,
 .version-report-header {
   display: flex;

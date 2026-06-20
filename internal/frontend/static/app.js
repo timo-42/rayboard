@@ -6842,6 +6842,7 @@ function renderVersions() {
     els.versions.append(empty);
     return;
   }
+  els.versions.append(versionTargetHealthSummaryNode(state.versions));
   for (const version of state.versions) {
     els.versions.append(versionNode(version));
   }
@@ -6923,6 +6924,10 @@ function versionReportHealthNode(version) {
 }
 
 function versionReleaseHealth(version) {
+  return versionReleaseHealthAt(version, todayISODate());
+}
+
+function versionReleaseHealthAt(version, todayValue = todayISODate()) {
   const state = version.state || "planned";
   if (state === "released") {
     return {
@@ -6948,7 +6953,7 @@ function versionReleaseHealth(version) {
     };
   }
 
-  const today = dateToUTC(todayISODate());
+  const today = dateToUTC(todayValue) || dateToUTC(todayISODate());
   const days = daysBetween(today, target);
   if (days < 0) {
     return {
@@ -6969,6 +6974,43 @@ function versionReleaseHealth(version) {
     label: "Scheduled",
     detail: `${days} day${days === 1 ? "" : "s"} to target`
   };
+}
+
+function versionTargetHealthSummary(versions, todayValue = todayISODate()) {
+  const items = [
+    { key: "released", label: "Released", count: 0 },
+    { key: "overdue", label: "Overdue", count: 0 },
+    { key: "due-soon", label: "Due soon", count: 0 },
+    { key: "scheduled", label: "Scheduled later", count: 0 },
+    { key: "unscheduled", label: "Unscheduled", count: 0 }
+  ];
+  const byKey = new Map(items.map((item) => [item.key, item]));
+  for (const version of Array.isArray(versions) ? versions : []) {
+    const health = versionReleaseHealthAt(version, todayValue);
+    const key = health.state === "archived" ? "released" : health.state;
+    const bucket = byKey.get(key) || byKey.get("unscheduled");
+    bucket.count += 1;
+  }
+  return items;
+}
+
+function versionTargetHealthSummaryNode(versions) {
+  const section = document.createElement("section");
+  section.className = "version-target-health";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Target-date health";
+
+  const list = document.createElement("div");
+  list.className = "version-target-health-list";
+  for (const item of versionTargetHealthSummary(versions)) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    list.append(chip);
+  }
+
+  section.append(heading, list);
+  return section;
 }
 
 function versionReportHealthDates(version) {
@@ -17627,6 +17669,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportScopeChangeItems,
     versionReportSprints,
     versionReportStartDateBreakdown,
+    versionTargetHealthSummary,
     versionReportTypeBreakdown,
     versionReportUpdateFreshness,
     versionReportTimelineItems
