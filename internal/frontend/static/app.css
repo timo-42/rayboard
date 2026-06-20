@@ -2253,6 +2253,24 @@ p {
   gap: 6px;
 }
 
+.backlog-estimate-coverage {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.backlog-estimate-coverage span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--heading);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .backlog-priority-breakdown span {
   border: 1px solid var(--border);
   border-radius: 999px;
