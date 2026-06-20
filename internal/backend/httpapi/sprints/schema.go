@@ -71,11 +71,12 @@ type SprintReportSpec struct {
 }
 
 type SprintReportStatus struct {
-	Scope      string                       `json:"scope"`
-	SnapshotAt *time.Time                   `json:"snapshot_at,omitempty"`
-	Progress   tracker.SprintReportProgress `json:"progress"`
-	Analytics  tracker.SprintAnalytics      `json:"analytics"`
-	Tickets    []ticketapi.TicketResource   `json:"tickets"`
+	Scope        string                           `json:"scope"`
+	SnapshotAt   *time.Time                       `json:"snapshot_at,omitempty"`
+	Progress     tracker.SprintReportProgress     `json:"progress"`
+	Analytics    tracker.SprintAnalytics          `json:"analytics"`
+	ScopeChanges tracker.SprintReportScopeChanges `json:"scope_changes"`
+	Tickets      []ticketapi.TicketResource       `json:"tickets"`
 }
 
 type SprintReportResource = shared.Resource[SprintReportMetadata, SprintReportSpec, SprintReportStatus]
@@ -139,11 +140,12 @@ func ReportResource(report tracker.SprintReport) SprintReportResource {
 			Sprint: Resource(report.Sprint),
 		},
 		Status: SprintReportStatus{
-			Scope:      report.Scope,
-			SnapshotAt: report.SnapshotAt,
-			Progress:   report.Progress,
-			Analytics:  report.Analytics,
-			Tickets:    ticketapi.ResourcesFromTracker(report.Tickets),
+			Scope:        report.Scope,
+			SnapshotAt:   report.SnapshotAt,
+			Progress:     report.Progress,
+			Analytics:    report.Analytics,
+			ScopeChanges: report.ScopeChanges,
+			Tickets:      ticketapi.ResourcesFromTracker(report.Tickets),
 		},
 	}
 }

@@ -246,12 +246,21 @@ type Sprint struct {
 }
 
 type SprintReport struct {
-	Sprint     Sprint               `json:"sprint"`
-	Scope      string               `json:"scope"`
-	SnapshotAt *time.Time           `json:"snapshot_at,omitempty"`
-	Progress   SprintReportProgress `json:"progress"`
-	Analytics  SprintAnalytics      `json:"analytics"`
-	Tickets    []Ticket             `json:"tickets"`
+	Sprint       Sprint                   `json:"sprint"`
+	Scope        string                   `json:"scope"`
+	SnapshotAt   *time.Time               `json:"snapshot_at,omitempty"`
+	Progress     SprintReportProgress     `json:"progress"`
+	Analytics    SprintAnalytics          `json:"analytics"`
+	ScopeChanges SprintReportScopeChanges `json:"scope_changes"`
+	Tickets      []Ticket                 `json:"tickets"`
+}
+
+type SprintReportScopeChanges struct {
+	Current   int `json:"current"`
+	Snapshot  int `json:"snapshot"`
+	Added     int `json:"added"`
+	Removed   int `json:"removed"`
+	Unchanged int `json:"unchanged"`
 }
 
 type SprintReportProgress struct {
