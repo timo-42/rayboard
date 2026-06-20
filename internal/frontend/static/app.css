@@ -3377,6 +3377,23 @@ p {
   gap: 12px;
 }
 
+.roadmap-capacity-target {
+  min-width: 160px;
+  display: grid;
+  gap: 4px;
+}
+
+.roadmap-capacity-target span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.roadmap-capacity-target input {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 .roadmap-capacity-header span {
   color: var(--muted);
   font-size: 12px;
@@ -3428,6 +3445,11 @@ p {
 
 .roadmap-capacity-bucket.is-at-risk {
   border-left: 4px solid var(--accent);
+}
+
+.roadmap-capacity-bucket.is-over-target {
+  border-left-color: var(--danger, #b42318);
+  background: var(--danger-soft, #fee4e2);
 }
 
 .roadmap-capacity-bucket strong {
