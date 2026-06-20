@@ -1323,6 +1323,17 @@ func TestVersionReportReporterBreakdown(t *testing.T) {
 	}
 }
 
+func TestVersionReportDueDateBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_due_date_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version due-date breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportComponentBreakdown(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1426,6 +1437,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportAssigneeItemNode",
 		"versionReportReporterBreakdownNode",
 		"versionReportReporterBreakdown",
+		"versionReportDueDateBreakdownNode",
+		"versionReportDueDateBreakdown",
 		"versionReportPriorityBreakdownNode",
 		"versionReportPriorityBreakdown",
 		"versionReportTypeBreakdownNode",
@@ -1434,6 +1447,9 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Reporter breakdown",
 		"No reporter data",
 		"No reporter",
+		"Due date breakdown",
+		"No due date data",
+		"No due date",
 		"Estimate coverage",
 		"No release tickets",
 		"Priority breakdown",
@@ -1500,6 +1516,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-assignee-list",
 		".version-report-reporters",
 		".version-report-reporter-list",
+		".version-report-due-dates",
+		".version-report-due-date-list",
 		".version-report-types",
 		".version-report-priorities",
 		".version-report-labels",

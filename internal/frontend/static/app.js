@@ -6413,6 +6413,7 @@ function renderVersionReport() {
     versionReportScopeChangesNode(report ? report.scope_changes : null),
     versionReportAssigneeWorkloadsNode(tickets),
     versionReportReporterBreakdownNode(tickets),
+    versionReportDueDateBreakdownNode(tickets),
     versionReportBreakdownNode(progress, tickets),
     versionReportTicketListNode(report, tickets)
   );
@@ -6977,6 +6978,46 @@ function versionReportReporterBreakdownNode(tickets) {
   }
   section.append(list);
   return section;
+}
+
+function versionReportDueDateBreakdownNode(tickets) {
+  return sprintReportChipSectionNode({
+    sectionClass: "version-report-due-dates",
+    headingText: "Due date breakdown",
+    listClass: "version-report-due-date-list",
+    items: versionReportDueDateBreakdown(tickets),
+    emptyText: "No due date data"
+  });
+}
+
+function versionReportDueDateBreakdown(tickets, todayValue = todayLocalISODate()) {
+  const today = dateToUTC(todayValue) || dateToUTC(todayLocalISODate());
+  const buckets = [
+    { key: "overdue", label: "Overdue", count: 0 },
+    { key: "today", label: "Due today", count: 0 },
+    { key: "soon", label: "Due soon", count: 0 },
+    { key: "later", label: "Later", count: 0 },
+    { key: "none", label: "No due date", count: 0 }
+  ];
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const due = dateToUTC(ticket.due_date);
+    if (!due) {
+      byKey.get("none").count += 1;
+      continue;
+    }
+    const days = daysBetween(today, due);
+    if (days < 0) {
+      byKey.get("overdue").count += 1;
+    } else if (days === 0) {
+      byKey.get("today").count += 1;
+    } else if (days <= 3) {
+      byKey.get("soon").count += 1;
+    } else {
+      byKey.get("later").count += 1;
+    }
+  }
+  return buckets.filter((bucket) => bucket.count > 0);
 }
 
 function versionReportPriorityBreakdownNode(tickets) {
@@ -15497,6 +15538,7 @@ if (typeof module !== "undefined" && module.exports) {
     todayLocalISODate,
     versionReportAssigneeWorkloads,
     versionReportComponents,
+    versionReportDueDateBreakdown,
     versionReportEstimateCoverage,
     versionReportLabelBreakdown,
     versionReportPriorityBreakdown,
