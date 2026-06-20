@@ -800,6 +800,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportHealthDates",
 		"todayLocalISODate",
 		"sprintReportAnalyticsNode",
+		"sprintReportAssigneeWorkloads",
+		"sprintReportAssigneeWorkloadsNode",
 		"normalizeSprint",
 		"normalizeSprintReport",
 		"normalizeSprintAnalytics",
@@ -827,6 +829,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"Sprint ends today",
 		"Add sprint dates to track schedule health",
 		"Live current assignment",
+		"Assignee workload",
+		"Unassigned",
 	} {
 		if !strings.Contains(appText, expected) {
 			t.Fatalf("expected app.js to contain %q", expected)
@@ -843,6 +847,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-health-dates",
 		".sprint-report-analytics",
 		".sprint-report-chart",
+		".sprint-report-assignees",
+		".sprint-report-assignee-list",
 		".sprint-report-ticket",
 		".ticket-sprint",
 		".ticket-story-points",
