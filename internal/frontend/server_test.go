@@ -866,6 +866,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"sprintReportEpicBreakdownNode",
 		"sprintReportEpics",
 		"sprintReportEpicItemNode",
+		"sprintReportReporterBreakdown",
+		"sprintReportReporterBreakdownNode",
 		"sprintReportAssigneeWorkloads",
 		"sprintReportAssigneeWorkloadsNode",
 		"normalizeSprint",
@@ -913,6 +915,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		"No version assignments",
 		"Epic breakdown",
 		"No epic assignments",
+		"Reporter breakdown",
+		"No reporter data",
 		"Assignee workload",
 		"Unassigned",
 	} {
@@ -950,6 +954,8 @@ func TestEmbeddedAppSupportsSprints(t *testing.T) {
 		".sprint-report-epics",
 		".sprint-report-epic-list",
 		".sprint-report-epic",
+		".sprint-report-reporters",
+		".sprint-report-reporter-list",
 		".sprint-report-assignees",
 		".sprint-report-assignee-list",
 		".sprint-report-ticket",
@@ -1003,6 +1009,17 @@ func TestSprintReportEpicBreakdown(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("sprint epic breakdown node test failed: %v\n%s", err, output)
+	}
+}
+
+func TestSprintReportReporterBreakdown(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "sprint_reporter_breakdown_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sprint reporter breakdown node test failed: %v\n%s", err, output)
 	}
 }
 
