@@ -3894,6 +3894,37 @@ p {
   padding: 2px 7px;
 }
 
+.field-usage-summary,
+.field-option-usage {
+  display: grid;
+  gap: 5px;
+}
+
+.field-usage-summary strong,
+.field-option-usage strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.field-usage-chips,
+.field-option-usage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-usage-chips span,
+.field-option-usage-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .field-item {
   min-width: 0;
   display: grid;

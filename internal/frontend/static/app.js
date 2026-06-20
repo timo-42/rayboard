@@ -8383,7 +8383,14 @@ function customFieldLayoutOverviewNode(fields) {
     chips.append(chip);
   }
 
-  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types), customFieldRequirementInsightsNode(summary.insights), customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.customFieldUsageTickets)));
+  section.append(
+    heading,
+    chips,
+    customFieldTypeBreakdownNode(summary.types),
+    customFieldRequirementInsightsNode(summary.insights),
+    customFieldUsageSummaryNode(customFieldUsageSummary(fields, state.customFieldUsageTickets)),
+    customFieldOptionUsageSummaryNode(customFieldOptionUsageSummary(fields, state.customFieldUsageTickets))
+  );
   return section;
 }
 
@@ -8596,6 +8603,76 @@ function customFieldUsageSummaryNode(items) {
         ? ` / options ${item.option_usage.map((option) => `${option.option}:${option.count}`).join(", ")}`
         : "";
       chip.textContent = `${item.label}: ${item.populated}/${item.tickets} populated${requiredMissing}${optionUsage}`;
+      chips.append(chip);
+    }
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function customFieldOptionUsageSummary(fields, tickets) {
+  const fieldList = Array.isArray(fields) ? fields : [];
+  const ticketList = Array.isArray(tickets) ? tickets : [];
+  return fieldList
+    .filter((field) => field && field.key && ["single_select", "multi_select"].includes(field.field_type || ""))
+    .map((field) => {
+      const configuredOptions = Array.isArray(field.options)
+        ? field.options.map((option) => String(option || "").trim()).filter(Boolean)
+        : [];
+      const configured = new Map(configuredOptions.map((option) => [option, 0]));
+      const unconfigured = new Map();
+      for (const ticket of ticketList) {
+        const values = ticket && ticket.custom_fields && typeof ticket.custom_fields === "object" ? ticket.custom_fields : {};
+        for (const optionValue of customFieldUsageOptionValues(values[field.key])) {
+          if (configured.has(optionValue)) {
+            configured.set(optionValue, configured.get(optionValue) + 1);
+          } else {
+            unconfigured.set(optionValue, (unconfigured.get(optionValue) || 0) + 1);
+          }
+        }
+      }
+      return {
+        key: field.key,
+        label: field.name || field.key,
+        field_type: field.field_type || "text",
+        configured_options: Array.from(configured.entries()).map(([option, count]) => ({ option, count })),
+        unconfigured_options: Array.from(unconfigured.entries())
+          .map(([option, count]) => ({ option, count }))
+          .sort((left, right) => {
+            if (right.count !== left.count) {
+              return right.count - left.count;
+            }
+            return left.option.localeCompare(right.option);
+          })
+      };
+    });
+}
+
+function customFieldOptionUsageSummaryNode(items) {
+  const group = document.createElement("div");
+  group.className = "field-option-usage";
+
+  const label = document.createElement("strong");
+  label.textContent = "Option usage";
+
+  const chips = document.createElement("div");
+  chips.className = "field-option-usage-chips";
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    const empty = document.createElement("span");
+    empty.textContent = "no select fields";
+    chips.append(empty);
+  } else {
+    for (const item of list) {
+      const configured = item.configured_options && item.configured_options.length
+        ? item.configured_options.map((option) => `${option.option}:${option.count}`).join(", ")
+        : "no configured options";
+      const unconfigured = item.unconfigured_options && item.unconfigured_options.length
+        ? ` / unconfigured ${item.unconfigured_options.map((option) => `${option.option}:${option.count}`).join(", ")}`
+        : "";
+      const chip = document.createElement("span");
+      chip.textContent = `${item.label}: ${configured}${unconfigured}`;
       chips.append(chip);
     }
   }
@@ -17671,6 +17748,7 @@ if (typeof module !== "undefined" && module.exports) {
     customFieldLayoutSummary,
     customFieldRequirementInsights,
     customFieldRequirementInsightItems,
+    customFieldOptionUsageSummary,
     customFieldUsageSummary,
     customFieldValuePresent,
     createPageLayoutBuilderFieldItem,
