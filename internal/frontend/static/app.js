@@ -5785,8 +5785,7 @@ function customFieldLayoutOverviewNode(fields) {
   const items = [
     `${summary.total} field${summary.total === 1 ? "" : "s"}`,
     `${summary.required} required`,
-    `${summary.optional} optional`,
-    ...summary.types.map((item) => `${item.type}: ${item.count}`)
+    `${summary.optional} optional`
   ];
   for (const item of items) {
     const chip = document.createElement("span");
@@ -5794,8 +5793,28 @@ function customFieldLayoutOverviewNode(fields) {
     chips.append(chip);
   }
 
-  section.append(heading, chips);
+  section.append(heading, chips, customFieldTypeBreakdownNode(summary.types));
   return section;
+}
+
+function customFieldTypeBreakdownNode(types) {
+  const group = document.createElement("div");
+  group.className = "field-type-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = "Field types";
+
+  const chips = document.createElement("div");
+  chips.className = "field-type-chips";
+  const items = Array.isArray(types) && types.length ? types : [{ type: "text", count: 0 }];
+  for (const item of items) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.type}: ${item.count}`;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
 }
 
 function customFieldLayoutSummary(fields) {
