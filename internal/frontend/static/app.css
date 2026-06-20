@@ -2111,6 +2111,7 @@ p {
 .version-report-scope-changes,
 .sprint-report-priorities,
 .sprint-report-types,
+.sprint-report-estimate-coverage,
 .sprint-report-assignees,
 .version-report-assignees,
 .version-report-estimate-coverage {
@@ -2122,6 +2123,7 @@ p {
 .version-report-scope-changes h4,
 .sprint-report-priorities h4,
 .sprint-report-types h4,
+.sprint-report-estimate-coverage h4,
 .sprint-report-assignees h4,
 .version-report-assignees h4,
 .version-report-estimate-coverage h4 {
@@ -2134,6 +2136,7 @@ p {
 .version-report-scope-change-list,
 .sprint-report-priority-list,
 .sprint-report-type-list,
+.sprint-report-estimate-coverage-list,
 .sprint-report-assignee-list,
 .version-report-assignee-list,
 .version-report-estimate-coverage-list {
@@ -2146,6 +2149,7 @@ p {
 .version-report-scope-change-list span,
 .sprint-report-priority-list span,
 .sprint-report-type-list span,
+.sprint-report-estimate-coverage-list span,
 .sprint-report-assignee-list span,
 .version-report-assignee-list span,
 .version-report-estimate-coverage-list span {

@@ -4909,6 +4909,7 @@ function renderSprintReport() {
 
   const priorities = sprintReportPriorityBreakdownNode(report && report.tickets ? report.tickets : []);
   const types = sprintReportTypeBreakdownNode(report && report.tickets ? report.tickets : []);
+  const estimateCoverage = sprintReportEstimateCoverageNode(progress);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4928,7 +4929,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, estimateCoverage, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5194,6 +5195,48 @@ function sprintReportTypeBreakdown(tickets) {
       }
       return left.label.localeCompare(right.label);
     });
+}
+
+function sprintReportEstimateCoverageNode(progress) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-estimate-coverage";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Estimate coverage";
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-estimate-coverage-list";
+  const coverage = sprintReportEstimateCoverage(progress);
+  if (coverage.total === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No sprint tickets";
+    list.append(empty);
+  } else {
+    for (const item of coverage.items) {
+      const chip = document.createElement("span");
+      chip.textContent = `${item.label}: ${item.count}`;
+      list.append(chip);
+    }
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function sprintReportEstimateCoverage(progress) {
+  const data = progress || {};
+  const totalValue = Number(data.total || 0);
+  const unestimatedValue = Number(data.story_points_unestimated || 0);
+  const total = Math.max(Number.isFinite(totalValue) ? totalValue : 0, 0);
+  const unestimated = Math.min(Math.max(Number.isFinite(unestimatedValue) ? unestimatedValue : 0, 0), total);
+  return {
+    total,
+    items: [
+      { label: "Estimated", count: Math.max(total - unestimated, 0) },
+      { label: "Unestimated", count: unestimated }
+    ]
+  };
 }
 
 function sprintReportAssigneeWorkloads(tickets) {
@@ -13239,6 +13282,7 @@ if (typeof module !== "undefined" && module.exports) {
     daysBetween,
     sprintReportHealth,
     sprintReportHealthDates,
+    sprintReportEstimateCoverage,
     sprintReportPriorityBreakdown,
     sprintReportTypeBreakdown,
     ticketLinkDependencySummary,
