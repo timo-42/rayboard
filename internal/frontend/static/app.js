@@ -1175,6 +1175,7 @@ function bindEvents() {
       await loadWorkflowStatuses();
       await loadBoards();
       await loadTickets();
+      await loadBacklog();
     }, "Workflow statuses replaced");
   });
 
@@ -4163,6 +4164,7 @@ function backlogSummaryNode(tickets) {
     backlogSummaryMetricNode("Story points", metrics.story_points)
   );
   section.append(backlogEstimateCoverageNode(metrics.estimate_coverage));
+  section.append(backlogStatusBreakdownNode(metrics.statuses));
   section.append(backlogPriorityBreakdownNode(metrics.priorities));
   section.append(backlogSprintWorkloadsNode(metrics.workloads));
   return section;
@@ -4191,6 +4193,7 @@ function backlogSummaryMetrics(tickets) {
     unassigned: list.length - assigned,
     story_points: hasStoryPoints ? formatStoryPoints(storyPoints) : "none",
     estimate_coverage: backlogEstimateCoverage(list.length, estimated),
+    statuses: backlogStatusBreakdown(list),
     priorities: backlogPriorityBreakdown(list),
     workloads: backlogSprintWorkloads(list)
   };
@@ -4215,6 +4218,45 @@ function backlogEstimateCoverageNode(coverage) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
     list.append(chip);
+  }
+  return list;
+}
+
+function backlogStatusBreakdown(tickets) {
+  const counts = new Map();
+  for (const ticket of tickets) {
+    const slug = ticket.status || "";
+    counts.set(slug, (counts.get(slug) || 0) + 1);
+  }
+  const configured = (state.workflowStatuses.length ? state.workflowStatuses : defaultWorkflowStatuses())
+    .slice()
+    .sort((left, right) => Number(left.position || 0) - Number(right.position || 0));
+  const known = new Set(configured.map((status) => status.slug));
+  const ordered = configured
+    .filter((status) => counts.has(status.slug))
+    .map((status) => ({ label: status.name || status.slug, count: counts.get(status.slug) }));
+  const unknown = Array.from(counts.entries())
+    .filter(([slug]) => !known.has(slug))
+    .map(([slug, count]) => ({ label: slug || "No status", count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.label.localeCompare(right.label);
+    });
+  return ordered.concat(unknown);
+}
+
+function backlogStatusBreakdownNode(statuses) {
+  const list = document.createElement("div");
+  list.className = "backlog-status-breakdown";
+  if (!statuses.length) {
+    return list;
+  }
+  for (const status of statuses) {
+    const item = document.createElement("span");
+    item.textContent = `${status.label}: ${status.count}`;
+    list.append(item);
   }
   return list;
 }
