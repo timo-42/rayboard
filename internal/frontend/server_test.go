@@ -1957,6 +1957,7 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 	appText := string(app)
 	for _, expected := range []string{
 		"loadCustomFields",
+		"loadCustomFieldUsageTickets",
 		"renderCustomFields",
 		"customFieldLayoutOverviewNode",
 		"customFieldLayoutSummary",
@@ -1966,6 +1967,7 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		"customFieldRequirementInsightItems",
 		"customFieldUsageSummaryNode",
 		"customFieldUsageSummary",
+		"customFieldUsageTickets",
 		"customFieldValuePresent",
 		"Field layout",
 		"Field types",
