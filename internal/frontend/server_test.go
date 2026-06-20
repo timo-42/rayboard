@@ -969,6 +969,17 @@ func TestVersionReportTypeBreakdown(t *testing.T) {
 	}
 }
 
+func TestVersionReportEstimateCoverage(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_estimate_coverage_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version estimate coverage node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 	app, err := assets.ReadFile("static/app.js")
 	if err != nil {
@@ -992,6 +1003,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportTimelineNode",
 		"versionReportTimelineItems",
 		"versionReportSummaryNode",
+		"versionReportEstimateCoverageNode",
+		"versionReportEstimateCoverage",
 		"versionReportScopeChangesNode",
 		"versionReportScopeChangeItems",
 		"versionReportBreakdownNode",
@@ -1005,6 +1018,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReportTypeBreakdownNode",
 		"versionReportTypeBreakdown",
 		"Assignee workload",
+		"Estimate coverage",
+		"No release tickets",
 		"Priority breakdown",
 		"Issue type breakdown",
 		"No issue type",
@@ -1059,6 +1074,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report-ticket",
 		".version-report-summary",
 		".version-report-progress",
+		".version-report-estimate-coverage",
+		".version-report-estimate-coverage-list",
 		".version-report-scope-changes",
 		".version-report-scope-change-list",
 		".version-report-assignees",
