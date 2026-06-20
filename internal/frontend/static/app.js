@@ -6843,6 +6843,7 @@ function renderVersions() {
     return;
   }
   els.versions.append(versionTargetHealthSummaryNode(state.versions));
+  els.versions.append(versionTimingVarianceSummaryNode(state.versions));
   for (const version of state.versions) {
     els.versions.append(versionNode(version));
   }
@@ -7004,6 +7005,63 @@ function versionTargetHealthSummaryNode(versions) {
   const list = document.createElement("div");
   list.className = "version-target-health-list";
   for (const item of versionTargetHealthSummary(versions)) {
+    const chip = document.createElement("span");
+    chip.textContent = `${item.label}: ${item.count}`;
+    list.append(chip);
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function versionTimingVarianceSummary(versions) {
+  const items = [
+    { key: "early", label: "Released early", count: 0 },
+    { key: "on-target", label: "Released on target", count: 0 },
+    { key: "late", label: "Released late", count: 0 },
+    { key: "no-target", label: "Released without target date", count: 0 },
+    { key: "no-release-date", label: "Released without release date", count: 0 },
+    { key: "not-released", label: "Not released", count: 0 }
+  ];
+  const byKey = new Map(items.map((item) => [item.key, item]));
+  for (const version of Array.isArray(versions) ? versions : []) {
+    const releasedState = version.state === "released" || version.state === "archived";
+    if (!releasedState) {
+      byKey.get("not-released").count += 1;
+      continue;
+    }
+    const released = dateToUTC(version.release_date);
+    if (!released) {
+      byKey.get("no-release-date").count += 1;
+      continue;
+    }
+    const target = dateToUTC(version.target_date);
+    if (!target) {
+      byKey.get("no-target").count += 1;
+      continue;
+    }
+    const delta = daysBetween(target, released);
+    if (delta < 0) {
+      byKey.get("early").count += 1;
+    } else if (delta > 0) {
+      byKey.get("late").count += 1;
+    } else {
+      byKey.get("on-target").count += 1;
+    }
+  }
+  return items;
+}
+
+function versionTimingVarianceSummaryNode(versions) {
+  const section = document.createElement("section");
+  section.className = "version-timing-variance";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Release timing";
+
+  const list = document.createElement("div");
+  list.className = "version-timing-variance-list";
+  for (const item of versionTimingVarianceSummary(versions)) {
     const chip = document.createElement("span");
     chip.textContent = `${item.label}: ${item.count}`;
     list.append(chip);
@@ -17669,6 +17727,7 @@ if (typeof module !== "undefined" && module.exports) {
     versionReportScopeChangeItems,
     versionReportSprints,
     versionReportStartDateBreakdown,
+    versionTimingVarianceSummary,
     versionTargetHealthSummary,
     versionReportTypeBreakdown,
     versionReportUpdateFreshness,

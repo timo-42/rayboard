@@ -2358,7 +2358,8 @@ p {
   display: none;
 }
 
-.version-target-health {
+.version-target-health,
+.version-timing-variance {
   display: grid;
   gap: 8px;
   border: 1px solid var(--border);
@@ -2367,19 +2368,22 @@ p {
   padding: 10px;
 }
 
-.version-target-health h4 {
+.version-target-health h4,
+.version-timing-variance h4 {
   color: var(--heading);
   font-size: 13px;
   font-weight: 800;
 }
 
-.version-target-health-list {
+.version-target-health-list,
+.version-timing-variance-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.version-target-health-list span {
+.version-target-health-list span,
+.version-timing-variance-list span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel-bg);
