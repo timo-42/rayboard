@@ -39,6 +39,8 @@ const {
   backlogEpicBreakdownLabel,
   backlogAssigneeBreakdown,
   backlogAssigneeBreakdownLabel,
+  backlogReporterBreakdown,
+  backlogReporterBreakdownLabel,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
   backlogReadinessSummary,
@@ -53,6 +55,7 @@ const tickets = [
   {
     status: "todo",
     priority: "High",
+    reporter_id: "user_reporter",
     assignee_id: "",
     component_id: "api",
     version_id: "v1",
@@ -67,6 +70,7 @@ const tickets = [
   {
     status: "blocked",
     priority: "Medium",
+    reporter_id: "user_reporter",
     assignee_id: "user_1",
     component_id: "api",
     version_id: "v1",
@@ -81,6 +85,7 @@ const tickets = [
   {
     status: "done",
     priority: "Critical",
+    reporter_id: "user_other",
     assignee_id: "",
     component_id: "ui",
     version_id: "v2",
@@ -95,6 +100,7 @@ const tickets = [
   {
     status: "todo",
     priority: "Low",
+    reporter_id: "",
     assignee_id: "   ",
     component_id: "",
     version_id: "",
@@ -319,6 +325,38 @@ assert.strictEqual(
   "Unassigned: 1/3 done / 3 unestimated"
 );
 
+assert.deepStrictEqual(backlogReporterBreakdown(tickets), [
+  {
+    key: "user_reporter",
+    label: "reporter user_reporter",
+    tickets: 2,
+    story_points: 3,
+    has_story_points: true
+  },
+  {
+    key: "user_other",
+    label: "reporter user_other",
+    tickets: 1,
+    story_points: 0,
+    has_story_points: false
+  },
+  {
+    key: "",
+    label: "No reporter",
+    tickets: 1,
+    story_points: 0,
+    has_story_points: false
+  }
+]);
+assert.strictEqual(
+  backlogReporterBreakdownLabel(backlogReporterBreakdown(tickets)[0]),
+  "reporter user_reporter: 2 tickets / 3 pts"
+);
+assert.strictEqual(
+  backlogReporterBreakdownLabel(backlogReporterBreakdown(tickets)[2]),
+  "No reporter: 1 ticket / no estimates"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -366,3 +404,5 @@ assert.deepStrictEqual(backlogEpicBreakdown([]), []);
 assert.deepStrictEqual(backlogEpicBreakdown(null), []);
 assert.deepStrictEqual(backlogAssigneeBreakdown([]), []);
 assert.deepStrictEqual(backlogAssigneeBreakdown(null), []);
+assert.deepStrictEqual(backlogReporterBreakdown([]), []);
+assert.deepStrictEqual(backlogReporterBreakdown(null), []);
