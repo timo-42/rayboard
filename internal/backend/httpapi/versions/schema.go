@@ -68,6 +68,7 @@ type VersionReportStatus struct {
 	Scope        string                            `json:"scope"`
 	SnapshotAt   *time.Time                        `json:"snapshot_at,omitempty"`
 	Progress     tracker.VersionReportProgress     `json:"progress"`
+	Analytics    tracker.SprintAnalytics           `json:"analytics"`
 	ScopeChanges tracker.VersionReportScopeChanges `json:"scope_changes"`
 	Tickets      []ticketapi.TicketResource        `json:"tickets"`
 }
@@ -127,6 +128,7 @@ func ReportResourceFromTracker(report tracker.VersionReport) VersionReportResour
 			Scope:        report.Scope,
 			SnapshotAt:   report.SnapshotAt,
 			Progress:     report.Progress,
+			Analytics:    report.Analytics,
 			ScopeChanges: report.ScopeChanges,
 			Tickets:      ticketapi.ResourcesFromTracker(report.Tickets),
 		},

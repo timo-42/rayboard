@@ -2118,13 +2118,15 @@ p {
   font-size: 12px;
 }
 
-.sprint-report-analytics {
+.sprint-report-analytics,
+.version-report-analytics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
-.sprint-report-chart {
+.sprint-report-chart,
+.version-report-chart {
   grid-column: 1 / -1;
   display: flex;
   align-items: end;
@@ -2135,7 +2137,8 @@ p {
   padding: 8px;
 }
 
-.sprint-report-chart span {
+.sprint-report-chart span,
+.version-report-chart span {
   flex: 1 1 10px;
   min-width: 8px;
   max-width: 28px;
@@ -2143,7 +2146,8 @@ p {
   background: var(--primary);
 }
 
-.sprint-report-chart small {
+.sprint-report-chart small,
+.version-report-chart small {
   color: var(--muted);
   font-size: 12px;
 }
