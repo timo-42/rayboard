@@ -3430,6 +3430,33 @@ p {
   padding: 2px 7px;
 }
 
+.saved-view-scope-breakdown {
+  display: grid;
+  gap: 5px;
+}
+
+.saved-view-scope-breakdown strong {
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.saved-view-scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saved-view-scope-chips span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
 .saved-view-metadata {
   display: flex;
   flex-wrap: wrap;
