@@ -778,6 +778,17 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"pinned-project-view-title",
 		"pinned-project-view-metadata",
 		"applySavedView",
+		"activeSearchPresentation",
+		"savedViewSearchPresentation",
+		"clearSearchPresentation",
+		"activeSearchResultColumns",
+		"searchResultColumns",
+		"searchResultColumnLabel",
+		"searchResultColumnValue",
+		"groupedSearchResults",
+		"searchResultGroupNode",
+		"search-result-columns",
+		"search-result-group",
 		"searchNextCursor",
 		"searchCursorStack",
 		"renderSearchPagination",
@@ -809,6 +820,10 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".saved-view-list",
 		".saved-view-overview",
 		".saved-view-overview-chips",
+		".search-result-columns",
+		".search-result-column",
+		".search-result-group",
+		".search-result-group-list",
 		".saved-view-scope-breakdown",
 		".saved-view-scope-chips",
 		".saved-view-metadata",
@@ -1630,6 +1645,17 @@ func TestEmbeddedAppSupportsCustomFields(t *testing.T) {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
 		}
+	}
+}
+
+func TestSearchSavedViewPresentationHelpers(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "search_saved_view_presentation_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("search saved-view presentation helper test failed: %v\n%s", err, output)
 	}
 }
 
