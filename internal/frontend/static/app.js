@@ -7076,6 +7076,67 @@ function versionStatusSummaryItems(summary) {
   }));
 }
 
+function versionPrioritySummary(tickets, versionID) {
+  const priorities = new Map();
+  let total = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    const priority = String(ticket.priority || "").trim() || "No priority";
+    priorities.set(priority, (priorities.get(priority) || 0) + 1);
+  }
+  return {
+    total,
+    priorities: Array.from(priorities.entries())
+      .map(([priority, count]) => ({ priority, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.priority.localeCompare(right.priority);
+      })
+  };
+}
+
+function versionPrioritySummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-priority-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket priorities";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-priority-chips";
+  for (const item of versionPrioritySummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionPrioritySummaryItems(summary) {
+  const data = summary || {};
+  const items = [`total: ${Number(data.total) || 0}`];
+  const priorities = Array.isArray(data.priorities) ? data.priorities : [];
+  return items.concat(priorities.slice(0, 4).map((item) => {
+    const priority = String(item && item.priority || "").trim() || "No priority";
+    return `${priority}: ${Number(item && item.count) || 0}`;
+  }));
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8622,7 +8683,12 @@ function versionNode(version, tickets = state.tickets) {
     version.description
   ].filter(Boolean).join(" / ");
 
-  body.append(name, meta, versionStatusSummaryNode(versionStatusSummary(tickets, version.id)));
+  body.append(
+    name,
+    meta,
+    versionStatusSummaryNode(versionStatusSummary(tickets, version.id)),
+    versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id))
+  );
 
   const edit = document.createElement("form");
   edit.className = "version-edit-form";
@@ -18236,6 +18302,8 @@ if (typeof module !== "undefined" && module.exports) {
     componentStatusSummaryItems,
     versionStatusSummary,
     versionStatusSummaryItems,
+    versionPrioritySummary,
+    versionPrioritySummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,

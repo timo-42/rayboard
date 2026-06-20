@@ -3747,26 +3747,30 @@ p {
 }
 
 .component-status-summary,
-.version-status-summary {
+.version-status-summary,
+.version-priority-summary {
   display: grid;
   gap: 5px;
 }
 
 .component-status-summary strong,
-.version-status-summary strong {
+.version-status-summary strong,
+.version-priority-summary strong {
   color: var(--heading);
   font-size: 12px;
 }
 
 .component-status-chips,
-.version-status-chips {
+.version-status-chips,
+.version-priority-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .component-status-chips span,
-.version-status-chips span {
+.version-status-chips span,
+.version-priority-chips span {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--subtle-bg);
