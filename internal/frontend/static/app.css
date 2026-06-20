@@ -1087,16 +1087,20 @@ p {
   background: var(--primary-soft);
 }
 
-.pinned-project-view span {
+.pinned-project-view-title {
   font-size: 13px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.pinned-project-view small {
-  color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
+.pinned-project-view-metadata {
+  gap: 5px;
+}
+
+.pinned-project-view-metadata span {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
 }
 
 .ticket-area {

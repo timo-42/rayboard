@@ -6470,8 +6470,8 @@ function savedViewNode(view) {
   return article;
 }
 
-function savedViewMetadataNode(view) {
-  const metadata = document.createElement("div");
+function savedViewMetadataNode(view, tagName = "div") {
+  const metadata = document.createElement(tagName);
   metadata.className = "saved-view-metadata";
 
   for (const item of savedViewMetadataItems(view)) {
@@ -8337,17 +8337,13 @@ function pinnedProjectViewNode(view) {
   button.dataset.applyPinnedProjectViewId = view.id;
 
   const title = document.createElement("span");
+  title.className = "pinned-project-view-title";
   title.textContent = view.name || "Saved view";
 
-  const meta = document.createElement("small");
-  meta.textContent = [
-    view.display_mode || "list",
-    view.group_by ? `group ${view.group_by}` : "",
-    view.query && view.query.filter ? "filtered" : "",
-    view.query && view.query.text ? "text" : ""
-  ].filter(Boolean).join(" / ");
+  const metadata = savedViewMetadataNode(view, "span");
+  metadata.classList.add("pinned-project-view-metadata");
 
-  button.append(title, meta);
+  button.append(title, metadata);
   return button;
 }
 

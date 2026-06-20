@@ -728,6 +728,8 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		"loadPinnedProjectSavedViews",
 		"renderPinnedProjectSavedViews",
 		"pinnedProjectViewNode",
+		"pinned-project-view-title",
+		"pinned-project-view-metadata",
 		"applySavedView",
 		"searchNextCursor",
 		"searchCursorStack",
@@ -763,6 +765,8 @@ func TestEmbeddedAppSupportsSearchSavedViews(t *testing.T) {
 		".pinned-project-views",
 		".pinned-project-view-list",
 		".pinned-project-view",
+		".pinned-project-view-title",
+		".pinned-project-view-metadata",
 	} {
 		if !strings.Contains(cssText, expected) {
 			t.Fatalf("expected app.css to contain %q", expected)
