@@ -4913,6 +4913,7 @@ function renderSprintReport() {
   const estimateCoverage = sprintReportEstimateCoverageNode(progress);
   const components = sprintReportComponentNode(report && report.tickets ? report.tickets : []);
   const versions = sprintReportVersionNode(report && report.tickets ? report.tickets : []);
+  const epics = sprintReportEpicBreakdownNode(report && report.tickets ? report.tickets : []);
   const analytics = sprintReportAnalyticsNode(report ? report.analytics : null);
   const scopeChanges = sprintReportScopeChangesNode(report ? report.scope_changes : null);
   const assignees = sprintReportAssigneeWorkloadsNode(report && report.tickets ? report.tickets : []);
@@ -4932,7 +4933,7 @@ function renderSprintReport() {
     tickets.append(empty);
   }
 
-  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, labels, estimateCoverage, components, versions, analytics, scopeChanges, assignees, tickets);
+  els.sprintReport.append(header, sprintReportHealthNode(sprint), metrics, statuses, priorities, types, labels, estimateCoverage, components, versions, epics, analytics, scopeChanges, assignees, tickets);
 }
 
 function sprintReportHealthNode(sprint) {
@@ -5455,6 +5456,87 @@ function sprintReportVersionItemNode(version) {
     ? `${formatStoryPoints(version.story_points_done)}/${formatStoryPoints(version.story_points_total)} pts`
     : `${version.unestimated} unestimated`;
   meta.textContent = `${version.done}/${version.total} done / ${pointText}`;
+  item.append(title, meta);
+  return item;
+}
+
+function sprintReportEpicBreakdownNode(tickets) {
+  const section = document.createElement("section");
+  section.className = "sprint-report-epics";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Epic breakdown";
+
+  const list = document.createElement("div");
+  list.className = "sprint-report-epic-list";
+  const epics = sprintReportEpics(tickets);
+  if (!epics.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No epic assignments";
+    list.append(empty);
+  } else {
+    for (const epic of epics) {
+      list.append(sprintReportEpicItemNode(epic));
+    }
+  }
+
+  section.append(heading, list);
+  return section;
+}
+
+function sprintReportEpics(tickets) {
+  const groups = new Map();
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    const id = ticket.parent_ticket_id || "";
+    const key = id || "__unassigned__";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id,
+        name: id ? roadmapEpicName(id) : "No epic",
+        total: 0,
+        done: 0,
+        story_points_total: 0,
+        story_points_done: 0,
+        unestimated: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (ticket.status === "done") {
+      group.done += 1;
+    }
+    if (ticket.story_points === null || ticket.story_points === undefined || ticket.story_points === "") {
+      group.unestimated += 1;
+    } else {
+      const points = Number(ticket.story_points || 0);
+      group.story_points_total += points;
+      if (ticket.status === "done") {
+        group.story_points_done += points;
+      }
+    }
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (!left.id && right.id) {
+      return 1;
+    }
+    if (left.id && !right.id) {
+      return -1;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function sprintReportEpicItemNode(epic) {
+  const item = document.createElement("article");
+  item.className = epic.id ? "sprint-report-epic" : "sprint-report-epic is-unassigned";
+  const title = document.createElement("strong");
+  title.textContent = epic.name;
+  const meta = document.createElement("small");
+  const pointText = epic.story_points_total > 0
+    ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
+    : `${epic.unestimated} unestimated`;
+  meta.textContent = `${epic.done}/${epic.total} done / ${pointText}`;
   item.append(title, meta);
   return item;
 }
@@ -13502,6 +13584,7 @@ if (typeof module !== "undefined" && module.exports) {
     daysBetween,
     sprintReportComponents,
     sprintReportVersions,
+    sprintReportEpics,
     sprintReportLabelBreakdown,
     sprintReportHealth,
     sprintReportHealthDates,

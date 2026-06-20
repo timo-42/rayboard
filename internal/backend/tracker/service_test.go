@@ -1470,7 +1470,11 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	ticketType := "bug"
 	ticketLabels := []string{"Backend", "Sprint"}
 	expectedTicketLabels := []string{"backend", "sprint"}
-	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Sprint ticket", Priority: ticketPriority, Type: ticketType, ComponentID: component.ID, VersionID: version.ID, Labels: ticketLabels})
+	epic, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Sprint epic", Type: "epic"})
+	if err != nil {
+		t.Fatalf("create epic: %v", err)
+	}
+	ticket, err := service.CreateTicket(ctx, admin, tracker.CreateTicketInput{ProjectID: project.ID, Title: "Sprint ticket", Priority: ticketPriority, Type: ticketType, ParentTicketID: epic.ID, ComponentID: component.ID, VersionID: version.ID, Labels: ticketLabels})
 	if err != nil {
 		t.Fatalf("create ticket: %v", err)
 	}
@@ -1523,7 +1527,7 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get active sprint report: %v", err)
 	}
-	if activeReport.Scope != tracker.SprintReportScopeCurrent || activeReport.SnapshotAt != nil || activeReport.Progress.Total != 1 || activeReport.Progress.Done != 0 || len(activeReport.Tickets) != 1 || activeReport.Tickets[0].ID != ticket.ID || activeReport.Tickets[0].Priority != ticketPriority || activeReport.Tickets[0].Type != ticketType || activeReport.Tickets[0].ComponentID != component.ID || activeReport.Tickets[0].VersionID != version.ID || !slices.Equal(activeReport.Tickets[0].Labels, expectedTicketLabels) {
+	if activeReport.Scope != tracker.SprintReportScopeCurrent || activeReport.SnapshotAt != nil || activeReport.Progress.Total != 1 || activeReport.Progress.Done != 0 || len(activeReport.Tickets) != 1 || activeReport.Tickets[0].ID != ticket.ID || activeReport.Tickets[0].Priority != ticketPriority || activeReport.Tickets[0].Type != ticketType || activeReport.Tickets[0].ParentTicketID != epic.ID || activeReport.Tickets[0].ComponentID != component.ID || activeReport.Tickets[0].VersionID != version.ID || !slices.Equal(activeReport.Tickets[0].Labels, expectedTicketLabels) {
 		t.Fatalf("unexpected active sprint report: %#v", activeReport)
 	}
 	other, err := service.CreateSprint(ctx, admin, tracker.CreateSprintInput{ProjectID: project.ID, Name: "Sprint 2"})
@@ -1545,7 +1549,7 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get completed sprint report: %v", err)
 	}
-	if completedReport.Scope != tracker.SprintReportScopeSnapshot || completedReport.SnapshotAt == nil || !completedReport.SnapshotAt.Equal(*completed.CompletedAt) || completedReport.Progress.Total != 1 || len(completedReport.Tickets) != 1 || completedReport.Tickets[0].ID != ticket.ID || completedReport.Tickets[0].Priority != ticketPriority || completedReport.Tickets[0].Type != ticketType || completedReport.Tickets[0].ComponentID != component.ID || completedReport.Tickets[0].VersionID != version.ID || !slices.Equal(completedReport.Tickets[0].Labels, expectedTicketLabels) {
+	if completedReport.Scope != tracker.SprintReportScopeSnapshot || completedReport.SnapshotAt == nil || !completedReport.SnapshotAt.Equal(*completed.CompletedAt) || completedReport.Progress.Total != 1 || len(completedReport.Tickets) != 1 || completedReport.Tickets[0].ID != ticket.ID || completedReport.Tickets[0].Priority != ticketPriority || completedReport.Tickets[0].Type != ticketType || completedReport.Tickets[0].ParentTicketID != epic.ID || completedReport.Tickets[0].ComponentID != component.ID || completedReport.Tickets[0].VersionID != version.ID || !slices.Equal(completedReport.Tickets[0].Labels, expectedTicketLabels) {
 		t.Fatalf("unexpected completed sprint report: %#v", completedReport)
 	}
 	removed, err := service.SetTicketSprint(ctx, admin, ticket.ID, "")
@@ -1559,7 +1563,7 @@ func TestSprintLifecycleAndTicketAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get completed sprint report after move: %v", err)
 	}
-	if completedReportAfterMove.Scope != tracker.SprintReportScopeSnapshot || completedReportAfterMove.Progress.Total != 1 || len(completedReportAfterMove.Tickets) != 1 || completedReportAfterMove.Tickets[0].ID != ticket.ID || completedReportAfterMove.Tickets[0].Priority != ticketPriority || completedReportAfterMove.Tickets[0].Type != ticketType || completedReportAfterMove.Tickets[0].ComponentID != component.ID || completedReportAfterMove.Tickets[0].VersionID != version.ID || !slices.Equal(completedReportAfterMove.Tickets[0].Labels, expectedTicketLabels) {
+	if completedReportAfterMove.Scope != tracker.SprintReportScopeSnapshot || completedReportAfterMove.Progress.Total != 1 || len(completedReportAfterMove.Tickets) != 1 || completedReportAfterMove.Tickets[0].ID != ticket.ID || completedReportAfterMove.Tickets[0].Priority != ticketPriority || completedReportAfterMove.Tickets[0].Type != ticketType || completedReportAfterMove.Tickets[0].ParentTicketID != epic.ID || completedReportAfterMove.Tickets[0].ComponentID != component.ID || completedReportAfterMove.Tickets[0].VersionID != version.ID || !slices.Equal(completedReportAfterMove.Tickets[0].Labels, expectedTicketLabels) {
 		t.Fatalf("expected completed report to keep committed scope, got %#v", completedReportAfterMove)
 	}
 

@@ -749,7 +749,8 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 
 	sprintVersionUpdateReq := httptest.NewRequest(http.MethodPatch, "/api/tickets/"+ticket.ID, mustJSON(t, map[string]any{
 		"spec": map[string]any{
-			"version_id": version.ID,
+			"version_id":       version.ID,
+			"parent_ticket_id": epic.ID,
 		},
 	}))
 	addSessionCSRF(sprintVersionUpdateReq, session, csrf)
@@ -759,7 +760,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		t.Fatalf("expected sprint version ticket update status 200, got %d: %s", sprintVersionUpdate.Code, sprintVersionUpdate.Body.String())
 	}
 	versionTicket := decodeTicketResourceAsTracker(t, sprintVersionUpdate.Body.Bytes())
-	if versionTicket.VersionID != version.ID {
+	if versionTicket.VersionID != version.ID || versionTicket.ParentTicketID != epic.ID {
 		t.Fatalf("unexpected sprint version ticket: %#v", versionTicket)
 	}
 
@@ -890,6 +891,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		activeReportBody.Status.Tickets[0].Spec.SprintID != sprint.Metadata.ID ||
 		activeReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		activeReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		activeReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		activeReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		activeReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
 		!slices.Equal(activeReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
@@ -937,6 +939,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		completedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
 		completedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		completedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		completedReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		completedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		completedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
 		!slices.Equal(completedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
@@ -971,6 +974,7 @@ func TestTrackerEndpointsProjectAndTicketFlow(t *testing.T) {
 		committedReportBody.Status.Tickets[0].Metadata.ID != ticket.ID ||
 		committedReportBody.Status.Tickets[0].Spec.Priority != "high" ||
 		committedReportBody.Status.Tickets[0].Spec.Type != "bug" ||
+		committedReportBody.Status.Tickets[0].Spec.ParentTicketID != epic.ID ||
 		committedReportBody.Status.Tickets[0].Spec.ComponentID != component.ID ||
 		committedReportBody.Status.Tickets[0].Spec.VersionID != version.ID ||
 		!slices.Equal(committedReportBody.Status.Tickets[0].Spec.Labels, []string{"api", "backend"}) {
