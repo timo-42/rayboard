@@ -1488,6 +1488,17 @@ func TestVersionTargetHealthSummary(t *testing.T) {
 	}
 }
 
+func TestVersionTimingVarianceSummary(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	cmd := exec.Command("node", "version_timing_variance_summary_node_test.js")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version timing variance summary node test failed: %v\n%s", err, output)
+	}
+}
+
 func TestVersionReportAssigneeWorkloads(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1707,6 +1718,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"versionReleaseHealth",
 		"versionTargetHealthSummaryNode",
 		"versionTargetHealthSummary",
+		"versionTimingVarianceSummaryNode",
+		"versionTimingVarianceSummary",
 		"versionReportHealthDates",
 		"versionReportTimelineNode",
 		"versionReportTimelineItems",
@@ -1799,6 +1812,10 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		"Target-date health",
 		"Scheduled later",
 		"Unscheduled",
+		"Release timing",
+		"Released early",
+		"Released late",
+		"Released without target date",
 		"Add a target date to track release timing",
 		"Release timeline",
 		"released on target",
@@ -1839,6 +1856,8 @@ func TestEmbeddedAppSupportsComponentsVersions(t *testing.T) {
 		".version-report",
 		".version-target-health",
 		".version-target-health-list",
+		".version-timing-variance",
+		".version-timing-variance-list",
 		".version-report-health",
 		".version-report-health-dates",
 		".version-report-timeline",
