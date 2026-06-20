@@ -40,7 +40,9 @@ const {
   backlogReadinessSummary,
   backlogRiskSummary,
   backlogStartDateBreakdown,
-  backlogUpdateFreshness
+  backlogUpdateFreshness,
+  backlogVersionBreakdown,
+  backlogVersionBreakdownLabel
 } = require("./static/app.js");
 
 const tickets = [
@@ -49,6 +51,7 @@ const tickets = [
     priority: "High",
     assignee_id: "",
     component_id: "api",
+    version_id: "v1",
     story_points: null,
     labels: ["backend", "urgent"],
     created_at: "2026-06-18T09:00:00Z",
@@ -61,6 +64,7 @@ const tickets = [
     priority: "Medium",
     assignee_id: "user_1",
     component_id: "api",
+    version_id: "v1",
     story_points: 3,
     labels: ["backend"],
     created_at: "2026-05-25T09:00:00Z",
@@ -73,6 +77,7 @@ const tickets = [
     priority: "Critical",
     assignee_id: "",
     component_id: "ui",
+    version_id: "v2",
     story_points: "",
     labels: [],
     created_at: "2026-04-01T09:00:00Z",
@@ -85,6 +90,7 @@ const tickets = [
     priority: "Low",
     assignee_id: "   ",
     component_id: "",
+    version_id: "",
     story_points: null,
     labels: null,
     created_at: "",
@@ -200,6 +206,44 @@ assert.strictEqual(
   "No component: 0/1 done / 1 unestimated"
 );
 
+assert.deepStrictEqual(backlogVersionBreakdown(tickets), [
+  {
+    id: "v1",
+    label: "v1",
+    count: 2,
+    done: 0,
+    story_points_total: 3,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "v2",
+    label: "v2",
+    count: 1,
+    done: 1,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "",
+    label: "No version",
+    count: 1,
+    done: 0,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  }
+]);
+assert.strictEqual(
+  backlogVersionBreakdownLabel(backlogVersionBreakdown(tickets)[0]),
+  "v1: 0/2 done / 0/3 pts"
+);
+assert.strictEqual(
+  backlogVersionBreakdownLabel(backlogVersionBreakdown(tickets)[2]),
+  "No version: 0/1 done / 1 unestimated"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -241,3 +285,5 @@ assert.deepStrictEqual(backlogLabelBreakdown(null), []);
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems(null), []);
 assert.deepStrictEqual(backlogComponentBreakdown([]), []);
 assert.deepStrictEqual(backlogComponentBreakdown(null), []);
+assert.deepStrictEqual(backlogVersionBreakdown([]), []);
+assert.deepStrictEqual(backlogVersionBreakdown(null), []);
