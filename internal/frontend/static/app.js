@@ -13774,6 +13774,7 @@ function boardSummaryNode(boardTickets, columns) {
     boardComponentBreakdownNode(metrics.components, boardTickets && boardTickets.filtered_by_saved_view),
     boardVersionBreakdownNode(metrics.versions, boardTickets && boardTickets.filtered_by_saved_view),
     boardEpicBreakdownNode(metrics.epics, boardTickets && boardTickets.filtered_by_saved_view),
+    boardSprintBreakdownNode(metrics.sprints, boardTickets && boardTickets.filtered_by_saved_view),
     boardAssigneeWorkloadsNode(metrics.assignee_workloads, boardTickets && boardTickets.filtered_by_saved_view),
     boardReporterBreakdownNode(metrics.reporters, boardTickets && boardTickets.filtered_by_saved_view),
     boardEstimateCoverageNode(metrics.estimate_coverage, boardTickets && boardTickets.filtered_by_saved_view),
@@ -13800,6 +13801,7 @@ function boardSummaryMetrics(boardTickets, columns = []) {
     components: boardComponentBreakdown(boardColumns),
     versions: boardVersionBreakdown(boardColumns),
     epics: boardEpicBreakdown(boardColumns),
+    sprints: boardSprintBreakdown(boardColumns),
     assignee_workloads: boardAssigneeWorkloads(boardColumns),
     reporters: boardReporterBreakdown(boardColumns),
     estimate_coverage: boardEstimateCoverage(boardColumns),
@@ -14148,6 +14150,50 @@ function boardEpicBreakdownNode(items, filtered) {
       ? `${formatStoryPoints(epic.story_points_done)}/${formatStoryPoints(epic.story_points_total)} pts`
       : `${epic.unestimated} unestimated`;
     chip.textContent = `${epic.label}: ${epic.done}/${epic.count} done / ${pointText}`;
+    chips.append(chip);
+  }
+
+  overview.append(label, chips);
+  return overview;
+}
+
+function boardSprintBreakdown(columns) {
+  const tickets = [];
+  for (const column of Array.isArray(columns) ? columns : []) {
+    tickets.push(...(Array.isArray(column && column.tickets) ? column.tickets : []));
+  }
+  return versionReportSprints(tickets).map((sprint) => ({
+    id: sprint.id,
+    label: sprint.name,
+    count: sprint.total,
+    done: sprint.done,
+    story_points_total: sprint.story_points_total,
+    story_points_done: sprint.story_points_done,
+    unestimated: sprint.unestimated
+  }));
+}
+
+function boardSprintBreakdownNode(items, filtered) {
+  const overview = document.createElement("div");
+  overview.className = "board-sprint-breakdown";
+
+  const label = document.createElement("strong");
+  label.textContent = filtered ? "Sprints (filtered saved view)" : "Sprints";
+
+  const chips = document.createElement("div");
+  chips.className = "board-sprint-chips";
+  const sprints = Array.isArray(items) ? items : [];
+  if (!sprints.length) {
+    const chip = document.createElement("span");
+    chip.textContent = "No sprint data";
+    chips.append(chip);
+  }
+  for (const sprint of sprints) {
+    const chip = document.createElement("span");
+    const pointText = sprint.story_points_total > 0
+      ? `${formatStoryPoints(sprint.story_points_done)}/${formatStoryPoints(sprint.story_points_total)} pts`
+      : `${sprint.unestimated} unestimated`;
+    chip.textContent = `${sprint.label}: ${sprint.done}/${sprint.count} done / ${pointText}`;
     chips.append(chip);
   }
 
@@ -17250,6 +17296,7 @@ if (typeof module !== "undefined" && module.exports) {
     boardComponentBreakdown,
     boardVersionBreakdown,
     boardEpicBreakdown,
+    boardSprintBreakdown,
     boardAssigneeWorkloads,
     boardReporterBreakdown,
     boardEstimateCoverage,
