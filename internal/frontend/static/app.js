@@ -7198,6 +7198,79 @@ function versionIssueTypeSummaryItems(summary) {
   }));
 }
 
+function versionLabelSummary(tickets, versionID) {
+  const labels = new Map();
+  let total = 0;
+  for (const ticket of Array.isArray(tickets) ? tickets : []) {
+    if (!ticket || ticket.version_id !== versionID) {
+      continue;
+    }
+    total += 1;
+    const ticketLabels = Array.isArray(ticket.labels) ? ticket.labels.filter(Boolean) : [];
+    if (!ticketLabels.length) {
+      labels.set("No labels", (labels.get("No labels") || 0) + 1);
+      continue;
+    }
+    for (const label of ticketLabels) {
+      labels.set(label, (labels.get(label) || 0) + 1);
+    }
+  }
+  return {
+    total,
+    labels: Array.from(labels.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        if (left.label === "No labels" && right.label !== "No labels") {
+          return 1;
+        }
+        if (right.label === "No labels" && left.label !== "No labels") {
+          return -1;
+        }
+        return left.label.localeCompare(right.label);
+      })
+  };
+}
+
+function versionLabelSummaryNode(summary) {
+  const group = document.createElement("div");
+  group.className = "version-label-summary";
+
+  const label = document.createElement("strong");
+  label.textContent = "Visible ticket labels";
+
+  if (!summary || !summary.total) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "No visible tickets";
+    group.append(label, empty);
+    return group;
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "version-label-chips";
+  for (const item of versionLabelSummaryItems(summary)) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  group.append(label, chips);
+  return group;
+}
+
+function versionLabelSummaryItems(summary) {
+  const data = summary || {};
+  const items = [`total: ${Number(data.total) || 0}`];
+  const labels = Array.isArray(data.labels) ? data.labels : [];
+  return items.concat(labels.slice(0, 4).map((item) => {
+    const label = String(item && item.label || "").trim() || "No labels";
+    return `${label}: ${Number(item && item.count) || 0}`;
+  }));
+}
+
 function versionLifecycleSummary(versions) {
   const summary = {
     total: 0,
@@ -8749,7 +8822,8 @@ function versionNode(version, tickets = state.tickets) {
     meta,
     versionStatusSummaryNode(versionStatusSummary(tickets, version.id)),
     versionPrioritySummaryNode(versionPrioritySummary(tickets, version.id)),
-    versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id))
+    versionIssueTypeSummaryNode(versionIssueTypeSummary(tickets, version.id)),
+    versionLabelSummaryNode(versionLabelSummary(tickets, version.id))
   );
 
   const edit = document.createElement("form");
@@ -18368,6 +18442,8 @@ if (typeof module !== "undefined" && module.exports) {
     versionPrioritySummaryItems,
     versionIssueTypeSummary,
     versionIssueTypeSummaryItems,
+    versionLabelSummary,
+    versionLabelSummaryItems,
     createPageLayoutBuilderFieldItem,
     createPageLayoutBuilderFieldType,
     createPageLayoutBuilderItemKind,
