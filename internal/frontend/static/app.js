@@ -6025,6 +6025,7 @@ function renderRoadmapDependencies() {
   heading.textContent = "Dependencies";
   els.roadmapDependencies.append(heading);
   els.roadmapDependencies.append(roadmapDependencyFormNode());
+  els.roadmapDependencies.append(roadmapDependencyOverviewNode(state.roadmapDependencies));
   if (!state.roadmapDependencies.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
@@ -6038,6 +6039,55 @@ function renderRoadmapDependencies() {
     list.append(roadmapDependencyNode(dependency));
   }
   els.roadmapDependencies.append(list);
+}
+
+function roadmapDependencyOverviewNode(dependencies) {
+  const summary = roadmapDependencyOverviewSummary(dependencies);
+  const section = document.createElement("section");
+  section.className = "roadmap-dependency-overview";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Dependency overview";
+
+  const chips = document.createElement("div");
+  chips.className = "roadmap-dependency-overview-chips";
+  for (const item of [
+    `${summary.total} total`,
+    `${summary.cross_epic} cross-epic`,
+    `${summary.same_epic} same-epic`,
+    `${summary.incomplete} incomplete`
+  ]) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    chips.append(chip);
+  }
+
+  section.append(heading, chips);
+  return section;
+}
+
+function roadmapDependencyOverviewSummary(dependencies) {
+  const list = Array.isArray(dependencies) ? dependencies : [];
+  const summary = {
+    total: list.length,
+    cross_epic: 0,
+    same_epic: 0,
+    incomplete: 0
+  };
+  for (const dependency of list) {
+    const sourceEpicID = dependency.source_epic_id || "";
+    const targetEpicID = dependency.target_epic_id || "";
+    if (sourceEpicID && targetEpicID && sourceEpicID !== targetEpicID) {
+      summary.cross_epic += 1;
+    } else {
+      summary.same_epic += 1;
+    }
+    const link = dependency.link || {};
+    if (!link.id || !link.source || !link.source.id || !link.target || !link.target.id) {
+      summary.incomplete += 1;
+    }
+  }
+  return summary;
 }
 
 function roadmapDependencyNode(dependency) {
