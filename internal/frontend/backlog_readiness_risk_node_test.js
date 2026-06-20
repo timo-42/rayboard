@@ -32,6 +32,8 @@ global.window = {
 const {
   backlogAgeBreakdown,
   backlogAttentionSummary,
+  backlogComponentBreakdown,
+  backlogComponentBreakdownLabel,
   backlogDueDateBreakdown,
   backlogLabelBreakdown,
   backlogLabelBreakdownVisibleItems,
@@ -46,6 +48,7 @@ const tickets = [
     status: "todo",
     priority: "High",
     assignee_id: "",
+    component_id: "api",
     story_points: null,
     labels: ["backend", "urgent"],
     created_at: "2026-06-18T09:00:00Z",
@@ -57,6 +60,7 @@ const tickets = [
     status: "blocked",
     priority: "Medium",
     assignee_id: "user_1",
+    component_id: "api",
     story_points: 3,
     labels: ["backend"],
     created_at: "2026-05-25T09:00:00Z",
@@ -68,6 +72,7 @@ const tickets = [
     status: "done",
     priority: "Critical",
     assignee_id: "",
+    component_id: "ui",
     story_points: "",
     labels: [],
     created_at: "2026-04-01T09:00:00Z",
@@ -79,7 +84,8 @@ const tickets = [
     status: "todo",
     priority: "Low",
     assignee_id: "   ",
-    story_points: "bad",
+    component_id: "",
+    story_points: null,
     labels: null,
     created_at: "",
     start_date: "not-a-date",
@@ -156,6 +162,44 @@ assert.deepStrictEqual(backlogLabelBreakdown(tickets), [
   { label: "No labels", count: 2 }
 ]);
 
+assert.deepStrictEqual(backlogComponentBreakdown(tickets), [
+  {
+    id: "api",
+    label: "api",
+    count: 2,
+    done: 0,
+    story_points_total: 3,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "ui",
+    label: "ui",
+    count: 1,
+    done: 1,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  },
+  {
+    id: "",
+    label: "No component",
+    count: 1,
+    done: 0,
+    story_points_total: 0,
+    story_points_done: 0,
+    unestimated: 1
+  }
+]);
+assert.strictEqual(
+  backlogComponentBreakdownLabel(backlogComponentBreakdown(tickets)[0]),
+  "api: 0/2 done / 0/3 pts"
+);
+assert.strictEqual(
+  backlogComponentBreakdownLabel(backlogComponentBreakdown(tickets)[2]),
+  "No component: 0/1 done / 1 unestimated"
+);
+
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems([
   { label: "label-1", count: 9 },
   { label: "label-2", count: 8 },
@@ -195,3 +239,5 @@ assert.deepStrictEqual(backlogUpdateFreshness(null, "2026-06-20"), []);
 assert.deepStrictEqual(backlogLabelBreakdown([]), []);
 assert.deepStrictEqual(backlogLabelBreakdown(null), []);
 assert.deepStrictEqual(backlogLabelBreakdownVisibleItems(null), []);
+assert.deepStrictEqual(backlogComponentBreakdown([]), []);
+assert.deepStrictEqual(backlogComponentBreakdown(null), []);

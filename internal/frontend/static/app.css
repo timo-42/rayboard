@@ -3004,6 +3004,13 @@ p {
   gap: 6px;
 }
 
+.backlog-component-breakdown {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .backlog-status-breakdown {
   grid-column: 1 / -1;
   display: flex;
@@ -3063,6 +3070,17 @@ p {
   border-radius: 999px;
   background: var(--panel-bg);
   color: var(--heading);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  padding: 2px 7px;
+}
+
+.backlog-component-breakdown span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--subtle-bg);
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
   overflow-wrap: anywhere;
